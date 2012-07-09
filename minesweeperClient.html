@@ -8,6 +8,7 @@
 <div>
 <p id="player_name0"></p>
 <canvas id="game0" width="500" height="350"></canvas>
+<button onClick="restart()">Restart</button>
 </div>
 <div>
 <p id="player_name1"></p>
@@ -3860,6 +3861,10 @@ socket.on("lose", function(data) {
 socket.on("win", function(data) {
 	alert("you won :D");
 });
+
+function restart() {
+	socket.emit("restart");
+}
 
 function keyClicked(event) {
 	event = event||window.event;
