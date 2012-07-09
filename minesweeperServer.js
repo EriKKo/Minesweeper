@@ -306,17 +306,22 @@ io.sockets.on("connection", function (socket) {
 	
 	socket.on("player_name", function(data) {
 		games[playerID].playerName = data.name;
-		updateDraw(roomMapping[playerID].players);
+		updateDraw(room.players);
 	});
 	
 	socket.on("right_click", function (data) {
 		games[data.id].handleRightClick(data.r, data.c);
-		updateDraw(roomMapping[playerID].players);
+		updateDraw(room.players);
 	});
 	
 	socket.on("left_click", function(data) {
 		games[data.id].handleLeftClick(data.r, data.c);
-		updateDraw(roomMapping[playerID].players);
+		updateDraw(room.players);
+	});
+	
+	socket.on("restart", function(data) {
+		game.init();
+		updateDraw(room.players);
 	});
 	
 	socket.on("disconnect", function() {
