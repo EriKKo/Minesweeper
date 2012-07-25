@@ -1,0 +1,7 @@
+@CHARSET "ISO-8859-1";
+
+#player_div {display:inline-block; border:1px solid black; padding:25px}
+#all_opponents_div {width:1000px; margin:25px; padding:25px; border:1px ridge gray}
+.opponent_div {display:inline-block;}
+
+div {display:inline-block}
