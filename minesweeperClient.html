@@ -79,7 +79,8 @@ var playerCanvasSquareHeight = playerCanvasHeight / rows;
 
 var id;
  
-var socket = io.connect('http://localhost:81');
+var socket = io.connect('http://213.103.194.74:1337');
+
 socket.on("new_player", function(data) {
 	id = data.id;
 	var name = prompt("Enter nickname:", "Noobie");

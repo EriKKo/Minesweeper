@@ -97,7 +97,7 @@ function updateDraw(players) {
 
 io.set("log level", 1);
 
-app.listen(81);
+app.listen(1337);
 
 function win(playerID) {
 	var room = roomMapping[playerID];
