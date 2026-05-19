@@ -9,66 +9,106 @@
 <body>
 	<header class="topbar">
 		<h1>Multiplayer Minesweeper</h1>
-		<div class="nickname-wrap">
-			<label for="nickname_input">Nickname</label>
-			<input id="nickname_input" type="text" maxlength="24" placeholder="Anonymous">
+		<div id="user_badge" class="user-badge" style="display:none">
+			Playing as <strong id="user_badge_name"></strong>
+			<button id="change_name_button" class="btn btn-ghost" type="button">Change</button>
 		</div>
 	</header>
 
 	<main>
-		<section id="lobby_view" class="view">
+		<section id="name_view" class="view name-view">
+			<div class="name-card">
+				<h2>Welcome</h2>
+				<p class="name-subtitle">Pick a nickname to join the lobby.</p>
+				<form id="name_form" class="name-form">
+					<input id="name_input" type="text" maxlength="24" placeholder="Your nickname" autocomplete="off" autofocus>
+					<button type="submit" class="btn btn-primary">Enter lobby</button>
+				</form>
+				<p id="name_error" class="name-error" style="display:none"></p>
+			</div>
+		</section>
+
+		<section id="lobby_view" class="view" style="display:none">
 			<div class="lobby-actions">
 				<button id="create_room_button" class="btn btn-primary">Create new room</button>
 				<button id="refresh_button" class="btn btn-secondary">Refresh</button>
 			</div>
-			<h2 class="section-title">Available rooms</h2>
-			<ul id="room_list" class="room-list">
-				<li class="room-empty">No rooms yet. Create one to get started.</li>
+
+			<h2 class="section-title">Open rooms</h2>
+			<ul id="open_room_list" class="room-list">
+				<li class="room-empty" data-empty-open>No open rooms. Create one to get started.</li>
 			</ul>
+
+			<h2 class="section-title section-title-spaced">In progress</h2>
+			<ul id="busy_room_list" class="room-list">
+				<li class="room-empty" data-empty-busy>No games in progress.</li>
+			</ul>
+
 			<p id="lobby_message" class="lobby-message" style="display:none"></p>
 		</section>
 
-		<section id="game_view" class="view" style="display:none">
+		<section id="game_view" class="view game-view" style="display:none">
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Back to lobby</button>
-				<span id="player_message_label" class="game-status"></span>
-			</div>
-			<div id="player_div" class="player-board">
-				<p id="player_name0" class="player-name"></p>
-				<canvas id="game0" width="500" height="350"></canvas>
-				<div class="player-controls">
-					<button id="ready_button" class="btn btn-primary" onClick="ready()">Ready</button>
-					<button id="restart_button" class="btn btn-secondary" style="display:none" onClick="restart()">Restart</button>
+				<div class="game-progress">
+					<span id="game_progress_text"></span>
+					<span id="player_message_label" class="game-status"></span>
 				</div>
 			</div>
-			<div id="all_opponents_div" class="opponents">
-				<div class="opponent_div" data-slot>
-					<p id="player_name1" class="player-name"></p>
-					<canvas id="game1" width="250" height="175"></canvas>
+			<div class="game-grid">
+				<div class="game-left">
+					<div id="player_div" class="player-board">
+						<p id="player_name0" class="player-name"></p>
+						<canvas id="game0" width="500" height="350"></canvas>
+						<div class="player-controls">
+							<button id="ready_button" class="btn btn-primary">Ready</button>
+							<span id="ready_status" class="ready-status"></span>
+						</div>
+					</div>
+					<div id="all_opponents_div" class="opponents">
+						<div class="opponent_div" data-slot>
+							<p id="player_name1" class="player-name"></p>
+							<canvas id="game1" width="250" height="175"></canvas>
+						</div>
+						<div class="opponent_div" data-slot>
+							<p id="player_name2" class="player-name"></p>
+							<canvas id="game2" width="250" height="175"></canvas>
+						</div>
+						<div class="opponent_div" data-slot>
+							<p id="player_name3" class="player-name"></p>
+							<canvas id="game3" width="250" height="175"></canvas>
+						</div>
+						<div class="opponent_div" data-slot>
+							<p id="player_name4" class="player-name"></p>
+							<canvas id="game4" width="250" height="175"></canvas>
+						</div>
+						<div class="opponent_div" data-slot>
+							<p id="player_name5" class="player-name"></p>
+							<canvas id="game5" width="250" height="175"></canvas>
+						</div>
+					</div>
 				</div>
-				<div class="opponent_div" data-slot>
-					<p id="player_name2" class="player-name"></p>
-					<canvas id="game2" width="250" height="175"></canvas>
-				</div>
-				<div class="opponent_div" data-slot>
-					<p id="player_name3" class="player-name"></p>
-					<canvas id="game3" width="250" height="175"></canvas>
-				</div>
-				<div class="opponent_div" data-slot>
-					<p id="player_name4" class="player-name"></p>
-					<canvas id="game4" width="250" height="175"></canvas>
-				</div>
-				<div class="opponent_div" data-slot>
-					<p id="player_name5" class="player-name"></p>
-					<canvas id="game5" width="250" height="175"></canvas>
-				</div>
+				<aside class="game-side">
+					<div class="side-card">
+						<h3 class="side-title">Series</h3>
+						<div class="series-config">
+							<label for="game_count_select" class="series-config-label">Games in series</label>
+							<select id="game_count_select" disabled></select>
+							<div id="game_count_readonly" class="series-config-readonly"></div>
+						</div>
+						<div id="series_status" class="series-status"></div>
+					</div>
+					<div class="side-card">
+						<h3 class="side-title">Scoreboard</h3>
+						<ol id="scoreboard" class="scoreboard"></ol>
+					</div>
+				</aside>
 			</div>
 		</section>
 	</main>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-var COLOR_COUNT_DOWN_START = "#94a3b8";
 var COUNT_DOWN_COLORS = ["#facc15", "#fb923c", "#f87171"];
 var COLOR_GO_MESSAGE = "#22c55e";
 var COLOR_WINNER = "#22c55e";
@@ -97,27 +137,59 @@ var playerCanvasWidth = playerCanvas.width;
 var playerCanvasSquareWidth = playerCanvasWidth / cols;
 var playerCanvasSquareHeight = playerCanvasHeight / rows;
 
-playerCanvas.onclick = keyClicked;
+playerCanvas.onclick = boardClicked;
 playerCanvas.oncontextmenu = function(event) {
-	keyClicked(event);
+	boardClicked(event);
 	return false;
 };
 
 var id;
+var myName = "";
+var currentRoom = null;
 var inRoom = false;
 
 var socket = io({ transports: ["websocket"] });
 
+var nameView = document.getElementById("name_view");
 var lobbyView = document.getElementById("lobby_view");
 var gameView = document.getElementById("game_view");
-var roomList = document.getElementById("room_list");
+var openRoomList = document.getElementById("open_room_list");
+var busyRoomList = document.getElementById("busy_room_list");
 var lobbyMessage = document.getElementById("lobby_message");
-var nicknameInput = document.getElementById("nickname_input");
+var nameForm = document.getElementById("name_form");
+var nameInput = document.getElementById("name_input");
+var nameError = document.getElementById("name_error");
+var userBadge = document.getElementById("user_badge");
+var userBadgeName = document.getElementById("user_badge_name");
+var changeNameButton = document.getElementById("change_name_button");
 var messageLabel = document.getElementById("player_message_label");
+var gameProgressText = document.getElementById("game_progress_text");
 var readyButton = document.getElementById("ready_button");
+var readyStatus = document.getElementById("ready_status");
+var gameCountSelect = document.getElementById("game_count_select");
+var gameCountReadonly = document.getElementById("game_count_readonly");
+var seriesStatus = document.getElementById("series_status");
+var scoreboardEl = document.getElementById("scoreboard");
+
+nameForm.addEventListener("submit", function(e) {
+	e.preventDefault();
+	var name = (nameInput.value || "").trim();
+	if (!name) {
+		showNameError("Please enter a nickname.");
+		return;
+	}
+	socket.emit("set_name", { name: name });
+});
+
+changeNameButton.addEventListener("click", function() {
+	if (inRoom) {
+		socket.emit("leave_room");
+	}
+	nameInput.value = myName;
+	showNameView();
+});
 
 document.getElementById("create_room_button").addEventListener("click", function() {
-	sendNameIfChanged();
 	socket.emit("create_room");
 });
 
@@ -129,20 +201,27 @@ document.getElementById("leave_button").addEventListener("click", function() {
 	socket.emit("leave_room");
 });
 
-var lastSentName = "";
-nicknameInput.addEventListener("change", sendNameIfChanged);
-nicknameInput.addEventListener("blur", sendNameIfChanged);
+readyButton.addEventListener("click", function() {
+	socket.emit("player_ready");
+});
 
-function sendNameIfChanged() {
-	var name = (nicknameInput.value || "").trim();
-	if (name !== lastSentName) {
-		lastSentName = name;
-		socket.emit("set_name", { name: name });
-	}
-}
+gameCountSelect.addEventListener("change", function() {
+	socket.emit("set_game_count", { count: parseInt(gameCountSelect.value, 10) });
+});
 
 socket.on("connected", function(data) {
 	id = data.id;
+});
+
+socket.on("name_rejected", function(data) {
+	showNameError((data && data.reason) || "That name was not accepted.");
+});
+
+socket.on("name_accepted", function(data) {
+	myName = data.name;
+	userBadgeName.textContent = myName;
+	userBadge.style.display = "";
+	if (!inRoom) showLobbyView();
 });
 
 socket.on("room_list", function(data) {
@@ -152,11 +231,12 @@ socket.on("room_list", function(data) {
 socket.on("joined_room", function() {
 	inRoom = true;
 	showGameView();
-	resetGameState();
+	resetGameUI();
 });
 
 socket.on("left_room", function() {
 	inRoom = false;
+	currentRoom = null;
 	showLobbyView();
 });
 
@@ -164,12 +244,45 @@ socket.on("join_failed", function(data) {
 	showLobbyMessage(data && data.reason ? data.reason : "Couldn't join room");
 });
 
+socket.on("room_state", function(state) {
+	currentRoom = state;
+	renderRoomState(state);
+});
+
 socket.on("start_game", function(data) {
 	hideReadyButton();
+	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
 
-socket.on("game_ended", gameEnded);
+socket.on("game_result", function(data) {
+	var text;
+	if (!data.winnerId) {
+		text = "Round " + data.gameNumber + " ended";
+	} else if (data.winnerId === id) {
+		text = "You won round " + data.gameNumber;
+	} else {
+		text = data.winnerName + " won round " + data.gameNumber;
+	}
+	showMessage(text, data.winnerId === id ? COLOR_WINNER : COLOR_LOSER);
+});
+
+socket.on("you_died", function() {
+	showMessage("You hit a mine", COLOR_LOSER);
+});
+
+socket.on("series_ended", function(data) {
+	var text;
+	if (!data.winnerId) {
+		text = "Series tied!";
+	} else if (data.winnerId === id) {
+		text = "You win the series! 🏆";
+	} else {
+		text = data.winnerName + " wins the series!";
+	}
+	showMessage(text, data.winnerId === id ? COLOR_WINNER : COLOR_LOSER);
+	gameProgressText.textContent = "";
+});
 
 socket.on("draw_board", function(data) {
 	var games = data.games;
@@ -190,23 +303,30 @@ socket.on("draw_board", function(data) {
 	}
 });
 
-socket.on("lose", function() {
-	showMessage("YOU LOSE", COLOR_LOSER);
-});
-
-socket.on("win", function() {
-	showMessage("YOU WIN", COLOR_WINNER);
-});
+function showNameView() {
+	nameView.style.display = "";
+	lobbyView.style.display = "none";
+	gameView.style.display = "none";
+	nameError.style.display = "none";
+	setTimeout(function() { nameInput.focus(); }, 0);
+}
 
 function showLobbyView() {
+	nameView.style.display = "none";
 	lobbyView.style.display = "";
 	gameView.style.display = "none";
 	lobbyMessage.style.display = "none";
 }
 
 function showGameView() {
+	nameView.style.display = "none";
 	lobbyView.style.display = "none";
 	gameView.style.display = "";
+}
+
+function showNameError(text) {
+	nameError.textContent = text;
+	nameError.style.display = "";
 }
 
 function showLobbyMessage(text) {
@@ -217,17 +337,17 @@ function showLobbyMessage(text) {
 	}, 4000);
 }
 
-function resetGameState() {
+function resetGameUI() {
 	readyButton.style.display = "";
-	document.getElementById("restart_button").style.display = "none";
 	messageLabel.style.display = "none";
 	messageLabel.textContent = "";
-	var slots = document.querySelectorAll('[data-slot]');
+	gameProgressText.textContent = "";
 	for (var i = 0; i < 6; i++) {
 		document.getElementById("player_name" + i).textContent = "";
 		clearCanvas(document.getElementById("game" + i));
-		if (i > 0) slots[i - 1].style.display = "none";
 	}
+	var slots = document.querySelectorAll('[data-slot]');
+	for (var j = 0; j < slots.length; j++) slots[j].style.display = "none";
 }
 
 function clearCanvas(canvas) {
@@ -240,59 +360,153 @@ function hideReadyButton() {
 }
 
 function renderRoomList(rooms) {
-	roomList.innerHTML = "";
-	if (rooms.length === 0) {
-		var li = document.createElement("li");
-		li.className = "room-empty";
-		li.textContent = "No rooms yet. Create one to get started.";
-		roomList.appendChild(li);
-		return;
+	var openRooms = rooms.filter(function(r) { return r.phase === "planning"; });
+	var busyRooms = rooms.filter(function(r) { return r.phase !== "planning"; });
+
+	openRoomList.innerHTML = "";
+	if (openRooms.length === 0) {
+		openRoomList.appendChild(emptyRow("No open rooms. Create one to get started."));
+	} else {
+		openRooms.forEach(function(r) { openRoomList.appendChild(roomRow(r, true)); });
 	}
-	rooms.forEach(function(room) {
-		var li = document.createElement("li");
-		li.className = "room-row";
 
-		var info = document.createElement("div");
-		info.className = "room-info";
+	busyRoomList.innerHTML = "";
+	if (busyRooms.length === 0) {
+		busyRoomList.appendChild(emptyRow("No games in progress."));
+	} else {
+		busyRooms.forEach(function(r) { busyRoomList.appendChild(roomRow(r, false)); });
+	}
+}
 
-		var title = document.createElement("div");
-		title.className = "room-title";
-		title.textContent = "Room " + room.id;
-		info.appendChild(title);
+function emptyRow(text) {
+	var li = document.createElement("li");
+	li.className = "room-empty";
+	li.textContent = text;
+	return li;
+}
 
-		var meta = document.createElement("div");
-		meta.className = "room-meta";
-		var status = room.playing ? "In game" : "Waiting";
-		meta.textContent = room.playerCount + "/" + room.maxPlayers + " · " + status + " · " + (room.players || []).join(", ");
-		info.appendChild(meta);
+function roomRow(room, joinable) {
+	var li = document.createElement("li");
+	li.className = "room-row";
 
-		li.appendChild(info);
+	var info = document.createElement("div");
+	info.className = "room-info";
 
+	var title = document.createElement("div");
+	title.className = "room-title";
+	title.textContent = room.ownerName + "'s room";
+	info.appendChild(title);
+
+	var meta = document.createElement("div");
+	meta.className = "room-meta";
+	var statusText;
+	if (room.phase === "planning") {
+		statusText = "Best of " + room.gameCount;
+	} else {
+		statusText = "Game " + room.gamesPlayed + " of " + room.gameCount;
+	}
+	meta.textContent = room.playerCount + "/" + room.maxPlayers + " · " + statusText + " · " + room.players.join(", ");
+	info.appendChild(meta);
+
+	li.appendChild(info);
+
+	if (joinable) {
 		var joinBtn = document.createElement("button");
 		joinBtn.className = "btn btn-secondary";
 		joinBtn.textContent = "Join";
-		joinBtn.disabled = room.playing || room.playerCount >= room.maxPlayers;
+		joinBtn.disabled = room.playerCount >= room.maxPlayers;
 		joinBtn.addEventListener("click", function() {
-			sendNameIfChanged();
 			socket.emit("join_room", { roomId: room.id });
 		});
 		li.appendChild(joinBtn);
+	} else {
+		var badge = document.createElement("span");
+		badge.className = "room-badge";
+		badge.textContent = "In game";
+		li.appendChild(badge);
+	}
 
-		roomList.appendChild(li);
+	return li;
+}
+
+function renderRoomState(state) {
+	var isOwner = state.owner === id;
+	if (gameCountSelect.options.length === 0) {
+		state.gameCountOptions.forEach(function(n) {
+			var opt = document.createElement("option");
+			opt.value = String(n);
+			opt.textContent = String(n);
+			gameCountSelect.appendChild(opt);
+		});
+	}
+	gameCountSelect.value = String(state.gameCount);
+	gameCountSelect.disabled = !(isOwner && state.phase === "planning");
+	gameCountSelect.style.display = isOwner ? "" : "none";
+	gameCountReadonly.style.display = isOwner ? "none" : "";
+	gameCountReadonly.textContent = "Best of " + state.gameCount;
+
+	scoreboardEl.innerHTML = "";
+	var ranked = state.players.slice().sort(function(a, b) { return b.score - a.score; });
+	ranked.forEach(function(p, idx) {
+		var li = document.createElement("li");
+		li.className = "score-row";
+		if (p.id === id) li.classList.add("score-row-me");
+
+		var rank = document.createElement("span");
+		rank.className = "score-rank";
+		rank.textContent = (idx + 1) + ".";
+		li.appendChild(rank);
+
+		var name = document.createElement("span");
+		name.className = "score-name";
+		name.textContent = p.name + (p.isOwner ? " ★" : "");
+		li.appendChild(name);
+
+		var meta = document.createElement("span");
+		meta.className = "score-meta";
+		if (state.phase === "planning") {
+			meta.textContent = p.ready ? "Ready" : "Waiting";
+			meta.classList.add(p.ready ? "score-meta-ready" : "score-meta-waiting");
+		} else {
+			meta.textContent = p.id === id ? "you" : "";
+		}
+		li.appendChild(meta);
+
+		var score = document.createElement("span");
+		score.className = "score-points";
+		score.textContent = p.score;
+		li.appendChild(score);
+
+		scoreboardEl.appendChild(li);
 	});
-}
 
-function ready() {
-	hideReadyButton();
-	socket.emit("player_ready");
-}
+	var ownName = (state.players.find(function(p) { return p.id === id; }) || {}).name || myName;
+	document.getElementById("player_name0").textContent = ownName;
+	document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
 
-function gameEnded() {
-	readyButton.style.display = "";
-}
-
-function restart() {
-	socket.emit("restart");
+	if (state.phase === "planning") {
+		if (state.gamesPlayed === 0 && !state.seriesWinner) {
+			seriesStatus.textContent = state.players.length < 2
+				? "Waiting for more players to join…"
+				: "Click Ready when you're set.";
+		} else {
+			seriesStatus.textContent = "Next series starts when everyone clicks Ready.";
+		}
+		var me = state.players.find(function(p) { return p.id === id; });
+		var iAmReady = me && me.ready;
+		readyButton.style.display = iAmReady ? "none" : "";
+		readyButton.disabled = state.players.length < 2;
+		readyStatus.textContent = iAmReady ? "Waiting for others…" : "";
+		gameProgressText.textContent = "";
+		clearCanvas(playerCanvas);
+	} else {
+		seriesStatus.textContent = "Game " + (state.gamesPlayed >= state.gameCount ? state.gameCount : (state.gamesPlayed + 1)) + " of " + state.gameCount;
+		readyButton.style.display = "none";
+		readyStatus.textContent = "";
+		if (!gameProgressText.textContent) {
+			gameProgressText.textContent = "Game " + Math.min(state.gamesPlayed + 1, state.gameCount) + " of " + state.gameCount;
+		}
+	}
 }
 
 function showMessage(text, color) {
@@ -307,27 +521,25 @@ function countDown(time) {
 }
 
 function countDownStep(number) {
-	var color;
-	var text;
 	if (number <= 0) {
-		color = COLOR_GO_MESSAGE;
-		text = "GO";
-		messageLabel.style.color = color;
-		messageLabel.textContent = text;
+		messageLabel.style.color = COLOR_GO_MESSAGE;
+		messageLabel.textContent = "GO";
+		setTimeout(function() {
+			if (messageLabel.textContent === "GO") {
+				messageLabel.style.display = "none";
+				messageLabel.textContent = "";
+			}
+		}, 800);
 		return;
 	}
-	if (number <= COUNT_DOWN_COLORS.length) {
-		color = COUNT_DOWN_COLORS[number-1];
-	} else {
-		color = COLOR_COUNT_DOWN_START;
-	}
+	var color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
 	messageLabel.style.color = color;
 	messageLabel.textContent = number;
 	setTimeout(function() { countDownStep(number - 1); }, 1000);
 }
 
-function keyClicked(event) {
-	if (!inRoom) return;
+function boardClicked(event) {
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
 	event = event || window.event;
 	var rect = playerCanvas.getBoundingClientRect();
 	var x = event.clientX - rect.left;
@@ -349,13 +561,8 @@ function isLeftClick(e) {
 	return (e.which ? (e.which == 1) : (e.button ? (e.button == 0) : false));
 }
 
-function getRow(y) {
-	return Math.floor(y / playerCanvasSquareHeight);
-}
-
-function getCol(x) {
-	return Math.floor(x / playerCanvasSquareWidth);
-}
+function getRow(y) { return Math.floor(y / playerCanvasSquareHeight); }
+function getCol(x) { return Math.floor(x / playerCanvasSquareWidth); }
 
 function getText(r, c, board) {
 	return board[r][c] == MINE ? "X" : board[r][c] != 0 ? board[r][c] : "";
@@ -375,11 +582,7 @@ function drawSquare(r, c, board, state, canvas) {
 	ctx.fillStyle = state[r][c] == KNOWN ? COLOR_KNOWN : state[r][c] == FLAGGED ? COLOR_FLAGGED : COLOR_UNKNOWN;
 	ctx.fillRect(c*squareWidth+border, r*squareHeight+border, squareWidth - 2*border, squareHeight - 2*border);
 	if (state[r][c] == KNOWN) {
-		if (board[r][c] != MINE) {
-			ctx.fillStyle = COLOR_NUMBER;
-		} else {
-			ctx.fillStyle = COLOR_MINE;
-		}
+		ctx.fillStyle = board[r][c] != MINE ? COLOR_NUMBER : COLOR_MINE;
 		ctx.font = "bold " + Math.floor(0.7*squareHeight) + "px " + NUMBER_FONT;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
