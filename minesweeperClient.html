@@ -681,8 +681,10 @@ function boardClicked(event) {
 	if (Date.now() < frozenUntil) return;
 	event = event || window.event;
 	var rect = playerCanvas.getBoundingClientRect();
-	var x = event.clientX - rect.left;
-	var y = event.clientY - rect.top;
+	var scaleX = playerCanvas.width / rect.width;
+	var scaleY = playerCanvas.height / rect.height;
+	var x = (event.clientX - rect.left) * scaleX;
+	var y = (event.clientY - rect.top) * scaleY;
 	var c = getCol(x);
 	var r = getRow(y);
 	if (isLeftClick(event)) {
