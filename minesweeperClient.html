@@ -52,14 +52,17 @@
 				<button id="leave_button" class="btn btn-ghost">← Back to lobby</button>
 				<div class="game-progress">
 					<span id="game_progress_text"></span>
-					<span id="player_message_label" class="game-status"></span>
+					<span id="round_timer" class="round-timer"></span>
 				</div>
 			</div>
 			<div class="game-grid">
 				<div class="game-left">
 					<div id="player_div" class="player-board">
 						<p id="player_name0" class="player-name"></p>
-						<canvas id="game0" width="500" height="350"></canvas>
+						<div class="board-wrap">
+							<canvas id="game0" width="500" height="350"></canvas>
+							<div id="board_overlay" class="board-overlay" style="display:none"></div>
+						</div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
 							<span id="ready_status" class="ready-status"></span>
@@ -92,9 +95,19 @@
 					<div class="side-card">
 						<h3 class="side-title">Series</h3>
 						<div class="series-config">
-							<label for="game_count_select" class="series-config-label">Games in series</label>
+							<span class="series-config-label">Games</span>
 							<select id="game_count_select" disabled></select>
-							<div id="game_count_readonly" class="series-config-readonly"></div>
+							<span id="game_count_readonly" class="series-config-readonly"></span>
+						</div>
+						<div class="series-config">
+							<span class="series-config-label">Round time</span>
+							<select id="round_seconds_select" disabled></select>
+							<span id="round_seconds_readonly" class="series-config-readonly"></span>
+						</div>
+						<div class="series-config">
+							<span class="series-config-label">Mine penalty</span>
+							<select id="death_penalty_select" disabled></select>
+							<span id="death_penalty_readonly" class="series-config-readonly"></span>
 						</div>
 						<div id="series_status" class="series-status"></div>
 					</div>
@@ -162,14 +175,24 @@ var nameError = document.getElementById("name_error");
 var userBadge = document.getElementById("user_badge");
 var userBadgeName = document.getElementById("user_badge_name");
 var changeNameButton = document.getElementById("change_name_button");
-var messageLabel = document.getElementById("player_message_label");
+var boardOverlay = document.getElementById("board_overlay");
+var roundTimer = document.getElementById("round_timer");
 var gameProgressText = document.getElementById("game_progress_text");
 var readyButton = document.getElementById("ready_button");
 var readyStatus = document.getElementById("ready_status");
 var gameCountSelect = document.getElementById("game_count_select");
 var gameCountReadonly = document.getElementById("game_count_readonly");
+var roundSecondsSelect = document.getElementById("round_seconds_select");
+var roundSecondsReadonly = document.getElementById("round_seconds_readonly");
+var deathPenaltySelect = document.getElementById("death_penalty_select");
+var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
 var seriesStatus = document.getElementById("series_status");
 var scoreboardEl = document.getElementById("scoreboard");
+
+var frozenUntil = 0;
+var freezeTickHandle = null;
+var roundDeadline = null;
+var roundTickHandle = null;
 
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
@@ -208,6 +231,29 @@ readyButton.addEventListener("click", function() {
 gameCountSelect.addEventListener("change", function() {
 	socket.emit("set_game_count", { count: parseInt(gameCountSelect.value, 10) });
 });
+
+roundSecondsSelect.addEventListener("change", function() {
+	socket.emit("set_round_seconds", { seconds: parseInt(roundSecondsSelect.value, 10) });
+});
+
+deathPenaltySelect.addEventListener("change", function() {
+	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
+});
+
+function formatRoundTime(s) {
+	if (s <= 0) return "0:00";
+	var m = Math.floor(s / 60);
+	var sec = s % 60;
+	return m + ":" + (sec < 10 ? "0" : "") + sec;
+}
+
+function formatRoundOption(s) {
+	return s === 0 ? "Unlimited" : (s % 60 === 0 ? (s/60) + " min" : s + "s");
+}
+
+function formatPenaltyOption(s) {
+	return s === 0 ? "None" : s + "s";
+}
 
 socket.on("connected", function(data) {
 	id = data.id;
@@ -251,6 +297,7 @@ socket.on("room_state", function(state) {
 
 socket.on("start_game", function(data) {
 	hideReadyButton();
+	clearFreeze();
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
@@ -258,17 +305,20 @@ socket.on("start_game", function(data) {
 socket.on("game_result", function(data) {
 	var text;
 	if (!data.winnerId) {
-		text = "Round " + data.gameNumber + " ended";
+		text = data.reason === "timeout" ? "Time's up — tied" : "Round " + data.gameNumber + " ended";
 	} else if (data.winnerId === id) {
-		text = "You won round " + data.gameNumber;
+		text = data.reason === "timeout" ? "Time's up — you led" : "You cleared the board!";
 	} else {
-		text = data.winnerName + " won round " + data.gameNumber;
+		text = (data.reason === "timeout" ? "Time's up — " : "") + data.winnerName + " won round " + data.gameNumber;
 	}
-	showMessage(text, data.winnerId === id ? COLOR_WINNER : COLOR_LOSER);
+	showOverlay(text, data.winnerId === id ? "win" : "lose");
+	clearFreeze();
+	stopRoundTimer();
 });
 
-socket.on("you_died", function() {
-	showMessage("You hit a mine", COLOR_LOSER);
+socket.on("mine_hit", function(data) {
+	frozenUntil = data.frozenUntil;
+	startFreezeTick();
 });
 
 socket.on("series_ended", function(data) {
@@ -276,12 +326,13 @@ socket.on("series_ended", function(data) {
 	if (!data.winnerId) {
 		text = "Series tied!";
 	} else if (data.winnerId === id) {
-		text = "You win the series! 🏆";
+		text = "You win the series 🏆";
 	} else {
 		text = data.winnerName + " wins the series!";
 	}
-	showMessage(text, data.winnerId === id ? COLOR_WINNER : COLOR_LOSER);
+	showOverlay(text, data.winnerId === id ? "win" : "lose", 5000);
 	gameProgressText.textContent = "";
+	stopRoundTimer();
 });
 
 socket.on("draw_board", function(data) {
@@ -339,15 +390,87 @@ function showLobbyMessage(text) {
 
 function resetGameUI() {
 	readyButton.style.display = "";
-	messageLabel.style.display = "none";
-	messageLabel.textContent = "";
+	hideOverlay();
+	clearFreeze();
+	stopRoundTimer();
 	gameProgressText.textContent = "";
+	roundTimer.textContent = "";
 	for (var i = 0; i < 6; i++) {
 		document.getElementById("player_name" + i).textContent = "";
 		clearCanvas(document.getElementById("game" + i));
 	}
 	var slots = document.querySelectorAll('[data-slot]');
 	for (var j = 0; j < slots.length; j++) slots[j].style.display = "none";
+}
+
+function showOverlay(text, kind, autoHideMs) {
+	boardOverlay.style.display = "";
+	boardOverlay.textContent = text;
+	boardOverlay.className = "board-overlay" + (kind ? " board-overlay-" + kind : "");
+	if (autoHideMs) {
+		setTimeout(function() {
+			if (boardOverlay.textContent === text) hideOverlay();
+		}, autoHideMs);
+	}
+}
+
+function hideOverlay() {
+	boardOverlay.style.display = "none";
+	boardOverlay.textContent = "";
+	boardOverlay.className = "board-overlay";
+}
+
+function startFreezeTick() {
+	clearFreezeTick();
+	freezeTickHandle = setInterval(updateFreezeOverlay, 100);
+	updateFreezeOverlay();
+}
+
+function clearFreezeTick() {
+	if (freezeTickHandle) {
+		clearInterval(freezeTickHandle);
+		freezeTickHandle = null;
+	}
+}
+
+function clearFreeze() {
+	frozenUntil = 0;
+	clearFreezeTick();
+	if (boardOverlay.className.indexOf("board-overlay-frozen") !== -1) hideOverlay();
+}
+
+function updateFreezeOverlay() {
+	var remaining = Math.max(0, frozenUntil - Date.now());
+	if (remaining <= 0) {
+		clearFreezeTick();
+		if (boardOverlay.className.indexOf("board-overlay-frozen") !== -1) hideOverlay();
+		return;
+	}
+	var s = Math.ceil(remaining / 1000);
+	showOverlay("💥 " + s, "frozen");
+}
+
+function startRoundTimer(deadline) {
+	stopRoundTimer();
+	roundDeadline = deadline;
+	if (!deadline) return;
+	roundTickHandle = setInterval(updateRoundTimer, 500);
+	updateRoundTimer();
+}
+
+function stopRoundTimer() {
+	if (roundTickHandle) { clearInterval(roundTickHandle); roundTickHandle = null; }
+	roundDeadline = null;
+	roundTimer.textContent = "";
+	roundTimer.classList.remove("round-timer-urgent");
+}
+
+function updateRoundTimer() {
+	if (!roundDeadline) return;
+	var remaining = Math.max(0, Math.round((roundDeadline - Date.now()) / 1000));
+	roundTimer.textContent = "⏱ " + formatRoundTime(remaining);
+	roundTimer.classList.toggle("round-timer-urgent", remaining <= 10 && remaining > 0);
+	if (remaining <= 0) { clearInterval(roundTickHandle); roundTickHandle = null; }
 }
 
 function clearCanvas(canvas) {
@@ -431,19 +554,35 @@ function roomRow(room, joinable) {
 
 function renderRoomState(state) {
 	var isOwner = state.owner === id;
-	if (gameCountSelect.options.length === 0) {
-		state.gameCountOptions.forEach(function(n) {
-			var opt = document.createElement("option");
-			opt.value = String(n);
-			opt.textContent = String(n);
-			gameCountSelect.appendChild(opt);
-		});
-	}
+	populateSelect(gameCountSelect, state.gameCountOptions, function(n) { return String(n); });
+	populateSelect(roundSecondsSelect, state.roundSecondsOptions, formatRoundOption);
+	populateSelect(deathPenaltySelect, state.deathPenaltyOptions, formatPenaltyOption);
+
 	gameCountSelect.value = String(state.gameCount);
-	gameCountSelect.disabled = !(isOwner && state.phase === "planning");
+	roundSecondsSelect.value = String(state.roundSeconds);
+	deathPenaltySelect.value = String(state.deathPenalty);
+
+	var canEdit = isOwner && state.phase === "planning";
+	gameCountSelect.disabled = !canEdit;
+	roundSecondsSelect.disabled = !canEdit;
+	deathPenaltySelect.disabled = !canEdit;
 	gameCountSelect.style.display = isOwner ? "" : "none";
+	roundSecondsSelect.style.display = isOwner ? "" : "none";
+	deathPenaltySelect.style.display = isOwner ? "" : "none";
 	gameCountReadonly.style.display = isOwner ? "none" : "";
+	roundSecondsReadonly.style.display = isOwner ? "none" : "";
+	deathPenaltyReadonly.style.display = isOwner ? "none" : "";
 	gameCountReadonly.textContent = "Best of " + state.gameCount;
+	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
+	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
+
+	if (state.phase === "playing" && state.roundDeadline) {
+		if (!roundDeadline || roundDeadline !== state.roundDeadline) {
+			startRoundTimer(state.roundDeadline);
+		}
+	} else {
+		stopRoundTimer();
+	}
 
 	scoreboardEl.innerHTML = "";
 	var ranked = state.players.slice().sort(function(a, b) { return b.score - a.score; });
@@ -509,37 +648,37 @@ function renderRoomState(state) {
 	}
 }
 
-function showMessage(text, color) {
-	messageLabel.style.display = "";
-	messageLabel.style.color = color;
-	messageLabel.textContent = text;
+function populateSelect(select, options, fmt) {
+	if (select.options.length === options.length) return;
+	select.innerHTML = "";
+	options.forEach(function(v) {
+		var opt = document.createElement("option");
+		opt.value = String(v);
+		opt.textContent = fmt(v);
+		select.appendChild(opt);
+	});
 }
 
 function countDown(time) {
-	messageLabel.style.display = "";
 	countDownStep(time);
 }
 
 function countDownStep(number) {
 	if (number <= 0) {
-		messageLabel.style.color = COLOR_GO_MESSAGE;
-		messageLabel.textContent = "GO";
+		showOverlay("GO", "go");
 		setTimeout(function() {
-			if (messageLabel.textContent === "GO") {
-				messageLabel.style.display = "none";
-				messageLabel.textContent = "";
-			}
-		}, 800);
+			if (boardOverlay.textContent === "GO") hideOverlay();
+		}, 700);
 		return;
 	}
-	var color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
-	messageLabel.style.color = color;
-	messageLabel.textContent = number;
+	showOverlay(String(number), "count");
+	boardOverlay.style.color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
 	setTimeout(function() { countDownStep(number - 1); }, 1000);
 }
 
 function boardClicked(event) {
 	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (Date.now() < frozenUntil) return;
 	event = event || window.event;
 	var rect = playerCanvas.getBoundingClientRect();
 	var x = event.clientX - rect.left;

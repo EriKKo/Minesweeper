@@ -1,6 +1,10 @@
 var PLAYERS_PER_ROOM = 6;
 var DEFAULT_GAME_COUNT = 5;
 var GAME_COUNT_OPTIONS = [1, 3, 5, 7, 10];
+var DEFAULT_ROUND_SECONDS = 120;
+var ROUND_SECONDS_OPTIONS = [60, 120, 180, 300, 0]; // 0 = unlimited
+var DEFAULT_DEATH_PENALTY = 5;
+var DEATH_PENALTY_OPTIONS = [0, 3, 5, 10];
 
 function createRoom(id, ownerID) {
 	var players = [];
@@ -15,6 +19,8 @@ function createRoom(id, ownerID) {
 	room.maxPlayers = maxPlayers;
 	room.phase = "planning";
 	room.gameCount = DEFAULT_GAME_COUNT;
+	room.roundSeconds = DEFAULT_ROUND_SECONDS;
+	room.deathPenalty = DEFAULT_DEATH_PENALTY;
 	room.gamesPlayed = 0;
 	room.lastGameWinner = null;
 	room.seriesWinner = null;
@@ -29,11 +35,15 @@ function createRoom(id, ownerID) {
 	room.allReady = allReady;
 	room.isFull = isFull;
 	room.setGameCount = setGameCount;
+	room.setRoundSeconds = setRoundSeconds;
+	room.setDeathPenalty = setDeathPenalty;
 	room.startSeries = startSeries;
 	room.recordGameWin = recordGameWin;
 	room.resetScores = resetScores;
 	room.reassignOwnerIfNeeded = reassignOwnerIfNeeded;
 	room.gameCountOptions = GAME_COUNT_OPTIONS.slice();
+	room.roundSecondsOptions = ROUND_SECONDS_OPTIONS.slice();
+	room.deathPenaltyOptions = DEATH_PENALTY_OPTIONS.slice();
 
 	function addPlayer(playerID) {
 		players.push(playerID);
@@ -91,6 +101,20 @@ function createRoom(id, ownerID) {
 		return true;
 	}
 
+	function setRoundSeconds(seconds) {
+		if (ROUND_SECONDS_OPTIONS.indexOf(seconds) === -1) return false;
+		if (room.phase !== "planning") return false;
+		room.roundSeconds = seconds;
+		return true;
+	}
+
+	function setDeathPenalty(seconds) {
+		if (DEATH_PENALTY_OPTIONS.indexOf(seconds) === -1) return false;
+		if (room.phase !== "planning") return false;
+		room.deathPenalty = seconds;
+		return true;
+	}
+
 	function startSeries() {
 		room.phase = "playing";
 		room.gamesPlayed = 0;
@@ -123,3 +147,5 @@ function createRoom(id, ownerID) {
 
 exports.createRoom = createRoom;
 exports.GAME_COUNT_OPTIONS = GAME_COUNT_OPTIONS;
+exports.ROUND_SECONDS_OPTIONS = ROUND_SECONDS_OPTIONS;
+exports.DEATH_PENALTY_OPTIONS = DEATH_PENALTY_OPTIONS;

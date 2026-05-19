@@ -48,6 +48,8 @@ var nextRoomId = 1;
 var sockets = {};
 var names = {};
 var nextGameTimers = {};
+var roundTimers = {};
+var roundDeadlines = {};
 
 function roomSummary(room) {
 	return {
@@ -58,6 +60,8 @@ function roomSummary(room) {
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
+		roundSeconds: room.roundSeconds,
+		deathPenalty: room.deathPenalty,
 		players: room.players.map(function(pid) { return names[pid] || "Anonymous"; })
 	};
 }
@@ -77,11 +81,16 @@ function buildRoomState(room) {
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
+		roundSeconds: room.roundSeconds,
+		deathPenalty: room.deathPenalty,
+		roundDeadline: roundDeadlines[room.id] || null,
 		lastGameWinner: room.lastGameWinner,
 		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
 		seriesWinner: room.seriesWinner,
 		seriesWinnerName: room.seriesWinner ? names[room.seriesWinner] : null,
 		gameCountOptions: room.gameCountOptions,
+		roundSecondsOptions: room.roundSecondsOptions,
+		deathPenaltyOptions: room.deathPenaltyOptions,
 		players: room.players.map(function(pid) {
 			return {
 				id: pid,
@@ -98,12 +107,21 @@ function broadcastRoomState(room) {
 	io.to("room:" + room.id).emit("room_state", buildRoomState(room));
 }
 
+function clearRoundTimer(roomId) {
+	if (roundTimers[roomId]) {
+		clearTimeout(roundTimers[roomId]);
+		delete roundTimers[roomId];
+	}
+	delete roundDeadlines[roomId];
+}
+
 function deleteRoomIfEmpty(room) {
 	if (room.players.length === 0) {
 		if (nextGameTimers[room.id]) {
 			clearTimeout(nextGameTimers[room.id]);
 			delete nextGameTimers[room.id];
 		}
+		clearRoundTimer(room.id);
 		delete rooms[room.id];
 		return true;
 	}
@@ -161,7 +179,8 @@ function computeSeriesWinner(room) {
 	return null; // tie or no winner
 }
 
-function endIndividualGame(room, winnerID) {
+function endIndividualGame(room, winnerID, reason) {
+	clearRoundTimer(room.id);
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
@@ -170,7 +189,8 @@ function endIndividualGame(room, winnerID) {
 		winnerId: winnerID,
 		winnerName: winnerID ? names[winnerID] : null,
 		gameNumber: room.gamesPlayed,
-		gameCount: room.gameCount
+		gameCount: room.gameCount,
+		reason: reason || "cleared"
 	});
 	broadcastRoomState(room);
 
@@ -186,6 +206,27 @@ function endIndividualGame(room, winnerID) {
 			}
 		}, BETWEEN_GAMES_DELAY);
 	}
+}
+
+function handleRoundTimeUp(room) {
+	delete roundTimers[room.id];
+	if (room.phase !== "playing") return;
+	// Find player who revealed the most safe squares; tie => no winner
+	var best = -1;
+	var leaders = [];
+	for (var i = 0; i < room.players.length; i++) {
+		var pid = room.players[i];
+		if (!games[pid]) continue;
+		var count = games[pid].revealedSafeCount();
+		if (count > best) {
+			best = count;
+			leaders = [pid];
+		} else if (count === best) {
+			leaders.push(pid);
+		}
+	}
+	var winnerID = leaders.length === 1 ? leaders[0] : null;
+	endIndividualGame(room, winnerID, "timeout");
 }
 
 function endSeries(room) {
@@ -216,22 +257,23 @@ function endSeries(room) {
 function gameWin(playerID) {
 	var room = roomMapping[playerID];
 	if (!room || room.phase !== "playing") return;
-	endIndividualGame(room, playerID);
+	endIndividualGame(room, playerID, "cleared");
 }
 
-function gameLose(playerID) {
+function gameMineHit(playerID) {
 	var room = roomMapping[playerID];
 	if (!room || room.phase !== "playing") return;
-	if (games[playerID]) games[playerID].playing = false;
-	var winner = getGameWinner(room);
-	if (winner != null) {
-		endIndividualGame(room, winner);
-	} else if (sockets[playerID]) {
-		sockets[playerID].emit("you_died");
+	var game = games[playerID];
+	if (!game) return;
+	var penaltyMs = room.deathPenalty * 1000;
+	game.frozenUntil = Date.now() + penaltyMs;
+	if (sockets[playerID]) {
+		sockets[playerID].emit("mine_hit", { frozenUntil: game.frozenUntil, penaltySeconds: room.deathPenalty });
 	}
 }
 
 function startGame(room) {
+	clearRoundTimer(room.id);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (!games[pid]) {
@@ -245,7 +287,9 @@ function startGame(room) {
 			sockets[pid].emit("start_game", {
 				time: COUNT_DOWN_TIME,
 				gameNumber: room.gamesPlayed + 1,
-				gameCount: room.gameCount
+				gameCount: room.gameCount,
+				roundSeconds: room.roundSeconds,
+				deathPenalty: room.deathPenalty
 			});
 		}
 	}
@@ -255,6 +299,13 @@ function startGame(room) {
 			var pid = room.players[i];
 			if (games[pid]) games[pid].playing = true;
 		}
+		if (room.roundSeconds > 0) {
+			roundDeadlines[room.id] = Date.now() + room.roundSeconds * 1000;
+			roundTimers[room.id] = setTimeout(function() {
+				handleRoundTimeUp(room);
+			}, room.roundSeconds * 1000);
+		}
+		broadcastRoomState(room);
 		updateDraw(room);
 	}, COUNT_DOWN_TIME * 1000);
 }
@@ -269,8 +320,8 @@ function startSeries(room) {
 function createPlayerGame(playerID) {
 	var game = gameCreator.createGame();
 	game.playerName = names[playerID] || "Anonymous";
-	game.lose = function() { gameLose(playerID); };
 	game.win = function() { gameWin(playerID); };
+	game.mineHit = function() { gameMineHit(playerID); };
 	return game;
 }
 
@@ -404,6 +455,28 @@ io.on("connection", function (socket) {
 		}
 	});
 
+	socket.on("set_round_seconds", function(data) {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		var seconds = data && parseInt(data.seconds, 10);
+		if (room.setRoundSeconds(seconds)) {
+			broadcastRoomState(room);
+			broadcastRoomList();
+		}
+	});
+
+	socket.on("set_death_penalty", function(data) {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		var seconds = data && parseInt(data.seconds, 10);
+		if (room.setDeathPenalty(seconds)) {
+			broadcastRoomState(room);
+			broadcastRoomList();
+		}
+	});
+
 	socket.on("player_ready", function() {
 		var room = roomMapping[playerID];
 		if (!room) return;
@@ -418,16 +491,18 @@ io.on("connection", function (socket) {
 	socket.on("right_click", function (data) {
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
-		if (!games[data.id]) return;
-		games[data.id].handleRightClick(data.r, data.c);
+		var game = games[playerID];
+		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		game.handleRightClick(data.r, data.c);
 		updateDraw(room);
 	});
 
 	socket.on("left_click", function(data) {
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
-		if (!games[data.id]) return;
-		games[data.id].handleLeftClick(data.r, data.c);
+		var game = games[playerID];
+		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		game.handleLeftClick(data.r, data.c);
 		updateDraw(room);
 	});
 

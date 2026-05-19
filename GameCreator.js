@@ -25,15 +25,22 @@ function createGame() {
 	game.board = board;
 	game.state = state;
 	game.playing = false;
+	game.frozenUntil = 0;
 	game.handleLeftClick = handleLeftClick;
 	game.handleRightClick = handleRightClick;
 	game.init = init;
+	game.revealedSafeCount = revealedSafeCount;
+	game.totalSafeSquares = rows * cols - numMines;
 	game.win = null;
-	game.lose = null;
+	game.mineHit = null;
 	game.playerName = "New player";
 
+	function isFrozen() {
+		return Date.now() < game.frozenUntil;
+	}
+
 	function handleLeftClick(r, c) {
-		if (!game.playing) return;
+		if (!game.playing || isFrozen()) return;
 		if (state[r][c] == UNKNOWN) {
 			dfs(r, c);
 		} else if (state[r][c] == KNOWN) {
@@ -45,7 +52,7 @@ function createGame() {
 	}
 
 	function handleRightClick(r, c) {
-		if (!game.playing) return;
+		if (!game.playing || isFrozen()) return;
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
 		} else if (state[r][c] == FLAGGED) {
@@ -53,6 +60,10 @@ function createGame() {
 		} else if (state[r][c] == KNOWN) {
 			clearAdjacentIfEnoughFlags(r, c);
 		}
+	}
+
+	function revealedSafeCount() {
+		return rows * cols - squaresLeft;
 	}
 
 	function clearAdjacentIfEnoughFlags(r, c) {
@@ -133,6 +144,7 @@ function createGame() {
 		}
 		squaresLeft = rows*cols;
 		firstClick = true;
+		game.frozenUntil = 0;
 	}
 
 	function dfs(r, c) {
@@ -144,8 +156,8 @@ function createGame() {
 		}
 		if (board[r][c] != MINE) {
 			squaresLeft--;
-		} else {
-			game.lose();
+		} else if (game.mineHit) {
+			game.mineHit();
 		}
 		if (board[r][c] == 0) {
 			var adjacentUnknown = getAdjacentSquares(r, c, UNKNOWN);
