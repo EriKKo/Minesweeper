@@ -1,0 +1,15 @@
+{
+  "name": "minesweeper",
+  "version": "1.0.0",
+  "description": "Awesome minesweeper multiplayer",
+  "main": "minesweeperServer.js",
+  "scripts": {
+    "start": "node minesweeperServer.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  }
+}

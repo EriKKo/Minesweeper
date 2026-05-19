@@ -1,5 +1,4 @@
-var app = require("http").createServer(handler)
-  , io = require("socket.io").listen(app)
+var http = require("http")
   , fs = require("fs")
   , path = require("path")
   , gameCreator = require("./GameCreator")
@@ -7,12 +6,14 @@ var app = require("http").createServer(handler)
 
 var COUNT_DOWN_TIME = 3;
 
+var app = http.createServer(handler);
+var io = require("socket.io")(app);
+
 function handler (req, res) {
 	var filePath = "." + req.url;
 	if (filePath == "./") {
 		filePath = "./minesweeperClient.html";
 	}
-	console.log(filePath);
 	var extension = path.extname(filePath);
 	var contentType = "text/html";
 	if (extension == ".js") {
@@ -20,22 +21,21 @@ function handler (req, res) {
 	} else if (extension == ".css") {
 		contentType = "text/css";
 	}
-	path.exists(filePath, function(exists) {
-		if (exists) {
-			fs.readFile(filePath, function(err, data) {
-				if (err) {
-					res.writeHead(500);
-					res.end("Error while loading "+filePath);
-				} else {
-					console.log(data);
-					res.writeHead(200, { "Content-Type" : contentType});
-					res.end(data);
-				}
-			});
-		} else {
+	fs.access(filePath, fs.constants.R_OK, function(err) {
+		if (err) {
 			res.writeHead(404);
 			res.end();
+			return;
 		}
+		fs.readFile(filePath, function(err, data) {
+			if (err) {
+				res.writeHead(500);
+				res.end("Error while loading "+filePath);
+			} else {
+				res.writeHead(200, { "Content-Type" : contentType});
+				res.end(data);
+			}
+		});
 	});
 }
 
@@ -95,9 +95,10 @@ function updateDraw(players) {
 	}
 }
 
-io.set("log level", 1);
-
-app.listen(1337);
+var port = process.env.PORT || 1337;
+app.listen(port, "0.0.0.0", function() {
+	console.log("listening on " + port);
+});
 
 function win(playerID) {
 	var room = roomMapping[playerID];
@@ -150,35 +151,35 @@ function endGame(room) {
 	}
 }
 
-io.sockets.on("connection", function (socket) {
+io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
 	console.log("player connected and given id "+playerID);
-	
+
 	var game = gameCreator.createGame();
 	games[playerID] = game;
-	
+
 	var roomID = getNextAvailableRoom();
 	var room = rooms[roomID];
 	roomMapping[playerID] = room;
 	room.addPlayer(playerID);
 	console.log("Room "+roomID+": "+room.players);
-	
+
 	socket.emit("new_player", { id: playerID});
 	updateDraw(roomMapping[playerID].players);
-	
+
 	game.lose = function() {
 		lose(playerID);
 	};
 	game.win = function() {
 		win(playerID);
 	};
-	
+
 	socket.on("player_name", function(data) {
 		games[playerID].playerName = data.name;
 		updateDraw(room.players);
 	});
-	
+
 	socket.on("player_ready", function(data) {
 		room.playerReady(playerID);
 		console.log("player "+playerID+" is ready");
@@ -187,22 +188,22 @@ io.sockets.on("connection", function (socket) {
 			startGame(room);
 		}
 	});
-	
+
 	socket.on("right_click", function (data) {
 		games[data.id].handleRightClick(data.r, data.c);
 		updateDraw(room.players);
 	});
-	
+
 	socket.on("left_click", function(data) {
 		games[data.id].handleLeftClick(data.r, data.c);
 		updateDraw(room.players);
 	});
-	
+
 	socket.on("restart", function(data) {
 		game.init();
 		updateDraw(room.players);
 	});
-	
+
 	socket.on("disconnect", function() {
 		delete games[playerID];
 		delete roomMapping[playerID];
