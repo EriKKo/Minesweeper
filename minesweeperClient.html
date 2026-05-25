@@ -67,6 +67,7 @@
 							<button id="ready_button" class="btn btn-primary">Ready</button>
 							<span id="ready_status" class="ready-status"></span>
 						</div>
+						<p class="hotkey-hint">Move: arrows (Shift = skip revealed, Tab = next blank) · Reveal: Space / X · Flag: Z</p>
 					</div>
 					<div id="all_opponents_div" class="opponents">
 						<div class="opponent_div" data-slot>
@@ -214,6 +215,11 @@ var roundDeadline = null;
 var roundTickHandle = null;
 var roundResultShown = false;
 
+var focusedR = Math.floor(rows / 2);
+var focusedC = Math.floor(cols / 2);
+var myBoard = null;
+var myState = null;
+
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
 	var name = (nameInput.value || "").trim();
@@ -343,6 +349,8 @@ socket.on("start_game", function(data) {
 	hideReadyButton();
 	clearFreeze();
 	roundResultShown = false;
+	focusedR = Math.floor(rows / 2);
+	focusedC = Math.floor(cols / 2);
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
@@ -394,6 +402,10 @@ socket.on("draw_board", function(data) {
 		if (i < games.length) {
 			nameEl.textContent = games[i].playerName;
 			drawBoard(games[i].board, games[i].state, canvasEl);
+			if (i === 0) {
+				myBoard = games[i].board;
+				myState = games[i].state;
+			}
 			if (slot) slot.style.display = "";
 		} else {
 			nameEl.textContent = "";
@@ -401,6 +413,7 @@ socket.on("draw_board", function(data) {
 			if (slot) slot.style.display = "none";
 		}
 	}
+	drawFocusHighlight();
 });
 
 function showNameView() {
@@ -776,12 +789,112 @@ function boardClicked(event) {
 	var y = (event.clientY - rect.top) * scaleY;
 	var c = getCol(x);
 	var r = getRow(y);
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	focusedR = r;
+	focusedC = c;
 	if (isLeftClick(event)) {
 		socket.emit("left_click", { r: r, c: c, id: id });
 	} else if (isRightClick(event)) {
 		socket.emit("right_click", { r: r, c: c, id: id });
 	}
+	redrawOwnBoardWithFocus();
 }
+
+function drawFocusHighlight() {
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
+	var ctx = playerCanvas.getContext("2d");
+	var x = focusedC * playerCanvasSquareWidth;
+	var y = focusedR * playerCanvasSquareHeight;
+	ctx.save();
+	ctx.strokeStyle = "#facc15";
+	ctx.lineWidth = 2;
+	ctx.strokeRect(x + 1.5, y + 1.5, playerCanvasSquareWidth - 3, playerCanvasSquareHeight - 3);
+	ctx.restore();
+}
+
+function redrawOwnBoardWithFocus() {
+	if (myBoard && myState) {
+		drawBoard(myBoard, myState, playerCanvas);
+	}
+	drawFocusHighlight();
+}
+
+function stepFocus(dr, dc, skipRevealed) {
+	if (skipRevealed && myState) {
+		var nr = focusedR + dr;
+		var nc = focusedC + dc;
+		while (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+			if (myState[nr][nc] === UNKNOWN) {
+				focusedR = nr;
+				focusedC = nc;
+				return true;
+			}
+			nr += dr;
+			nc += dc;
+		}
+		return false;
+	}
+	var tr = Math.max(0, Math.min(rows - 1, focusedR + dr));
+	var tc = Math.max(0, Math.min(cols - 1, focusedC + dc));
+	if (tr === focusedR && tc === focusedC) return false;
+	focusedR = tr;
+	focusedC = tc;
+	return true;
+}
+
+function jumpToNextUnknown(forward) {
+	if (!myState) return false;
+	var total = rows * cols;
+	var start = focusedR * cols + focusedC;
+	for (var i = 1; i <= total; i++) {
+		var idx = forward ? (start + i) % total : (start - i + total) % total;
+		var r = Math.floor(idx / cols);
+		var c = idx % cols;
+		if (myState[r][c] === UNKNOWN) {
+			focusedR = r;
+			focusedC = c;
+			return true;
+		}
+	}
+	return false;
+}
+
+document.addEventListener("keydown", function(e) {
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	var tag = (e.target && e.target.tagName) || "";
+	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+	if (e.ctrlKey || e.metaKey || e.altKey) return;
+	var key = e.key;
+	var skip = e.shiftKey;
+	var moved = false;
+	if (key === "ArrowUp") {
+		moved = stepFocus(-1, 0, skip);
+	} else if (key === "ArrowDown") {
+		moved = stepFocus(1, 0, skip);
+	} else if (key === "ArrowLeft") {
+		moved = stepFocus(0, -1, skip);
+	} else if (key === "ArrowRight") {
+		moved = stepFocus(0, 1, skip);
+	} else if (key === "Tab") {
+		e.preventDefault();
+		moved = jumpToNextUnknown(!e.shiftKey);
+	} else if (key === " " || key === "x" || key === "X") {
+		e.preventDefault();
+		if (Date.now() < frozenUntil) return;
+		socket.emit("left_click", { r: focusedR, c: focusedC, id: id });
+		return;
+	} else if (key === "z" || key === "Z") {
+		e.preventDefault();
+		if (Date.now() < frozenUntil) return;
+		socket.emit("right_click", { r: focusedR, c: focusedC, id: id });
+		return;
+	} else {
+		return;
+	}
+	e.preventDefault();
+	if (moved) redrawOwnBoardWithFocus();
+});
 
 function isRightClick(e) {
 	return (e.which ? (e.which == 3) : (e.button ? (e.button == 2) : false));

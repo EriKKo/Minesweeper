@@ -356,6 +356,13 @@ main {
 	font-size: 0.9rem;
 }
 
+.hotkey-hint {
+	margin: 0.6rem 0 0;
+	color: var(--muted);
+	font-size: 0.8rem;
+	letter-spacing: 0.01em;
+}
+
 .opponents {
 	margin-top: 1.25rem;
 	display: grid;

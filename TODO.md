@@ -15,11 +15,14 @@
   - Round start countdown, round end, win/lose stingers
   - Volume + mute toggle, remembered per client
 
-- [ ] **Hotkey-only mode** — fully playable without a mouse (laptop-friendly)
-  - Arrow keys / WASD to move cursor
-  - One key to reveal, one to flag, one to chord
-  - Visible focused-cell indicator
-  - Hotkey legend / help overlay
+- [x] **Hotkey-only mode** — fully playable without a mouse (laptop-friendly)
+  - Arrow keys to move; Shift+arrow skips revealed cells in that direction
+  - Tab / Shift+Tab cycles to next / previous unknown cell anywhere
+  - Space or X to reveal (chords on a known cell)
+  - Z to flag (also chords)
+  - Yellow focus-cell indicator drawn on the player canvas
+  - Hotkey legend below the board
+  - Mouse still works; clicking also moves the focus
 
 ## Later: new formats
 
