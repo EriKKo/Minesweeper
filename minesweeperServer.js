@@ -494,8 +494,10 @@ function gameWin(playerID) {
 	updateDraw(room);
 	broadcastRoomState(room);
 
-	// Everyone finished — end the round immediately rather than waiting for the timer.
-	if (countActivePlayers(room) === 0) {
+	// As soon as only one (or zero) players are still active, end the round.
+	// The 20s timer reduction above still applies as a safety for the case where
+	// the last active player(s) don't finish in time.
+	if (countActivePlayers(room) <= 1) {
 		endIndividualGame(room, "cleared");
 	}
 }
@@ -618,8 +620,8 @@ function removePlayerFromRoom(playerID) {
 			endIndividualGame(room, "cleared");
 		} else {
 			updateDraw(room);
-			// If everyone still in the room has already finished, end the round.
-			if (countActivePlayers(room) === 0) {
+			// Only one (or zero) players still actively playing — end the round.
+			if (countActivePlayers(room) <= 1) {
 				endIndividualGame(room, "cleared");
 			}
 		}
