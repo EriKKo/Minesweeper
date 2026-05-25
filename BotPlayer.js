@@ -47,7 +47,7 @@ function decideMove(game) {
 		}
 	}
 	if (!hasKnown) {
-		return { type: "left", r: Math.floor(rows / 2), c: Math.floor(cols / 2) };
+		return { type: "left", r: Math.floor(rows / 2), c: Math.floor(cols / 2), certain: true, opening: true };
 	}
 
 	// Pass 1: find a certain safe square (a numbered cell whose flagged neighbors equal its number).
@@ -66,7 +66,7 @@ function decideMove(game) {
 			}
 			if (unknownList.length === 0) continue;
 			if (flagged === n) {
-				return { type: "left", r: unknownList[0][0], c: unknownList[0][1] };
+				return { type: "left", r: unknownList[0][0], c: unknownList[0][1], certain: true };
 			}
 		}
 	}
@@ -87,7 +87,7 @@ function decideMove(game) {
 			}
 			if (unknownList2.length === 0) continue;
 			if (flagged2 + unknownList2.length === n2) {
-				return { type: "right", r: unknownList2[0][0], c: unknownList2[0][1] };
+				return { type: "right", r: unknownList2[0][0], c: unknownList2[0][1], certain: true };
 			}
 		}
 	}
@@ -101,10 +101,37 @@ function decideMove(game) {
 	}
 	if (candidates.length === 0) return null;
 	var pick = candidates[Math.floor(Math.random() * candidates.length)];
-	return { type: "left", r: pick[0], c: pick[1] };
+	return { type: "left", r: pick[0], c: pick[1], certain: false };
+}
+
+// Returns ms to wait before performing `move` from `lastClick`. `baseMs` is the
+// room's bot-speed setting (a baseline "thinking" pace). The model:
+//   - log-scaled distance term (a saccade/refocus tax — farther = slower)
+//   - thinking pause when guessing (no certain deduction)
+//   - extra pause on the very first move of a round (planning the opening)
+//   - small Gaussian-ish jitter so two consecutive ticks never look identical
+function computeMoveDelay(baseMs, lastClick, move) {
+	var distance = 0;
+	if (lastClick) {
+		distance = Math.max(
+			Math.abs(lastClick.r - move.r),
+			Math.abs(lastClick.c - move.c)
+		);
+	}
+	// log scaling: ~30ms per square for short hops, levelling off for long ones
+	var distanceTerm = distance === 0 ? 0 : 40 + 55 * Math.log2(distance + 1);
+	var thinkingTerm = 0;
+	if (move.opening) thinkingTerm = Math.max(250, baseMs * 0.6);
+	else if (!move.certain) thinkingTerm = Math.max(150, baseMs * 0.4);
+	// average-of-three uniforms ≈ approximately normal, mean 0, range ~[-1, 1]
+	var n = (Math.random() + Math.random() + Math.random()) / 1.5 - 1;
+	var jitter = n * baseMs * 0.18;
+	var total = baseMs + distanceTerm + thinkingTerm + jitter;
+	return Math.max(60, Math.round(total));
 }
 
 exports.decideMove = decideMove;
+exports.computeMoveDelay = computeMoveDelay;
 exports.pickBotName = pickBotName;
 exports.SPEED_OPTIONS = SPEED_OPTIONS;
 exports.DEFAULT_SPEED = DEFAULT_SPEED;

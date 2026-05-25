@@ -53,6 +53,7 @@ var roundTimers = {};
 var roundDeadlines = {};
 var bots = {}; // botId -> true
 var botTickHandles = {}; // botId -> setTimeout handle
+var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
 var MAX_BOTS_PER_ROOM = 3;
 
@@ -152,39 +153,55 @@ function readyAllBots(room) {
 
 function scheduleBotTick(room, botId) {
 	clearBotTick(botId);
-	var base = room.botSpeed || 400;
-	// small jitter so multiple bots don't all tick in lockstep
-	var jitter = Math.floor((Math.random() - 0.5) * Math.min(200, base));
-	var delay = Math.max(50, base + jitter);
-	botTickHandles[botId] = setTimeout(function() {
-		delete botTickHandles[botId];
-		runBotTick(room, botId);
-	}, delay);
-}
-
-function runBotTick(room, botId) {
 	if (!rooms[room.id]) return;
 	if (roomMapping[botId] !== room) return;
 	if (room.phase !== "playing") return;
 	var game = games[botId];
 	if (!game || !game.playing) return;
+
 	var now = Date.now();
 	if (now < game.frozenUntil) {
 		botTickHandles[botId] = setTimeout(function() {
 			delete botTickHandles[botId];
-			runBotTick(room, botId);
+			scheduleBotTick(room, botId);
 		}, game.frozenUntil - now + 50);
 		return;
 	}
+
+	var move;
 	try {
-		var move = botPlayer.decideMove(game);
-		if (move) {
-			if (move.type === "left") game.handleLeftClick(move.r, move.c);
-			else if (move.type === "right") game.handleRightClick(move.r, move.c);
-			updateDraw(room);
-		}
+		move = botPlayer.decideMove(game);
 	} catch (e) {
-		console.error("bot tick error", e);
+		console.error("bot decideMove error", e);
+		return;
+	}
+	if (!move) return;
+
+	var delay = botPlayer.computeMoveDelay(room.botSpeed || 400, botLastClick[botId] || null, move);
+	botTickHandles[botId] = setTimeout(function() {
+		delete botTickHandles[botId];
+		runBotMove(room, botId, move);
+	}, delay);
+}
+
+function runBotMove(room, botId, move) {
+	if (!rooms[room.id]) return;
+	if (roomMapping[botId] !== room) return;
+	if (room.phase !== "playing") return;
+	var game = games[botId];
+	if (!game || !game.playing) return;
+	if (Date.now() < game.frozenUntil) {
+		// got frozen while waiting — re-plan after the freeze ends
+		scheduleBotTick(room, botId);
+		return;
+	}
+	try {
+		if (move.type === "left") game.handleLeftClick(move.r, move.c);
+		else if (move.type === "right") game.handleRightClick(move.r, move.c);
+		botLastClick[botId] = { r: move.r, c: move.c };
+		updateDraw(room);
+	} catch (e) {
+		console.error("bot runMove error", e);
 	}
 	if (game.playing) {
 		scheduleBotTick(room, botId);
@@ -194,7 +211,11 @@ function runBotTick(room, botId) {
 function startBotTicksForRoom(room) {
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
-		if (isBot(pid)) scheduleBotTick(room, pid);
+		if (isBot(pid)) {
+			// New round — bot hasn't looked at the board yet
+			delete botLastClick[pid];
+			scheduleBotTick(room, pid);
+		}
 	}
 }
 
@@ -255,6 +276,7 @@ function removeBotEntirely(botId) {
 	delete games[botId];
 	delete names[botId];
 	delete bots[botId];
+	delete botLastClick[botId];
 }
 
 function deleteRoomIfEmpty(room) {
