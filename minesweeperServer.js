@@ -343,19 +343,46 @@ function computeSeriesWinner(room) {
 	return null; // tie or no winner
 }
 
+// Rank players by revealedSafeCount and award N, N-1, N-2, ... points (N = number
+// of players). Ties share the higher rank — e.g. two players tied for first both
+// get N points and the next player drops to rank 3.
+function buildStandings(room) {
+	var N = room.players.length;
+	var entries = room.players.map(function(pid) {
+		var g = games[pid];
+		return {
+			id: pid,
+			name: names[pid] || "Anonymous",
+			safeCount: g ? g.revealedSafeCount() : 0
+		};
+	});
+	for (var i = 0; i < entries.length; i++) {
+		var strictlyHigher = 0;
+		for (var j = 0; j < entries.length; j++) {
+			if (entries[j].safeCount > entries[i].safeCount) strictlyHigher++;
+		}
+		entries[i].rank = strictlyHigher + 1;
+		entries[i].points = N - strictlyHigher;
+	}
+	entries.sort(function(a, b) { return a.rank - b.rank; });
+	return entries;
+}
+
 function endIndividualGame(room, winnerID, reason) {
 	clearRoundTimer(room.id);
 	clearRoomBotTicks(room);
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
-	room.recordGameWin(winnerID);
+	var standings = buildStandings(room);
+	room.recordRoundResult(standings, winnerID);
 	io.to("room:" + room.id).emit("game_result", {
 		winnerId: winnerID,
 		winnerName: winnerID ? names[winnerID] : null,
 		gameNumber: room.gamesPlayed,
 		gameCount: room.gameCount,
-		reason: reason || "cleared"
+		reason: reason || "cleared",
+		standings: standings
 	});
 	broadcastRoomState(room);
 

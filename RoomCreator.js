@@ -42,7 +42,7 @@ function createRoom(id, ownerID) {
 	room.setDeathPenalty = setDeathPenalty;
 	room.setBotSpeed = setBotSpeed;
 	room.startSeries = startSeries;
-	room.recordGameWin = recordGameWin;
+	room.recordRoundResult = recordRoundResult;
 	room.resetScores = resetScores;
 	room.reassignOwnerIfNeeded = reassignOwnerIfNeeded;
 	room.gameCountOptions = GAME_COUNT_OPTIONS.slice();
@@ -137,11 +137,14 @@ function createRoom(id, ownerID) {
 		}
 	}
 
-	function recordGameWin(playerID) {
-		if (playerID && scores.hasOwnProperty(playerID)) {
-			scores[playerID]++;
+	function recordRoundResult(standings, winnerID) {
+		for (var i = 0; i < standings.length; i++) {
+			var s = standings[i];
+			if (scores.hasOwnProperty(s.id)) {
+				scores[s.id] += s.points;
+			}
 		}
-		room.lastGameWinner = playerID;
+		room.lastGameWinner = winnerID;
 		room.gamesPlayed++;
 	}
 
