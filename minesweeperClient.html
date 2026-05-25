@@ -217,6 +217,7 @@ var roundResultShown = false;
 
 var focusedR = Math.floor(rows / 2);
 var focusedC = Math.floor(cols / 2);
+var focusVisible = false;
 var myBoard = null;
 var myState = null;
 
@@ -351,6 +352,7 @@ socket.on("start_game", function(data) {
 	roundResultShown = false;
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
+	focusVisible = false;
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
@@ -792,6 +794,7 @@ function boardClicked(event) {
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	focusedR = r;
 	focusedC = c;
+	focusVisible = false;
 	if (isLeftClick(event)) {
 		socket.emit("left_click", { r: r, c: c, id: id });
 	} else if (isRightClick(event)) {
@@ -801,6 +804,7 @@ function boardClicked(event) {
 }
 
 function drawFocusHighlight() {
+	if (!focusVisible) return;
 	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
 	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
@@ -881,19 +885,22 @@ document.addEventListener("keydown", function(e) {
 		moved = jumpToNextUnknown(!e.shiftKey);
 	} else if (key === " " || key === "x" || key === "X") {
 		e.preventDefault();
-		if (Date.now() < frozenUntil) return;
+		focusVisible = true;
+		if (Date.now() < frozenUntil) { redrawOwnBoardWithFocus(); return; }
 		socket.emit("left_click", { r: focusedR, c: focusedC, id: id });
 		return;
 	} else if (key === "z" || key === "Z") {
 		e.preventDefault();
-		if (Date.now() < frozenUntil) return;
+		focusVisible = true;
+		if (Date.now() < frozenUntil) { redrawOwnBoardWithFocus(); return; }
 		socket.emit("right_click", { r: focusedR, c: focusedC, id: id });
 		return;
 	} else {
 		return;
 	}
 	e.preventDefault();
-	if (moved) redrawOwnBoardWithFocus();
+	focusVisible = true;
+	redrawOwnBoardWithFocus();
 });
 
 function isRightClick(e) {
