@@ -2,7 +2,8 @@ var http = require("http")
   , fs = require("fs")
   , path = require("path")
   , gameCreator = require("./GameCreator")
-  , roomCreator = require("./RoomCreator");
+  , roomCreator = require("./RoomCreator")
+  , botPlayer = require("./BotPlayer");
 
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
@@ -50,12 +51,21 @@ var names = {};
 var nextGameTimers = {};
 var roundTimers = {};
 var roundDeadlines = {};
+var bots = {}; // botId -> true
+var botTickHandles = {}; // botId -> setTimeout handle
+var nextBotId = 1;
+var MAX_BOTS_PER_ROOM = 3;
+
+function isBot(playerID) {
+	return !!bots[playerID];
+}
 
 function roomSummary(room) {
 	return {
 		id: room.id,
 		ownerName: names[room.owner] || "Anonymous",
 		playerCount: room.players.length,
+		humanCount: room.players.filter(function(pid) { return !isBot(pid); }).length,
 		maxPlayers: room.maxPlayers,
 		phase: room.phase,
 		gameCount: room.gameCount,
@@ -83,6 +93,7 @@ function buildRoomState(room) {
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
+		botSpeed: room.botSpeed,
 		roundDeadline: roundDeadlines[room.id] || null,
 		lastGameWinner: room.lastGameWinner,
 		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
@@ -91,13 +102,17 @@ function buildRoomState(room) {
 		gameCountOptions: room.gameCountOptions,
 		roundSecondsOptions: room.roundSecondsOptions,
 		deathPenaltyOptions: room.deathPenaltyOptions,
+		botSpeedOptions: room.botSpeedOptions,
+		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
+		maxBots: MAX_BOTS_PER_ROOM,
 		players: room.players.map(function(pid) {
 			return {
 				id: pid,
 				name: names[pid] || "Anonymous",
 				ready: room.isReady(pid),
 				score: room.scores[pid] || 0,
-				isOwner: pid === room.owner
+				isOwner: pid === room.owner,
+				isBot: isBot(pid)
 			};
 		})
 	};
@@ -113,6 +128,133 @@ function clearRoundTimer(roomId) {
 		delete roundTimers[roomId];
 	}
 	delete roundDeadlines[roomId];
+}
+
+function clearBotTick(botId) {
+	if (botTickHandles[botId]) {
+		clearTimeout(botTickHandles[botId]);
+		delete botTickHandles[botId];
+	}
+}
+
+function clearRoomBotTicks(room) {
+	for (var i = 0; i < room.players.length; i++) {
+		var pid = room.players[i];
+		if (isBot(pid)) clearBotTick(pid);
+	}
+}
+
+function readyAllBots(room) {
+	for (var i = 0; i < room.players.length; i++) {
+		if (isBot(room.players[i])) room.playerReady(room.players[i]);
+	}
+}
+
+function scheduleBotTick(room, botId) {
+	clearBotTick(botId);
+	var base = room.botSpeed || 400;
+	// small jitter so multiple bots don't all tick in lockstep
+	var jitter = Math.floor((Math.random() - 0.5) * Math.min(200, base));
+	var delay = Math.max(50, base + jitter);
+	botTickHandles[botId] = setTimeout(function() {
+		delete botTickHandles[botId];
+		runBotTick(room, botId);
+	}, delay);
+}
+
+function runBotTick(room, botId) {
+	if (!rooms[room.id]) return;
+	if (roomMapping[botId] !== room) return;
+	if (room.phase !== "playing") return;
+	var game = games[botId];
+	if (!game || !game.playing) return;
+	var now = Date.now();
+	if (now < game.frozenUntil) {
+		botTickHandles[botId] = setTimeout(function() {
+			delete botTickHandles[botId];
+			runBotTick(room, botId);
+		}, game.frozenUntil - now + 50);
+		return;
+	}
+	try {
+		var move = botPlayer.decideMove(game);
+		if (move) {
+			if (move.type === "left") game.handleLeftClick(move.r, move.c);
+			else if (move.type === "right") game.handleRightClick(move.r, move.c);
+			updateDraw(room);
+		}
+	} catch (e) {
+		console.error("bot tick error", e);
+	}
+	if (game.playing) {
+		scheduleBotTick(room, botId);
+	}
+}
+
+function startBotTicksForRoom(room) {
+	for (var i = 0; i < room.players.length; i++) {
+		var pid = room.players[i];
+		if (isBot(pid)) scheduleBotTick(room, pid);
+	}
+}
+
+function humanCount(room) {
+	var n = 0;
+	for (var i = 0; i < room.players.length; i++) {
+		if (!isBot(room.players[i])) n++;
+	}
+	return n;
+}
+
+function botCount(room) {
+	var n = 0;
+	for (var i = 0; i < room.players.length; i++) {
+		if (isBot(room.players[i])) n++;
+	}
+	return n;
+}
+
+function getRoomBotNames(room) {
+	var ret = [];
+	for (var i = 0; i < room.players.length; i++) {
+		if (isBot(room.players[i])) ret.push(names[room.players[i]] || "");
+	}
+	return ret;
+}
+
+function addBotToRoom(room) {
+	if (room.phase !== "planning") return false;
+	if (room.isFull()) return false;
+	if (botCount(room) >= MAX_BOTS_PER_ROOM) return false;
+	var botId = "bot:" + (nextBotId++);
+	bots[botId] = true;
+	names[botId] = botPlayer.pickBotName(getRoomBotNames(room));
+	games[botId] = createPlayerGame(botId);
+	roomMapping[botId] = room;
+	room.addPlayer(botId);
+	room.playerReady(botId);
+	return true;
+}
+
+function removeOneBotFromRoom(room) {
+	for (var i = room.players.length - 1; i >= 0; i--) {
+		var pid = room.players[i];
+		if (isBot(pid)) {
+			removeBotEntirely(pid);
+			return true;
+		}
+	}
+	return false;
+}
+
+function removeBotEntirely(botId) {
+	var room = roomMapping[botId];
+	clearBotTick(botId);
+	if (room) room.deletePlayer(botId);
+	delete roomMapping[botId];
+	delete games[botId];
+	delete names[botId];
+	delete bots[botId];
 }
 
 function deleteRoomIfEmpty(room) {
@@ -181,6 +323,7 @@ function computeSeriesWinner(room) {
 
 function endIndividualGame(room, winnerID, reason) {
 	clearRoundTimer(room.id);
+	clearRoomBotTicks(room);
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
@@ -250,6 +393,7 @@ function endSeries(room) {
 		if (!rooms[room.id]) return;
 		room.resetScores();
 		room.resetReady();
+		readyAllBots(room);
 		broadcastRoomState(room);
 	}, SERIES_END_DELAY);
 }
@@ -307,6 +451,7 @@ function startGame(room) {
 		}
 		broadcastRoomState(room);
 		updateDraw(room);
+		startBotTicksForRoom(room);
 	}, COUNT_DOWN_TIME * 1000);
 }
 
@@ -349,15 +494,30 @@ function removePlayerFromRoom(playerID) {
 		sockets[playerID].leave("room:" + room.id);
 	}
 
+	// If no humans remain, evict all bots so the room can be cleaned up.
+	if (humanCount(room) === 0) {
+		while (botCount(room) > 0) {
+			removeOneBotFromRoom(room);
+		}
+	}
+
 	if (deleteRoomIfEmpty(room)) {
 		broadcastRoomList();
 		return;
 	}
 
-	room.reassignOwnerIfNeeded();
+	// Prefer a human as the new owner if the previous owner left.
+	if (room.players.indexOf(room.owner) === -1) {
+		var newOwner = null;
+		for (var i = 0; i < room.players.length; i++) {
+			if (!isBot(room.players[i])) { newOwner = room.players[i]; break; }
+		}
+		if (newOwner) room.owner = newOwner;
+		else room.reassignOwnerIfNeeded();
+	}
 
 	if (wasPlaying) {
-		// If only one player left mid-series, give them the round and end the series
+		// If only one human-or-bot player left mid-series, give them the round and end the series
 		if (room.players.length === 1) {
 			endIndividualGame(room, room.players[0]);
 		} else {
@@ -475,6 +635,39 @@ io.on("connection", function (socket) {
 			broadcastRoomState(room);
 			broadcastRoomList();
 		}
+	});
+
+	socket.on("set_bot_speed", function(data) {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		var ms = data && parseInt(data.ms, 10);
+		if (room.setBotSpeed(ms)) {
+			broadcastRoomState(room);
+		}
+	});
+
+	socket.on("add_bot", function() {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		if (!addBotToRoom(room)) return;
+		broadcastRoomState(room);
+		broadcastRoomList();
+		// If the owner had already readied before adding the bot, start now.
+		if (room.players.length > 1 && room.allReady() && humanCount(room) > 0) {
+			startSeries(room);
+		}
+	});
+
+	socket.on("remove_bot", function() {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		if (room.phase !== "planning") return;
+		if (!removeOneBotFromRoom(room)) return;
+		broadcastRoomState(room);
+		broadcastRoomList();
 	});
 
 	socket.on("player_ready", function() {

@@ -196,3 +196,9 @@ function createGame() {
 }
 
 exports.createGame = createGame;
+exports.MINE = MINE;
+exports.FLAGGED = FLAGGED;
+exports.UNKNOWN = UNKNOWN;
+exports.KNOWN = KNOWN;
+exports.rows = rows;
+exports.cols = cols;

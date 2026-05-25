@@ -472,6 +472,26 @@ main {
 	font-variant-numeric: tabular-nums;
 }
 
+.score-bot-tag {
+	display: inline-block;
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	padding: 0.1rem 0.35rem;
+	border-radius: 4px;
+	background: rgba(99, 102, 241, 0.18);
+	border: 1px solid rgba(99, 102, 241, 0.4);
+	color: var(--accent-hover);
+	vertical-align: middle;
+}
+
+.bot-actions {
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+	flex-wrap: wrap;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
 	.game-grid { grid-template-columns: 1fr; }

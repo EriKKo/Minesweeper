@@ -111,6 +111,19 @@
 						</div>
 						<div id="series_status" class="series-status"></div>
 					</div>
+					<div id="bots_card" class="side-card" style="display:none">
+						<h3 class="side-title">Bots</h3>
+						<div class="series-config">
+							<span class="series-config-label">Speed</span>
+							<select id="bot_speed_select"></select>
+							<span id="bot_speed_readonly" class="series-config-readonly"></span>
+						</div>
+						<div class="bot-actions">
+							<button id="add_bot_button" class="btn btn-secondary" type="button">Add bot</button>
+							<button id="remove_bot_button" class="btn btn-ghost" type="button">Remove bot</button>
+						</div>
+						<p id="bot_status" class="series-status"></p>
+					</div>
 					<div class="side-card">
 						<h3 class="side-title">Scoreboard</h3>
 						<ol id="scoreboard" class="scoreboard"></ol>
@@ -188,6 +201,12 @@ var deathPenaltySelect = document.getElementById("death_penalty_select");
 var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
 var seriesStatus = document.getElementById("series_status");
 var scoreboardEl = document.getElementById("scoreboard");
+var botsCard = document.getElementById("bots_card");
+var botSpeedSelect = document.getElementById("bot_speed_select");
+var botSpeedReadonly = document.getElementById("bot_speed_readonly");
+var addBotButton = document.getElementById("add_bot_button");
+var removeBotButton = document.getElementById("remove_bot_button");
+var botStatus = document.getElementById("bot_status");
 
 var frozenUntil = 0;
 var freezeTickHandle = null;
@@ -240,6 +259,18 @@ deathPenaltySelect.addEventListener("change", function() {
 	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
 });
 
+botSpeedSelect.addEventListener("change", function() {
+	socket.emit("set_bot_speed", { ms: parseInt(botSpeedSelect.value, 10) });
+});
+
+addBotButton.addEventListener("click", function() {
+	socket.emit("add_bot");
+});
+
+removeBotButton.addEventListener("click", function() {
+	socket.emit("remove_bot");
+});
+
 function formatRoundTime(s) {
 	if (s <= 0) return "0:00";
 	var m = Math.floor(s / 60);
@@ -253,6 +284,12 @@ function formatRoundOption(s) {
 
 function formatPenaltyOption(s) {
 	return s === 0 ? "None" : s + "s";
+}
+
+function formatBotSpeed(ms) {
+	if (ms <= 250) return "Fast";
+	if (ms <= 500) return "Medium";
+	return "Slow";
 }
 
 socket.on("connected", function(data) {
@@ -576,6 +613,29 @@ function renderRoomState(state) {
 	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
 	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
 
+	var showBotCard = isOwner || (state.botCount && state.botCount > 0);
+	botsCard.style.display = showBotCard ? "" : "none";
+	if (showBotCard) {
+		populateSelect(botSpeedSelect, state.botSpeedOptions, formatBotSpeed);
+		botSpeedSelect.value = String(state.botSpeed);
+		var canEditBotSpeed = isOwner && state.phase === "planning";
+		botSpeedSelect.disabled = !canEditBotSpeed;
+		botSpeedSelect.style.display = isOwner ? "" : "none";
+		botSpeedReadonly.style.display = isOwner ? "none" : "";
+		botSpeedReadonly.textContent = formatBotSpeed(state.botSpeed);
+		var canAddBot = isOwner && state.phase === "planning" && state.botCount < state.maxBots;
+		var canRemoveBot = isOwner && state.phase === "planning" && state.botCount > 0;
+		addBotButton.style.display = isOwner ? "" : "none";
+		removeBotButton.style.display = isOwner ? "" : "none";
+		addBotButton.disabled = !canAddBot;
+		removeBotButton.disabled = !canRemoveBot;
+		if (state.botCount === 0) {
+			botStatus.textContent = isOwner ? "Add a bot to practice solo." : "";
+		} else {
+			botStatus.textContent = state.botCount + " bot" + (state.botCount === 1 ? "" : "s") + " in this room.";
+		}
+	}
+
 	if (state.phase === "playing" && state.roundDeadline) {
 		if (!roundDeadline || roundDeadline !== state.roundDeadline) {
 			startRoundTimer(state.roundDeadline);
@@ -599,6 +659,13 @@ function renderRoomState(state) {
 		var name = document.createElement("span");
 		name.className = "score-name";
 		name.textContent = p.name + (p.isOwner ? " ★" : "");
+		if (p.isBot) {
+			var tag = document.createElement("span");
+			tag.className = "score-bot-tag";
+			tag.textContent = "BOT";
+			name.appendChild(document.createTextNode(" "));
+			name.appendChild(tag);
+		}
 		li.appendChild(name);
 
 		var meta = document.createElement("span");
