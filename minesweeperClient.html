@@ -212,6 +212,7 @@ var frozenUntil = 0;
 var freezeTickHandle = null;
 var roundDeadline = null;
 var roundTickHandle = null;
+var roundResultShown = false;
 
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
@@ -292,6 +293,12 @@ function formatBotSpeed(ms) {
 	return "Slow";
 }
 
+function ordinal(n) {
+	var s = ["th", "st", "nd", "rd"];
+	var v = n % 100;
+	return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 socket.on("connected", function(data) {
 	id = data.id;
 });
@@ -335,18 +342,23 @@ socket.on("room_state", function(state) {
 socket.on("start_game", function(data) {
 	hideReadyButton();
 	clearFreeze();
+	roundResultShown = false;
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
 
 socket.on("game_result", function(data) {
+	roundResultShown = true;
+	var myEntry = (data.standings || []).find(function(s) { return s.id === id; });
 	var text;
-	if (!data.winnerId) {
-		text = data.reason === "timeout" ? "Time's up — tied" : "Round " + data.gameNumber + " ended";
-	} else if (data.winnerId === id) {
-		text = data.reason === "timeout" ? "Time's up — you led" : "You cleared the board!";
+	if (data.winnerId === id) {
+		text = "You won round " + data.gameNumber + " (+" + (myEntry ? myEntry.points : 0) + ")";
+	} else if (myEntry) {
+		var place = ordinal(myEntry.rank);
+		var winnerPart = data.winnerName ? " — " + data.winnerName + " won" : "";
+		text = "You placed " + place + " (+" + myEntry.points + ")" + winnerPart;
 	} else {
-		text = (data.reason === "timeout" ? "Time's up — " : "") + data.winnerName + " won round " + data.gameNumber;
+		text = "Round " + data.gameNumber + " ended";
 	}
 	showOverlay(text, data.winnerId === id ? "win" : "lose");
 	clearFreeze();
@@ -673,6 +685,9 @@ function renderRoomState(state) {
 		if (state.phase === "planning") {
 			meta.textContent = p.ready ? "Ready" : "Waiting";
 			meta.classList.add(p.ready ? "score-meta-ready" : "score-meta-waiting");
+		} else if (p.finished) {
+			meta.textContent = "Done";
+			meta.classList.add("score-meta-ready");
 		} else {
 			meta.textContent = p.id === id ? "you" : "";
 		}
@@ -686,9 +701,16 @@ function renderRoomState(state) {
 		scoreboardEl.appendChild(li);
 	});
 
-	var ownName = (state.players.find(function(p) { return p.id === id; }) || {}).name || myName;
+	var me = state.players.find(function(p) { return p.id === id; });
+	var ownName = (me || {}).name || myName;
 	document.getElementById("player_name0").textContent = ownName;
 	document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
+
+	if (state.phase === "playing" && me && me.finished && !roundResultShown) {
+		showOverlay("Cleared — waiting for others", "win");
+	} else if (boardOverlay.textContent === "Cleared — waiting for others") {
+		hideOverlay();
+	}
 
 	if (state.phase === "planning") {
 		if (state.gamesPlayed === 0 && !state.seriesWinner) {

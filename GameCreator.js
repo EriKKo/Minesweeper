@@ -26,6 +26,8 @@ function createGame() {
 	game.state = state;
 	game.playing = false;
 	game.frozenUntil = 0;
+	game.finished = false;
+	game.finishedAt = 0;
 	game.handleLeftClick = handleLeftClick;
 	game.handleRightClick = handleRightClick;
 	game.init = init;
@@ -148,6 +150,8 @@ function createGame() {
 		squaresLeft = rows*cols;
 		firstClick = true;
 		game.frozenUntil = 0;
+		game.finished = false;
+		game.finishedAt = 0;
 	}
 
 	function dfs(r, c) {

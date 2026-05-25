@@ -107,13 +107,15 @@ function buildRoomState(room) {
 		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
 		maxBots: MAX_BOTS_PER_ROOM,
 		players: room.players.map(function(pid) {
+			var g = games[pid];
 			return {
 				id: pid,
 				name: names[pid] || "Anonymous",
 				ready: room.isReady(pid),
 				score: room.scores[pid] || 0,
 				isOwner: pid === room.owner,
-				isBot: isBot(pid)
+				isBot: isBot(pid),
+				finished: g ? !!g.finished : false
 			};
 		})
 	};
@@ -292,18 +294,22 @@ function deleteRoomIfEmpty(room) {
 	return false;
 }
 
-function getActivePlayers(room) {
-	return room.players.filter(function(playerID) {
-		return games[playerID] && games[playerID].playing;
-	});
+function countActivePlayers(room) {
+	var n = 0;
+	for (var i = 0; i < room.players.length; i++) {
+		var g = games[room.players[i]];
+		if (g && !g.finished) n++;
+	}
+	return n;
 }
 
-function getGameWinner(room) {
-	var activePlayers = getActivePlayers(room);
-	if (activePlayers.length === 1) {
-		return activePlayers[0];
+function countFinishedPlayers(room) {
+	var n = 0;
+	for (var i = 0; i < room.players.length; i++) {
+		var g = games[room.players[i]];
+		if (g && g.finished) n++;
 	}
-	return null;
+	return n;
 }
 
 function getGamesWithPlayerOnTop(playerID, players) {
@@ -343,9 +349,21 @@ function computeSeriesWinner(room) {
 	return null; // tie or no winner
 }
 
-// Rank players by revealedSafeCount and award N, N-1, N-2, ... points (N = number
-// of players). Ties share the higher rank — e.g. two players tied for first both
-// get N points and the next player drops to rank 3.
+// Rank players for the round. Finishers (those who cleared their board) always
+// outrank non-finishers; among finishers, earlier finishedAt is better; among
+// non-finishers, higher safeCount is better. Standard competition ranking on
+// ties — equally-ranked players share the higher rank and the next rank skips.
+// Points are N, N-1, ... down to 1 by rank.
+function rankCompare(a, b) {
+	if (a.finished !== b.finished) return a.finished ? 1 : -1;
+	if (a.finished) {
+		if (a.finishedAt !== b.finishedAt) return a.finishedAt < b.finishedAt ? 1 : -1;
+		return 0;
+	}
+	if (a.safeCount !== b.safeCount) return a.safeCount > b.safeCount ? 1 : -1;
+	return 0;
+}
+
 function buildStandings(room) {
 	var N = room.players.length;
 	var entries = room.players.map(function(pid) {
@@ -353,13 +371,16 @@ function buildStandings(room) {
 		return {
 			id: pid,
 			name: names[pid] || "Anonymous",
-			safeCount: g ? g.revealedSafeCount() : 0
+			safeCount: g ? g.revealedSafeCount() : 0,
+			finished: g ? !!g.finished : false,
+			finishedAt: g ? (g.finishedAt || 0) : 0
 		};
 	});
 	for (var i = 0; i < entries.length; i++) {
 		var strictlyHigher = 0;
 		for (var j = 0; j < entries.length; j++) {
-			if (entries[j].safeCount > entries[i].safeCount) strictlyHigher++;
+			if (i === j) continue;
+			if (rankCompare(entries[j], entries[i]) > 0) strictlyHigher++;
 		}
 		entries[i].rank = strictlyHigher + 1;
 		entries[i].points = N - strictlyHigher;
@@ -368,13 +389,21 @@ function buildStandings(room) {
 	return entries;
 }
 
-function endIndividualGame(room, winnerID, reason) {
+function endIndividualGame(room, reason) {
+	if (room.phase !== "playing") return;
 	clearRoundTimer(room.id);
 	clearRoomBotTicks(room);
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
 	var standings = buildStandings(room);
+	// Round winner = unique top-ranked player, if any.
+	var winnerID = null;
+	if (standings.length > 0 && standings[0].rank === 1) {
+		var tiedAtTop = 0;
+		for (var k = 0; k < standings.length; k++) if (standings[k].rank === 1) tiedAtTop++;
+		if (tiedAtTop === 1) winnerID = standings[0].id;
+	}
 	room.recordRoundResult(standings, winnerID);
 	io.to("room:" + room.id).emit("game_result", {
 		winnerId: winnerID,
@@ -403,22 +432,17 @@ function endIndividualGame(room, winnerID, reason) {
 function handleRoundTimeUp(room) {
 	delete roundTimers[room.id];
 	if (room.phase !== "playing") return;
-	// Find player who revealed the most safe squares; tie => no winner
-	var best = -1;
-	var leaders = [];
-	for (var i = 0; i < room.players.length; i++) {
-		var pid = room.players[i];
-		if (!games[pid]) continue;
-		var count = games[pid].revealedSafeCount();
-		if (count > best) {
-			best = count;
-			leaders = [pid];
-		} else if (count === best) {
-			leaders.push(pid);
-		}
-	}
-	var winnerID = leaders.length === 1 ? leaders[0] : null;
-	endIndividualGame(room, winnerID, "timeout");
+	endIndividualGame(room, "timeout");
+}
+
+function reduceRoundDeadline(room, targetSeconds) {
+	var newDeadline = Date.now() + targetSeconds * 1000;
+	if (roundDeadlines[room.id] && roundDeadlines[room.id] <= newDeadline) return;
+	roundDeadlines[room.id] = newDeadline;
+	if (roundTimers[room.id]) clearTimeout(roundTimers[room.id]);
+	roundTimers[room.id] = setTimeout(function() {
+		handleRoundTimeUp(room);
+	}, targetSeconds * 1000);
 }
 
 function endSeries(room) {
@@ -450,7 +474,30 @@ function endSeries(room) {
 function gameWin(playerID) {
 	var room = roomMapping[playerID];
 	if (!room || room.phase !== "playing") return;
-	endIndividualGame(room, playerID, "cleared");
+	var game = games[playerID];
+	if (!game || !game.playing || game.finished) return;
+
+	game.finished = true;
+	game.finishedAt = Date.now();
+	game.playing = false;
+
+	// First finish in this round? Pull the remaining time down to 20s so others
+	// still in play have a hard deadline to also clear.
+	if (countFinishedPlayers(room) === 1) {
+		reduceRoundDeadline(room, 20);
+	}
+
+	if (isBot(playerID)) {
+		clearBotTick(playerID);
+	}
+
+	updateDraw(room);
+	broadcastRoomState(room);
+
+	// Everyone finished — end the round immediately rather than waiting for the timer.
+	if (countActivePlayers(room) === 0) {
+		endIndividualGame(room, "cleared");
+	}
 }
 
 function gameMineHit(playerID) {
@@ -566,15 +613,14 @@ function removePlayerFromRoom(playerID) {
 	}
 
 	if (wasPlaying) {
-		// If only one human-or-bot player left mid-series, give them the round and end the series
+		// Down to a single player mid-round — end the round so the series can advance.
 		if (room.players.length === 1) {
-			endIndividualGame(room, room.players[0]);
+			endIndividualGame(room, "cleared");
 		} else {
 			updateDraw(room);
-			// Check if the player who left was the last active one
-			var winner = getGameWinner(room);
-			if (winner != null) {
-				endIndividualGame(room, winner);
+			// If everyone still in the room has already finished, end the round.
+			if (countActivePlayers(room) === 0) {
+				endIndividualGame(room, "cleared");
 			}
 		}
 	} else {
