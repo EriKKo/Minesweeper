@@ -50,43 +50,52 @@ function decideMove(game) {
 		return { type: "left", r: Math.floor(rows / 2), c: Math.floor(cols / 2), certain: true, opening: true };
 	}
 
-	// Pass 1: find a certain safe square (a numbered cell whose flagged neighbors equal its number).
+	// A "known mine" is either a FLAGGED cell or a revealed mine (state=KNOWN with
+	// board=MINE — i.e., a mine the bot clicked and got penalised for). Both count
+	// against a numbered cell's mine budget so deductions still work after a mishit.
+	function knownMineCount(nbrs) {
+		var n = 0;
+		for (var k = 0; k < nbrs.length; k++) {
+			var rr = nbrs[k][0], cc = nbrs[k][1];
+			if (state[rr][cc] === FLAGGED) n++;
+			else if (state[rr][cc] === KNOWN && board[rr][cc] === MINE) n++;
+		}
+		return n;
+	}
+
+	// Pass 1: find a certain safe square (a numbered cell whose known mines equal its number).
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== KNOWN) continue;
 			var n = board[r][c];
 			if (n <= 0) continue;
 			var nbrs = neighbors(r, c);
-			var flagged = 0;
 			var unknownList = [];
 			for (var i = 0; i < nbrs.length; i++) {
 				var nr = nbrs[i][0], nc = nbrs[i][1];
-				if (state[nr][nc] === FLAGGED) flagged++;
-				else if (state[nr][nc] === UNKNOWN) unknownList.push(nbrs[i]);
+				if (state[nr][nc] === UNKNOWN) unknownList.push(nbrs[i]);
 			}
 			if (unknownList.length === 0) continue;
-			if (flagged === n) {
+			if (knownMineCount(nbrs) === n) {
 				return { type: "left", r: unknownList[0][0], c: unknownList[0][1], certain: true };
 			}
 		}
 	}
 
-	// Pass 2: flag a certain mine (a numbered cell whose unknown+flagged count equals its number).
+	// Pass 2: flag a certain mine (a numbered cell whose unknown + known-mine count equals its number).
 	for (var r2 = 0; r2 < rows; r2++) {
 		for (var c2 = 0; c2 < cols; c2++) {
 			if (state[r2][c2] !== KNOWN) continue;
 			var n2 = board[r2][c2];
 			if (n2 <= 0) continue;
 			var nbrs2 = neighbors(r2, c2);
-			var flagged2 = 0;
 			var unknownList2 = [];
 			for (var j = 0; j < nbrs2.length; j++) {
 				var nr2 = nbrs2[j][0], nc2 = nbrs2[j][1];
-				if (state[nr2][nc2] === FLAGGED) flagged2++;
-				else if (state[nr2][nc2] === UNKNOWN) unknownList2.push(nbrs2[j]);
+				if (state[nr2][nc2] === UNKNOWN) unknownList2.push(nbrs2[j]);
 			}
 			if (unknownList2.length === 0) continue;
-			if (flagged2 + unknownList2.length === n2) {
+			if (knownMineCount(nbrs2) + unknownList2.length === n2) {
 				return { type: "right", r: unknownList2[0][0], c: unknownList2[0][1], certain: true };
 			}
 		}

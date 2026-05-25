@@ -60,6 +60,9 @@ function createGame() {
 		} else if (state[r][c] == KNOWN) {
 			clearAdjacentIfEnoughFlags(r, c);
 		}
+		if (squaresLeft <= numMines) {
+			game.win();
+		}
 	}
 
 	function revealedSafeCount() {
