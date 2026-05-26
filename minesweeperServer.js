@@ -516,12 +516,15 @@ function gameMineHit(playerID) {
 
 function startGame(room) {
 	clearRoundTimer(room.id);
+	var centerR = Math.floor(gameCreator.rows / 2);
+	var centerC = Math.floor(gameCreator.cols / 2);
+	var template = gameCreator.createTemplate(centerR, centerC);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (!games[pid]) {
 			games[pid] = createPlayerGame(pid);
 		}
-		games[pid].init();
+		games[pid].init(template);
 	}
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];

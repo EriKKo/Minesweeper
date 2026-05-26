@@ -137,18 +137,27 @@ function createGame() {
 		}
 	}
 
-	function init() {
+	function init(template) {
 		for (var i = 0; i < rows; i++) {
 			for (var j = 0; j < cols; j++) {
-				board[i][j] = 0;
+				board[i][j] = template ? template.board[i][j] : 0;
 				state[i][j] = UNKNOWN;
 			}
 		}
-		for (var i = 0; i < numMines; i++) {
-			randomizeMine();
-		}
 		squaresLeft = rows*cols;
-		firstClick = true;
+		if (template) {
+			for (var k = 0; k < template.knownCells.length; k++) {
+				var rc = template.knownCells[k];
+				state[rc[0]][rc[1]] = KNOWN;
+				squaresLeft--;
+			}
+			firstClick = false;
+		} else {
+			for (var i = 0; i < numMines; i++) {
+				randomizeMine();
+			}
+			firstClick = true;
+		}
 		game.frozenUntil = 0;
 		game.finished = false;
 		game.finishedAt = 0;
@@ -202,7 +211,28 @@ function createGame() {
 	return game;
 }
 
+function createTemplate(startR, startC) {
+	var tmp = createGame();
+	tmp.win = function() {};
+	tmp.mineHit = function() {};
+	tmp.playing = true;
+	tmp.init();
+	tmp.handleLeftClick(startR, startC);
+	var board = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		board[r] = tmp.board[r].slice();
+	}
+	var knownCells = [];
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (tmp.state[r][c] === KNOWN) knownCells.push([r, c]);
+		}
+	}
+	return { board: board, knownCells: knownCells };
+}
+
 exports.createGame = createGame;
+exports.createTemplate = createTemplate;
 exports.MINE = MINE;
 exports.FLAGGED = FLAGGED;
 exports.UNKNOWN = UNKNOWN;
