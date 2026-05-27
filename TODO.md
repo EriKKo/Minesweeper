@@ -3,11 +3,12 @@
 ## Near-term: core game polish
 
 - [ ] **Visual improvements** — make the board and UI more enjoyable to look at
-  - Tile reveal animations, flag-place animation
-  - Number colors with better contrast / readable on small laptop screens
-  - Per-player cursor colors visible to everyone
-  - Win / loss / mine-hit effects
-  - Round timer and score display refresh
+  - [x] Tile reveal animations (staggered ripple from click), flag-place bounce
+  - [x] Number colors with better contrast / readable on small laptop screens
+  - [x] Raised/recessed tile depth, flag + bomb glyphs
+  - [x] Win / loss / mine-hit effects (mine flash + board shake)
+  - [ ] Per-player cursor colors visible to everyone
+  - [ ] Round timer and score display refresh
 
 - [ ] **Audio** — sound effects and (optional) music
   - Click / reveal / flag / chord sounds
