@@ -80,11 +80,18 @@ function createGame() {
 	}
 
 	function clearAdjacentIfEnoughFlags(r, c) {
-		var adjacentFlagged = getAdjacentSquares(r, c, FLAGGED);
-		if (adjacentFlagged.length == board[r][c]) {
-			var adjacentUnknown = getAdjacentSquares(r, c, UNKNOWN);
-			for (var i = 0; i < adjacentUnknown.length; i++) {
-				dfs(adjacentUnknown[i][0], adjacentUnknown[i][1]);
+		var adjacent = getAdjacentSquares(r, c);
+		var knownMines = 0;
+		var adjacentUnknown = [];
+		for (var i = 0; i < adjacent.length; i++) {
+			var ar = adjacent[i][0], ac = adjacent[i][1];
+			if (state[ar][ac] == FLAGGED) knownMines++;
+			else if (state[ar][ac] == KNOWN && board[ar][ac] == MINE) knownMines++;
+			else if (state[ar][ac] == UNKNOWN) adjacentUnknown.push(adjacent[i]);
+		}
+		if (knownMines == board[r][c]) {
+			for (var j = 0; j < adjacentUnknown.length; j++) {
+				dfs(adjacentUnknown[j][0], adjacentUnknown[j][1]);
 			}
 		}
 	}
