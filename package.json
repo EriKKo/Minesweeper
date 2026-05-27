@@ -4,7 +4,10 @@
   "description": "Awesome minesweeper multiplayer",
   "main": "minesweeperServer.js",
   "scripts": {
-    "start": "node minesweeperServer.js"
+    "start": "node minesweeperServer.js",
+    "dev": "DEV_AUTH=1 node minesweeperServer.js",
+    "stop": "pkill -f 'node minesweeperServer.js' || true",
+    "restart": "npm run stop; sleep 1; npm run dev"
   },
   "engines": {
     "node": ">=22"
