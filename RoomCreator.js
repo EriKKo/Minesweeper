@@ -5,8 +5,6 @@ var DEFAULT_ROUND_SECONDS = 120;
 var ROUND_SECONDS_OPTIONS = [60, 120, 180, 300, 0]; // 0 = unlimited
 var DEFAULT_DEATH_PENALTY = 5;
 var DEATH_PENALTY_OPTIONS = [0, 3, 5, 10];
-var BOT_SPEED_OPTIONS = [200, 400, 800]; // ms between bot actions
-var DEFAULT_BOT_SPEED = 400;
 
 function createRoom(id, ownerID) {
 	var players = [];
@@ -23,7 +21,6 @@ function createRoom(id, ownerID) {
 	room.gameCount = DEFAULT_GAME_COUNT;
 	room.roundSeconds = DEFAULT_ROUND_SECONDS;
 	room.deathPenalty = DEFAULT_DEATH_PENALTY;
-	room.botSpeed = DEFAULT_BOT_SPEED;
 	room.gamesPlayed = 0;
 	room.lastGameWinner = null;
 	room.seriesWinner = null;
@@ -40,7 +37,6 @@ function createRoom(id, ownerID) {
 	room.setGameCount = setGameCount;
 	room.setRoundSeconds = setRoundSeconds;
 	room.setDeathPenalty = setDeathPenalty;
-	room.setBotSpeed = setBotSpeed;
 	room.startSeries = startSeries;
 	room.recordRoundResult = recordRoundResult;
 	room.resetScores = resetScores;
@@ -48,7 +44,6 @@ function createRoom(id, ownerID) {
 	room.gameCountOptions = GAME_COUNT_OPTIONS.slice();
 	room.roundSecondsOptions = ROUND_SECONDS_OPTIONS.slice();
 	room.deathPenaltyOptions = DEATH_PENALTY_OPTIONS.slice();
-	room.botSpeedOptions = BOT_SPEED_OPTIONS.slice();
 
 	function addPlayer(playerID) {
 		players.push(playerID);
@@ -120,13 +115,6 @@ function createRoom(id, ownerID) {
 		return true;
 	}
 
-	function setBotSpeed(ms) {
-		if (BOT_SPEED_OPTIONS.indexOf(ms) === -1) return false;
-		if (room.phase !== "planning") return false;
-		room.botSpeed = ms;
-		return true;
-	}
-
 	function startSeries() {
 		room.phase = "playing";
 		room.gamesPlayed = 0;
@@ -164,4 +152,3 @@ exports.createRoom = createRoom;
 exports.GAME_COUNT_OPTIONS = GAME_COUNT_OPTIONS;
 exports.ROUND_SECONDS_OPTIONS = ROUND_SECONDS_OPTIONS;
 exports.DEATH_PENALTY_OPTIONS = DEATH_PENALTY_OPTIONS;
-exports.BOT_SPEED_OPTIONS = BOT_SPEED_OPTIONS;

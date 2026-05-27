@@ -114,11 +114,7 @@
 					</div>
 					<div id="bots_card" class="side-card" style="display:none">
 						<h3 class="side-title">Bots</h3>
-						<div class="series-config">
-							<span class="series-config-label">Speed</span>
-							<select id="bot_speed_select"></select>
-							<span id="bot_speed_readonly" class="series-config-readonly"></span>
-						</div>
+						<div id="bot_list" class="bot-list"></div>
 						<div class="bot-actions">
 							<button id="add_bot_button" class="btn btn-secondary" type="button">Add bot</button>
 							<button id="remove_bot_button" class="btn btn-ghost" type="button">Remove bot</button>
@@ -217,11 +213,10 @@ var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
 var seriesStatus = document.getElementById("series_status");
 var scoreboardEl = document.getElementById("scoreboard");
 var botsCard = document.getElementById("bots_card");
-var botSpeedSelect = document.getElementById("bot_speed_select");
-var botSpeedReadonly = document.getElementById("bot_speed_readonly");
 var addBotButton = document.getElementById("add_bot_button");
 var removeBotButton = document.getElementById("remove_bot_button");
 var botStatus = document.getElementById("bot_status");
+var botListEl = document.getElementById("bot_list");
 
 var frozenUntil = 0;
 var freezeTickHandle = null;
@@ -285,10 +280,6 @@ deathPenaltySelect.addEventListener("change", function() {
 	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
 });
 
-botSpeedSelect.addEventListener("change", function() {
-	socket.emit("set_bot_speed", { ms: parseInt(botSpeedSelect.value, 10) });
-});
-
 addBotButton.addEventListener("click", function() {
 	socket.emit("add_bot");
 });
@@ -312,10 +303,45 @@ function formatPenaltyOption(s) {
 	return s === 0 ? "None" : s + "s";
 }
 
-function formatBotSpeed(ms) {
-	if (ms <= 250) return "Fast";
-	if (ms <= 500) return "Medium";
-	return "Slow";
+function formatDifficulty(d) {
+	return d ? d.charAt(0).toUpperCase() + d.slice(1) : "";
+}
+
+function renderBotList(state, isOwner) {
+	var bots = state.players.filter(function(p) { return p.isBot; });
+	botListEl.innerHTML = "";
+	var canEdit = isOwner && state.phase === "planning";
+	bots.forEach(function(bot) {
+		var row = document.createElement("div");
+		row.className = "bot-row";
+
+		var name = document.createElement("span");
+		name.className = "bot-row-name";
+		name.textContent = bot.name;
+		row.appendChild(name);
+
+		if (canEdit) {
+			var sel = document.createElement("select");
+			sel.className = "bot-difficulty-select";
+			(state.botDifficultyOptions || []).forEach(function(d) {
+				var opt = document.createElement("option");
+				opt.value = d;
+				opt.textContent = formatDifficulty(d);
+				sel.appendChild(opt);
+			});
+			sel.value = bot.difficulty;
+			sel.addEventListener("change", function() {
+				socket.emit("set_bot_difficulty", { botId: bot.id, difficulty: sel.value });
+			});
+			row.appendChild(sel);
+		} else {
+			var tag = document.createElement("span");
+			tag.className = "bot-row-difficulty";
+			tag.textContent = formatDifficulty(bot.difficulty);
+			row.appendChild(tag);
+		}
+		botListEl.appendChild(row);
+	});
 }
 
 function ordinal(n) {
@@ -666,13 +692,6 @@ function renderRoomState(state) {
 	var showBotCard = isOwner || (state.botCount && state.botCount > 0);
 	botsCard.style.display = showBotCard ? "" : "none";
 	if (showBotCard) {
-		populateSelect(botSpeedSelect, state.botSpeedOptions, formatBotSpeed);
-		botSpeedSelect.value = String(state.botSpeed);
-		var canEditBotSpeed = isOwner && state.phase === "planning";
-		botSpeedSelect.disabled = !canEditBotSpeed;
-		botSpeedSelect.style.display = isOwner ? "" : "none";
-		botSpeedReadonly.style.display = isOwner ? "none" : "";
-		botSpeedReadonly.textContent = formatBotSpeed(state.botSpeed);
 		var canAddBot = isOwner && state.phase === "planning" && state.botCount < state.maxBots;
 		var canRemoveBot = isOwner && state.phase === "planning" && state.botCount > 0;
 		addBotButton.style.display = isOwner ? "" : "none";
@@ -684,6 +703,7 @@ function renderRoomState(state) {
 		} else {
 			botStatus.textContent = state.botCount + " bot" + (state.botCount === 1 ? "" : "s") + " in this room.";
 		}
+		renderBotList(state, isOwner);
 	}
 
 	if (state.phase === "playing" && state.roundDeadline) {

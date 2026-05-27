@@ -52,6 +52,7 @@ var nextGameTimers = {};
 var roundTimers = {};
 var roundDeadlines = {};
 var bots = {}; // botId -> true
+var botDifficulty = {}; // botId -> "easy" | "medium" | "hard"
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -94,7 +95,6 @@ function buildRoomState(room) {
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
-		botSpeed: room.botSpeed,
 		roundDeadline: roundDeadlines[room.id] || null,
 		lastGameWinner: room.lastGameWinner,
 		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
@@ -103,7 +103,7 @@ function buildRoomState(room) {
 		gameCountOptions: room.gameCountOptions,
 		roundSecondsOptions: room.roundSecondsOptions,
 		deathPenaltyOptions: room.deathPenaltyOptions,
-		botSpeedOptions: room.botSpeedOptions,
+		botDifficultyOptions: botPlayer.DIFFICULTIES,
 		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
 		maxBots: MAX_BOTS_PER_ROOM,
 		players: room.players.map(function(pid) {
@@ -115,6 +115,7 @@ function buildRoomState(room) {
 				score: room.scores[pid] || 0,
 				isOwner: pid === room.owner,
 				isBot: isBot(pid),
+				difficulty: isBot(pid) ? (botDifficulty[pid] || botPlayer.DEFAULT_DIFFICULTY) : null,
 				finished: g ? !!g.finished : false
 			};
 		})
@@ -179,7 +180,8 @@ function scheduleBotTick(room, botId) {
 	}
 	if (!move) return;
 
-	var delay = botPlayer.computeMoveDelay(room.botSpeed || 400, botLastClick[botId] || null, move);
+	var baseMs = botPlayer.speedFor(botDifficulty[botId]);
+	var delay = botPlayer.computeMoveDelay(baseMs, botLastClick[botId] || null, move);
 	botTickHandles[botId] = setTimeout(function() {
 		delete botTickHandles[botId];
 		runBotMove(room, botId, move);
@@ -251,8 +253,10 @@ function addBotToRoom(room) {
 	if (botCount(room) >= MAX_BOTS_PER_ROOM) return false;
 	var botId = "bot:" + (nextBotId++);
 	bots[botId] = true;
+	botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 	names[botId] = botPlayer.pickBotName(getRoomBotNames(room));
 	games[botId] = createPlayerGame(botId);
+	games[botId].botMistakeRate = botPlayer.mistakeRateFor(botDifficulty[botId]);
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -278,6 +282,7 @@ function removeBotEntirely(botId) {
 	delete games[botId];
 	delete names[botId];
 	delete bots[botId];
+	delete botDifficulty[botId];
 	delete botLastClick[botId];
 }
 
@@ -737,14 +742,18 @@ io.on("connection", function (socket) {
 		}
 	});
 
-	socket.on("set_bot_speed", function(data) {
+	socket.on("set_bot_difficulty", function(data) {
 		var room = roomMapping[playerID];
 		if (!room) return;
 		if (room.owner !== playerID) return;
-		var ms = data && parseInt(data.ms, 10);
-		if (room.setBotSpeed(ms)) {
-			broadcastRoomState(room);
-		}
+		if (room.phase !== "planning") return;
+		var botId = data && data.botId;
+		var difficulty = data && data.difficulty;
+		if (!isBot(botId) || roomMapping[botId] !== room) return;
+		if (botPlayer.DIFFICULTIES.indexOf(difficulty) === -1) return;
+		botDifficulty[botId] = difficulty;
+		if (games[botId]) games[botId].botMistakeRate = botPlayer.mistakeRateFor(difficulty);
+		broadcastRoomState(room);
 	});
 
 	socket.on("add_bot", function() {

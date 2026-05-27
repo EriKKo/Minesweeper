@@ -510,6 +510,35 @@ main {
 	flex-wrap: wrap;
 }
 
+.bot-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin-top: 0.5rem;
+}
+
+.bot-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.bot-row-name {
+	font-size: 0.9rem;
+	color: var(--text);
+}
+
+.bot-row-difficulty {
+	font-size: 0.85rem;
+	color: var(--muted);
+}
+
+.bot-difficulty-select {
+	padding: 0.25rem 0.4rem;
+	font-size: 0.85rem;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
 	.game-grid { grid-template-columns: 1fr; }
