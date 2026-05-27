@@ -525,7 +525,7 @@ function startGame(room) {
 	clearRoundTimer(room.id);
 	var centerR = Math.floor(gameCreator.rows / 2);
 	var centerC = Math.floor(gameCreator.cols / 2);
-	var template = gameCreator.createTemplate(centerR, centerC, room.mineCount);
+	var template = gameCreator.createNoGuessTemplate(centerR, centerC, room.mineCount);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (!games[pid]) {
