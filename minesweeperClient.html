@@ -468,29 +468,18 @@ cancelRankedButton.addEventListener("click", function() {
 });
 
 var rankedSearchInfo = null;
-var rankedTickHandle = null;
 
 function setRankedSearching(on) {
 	rankedSearching.style.display = on ? "" : "none";
 	findRankedButton.style.display = on ? "none" : "";
-	if (on) {
-		updateRankedSearchingText();
-		if (!rankedTickHandle) rankedTickHandle = setInterval(updateRankedSearchingText, 500);
-	} else {
-		rankedSearchInfo = null;
-		if (rankedTickHandle) { clearInterval(rankedTickHandle); rankedTickHandle = null; }
-	}
+	if (on) updateRankedSearchingText();
+	else rankedSearchInfo = null;
 }
 
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
 	var count = info.count || 1, size = info.size || 4;
-	var text = "Searching… " + count + "/" + size + " players";
-	if (info.deadline) {
-		var secs = Math.max(0, Math.ceil((info.deadline - Date.now()) / 1000));
-		text += " · filling with bots in " + secs + "s";
-	}
-	rankedSearchingText.textContent = text;
+	rankedSearchingText.textContent = "Searching… " + count + "/" + size + " players";
 }
 
 document.getElementById("leave_button").addEventListener("click", function() {

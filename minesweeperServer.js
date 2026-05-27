@@ -206,12 +206,15 @@ var MAX_BOTS_PER_ROOM = 3;
 
 // Ranked matchmaking
 var RANKED_MATCH_SIZE = 4;
-var RANKED_WAIT_MS = 12000; // wait for more humans before filling with bots
 var RANKED_RULES = { gameCount: 5, roundSeconds: 120, deathPenalty: 5, mineCount: 30 };
 var RANKED_BOT_RATING = 1000;
+// Bots "join" the queue one at a time at random intervals so it reads like real
+// players trickling in, rather than all appearing at a fixed deadline.
+var BOT_JOIN_MIN_MS = 1500;
+var BOT_JOIN_MAX_MS = 4200;
 var rankedQueue = []; // socketIds of signed-in players searching
-var rankedTimer = null;
-var rankedDeadline = null;
+var pendingBots = 0;  // bots that have "arrived" so far this search
+var rankedFillTimer = null;
 
 function isBot(playerID) {
 	return !!bots[playerID];
@@ -790,11 +793,33 @@ function startSeries(room) {
 }
 
 // ---- Ranked matchmaking ------------------------------------------------
+function rankedCount() { return rankedQueue.length + pendingBots; }
+
 function broadcastRankedQueue() {
 	for (var i = 0; i < rankedQueue.length; i++) {
 		var s = sockets[rankedQueue[i]];
-		if (s) s.emit("ranked_searching", { count: rankedQueue.length, size: RANKED_MATCH_SIZE, deadline: rankedDeadline });
+		if (s) s.emit("ranked_searching", { count: rankedCount(), size: RANKED_MATCH_SIZE });
 	}
+}
+
+function clearRankedFill() {
+	if (rankedFillTimer) { clearTimeout(rankedFillTimer); rankedFillTimer = null; }
+}
+
+function scheduleBotArrival() {
+	if (rankedFillTimer) return;
+	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
+	rankedFillTimer = setTimeout(function() {
+		rankedFillTimer = null;
+		if (rankedQueue.length === 0) { pendingBots = 0; return; } // everyone left
+		pendingBots++;
+		if (rankedCount() >= RANKED_MATCH_SIZE) {
+			formRankedMatch();
+		} else {
+			broadcastRankedQueue();
+			scheduleBotArrival();
+		}
+	}, delay);
 }
 
 function enqueueRanked(playerID) {
@@ -802,14 +827,11 @@ function enqueueRanked(playerID) {
 	if (roomMapping[playerID]) return;         // already in a room
 	if (rankedQueue.indexOf(playerID) !== -1) return;
 	rankedQueue.push(playerID);
-	if (rankedQueue.length >= RANKED_MATCH_SIZE) {
+	if (rankedCount() >= RANKED_MATCH_SIZE) {
 		formRankedMatch();
 	} else {
-		if (!rankedTimer) {
-			rankedDeadline = Date.now() + RANKED_WAIT_MS;
-			rankedTimer = setTimeout(formRankedMatch, RANKED_WAIT_MS);
-		}
 		broadcastRankedQueue();
+		scheduleBotArrival();
 	}
 }
 
@@ -817,18 +839,17 @@ function dequeueRanked(playerID) {
 	var idx = rankedQueue.indexOf(playerID);
 	if (idx === -1) return;
 	rankedQueue.splice(idx, 1);
-	if (rankedQueue.length === 0 && rankedTimer) {
-		clearTimeout(rankedTimer);
-		rankedTimer = null;
-		rankedDeadline = null;
+	if (rankedQueue.length === 0) {
+		clearRankedFill();
+		pendingBots = 0;
 	} else {
 		broadcastRankedQueue();
 	}
 }
 
 function formRankedMatch() {
-	if (rankedTimer) { clearTimeout(rankedTimer); rankedTimer = null; }
-	rankedDeadline = null;
+	clearRankedFill();
+	pendingBots = 0;
 
 	var humans = [];
 	while (rankedQueue.length && humans.length < RANKED_MATCH_SIZE) {
@@ -875,9 +896,8 @@ function formRankedMatch() {
 	startSeries(room);
 
 	if (rankedQueue.length > 0) {
-		rankedDeadline = Date.now() + RANKED_WAIT_MS;
-		rankedTimer = setTimeout(formRankedMatch, RANKED_WAIT_MS);
 		broadcastRankedQueue();
+		scheduleBotArrival();
 	}
 }
 
