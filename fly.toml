@@ -5,7 +5,7 @@ primary_region = "arn"
 
 [env]
   PORT = "8080"
-  OAUTH_REDIRECT_BASE = "https://sweepwars.com"
+  OAUTH_REDIRECT_BASE = "https://msbattle.net"
   RANKED_DB = "/data/ranked.db"
 
 [mounts]
