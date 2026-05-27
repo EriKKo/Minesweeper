@@ -43,6 +43,30 @@ body {
 	font-weight: 600;
 }
 
+.topbar-right {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+.audio-control {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.audio-control #mute_button {
+	font-size: 1rem;
+	padding: 0.3rem 0.45rem;
+	line-height: 1;
+}
+
+#volume_slider {
+	width: 84px;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
 .user-badge {
 	display: flex;
 	align-items: center;

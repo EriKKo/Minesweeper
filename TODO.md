@@ -10,11 +10,12 @@
   - [ ] Per-player cursor colors visible to everyone
   - [x] Round timer warning/urgent states; per-round + series result panels (placement, clear times, points); scoreboard score-gain flash
 
-- [ ] **Audio** — sound effects and (optional) music
-  - Click / reveal / flag / chord sounds
-  - Mine explosion, freeze-penalty cue
-  - Round start countdown, round end, win/lose stingers
-  - Volume + mute toggle, remembered per client
+- [~] **Audio** — WebAudio synthesis (no asset files)
+  - [x] Reveal/cascade (pitched ripple), flag/unflag, mine explosion
+  - [x] Countdown beeps + GO, win/lose + series stingers
+  - [x] Mute toggle + volume slider, remembered in localStorage
+  - [ ] Optional background music
+  - [ ] Optional opponent-finished cue (race tension)
 
 - [x] **Hotkey-only mode** — fully playable without a mouse (laptop-friendly)
   - Arrow keys to move; Shift+arrow skips revealed cells in that direction

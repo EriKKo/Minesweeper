@@ -9,9 +9,15 @@
 <body>
 	<header class="topbar">
 		<h1>Multiplayer Minesweeper</h1>
-		<div id="user_badge" class="user-badge" style="display:none">
-			Playing as <strong id="user_badge_name"></strong>
-			<button id="change_name_button" class="btn btn-ghost" type="button">Change</button>
+		<div class="topbar-right">
+			<div class="audio-control">
+				<button id="mute_button" class="btn btn-ghost" type="button" aria-label="Toggle sound">🔊</button>
+				<input id="volume_slider" type="range" min="0" max="100" aria-label="Volume">
+			</div>
+			<div id="user_badge" class="user-badge" style="display:none">
+				Playing as <strong id="user_badge_name"></strong>
+				<button id="change_name_button" class="btn btn-ghost" type="button">Change</button>
+			</div>
 		</div>
 	</header>
 
@@ -192,6 +198,88 @@ var inRoom = false;
 
 var socket = io({ transports: ["websocket"] });
 
+// Procedural sound effects (WebAudio, no asset files). Short and soft — these
+// fire hundreds of times per game, so everything is brief and low-gain.
+var sound = (function() {
+	var ctx = null, master = null;
+	var muted = localStorage.getItem("ms_muted") === "1";
+	var volume = parseFloat(localStorage.getItem("ms_volume"));
+	if (isNaN(volume)) volume = 0.6;
+
+	function ensure() {
+		if (ctx) return ctx;
+		var AC = window.AudioContext || window.webkitAudioContext;
+		if (!AC) return null;
+		ctx = new AC();
+		master = ctx.createGain();
+		master.gain.value = volume;
+		master.connect(ctx.destination);
+		return ctx;
+	}
+
+	function tone(opts) {
+		if (muted || !ensure()) return;
+		if (ctx.state === "suspended") ctx.resume();
+		var t0 = ctx.currentTime + (opts.delay || 0);
+		var osc = ctx.createOscillator();
+		var g = ctx.createGain();
+		osc.type = opts.type || "sine";
+		osc.frequency.setValueAtTime(opts.freq, t0);
+		if (opts.toFreq) osc.frequency.exponentialRampToValueAtTime(opts.toFreq, t0 + opts.dur);
+		var peak = opts.gain != null ? opts.gain : 0.2;
+		g.gain.setValueAtTime(0.0001, t0);
+		g.gain.exponentialRampToValueAtTime(peak, t0 + 0.005);
+		g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
+		osc.connect(g); g.connect(master);
+		osc.start(t0); osc.stop(t0 + opts.dur + 0.02);
+	}
+
+	function noise(opts) {
+		if (muted || !ensure()) return;
+		if (ctx.state === "suspended") ctx.resume();
+		var t0 = ctx.currentTime;
+		var dur = opts.dur || 0.3;
+		var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = opts.cutoff || 800;
+		var g = ctx.createGain(); g.gain.value = opts.gain != null ? opts.gain : 0.4;
+		src.connect(lp); lp.connect(g); g.connect(master);
+		src.start(t0);
+	}
+
+	function arp(freqs, step, dur, gain) {
+		for (var i = 0; i < freqs.length; i++) tone({ type: "triangle", freq: freqs[i], dur: dur, gain: gain, delay: i * step });
+	}
+
+	return {
+		cascade: function(n) {
+			var ticks = Math.max(1, Math.min(n, 7));
+			for (var i = 0; i < ticks; i++) tone({ type: "triangle", freq: 560 + i * 70, dur: 0.045, gain: 0.05, delay: i * 0.028 });
+		},
+		flag: function() { tone({ type: "square", freq: 420, toFreq: 300, dur: 0.06, gain: 0.06 }); },
+		unflag: function() { tone({ type: "square", freq: 300, dur: 0.04, gain: 0.04 }); },
+		mine: function() {
+			noise({ dur: 0.35, cutoff: 500, gain: 0.5 });
+			tone({ type: "sine", freq: 150, toFreq: 50, dur: 0.4, gain: 0.22 });
+		},
+		beep: function(freq) { tone({ type: "sine", freq: freq, dur: 0.12, gain: 0.12 }); },
+		go: function() { tone({ type: "sine", freq: 880, dur: 0.25, gain: 0.16 }); },
+		win: function() { arp([523, 659, 784, 1047], 0.09, 0.28, 0.12); },
+		lose: function() { tone({ type: "sine", freq: 320, toFreq: 200, dur: 0.32, gain: 0.11 }); },
+		seriesWin: function() { arp([523, 659, 784, 1047, 1319], 0.11, 0.34, 0.13); },
+		unlock: function() { if (ensure() && ctx.state === "suspended") ctx.resume(); },
+		setMuted: function(m) { muted = m; localStorage.setItem("ms_muted", m ? "1" : "0"); },
+		isMuted: function() { return muted; },
+		setVolume: function(v) { volume = v; localStorage.setItem("ms_volume", String(v)); if (master) master.gain.value = v; },
+		getVolume: function() { return volume; }
+	};
+})();
+
+document.addEventListener("click", sound.unlock, { once: true });
+document.addEventListener("keydown", sound.unlock, { once: true });
+
 var nameView = document.getElementById("name_view");
 var lobbyView = document.getElementById("lobby_view");
 var gameView = document.getElementById("game_view");
@@ -207,6 +295,8 @@ var changeNameButton = document.getElementById("change_name_button");
 var boardOverlay = document.getElementById("board_overlay");
 var roundTimer = document.getElementById("round_timer");
 var gameProgressText = document.getElementById("game_progress_text");
+var muteButton = document.getElementById("mute_button");
+var volumeSlider = document.getElementById("volume_slider");
 var readyButton = document.getElementById("ready_button");
 var readyStatus = document.getElementById("ready_status");
 var gameCountSelect = document.getElementById("game_count_select");
@@ -250,6 +340,21 @@ nameForm.addEventListener("submit", function(e) {
 		return;
 	}
 	socket.emit("set_name", { name: name });
+});
+
+function refreshMuteIcon() {
+	muteButton.textContent = sound.isMuted() ? "🔇" : "🔊";
+}
+volumeSlider.value = String(Math.round(sound.getVolume() * 100));
+refreshMuteIcon();
+muteButton.addEventListener("click", function() {
+	sound.unlock();
+	sound.setMuted(!sound.isMuted());
+	refreshMuteIcon();
+});
+volumeSlider.addEventListener("input", function() {
+	sound.unlock();
+	sound.setVolume(parseInt(volumeSlider.value, 10) / 100);
 });
 
 changeNameButton.addEventListener("click", function() {
@@ -429,6 +534,10 @@ socket.on("start_game", function(data) {
 socket.on("game_result", function(data) {
 	roundResultShown = true;
 	showRoundResultPanel(data);
+	// On the final round, let the series sting play instead of doubling up.
+	if (data.gameNumber < data.gameCount) {
+		if (data.winnerId === id) sound.win(); else sound.lose();
+	}
 	clearFreeze();
 	stopRoundTimer();
 });
@@ -440,6 +549,7 @@ socket.on("mine_hit", function(data) {
 
 socket.on("series_ended", function(data) {
 	showSeriesResultPanel(data);
+	if (data.winnerId === id) sound.seriesWin(); else sound.lose();
 	gameProgressText.textContent = "";
 	stopRoundTimer();
 });
@@ -939,6 +1049,7 @@ function countDown(time) {
 function countDownStep(number) {
 	if (number <= 0) {
 		showOverlay("GO", "go");
+		sound.go();
 		setTimeout(function() {
 			if (boardOverlay.textContent === "GO") hideOverlay();
 		}, 700);
@@ -946,6 +1057,7 @@ function countDownStep(number) {
 	}
 	showOverlay(String(number), "count");
 	boardOverlay.style.color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
+	sound.beep(392 + (3 - Math.min(number, 3)) * 110);
 	setTimeout(function() { countDownStep(number - 1); }, 1000);
 }
 
@@ -1305,6 +1417,7 @@ function resetBoardAnimations() {
 function queueRevealAnimations(newState, newBoard) {
 	var now = performance.now();
 	var revealed = [];
+	var newlyFlagged = 0, newlyUnflagged = 0;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			var was = prevPlayerState ? prevPlayerState[r][c] : UNKNOWN;
@@ -1314,11 +1427,14 @@ function queueRevealAnimations(newState, newBoard) {
 				revealed.push([r, c]);
 			} else if (cur === FLAGGED && was !== FLAGGED) {
 				cellAnims[key] = { type: "flag", start: now };
+				newlyFlagged++;
 			} else if (cur !== KNOWN && cur !== FLAGGED) {
+				if (was === FLAGGED) newlyUnflagged++;
 				delete cellAnims[key];
 			}
 		}
 	}
+	var hitMine = false, safeRevealed = 0;
 	if (revealed.length) {
 		var origin = lastActionCell;
 		if (!origin || newState[origin.r][origin.c] !== KNOWN) {
@@ -1326,17 +1442,20 @@ function queueRevealAnimations(newState, newBoard) {
 			for (var i = 0; i < revealed.length; i++) { sr += revealed[i][0]; sc += revealed[i][1]; }
 			origin = { r: sr / revealed.length, c: sc / revealed.length };
 		}
-		var hitMine = false;
 		for (var j = 0; j < revealed.length; j++) {
 			var rr = revealed[j][0], cc = revealed[j][1];
 			var d = Math.hypot(rr - origin.r, cc - origin.c);
 			var delay = Math.min(d * STAGGER_MS, STAGGER_CAP);
 			var isMine = newBoard[rr][cc] === MINE;
-			if (isMine) hitMine = true;
+			if (isMine) hitMine = true; else safeRevealed++;
 			cellAnims[rr + "," + cc] = { type: isMine ? "mine" : "reveal", start: now + delay };
 		}
 		if (hitMine) triggerShake();
 	}
+	if (safeRevealed > 0) sound.cascade(safeRevealed);
+	if (hitMine) sound.mine();
+	if (newlyFlagged > 0) sound.flag();
+	if (newlyUnflagged > 0) sound.unflag();
 	startAnimLoop();
 }
 
