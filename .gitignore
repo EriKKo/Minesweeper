@@ -1,3 +1,7 @@
 node_modules/
 npm-debug.log
 .DS_Store
+ranked.db
+ranked.db-journal
+ranked.db-wal
+ranked.db-shm

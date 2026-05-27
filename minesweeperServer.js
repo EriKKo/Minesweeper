@@ -1,19 +1,35 @@
 var http = require("http")
   , fs = require("fs")
   , path = require("path")
+  , crypto = require("node:crypto")
   , gameCreator = require("./GameCreator")
   , roomCreator = require("./RoomCreator")
-  , botPlayer = require("./BotPlayer");
+  , botPlayer = require("./BotPlayer")
+  , db = require("./db");
 
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
 var SERIES_END_DELAY = 6000;
+var PROVISIONAL_GAMES = 10;
+
+var PORT = process.env.PORT || 1337;
+var OAUTH_BASE = process.env.OAUTH_REDIRECT_BASE || ("http://localhost:" + PORT);
+var GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+var GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+var DEV_AUTH = process.env.DEV_AUTH === "1";
+var oauthStates = {}; // state -> expiry ms
 
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
 
 function handler (req, res) {
-	var filePath = "." + req.url;
+	var url = new URL(req.url, OAUTH_BASE);
+	var pathname = url.pathname;
+	if (pathname === "/auth/github/login") return authGithubLogin(req, res);
+	if (pathname === "/auth/github/callback") return authGithubCallback(req, res, url);
+	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
+
+	var filePath = "." + pathname;
 	if (filePath == "./") {
 		filePath = "./minesweeperClient.html";
 	}
@@ -42,12 +58,73 @@ function handler (req, res) {
 	});
 }
 
+function authGithubLogin(req, res) {
+	if (!GITHUB_CLIENT_ID) { res.writeHead(500); res.end("GitHub OAuth is not configured (set GITHUB_CLIENT_ID/SECRET)."); return; }
+	var state = crypto.randomBytes(16).toString("hex");
+	oauthStates[state] = Date.now() + 10 * 60 * 1000;
+	var params = new URLSearchParams({
+		client_id: GITHUB_CLIENT_ID,
+		redirect_uri: OAUTH_BASE + "/auth/github/callback",
+		scope: "read:user",
+		state: state
+	});
+	res.writeHead(302, { Location: "https://github.com/login/oauth/authorize?" + params.toString() });
+	res.end();
+}
+
+function authGithubCallback(req, res, url) {
+	var code = url.searchParams.get("code");
+	var state = url.searchParams.get("state");
+	if (!state || !oauthStates[state] || oauthStates[state] < Date.now()) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
+	delete oauthStates[state];
+	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
+	(async function() {
+		try {
+			var tokenResp = await fetch("https://github.com/login/oauth/access_token", {
+				method: "POST",
+				headers: { "Accept": "application/json", "Content-Type": "application/json" },
+				body: JSON.stringify({
+					client_id: GITHUB_CLIENT_ID,
+					client_secret: GITHUB_CLIENT_SECRET,
+					code: code,
+					redirect_uri: OAUTH_BASE + "/auth/github/callback"
+				})
+			});
+			var tokenJson = await tokenResp.json();
+			var accessToken = tokenJson.access_token;
+			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
+			var ghResp = await fetch("https://api.github.com/user", {
+				headers: { "Authorization": "Bearer " + accessToken, "User-Agent": "minesweeper", "Accept": "application/vnd.github+json" }
+			});
+			var gh = await ghResp.json();
+			var user = db.upsertUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url);
+			finishLogin(res, user.id);
+		} catch (e) {
+			console.error("github oauth error", e);
+			res.writeHead(500); res.end("OAuth error");
+		}
+	})();
+}
+
+function authDev(req, res, url) {
+	var name = (url.searchParams.get("name") || "Dev").slice(0, 24);
+	var user = db.upsertUser("dev", name.toLowerCase(), name, null);
+	finishLogin(res, user.id);
+}
+
+function finishLogin(res, userId) {
+	var token = db.createSession(userId);
+	res.writeHead(302, { Location: OAUTH_BASE + "/#token=" + token });
+	res.end();
+}
+
 var games = {};
 var roomMapping = {};
 var rooms = {};
 var nextRoomId = 1;
 var sockets = {};
 var names = {};
+var accounts = {}; // socketId -> { userId, token } for signed-in players
 var nextGameTimers = {};
 var roundTimers = {};
 var roundDeadlines = {};
@@ -652,7 +729,37 @@ io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
 	socket.join("lobby");
-	socket.emit("connected", { id: playerID });
+	socket.emit("connected", { id: playerID, oauth: { github: !!GITHUB_CLIENT_ID, dev: DEV_AUTH } });
+
+	socket.on("authenticate", function(data) {
+		var token = data && data.token;
+		var user = db.getUserByToken(token);
+		if (!user) { socket.emit("auth_failed"); return; }
+		accounts[playerID] = { userId: user.id, token: token };
+		var isFirst = !names[playerID];
+		names[playerID] = user.name;
+		if (games[playerID]) {
+			games[playerID].playerName = user.name;
+			updateDraw(roomMapping[playerID]);
+		}
+		socket.emit("authenticated", {
+			name: user.name,
+			rating: user.rating,
+			avatarUrl: user.avatar_url,
+			wins: user.wins,
+			played: user.played,
+			provisional: user.provisional_games < PROVISIONAL_GAMES
+		});
+		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
+		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
+	});
+
+	socket.on("sign_out", function() {
+		if (accounts[playerID]) {
+			db.deleteSession(accounts[playerID].token);
+			delete accounts[playerID];
+		}
+	});
 
 	socket.on("set_name", function(data) {
 		var name = (data && typeof data.name === "string") ? data.name.trim().slice(0, 24) : "";
@@ -834,10 +941,10 @@ io.on("connection", function (socket) {
 		}
 		delete sockets[playerID];
 		delete names[playerID];
+		delete accounts[playerID]; // session stays valid in the DB for reconnect
 	});
 });
 
-var port = process.env.PORT || 1337;
-app.listen(port, "0.0.0.0", function() {
-	console.log("listening on " + port);
+app.listen(PORT, "0.0.0.0", function() {
+	console.log("listening on " + PORT);
 });

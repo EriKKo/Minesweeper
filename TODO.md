@@ -33,6 +33,17 @@
   - Implemented in `GameCreator.js` behind `game.autoChordOnFlag` (default off)
   - Needs: a way to grant/activate it per player, UI affordance, balancing as a powerup
 
+## Ranked mode
+
+- [~] **Ranked mode** — accounts + pairwise-Elo ladder, matchmaking queue with bot fill
+  - [x] Phase 1: SQLite accounts/sessions (`db.js`, node:sqlite), GitHub OAuth +
+    env-gated dev login, authenticated socket, "Signed in as X · rating" badge.
+    Guest nickname path still works. Real GitHub login needs an OAuth app +
+    `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`; dev login via `DEV_AUTH=1`.
+  - [ ] Phase 2: "Find ranked match" queue, fixed ruleset, fill with fixed-MMR bots
+  - [ ] Phase 3: pairwise Elo updates after each round (high-K provisional), persisted
+  - [ ] Phase 4: rank tiers + leaderboard UI
+
 ## Later: new formats
 
 - [ ] **Knockout mode with big lobbies**
