@@ -215,7 +215,24 @@ var KNOWN = -4;
 var rows = 15;
 var cols = 20;
 
+var PLAYER_CELL = 34; // target on-screen px per cell on the player's board
+var OPP_CELL = 13;    // smaller cells for opponent boards
+var DPR = window.devicePixelRatio || 1;
+
+// Size a board canvas from the cell grid: render at devicePixelRatio for crispness,
+// display at the logical size, and let it shrink responsively on narrow screens.
+function sizeBoardCanvas(canvas, cellPx) {
+	canvas.width = Math.round(cols * cellPx * DPR);
+	canvas.height = Math.round(rows * cellPx * DPR);
+	canvas.style.width = (cols * cellPx) + "px";
+	canvas.style.maxWidth = "100%";
+	canvas.style.height = "auto";
+}
+
 var playerCanvas = document.getElementById("game0");
+sizeBoardCanvas(playerCanvas, PLAYER_CELL);
+for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+
 var playerCanvasHeight = playerCanvas.height;
 var playerCanvasWidth = playerCanvas.width;
 var playerCanvasSquareWidth = playerCanvasWidth / cols;
