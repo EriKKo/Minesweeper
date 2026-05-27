@@ -54,6 +54,15 @@ function getUserByToken(token) {
 	).get(token) || null;
 }
 
+function getUserById(id) {
+	return db.prepare("SELECT * FROM users WHERE id = ?").get(id) || null;
+}
+
+function updateRating(userId, newRating, won) {
+	db.prepare("UPDATE users SET rating = ?, played = played + 1, wins = wins + ? WHERE id = ?")
+		.run(newRating, won ? 1 : 0, userId);
+}
+
 function deleteSession(token) {
 	if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
 }
@@ -66,6 +75,8 @@ module.exports = {
 	upsertUser: upsertUser,
 	createSession: createSession,
 	getUserByToken: getUserByToken,
+	getUserById: getUserById,
+	updateRating: updateRating,
 	deleteSession: deleteSession,
 	topPlayers: topPlayers
 };

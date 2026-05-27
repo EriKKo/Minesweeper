@@ -863,6 +863,9 @@ function showRoundResultPanel(data) {
 		var detail = s.finished
 			? (s.finishMs != null ? "Cleared " + formatClearTime(s.finishMs) : "Cleared")
 			: s.safeCount + " cells";
+		if (s.ratingDelta != null) {
+			detail += "  " + (s.ratingDelta >= 0 ? "▲" : "▼") + Math.abs(s.ratingDelta);
+		}
 		var row = resultRow(medal(s.rank), s.id === id ? "You" : s.name, detail, "+" + s.points,
 			{ me: s.id === id, top: s.rank === 1 });
 		row.style.animationDelay = (idx * 55) + "ms";
@@ -875,7 +878,23 @@ function showRoundResultPanel(data) {
 	foot.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	panel.appendChild(foot);
 
+	updateRatingFromStandings(standings);
+
 	presentPanel(panel, won ? "win" : "lose");
+}
+
+// Apply our own ranked rating change to the badge (server already persisted it).
+function updateRatingFromStandings(standings) {
+	if (!account) return;
+	var mine = standings.find(function(s) { return s.id === id; });
+	if (!mine || typeof mine.rating !== "number") return;
+	account.rating = mine.rating;
+	if (mine.provisional != null) account.provisional = mine.provisional;
+	ratingChip.textContent = (account.provisional ? "~" : "") + mine.rating;
+	ratingChip.style.display = "";
+	ratingChip.classList.remove("rating-chip-bump");
+	void ratingChip.offsetWidth;
+	ratingChip.classList.add("rating-chip-bump");
 }
 
 function showSeriesResultPanel(data) {

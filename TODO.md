@@ -43,7 +43,9 @@
   - [x] Phase 2: "Find ranked match" queue (12s wait, live countdown), fixed ruleset
     (Bo5 / 2min / 5s / 30 mines), fills with bots; ranked rooms hidden from lobby,
     locked settings + RANKED tag in-game
-  - [ ] Phase 3: pairwise Elo updates after each round (high-K provisional), persisted
+  - [x] Phase 3: pairwise Elo after each round (K40 provisional <10 games, else K20),
+    delta normalized by lobby size; bots use a fixed 1000 rating; persisted to DB;
+    rating delta shown in the result panel + live badge update
   - [ ] Phase 4: rank tiers + leaderboard UI
 
 ## Later: new formats

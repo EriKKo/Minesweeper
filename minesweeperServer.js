@@ -557,6 +557,49 @@ function buildStandings(room) {
 	return entries;
 }
 
+// Pairwise Elo over the round's standings. Each pair of players is a mini-match;
+// a player's delta is K * mean(score - expected) across opponents (so a round's
+// swing stays ~K regardless of lobby size). Bots use a fixed rating and aren't
+// persisted. Mutates human standings entries with ratingDelta/rating/provisional.
+function applyRankedElo(standings) {
+	var parts = standings.map(function(s) {
+		var bot = isBot(s.id);
+		var acc = accounts[s.id];
+		var rating = RANKED_BOT_RATING, userId = null, played = 0;
+		if (!bot && acc) {
+			var u = db.getUserById(acc.userId);
+			if (u) { rating = u.rating; userId = acc.userId; played = u.played; }
+		}
+		return { rank: s.rank, rating: rating, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
+	});
+	var n = parts.length;
+	if (n < 2) return;
+	for (var i = 0; i < n; i++) {
+		var p = parts[i];
+		if (p.bot || !p.userId) continue;
+		var sum = 0;
+		for (var j = 0; j < n; j++) {
+			if (i === j) continue;
+			var q = parts[j];
+			var score = p.rank < q.rank ? 1 : p.rank > q.rank ? 0 : 0.5;
+			var expected = 1 / (1 + Math.pow(10, (q.rating - p.rating) / 400));
+			sum += score - expected;
+		}
+		var K = p.played < PROVISIONAL_GAMES ? 40 : 20;
+		p.delta = Math.round(K * sum / (n - 1));
+		p.newRating = p.rating + p.delta;
+		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
+		db.updateRating(p.userId, p.newRating, p.rank === 1);
+	}
+	for (var k = 0; k < standings.length; k++) {
+		if (!parts[k].bot && parts[k].userId) {
+			standings[k].ratingDelta = parts[k].delta;
+			standings[k].rating = parts[k].newRating;
+			standings[k].provisional = parts[k].provisional;
+		}
+	}
+}
+
 function endIndividualGame(room, reason) {
 	if (room.phase !== "playing") return;
 	clearRoundTimer(room.id);
@@ -573,6 +616,7 @@ function endIndividualGame(room, reason) {
 		if (tiedAtTop === 1) winnerID = standings[0].id;
 	}
 	room.recordRoundResult(standings, winnerID);
+	if (room.ranked) applyRankedElo(standings);
 	io.to("room:" + room.id).emit("game_result", {
 		winnerId: winnerID,
 		winnerName: winnerID ? names[winnerID] : null,
@@ -909,7 +953,7 @@ io.on("connection", function (socket) {
 			avatarUrl: user.avatar_url,
 			wins: user.wins,
 			played: user.played,
-			provisional: user.provisional_games < PROVISIONAL_GAMES
+			provisional: user.played < PROVISIONAL_GAMES
 		});
 		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
 		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
