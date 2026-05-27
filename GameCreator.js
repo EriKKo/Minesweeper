@@ -36,6 +36,7 @@ function createGame() {
 	game.win = null;
 	game.mineHit = null;
 	game.playerName = "New player";
+	game.autoChordOnFlag = false; // powerup: flagging a cell chords its satisfied numbered neighbours
 
 	function isFrozen() {
 		return Date.now() < game.frozenUntil;
@@ -57,6 +58,13 @@ function createGame() {
 		if (!game.playing || isFrozen()) return;
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
+			if (game.autoChordOnFlag) {
+				var neighbours = getAdjacentSquares(r, c, KNOWN);
+				for (var i = 0; i < neighbours.length; i++) {
+					var nr = neighbours[i][0], nc = neighbours[i][1];
+					if (board[nr][nc] > 0) clearAdjacentIfEnoughFlags(nr, nc);
+				}
+			}
 		} else if (state[r][c] == FLAGGED) {
 			state[r][c] = UNKNOWN;
 		} else if (state[r][c] == KNOWN) {

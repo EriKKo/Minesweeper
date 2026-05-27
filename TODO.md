@@ -24,6 +24,13 @@
   - Hotkey legend below the board
   - Mouse still works; clicking also moves the focus
 
+## Later: powerups
+
+- [ ] **Auto-chord on flag** — flagging a cell immediately chords every adjacent
+  numbered cell whose mine count is now satisfied, revealing their other neighbors
+  - Implemented in `GameCreator.js` behind `game.autoChordOnFlag` (default off)
+  - Needs: a way to grant/activate it per player, UI affordance, balancing as a powerup
+
 ## Later: new formats
 
 - [ ] **Knockout mode with big lobbies**
