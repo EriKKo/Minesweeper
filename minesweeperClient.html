@@ -110,6 +110,11 @@
 							<select id="death_penalty_select" disabled></select>
 							<span id="death_penalty_readonly" class="series-config-readonly"></span>
 						</div>
+						<div class="series-config">
+							<span class="series-config-label">Mine density</span>
+							<select id="mine_count_select" disabled></select>
+							<span id="mine_count_readonly" class="series-config-readonly"></span>
+						</div>
 						<div id="series_status" class="series-status"></div>
 					</div>
 					<div id="bots_card" class="side-card" style="display:none">
@@ -210,6 +215,8 @@ var roundSecondsSelect = document.getElementById("round_seconds_select");
 var roundSecondsReadonly = document.getElementById("round_seconds_readonly");
 var deathPenaltySelect = document.getElementById("death_penalty_select");
 var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
+var mineCountSelect = document.getElementById("mine_count_select");
+var mineCountReadonly = document.getElementById("mine_count_readonly");
 var seriesStatus = document.getElementById("series_status");
 var scoreboardEl = document.getElementById("scoreboard");
 var botsCard = document.getElementById("bots_card");
@@ -280,6 +287,10 @@ deathPenaltySelect.addEventListener("change", function() {
 	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
 });
 
+mineCountSelect.addEventListener("change", function() {
+	socket.emit("set_mine_count", { count: parseInt(mineCountSelect.value, 10) });
+});
+
 addBotButton.addEventListener("click", function() {
 	socket.emit("add_bot");
 });
@@ -301,6 +312,10 @@ function formatRoundOption(s) {
 
 function formatPenaltyOption(s) {
 	return s === 0 ? "None" : s + "s";
+}
+
+function formatMineCount(n) {
+	return n + " (" + Math.round(n / (rows * cols) * 100) + "%)";
 }
 
 function formatDifficulty(d) {
@@ -670,24 +685,30 @@ function renderRoomState(state) {
 	populateSelect(gameCountSelect, state.gameCountOptions, function(n) { return String(n); });
 	populateSelect(roundSecondsSelect, state.roundSecondsOptions, formatRoundOption);
 	populateSelect(deathPenaltySelect, state.deathPenaltyOptions, formatPenaltyOption);
+	populateSelect(mineCountSelect, state.mineCountOptions, formatMineCount);
 
 	gameCountSelect.value = String(state.gameCount);
 	roundSecondsSelect.value = String(state.roundSeconds);
 	deathPenaltySelect.value = String(state.deathPenalty);
+	mineCountSelect.value = String(state.mineCount);
 
 	var canEdit = isOwner && state.phase === "planning";
 	gameCountSelect.disabled = !canEdit;
 	roundSecondsSelect.disabled = !canEdit;
 	deathPenaltySelect.disabled = !canEdit;
+	mineCountSelect.disabled = !canEdit;
 	gameCountSelect.style.display = isOwner ? "" : "none";
 	roundSecondsSelect.style.display = isOwner ? "" : "none";
 	deathPenaltySelect.style.display = isOwner ? "" : "none";
+	mineCountSelect.style.display = isOwner ? "" : "none";
 	gameCountReadonly.style.display = isOwner ? "none" : "";
 	roundSecondsReadonly.style.display = isOwner ? "none" : "";
 	deathPenaltyReadonly.style.display = isOwner ? "none" : "";
+	mineCountReadonly.style.display = isOwner ? "none" : "";
 	gameCountReadonly.textContent = "Best of " + state.gameCount;
 	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
 	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
+	mineCountReadonly.textContent = formatMineCount(state.mineCount);
 
 	var showBotCard = isOwner || (state.botCount && state.botCount > 0);
 	botsCard.style.display = showBotCard ? "" : "none";

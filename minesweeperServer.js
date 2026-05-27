@@ -95,6 +95,7 @@ function buildRoomState(room) {
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
+		mineCount: room.mineCount,
 		roundDeadline: roundDeadlines[room.id] || null,
 		lastGameWinner: room.lastGameWinner,
 		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
@@ -103,6 +104,7 @@ function buildRoomState(room) {
 		gameCountOptions: room.gameCountOptions,
 		roundSecondsOptions: room.roundSecondsOptions,
 		deathPenaltyOptions: room.deathPenaltyOptions,
+		mineCountOptions: room.mineCountOptions,
 		botDifficultyOptions: botPlayer.DIFFICULTIES,
 		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
 		maxBots: MAX_BOTS_PER_ROOM,
@@ -523,7 +525,7 @@ function startGame(room) {
 	clearRoundTimer(room.id);
 	var centerR = Math.floor(gameCreator.rows / 2);
 	var centerC = Math.floor(gameCreator.cols / 2);
-	var template = gameCreator.createTemplate(centerR, centerC);
+	var template = gameCreator.createTemplate(centerR, centerC, room.mineCount);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (!games[pid]) {
@@ -737,6 +739,17 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		var seconds = data && parseInt(data.seconds, 10);
 		if (room.setDeathPenalty(seconds)) {
+			broadcastRoomState(room);
+			broadcastRoomList();
+		}
+	});
+
+	socket.on("set_mine_count", function(data) {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		var count = data && parseInt(data.count, 10);
+		if (room.setMineCount(count)) {
 			broadcastRoomState(room);
 			broadcastRoomList();
 		}

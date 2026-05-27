@@ -1,4 +1,4 @@
-var numMines = 30;
+var DEFAULT_MINES = 30;
 var rows = 15;
 var cols = 20;
 
@@ -10,7 +10,8 @@ var FLAGGED = -2;
 var UNKNOWN = -3;
 var KNOWN = -4;
 
-function createGame() {	
+function createGame(mineCount) {
+	var numMines = mineCount > 0 ? mineCount : DEFAULT_MINES;
 	var board = new Array(rows);
 	var state = new Array(rows);
 	for (var i = 0; i < rows; i++) {
@@ -161,6 +162,7 @@ function createGame() {
 		}
 		squaresLeft = rows*cols;
 		if (template) {
+			numMines = template.numMines;
 			for (var k = 0; k < template.knownCells.length; k++) {
 				var rc = template.knownCells[k];
 				state[rc[0]][rc[1]] = KNOWN;
@@ -173,6 +175,7 @@ function createGame() {
 			}
 			firstClick = true;
 		}
+		game.totalSafeSquares = rows * cols - numMines;
 		game.frozenUntil = 0;
 		game.finished = false;
 		game.finishedAt = 0;
@@ -226,8 +229,9 @@ function createGame() {
 	return game;
 }
 
-function createTemplate(startR, startC) {
-	var tmp = createGame();
+function createTemplate(startR, startC, mineCount) {
+	var numMines = mineCount > 0 ? mineCount : DEFAULT_MINES;
+	var tmp = createGame(numMines);
 	tmp.win = function() {};
 	tmp.mineHit = function() {};
 	tmp.playing = true;
@@ -243,7 +247,7 @@ function createTemplate(startR, startC) {
 			if (tmp.state[r][c] === KNOWN) knownCells.push([r, c]);
 		}
 	}
-	return { board: board, knownCells: knownCells };
+	return { board: board, knownCells: knownCells, numMines: numMines };
 }
 
 exports.createGame = createGame;
