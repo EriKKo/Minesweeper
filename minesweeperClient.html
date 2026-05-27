@@ -240,6 +240,7 @@ var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
 var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
 var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
+var lastScores = {};           // playerId -> last rendered score, to flash gains
 
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
@@ -365,6 +366,14 @@ function ordinal(n) {
 	return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function medal(rank) {
+	return rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : ordinal(rank);
+}
+
+function formatClearTime(ms) {
+	return (ms / 1000).toFixed(1) + "s";
+}
+
 socket.on("connected", function(data) {
 	id = data.id;
 });
@@ -419,18 +428,7 @@ socket.on("start_game", function(data) {
 
 socket.on("game_result", function(data) {
 	roundResultShown = true;
-	var myEntry = (data.standings || []).find(function(s) { return s.id === id; });
-	var text;
-	if (data.winnerId === id) {
-		text = "You won round " + data.gameNumber + " (+" + (myEntry ? myEntry.points : 0) + ")";
-	} else if (myEntry) {
-		var place = ordinal(myEntry.rank);
-		var winnerPart = data.winnerName ? " — " + data.winnerName + " won" : "";
-		text = "You placed " + place + " (+" + myEntry.points + ")" + winnerPart;
-	} else {
-		text = "Round " + data.gameNumber + " ended";
-	}
-	showOverlay(text, data.winnerId === id ? "win" : "lose");
+	showRoundResultPanel(data);
 	clearFreeze();
 	stopRoundTimer();
 });
@@ -441,15 +439,7 @@ socket.on("mine_hit", function(data) {
 });
 
 socket.on("series_ended", function(data) {
-	var text;
-	if (!data.winnerId) {
-		text = "Series tied!";
-	} else if (data.winnerId === id) {
-		text = "You win the series 🏆";
-	} else {
-		text = data.winnerName + " wins the series!";
-	}
-	showOverlay(text, data.winnerId === id ? "win" : "lose", 5000);
+	showSeriesResultPanel(data);
 	gameProgressText.textContent = "";
 	stopRoundTimer();
 });
@@ -521,6 +511,7 @@ function resetGameUI() {
 	clearFreeze();
 	stopRoundTimer();
 	resetBoardAnimations();
+	lastScores = {};
 	gameProgressText.textContent = "";
 	roundTimer.textContent = "";
 	for (var i = 0; i < 6; i++) {
@@ -546,6 +537,114 @@ function hideOverlay() {
 	boardOverlay.style.display = "none";
 	boardOverlay.textContent = "";
 	boardOverlay.className = "board-overlay";
+}
+
+function resultRow(rankLabel, nameText, detailText, pointsText, opts) {
+	opts = opts || {};
+	var row = document.createElement("li");
+	row.className = "result-row";
+	if (opts.me) row.classList.add("result-row-me");
+	if (opts.top) row.classList.add("result-row-top");
+
+	var place = document.createElement("span");
+	place.className = "result-place";
+	place.textContent = rankLabel;
+	row.appendChild(place);
+
+	var name = document.createElement("span");
+	name.className = "result-name";
+	name.textContent = nameText;
+	row.appendChild(name);
+
+	var detail = document.createElement("span");
+	detail.className = "result-detail";
+	detail.textContent = detailText;
+	row.appendChild(detail);
+
+	var pts = document.createElement("span");
+	pts.className = "result-points";
+	pts.textContent = pointsText;
+	row.appendChild(pts);
+	return row;
+}
+
+function presentPanel(panel, kind, autoHideMs) {
+	boardOverlay.style.display = "";
+	boardOverlay.className = "board-overlay board-overlay-panel" + (kind ? " board-overlay-" + kind : "");
+	boardOverlay.innerHTML = "";
+	boardOverlay.appendChild(panel);
+	if (autoHideMs) {
+		setTimeout(function() {
+			if (boardOverlay.contains(panel)) hideOverlay();
+		}, autoHideMs);
+	}
+}
+
+function showRoundResultPanel(data) {
+	var standings = data.standings || [];
+	var won = data.winnerId === id;
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	if (won) header.textContent = "🏆 You won round " + data.gameNumber + "!";
+	else if (data.winnerName) header.textContent = "🏆 " + data.winnerName + " takes round " + data.gameNumber;
+	else header.textContent = "Round " + data.gameNumber + " — tie!";
+	panel.appendChild(header);
+
+	var list = document.createElement("ol");
+	list.className = "result-list";
+	standings.forEach(function(s, idx) {
+		var detail = s.finished
+			? (s.finishMs != null ? "Cleared " + formatClearTime(s.finishMs) : "Cleared")
+			: s.safeCount + " cells";
+		var row = resultRow(medal(s.rank), s.id === id ? "You" : s.name, detail, "+" + s.points,
+			{ me: s.id === id, top: s.rank === 1 });
+		row.style.animationDelay = (idx * 55) + "ms";
+		list.appendChild(row);
+	});
+	panel.appendChild(list);
+
+	var foot = document.createElement("div");
+	foot.className = "result-foot";
+	foot.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
+	panel.appendChild(foot);
+
+	presentPanel(panel, won ? "win" : "lose");
+}
+
+function showSeriesResultPanel(data) {
+	var scores = (data.scores || []).slice().sort(function(a, b) { return b.score - a.score; });
+	var won = data.winnerId === id;
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header result-header-series";
+	if (!data.winnerId) header.textContent = "Series tied!";
+	else if (won) header.textContent = "🏆 You win the series!";
+	else header.textContent = "🏆 " + data.winnerName + " wins the series!";
+	panel.appendChild(header);
+
+	var list = document.createElement("ol");
+	list.className = "result-list";
+	var prevScore = null, rank = 0;
+	scores.forEach(function(s, idx) {
+		if (s.score !== prevScore) { rank = idx + 1; prevScore = s.score; }
+		var row = resultRow(medal(rank), s.id === id ? "You" : s.name, "", String(s.score),
+			{ me: s.id === id, top: rank === 1 });
+		row.style.animationDelay = (idx * 55) + "ms";
+		list.appendChild(row);
+	});
+	panel.appendChild(list);
+
+	var foot = document.createElement("div");
+	foot.className = "result-foot";
+	foot.textContent = "Final standings";
+	panel.appendChild(foot);
+
+	presentPanel(panel, won ? "win" : "lose", 5500);
 }
 
 function startFreezeTick() {
@@ -591,6 +690,7 @@ function stopRoundTimer() {
 	roundDeadline = null;
 	roundTimer.textContent = "";
 	roundTimer.classList.remove("round-timer-urgent");
+	roundTimer.classList.remove("round-timer-warning");
 }
 
 function updateRoundTimer() {
@@ -598,6 +698,7 @@ function updateRoundTimer() {
 	var remaining = Math.max(0, Math.round((roundDeadline - Date.now()) / 1000));
 	roundTimer.textContent = "⏱ " + formatRoundTime(remaining);
 	roundTimer.classList.toggle("round-timer-urgent", remaining <= 10 && remaining > 0);
+	roundTimer.classList.toggle("round-timer-warning", remaining <= 30 && remaining > 10);
 	if (remaining <= 0) { clearInterval(roundTickHandle); roundTickHandle = null; }
 }
 
@@ -775,10 +876,14 @@ function renderRoomState(state) {
 		var score = document.createElement("span");
 		score.className = "score-points";
 		score.textContent = p.score;
+		if (lastScores[p.id] != null && p.score > lastScores[p.id]) {
+			score.classList.add("score-points-bumped");
+		}
 		li.appendChild(score);
 
 		scoreboardEl.appendChild(li);
 	});
+	state.players.forEach(function(p) { lastScores[p.id] = p.score; });
 
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;

@@ -51,6 +51,7 @@ var names = {};
 var nextGameTimers = {};
 var roundTimers = {};
 var roundDeadlines = {};
+var roundStarts = {}; // roomId -> ms timestamp when the current round's play began
 var bots = {}; // botId -> true
 var botDifficulty = {}; // botId -> "easy" | "medium" | "hard"
 var botTickHandles = {}; // botId -> setTimeout handle
@@ -295,6 +296,7 @@ function deleteRoomIfEmpty(room) {
 			delete nextGameTimers[room.id];
 		}
 		clearRoundTimer(room.id);
+		delete roundStarts[room.id];
 		delete rooms[room.id];
 		return true;
 	}
@@ -373,14 +375,18 @@ function rankCompare(a, b) {
 
 function buildStandings(room) {
 	var N = room.players.length;
+	var roundStart = roundStarts[room.id] || 0;
 	var entries = room.players.map(function(pid) {
 		var g = games[pid];
+		var finished = g ? !!g.finished : false;
+		var finishedAt = g ? (g.finishedAt || 0) : 0;
 		return {
 			id: pid,
 			name: names[pid] || "Anonymous",
 			safeCount: g ? g.revealedSafeCount() : 0,
-			finished: g ? !!g.finished : false,
-			finishedAt: g ? (g.finishedAt || 0) : 0
+			finished: finished,
+			finishedAt: finishedAt,
+			finishMs: (finished && roundStart && finishedAt) ? (finishedAt - roundStart) : null
 		};
 	});
 	for (var i = 0; i < entries.length; i++) {
@@ -547,6 +553,7 @@ function startGame(room) {
 	}
 	setTimeout(function() {
 		if (!rooms[room.id] || room.phase !== "playing") return;
+		roundStarts[room.id] = Date.now();
 		for (var i = 0; i < room.players.length; i++) {
 			var pid = room.players[i];
 			if (games[pid]) games[pid].playing = true;

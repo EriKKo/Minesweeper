@@ -261,6 +261,10 @@ main {
 	text-align: right;
 }
 
+.round-timer-warning {
+	color: #fbbf24;
+}
+
 .round-timer-urgent {
 	color: var(--danger);
 	animation: pulse 0.7s ease-in-out infinite alternate;
@@ -343,6 +347,73 @@ main {
 .board-overlay-frozen { color: #fde68a; font-size: 4.5rem; background: rgba(239, 68, 68, 0.25); }
 .board-overlay-win { color: var(--success); font-size: 2rem; background: rgba(34, 197, 94, 0.2); padding: 1rem; }
 .board-overlay-lose { color: var(--danger); font-size: 2rem; background: rgba(239, 68, 68, 0.18); padding: 1rem; }
+
+/* Round / series results panel */
+.board-overlay-panel {
+	font-size: 1rem;
+	background: rgba(8, 12, 24, 0.86);
+	backdrop-filter: blur(4px);
+	padding: 1rem;
+}
+
+.result-panel {
+	width: min(94%, 360px);
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	text-shadow: none;
+	color: var(--text);
+}
+
+.result-header {
+	text-align: center;
+	font-size: 1.2rem;
+	font-weight: 700;
+	letter-spacing: 0;
+	color: var(--text);
+}
+
+.board-overlay-win .result-header { color: var(--success); }
+.board-overlay-lose .result-header { color: var(--text); }
+.result-header-series { font-size: 1.35rem; }
+
+.result-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+}
+
+.result-row {
+	display: grid;
+	grid-template-columns: 2rem 1fr auto auto;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.4rem 0.65rem;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.05);
+	font-size: 0.95rem;
+	font-weight: 500;
+	opacity: 0;
+	animation: result-row-in 0.32s ease-out forwards;
+}
+
+.result-row-me { background: rgba(99, 102, 241, 0.28); font-weight: 700; }
+.result-row-top { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.55); }
+
+.result-place { font-size: 1.05rem; text-align: center; }
+.result-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-detail { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.result-points { color: var(--success); font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2.5ch; text-align: right; }
+
+.result-foot { text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+@keyframes result-row-in {
+	from { opacity: 0; transform: translateY(8px) scale(0.97); }
+	to { opacity: 1; transform: none; }
+}
 
 .player-name {
 	margin: 0 0 0.6rem;
@@ -488,6 +559,16 @@ main {
 	font-weight: 700;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+}
+
+.score-points-bumped {
+	animation: score-bump 0.7s ease-out;
+}
+
+@keyframes score-bump {
+	0% { transform: scale(1); color: var(--text); }
+	30% { transform: scale(1.45); color: var(--success); }
+	100% { transform: scale(1); color: var(--text); }
 }
 
 .score-bot-tag {

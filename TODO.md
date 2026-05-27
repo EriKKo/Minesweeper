@@ -8,7 +8,7 @@
   - [x] Raised/recessed tile depth, flag + bomb glyphs
   - [x] Win / loss / mine-hit effects (mine flash + board shake)
   - [ ] Per-player cursor colors visible to everyone
-  - [ ] Round timer and score display refresh
+  - [x] Round timer warning/urgent states; per-round + series result panels (placement, clear times, points); scoreboard score-gain flash
 
 - [ ] **Audio** — sound effects and (optional) music
   - Click / reveal / flag / chord sounds
