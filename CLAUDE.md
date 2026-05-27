@@ -52,6 +52,10 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
 
 - Boards are always no-guess solvable; one shared layout per round with the centre
   pre-revealed.
-- Ranked uses a fixed ruleset (Best of 5, 2 min rounds, 5s mine penalty, 30 mines),
-  pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the lobby's average
-  rating and trickle into the queue like real players.
+- Board size is a per-room preset (small 10×13 / medium 15×20 / large 16×30) and mines
+  are a density fraction of the cells, so difficulty stays consistent across sizes.
+  Dimensions are passed into `createGame`/`createTemplate`; the solver and bot derive
+  them from the board array; the client receives `rows`/`cols` in room state.
+- Ranked uses a fixed ruleset (Best of 5, 2 min rounds, 5s mine penalty, medium board,
+  10% mines), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
+  lobby's average rating and trickle into the queue like real players.
