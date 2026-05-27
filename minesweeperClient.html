@@ -258,6 +258,11 @@ var sound = (function() {
 			var ticks = Math.max(1, Math.min(n, 7));
 			for (var i = 0; i < ticks; i++) tone({ type: "triangle", freq: 560 + i * 70, dur: 0.045, gain: 0.05, delay: i * 0.028 });
 		},
+		opponentDone: function(n) {
+			var base = 720 + Math.min(n, 4) * 70;
+			tone({ type: "triangle", freq: base, dur: 0.09, gain: 0.06 });
+			tone({ type: "triangle", freq: base * 1.34, dur: 0.12, gain: 0.06, delay: 0.085 });
+		},
 		flag: function() { tone({ type: "square", freq: 420, toFreq: 300, dur: 0.06, gain: 0.06 }); },
 		unflag: function() { tone({ type: "square", freq: 300, dur: 0.04, gain: 0.04 }); },
 		mine: function() {
@@ -331,6 +336,7 @@ var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:
 var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
 var lastScores = {};           // playerId -> last rendered score, to flash gains
+var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
@@ -527,6 +533,7 @@ socket.on("start_game", function(data) {
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
 	resetBoardAnimations();
+	lastFinished = {};
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
@@ -622,6 +629,7 @@ function resetGameUI() {
 	stopRoundTimer();
 	resetBoardAnimations();
 	lastScores = {};
+	lastFinished = {};
 	gameProgressText.textContent = "";
 	roundTimer.textContent = "";
 	for (var i = 0; i < 6; i++) {
@@ -994,6 +1002,17 @@ function renderRoomState(state) {
 		scoreboardEl.appendChild(li);
 	});
 	state.players.forEach(function(p) { lastScores[p.id] = p.score; });
+
+	// Race-tension cue: an opponent just cleared their board. Pitch rises with how
+	// many rivals are already done. Suppressed once the round result is up.
+	if (state.phase === "playing" && !roundResultShown) {
+		var doneCount = 0;
+		state.players.forEach(function(p) { if (p.id !== id && p.finished) doneCount++; });
+		state.players.forEach(function(p) {
+			if (p.id !== id && p.finished && !lastFinished[p.id]) sound.opponentDone(doneCount);
+		});
+	}
+	state.players.forEach(function(p) { lastFinished[p.id] = !!p.finished; });
 
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;

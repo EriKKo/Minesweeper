@@ -14,8 +14,8 @@
   - [x] Reveal/cascade (pitched ripple), flag/unflag, mine explosion
   - [x] Countdown beeps + GO, win/lose + series stingers
   - [x] Mute toggle + volume slider, remembered in localStorage
+  - [x] Opponent-finished cue (race tension; pitch rises with rivals done)
   - [ ] Optional background music
-  - [ ] Optional opponent-finished cue (race tension)
 
 - [x] **Hotkey-only mode** — fully playable without a mouse (laptop-friendly)
   - Arrow keys to move; Shift+arrow skips revealed cells in that direction
