@@ -179,6 +179,7 @@ function createGame(mineCount) {
 		game.frozenUntil = 0;
 		game.finished = false;
 		game.finishedAt = 0;
+		game.botFocus = null; // bot's roaming focus point, re-seeded each round
 	}
 
 	function dfs(r, c) {

@@ -89,6 +89,8 @@ function neighbors(r, c) {
 	return ret;
 }
 
+var LOCAL_RADIUS = 4; // bots work cells within this distance of their focus before jumping
+
 function decideMove(game) {
 	var best = computeBestMove(game);
 	// A blunder is only possible when the bot was about to make a guaranteed move
@@ -97,10 +99,28 @@ function decideMove(game) {
 		var rate = game.botMistakeRate || 0;
 		if (rate > 0 && Math.random() < rate) {
 			var blunder = pickFrontierGuess(game);
-			if (blunder) return blunder;
+			if (blunder) { game.botFocus = { r: blunder.r, c: blunder.c }; return blunder; }
 		}
 	}
 	return best;
+}
+
+// Choose among equally-certain actions by locality: stay within LOCAL_RADIUS of the
+// bot's current focus (picking randomly within it, so order varies), and when that
+// neighbourhood is exhausted, jump to a random action elsewhere. Gives each bot a
+// random starting area and organic, varied jumps between sections.
+function pickByFocus(game, actions) {
+	if (!game.botFocus) {
+		var seed = actions[Math.floor(Math.random() * actions.length)];
+		game.botFocus = { r: seed.r, c: seed.c };
+	}
+	var f = game.botFocus;
+	var local = actions.filter(function(a) {
+		var dr = a.r - f.r, dc = a.c - f.c;
+		return Math.sqrt(dr * dr + dc * dc) <= LOCAL_RADIUS;
+	});
+	var pool = local.length ? local : actions;
+	return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // Pick a random unknown cell that borders a revealed number — where a hasty human
@@ -134,7 +154,10 @@ function computeBestMove(game) {
 		}
 	}
 	if (!hasKnown) {
-		return { type: "left", r: Math.floor(rows / 2), c: Math.floor(cols / 2), certain: true, opening: true };
+		// Random opening so bots don't all start from the same spot.
+		var or = Math.floor(Math.random() * rows), oc = Math.floor(Math.random() * cols);
+		game.botFocus = { r: or, c: oc };
+		return { type: "left", r: or, c: oc, certain: true, opening: true };
 	}
 
 	// A "known mine" is either a FLAGGED cell or a revealed mine (state=KNOWN with
@@ -150,7 +173,9 @@ function computeBestMove(game) {
 		return n;
 	}
 
-	// Pass 1: find a certain safe square (a numbered cell whose known mines equal its number).
+	// Collect *all* certain deductions (deduped by cell), then choose by locality so
+	// each bot roams the board in its own order rather than sweeping top-left first.
+	var safeSet = {}, mineSet = {};
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== KNOWN) continue;
@@ -159,45 +184,43 @@ function computeBestMove(game) {
 			var nbrs = neighbors(r, c);
 			var unknownList = [];
 			for (var i = 0; i < nbrs.length; i++) {
-				var nr = nbrs[i][0], nc = nbrs[i][1];
-				if (state[nr][nc] === UNKNOWN) unknownList.push(nbrs[i]);
+				if (state[nbrs[i][0]][nbrs[i][1]] === UNKNOWN) unknownList.push(nbrs[i]);
 			}
 			if (unknownList.length === 0) continue;
-			if (knownMineCount(nbrs) === n) {
-				return { type: "left", r: unknownList[0][0], c: unknownList[0][1], certain: true };
+			var km = knownMineCount(nbrs);
+			if (km === n) {
+				for (var a = 0; a < unknownList.length; a++) safeSet[unknownList[a][0] + "," + unknownList[a][1]] = unknownList[a];
+			} else if (km + unknownList.length === n) {
+				for (var b = 0; b < unknownList.length; b++) mineSet[unknownList[b][0] + "," + unknownList[b][1]] = unknownList[b];
 			}
 		}
 	}
 
-	// Pass 2: flag a certain mine (a numbered cell whose unknown + known-mine count equals its number).
-	for (var r2 = 0; r2 < rows; r2++) {
-		for (var c2 = 0; c2 < cols; c2++) {
-			if (state[r2][c2] !== KNOWN) continue;
-			var n2 = board[r2][c2];
-			if (n2 <= 0) continue;
-			var nbrs2 = neighbors(r2, c2);
-			var unknownList2 = [];
-			for (var j = 0; j < nbrs2.length; j++) {
-				var nr2 = nbrs2[j][0], nc2 = nbrs2[j][1];
-				if (state[nr2][nc2] === UNKNOWN) unknownList2.push(nbrs2[j]);
-			}
-			if (unknownList2.length === 0) continue;
-			if (knownMineCount(nbrs2) + unknownList2.length === n2) {
-				return { type: "right", r: unknownList2[0][0], c: unknownList2[0][1], certain: true };
-			}
-		}
+	var actions = [];
+	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true });
+	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true });
+
+	if (actions.length) {
+		var pick = pickByFocus(game, actions);
+		game.botFocus = { r: pick.r, c: pick.c };
+		return pick;
 	}
 
-	// Fallback: pick a random unknown square.
-	var candidates = [];
-	for (var r3 = 0; r3 < rows; r3++) {
-		for (var c3 = 0; c3 < cols; c3++) {
-			if (state[r3][c3] === UNKNOWN) candidates.push([r3, c3]);
+	// Stuck — guess at a random frontier cell (or any unknown) and jump focus there.
+	var guess = pickFrontierGuess(game);
+	if (!guess) {
+		var candidates = [];
+		for (var r3 = 0; r3 < rows; r3++) {
+			for (var c3 = 0; c3 < cols; c3++) {
+				if (state[r3][c3] === UNKNOWN) candidates.push([r3, c3]);
+			}
 		}
+		if (candidates.length === 0) return null;
+		var p = candidates[Math.floor(Math.random() * candidates.length)];
+		guess = { type: "left", r: p[0], c: p[1], certain: false };
 	}
-	if (candidates.length === 0) return null;
-	var pick = candidates[Math.floor(Math.random() * candidates.length)];
-	return { type: "left", r: pick[0], c: pick[1], certain: false };
+	game.botFocus = { r: guess.r, c: guess.c };
+	return guess;
 }
 
 // Returns ms to wait before performing `move` from `lastClick`. `baseMs` is the
