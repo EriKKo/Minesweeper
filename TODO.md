@@ -40,7 +40,9 @@
     env-gated dev login, authenticated socket, "Signed in as X · rating" badge.
     Guest nickname path still works. Real GitHub login needs an OAuth app +
     `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`; dev login via `DEV_AUTH=1`.
-  - [ ] Phase 2: "Find ranked match" queue, fixed ruleset, fill with fixed-MMR bots
+  - [x] Phase 2: "Find ranked match" queue (12s wait, live countdown), fixed ruleset
+    (Bo5 / 2min / 5s / 30 mines), fills with bots; ranked rooms hidden from lobby,
+    locked settings + RANKED tag in-game
   - [ ] Phase 3: pairwise Elo updates after each round (high-K provisional), persisted
   - [ ] Phase 4: rank tiers + leaderboard UI
 

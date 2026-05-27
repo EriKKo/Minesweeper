@@ -202,6 +202,15 @@ var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the 
 var nextBotId = 1;
 var MAX_BOTS_PER_ROOM = 3;
 
+// Ranked matchmaking
+var RANKED_MATCH_SIZE = 4;
+var RANKED_WAIT_MS = 12000; // wait for more humans before filling with bots
+var RANKED_RULES = { gameCount: 5, roundSeconds: 120, deathPenalty: 5, mineCount: 30 };
+var RANKED_BOT_RATING = 1000;
+var rankedQueue = []; // socketIds of signed-in players searching
+var rankedTimer = null;
+var rankedDeadline = null;
+
 function isBot(playerID) {
 	return !!bots[playerID];
 }
@@ -223,7 +232,9 @@ function roomSummary(room) {
 }
 
 function getRoomList() {
-	return Object.keys(rooms).map(function(id) { return roomSummary(rooms[id]); });
+	return Object.keys(rooms)
+		.filter(function(id) { return !rooms[id].ranked; })
+		.map(function(id) { return roomSummary(rooms[id]); });
 }
 
 function broadcastRoomList() {
@@ -234,6 +245,7 @@ function buildRoomState(room) {
 	return {
 		id: room.id,
 		owner: room.owner,
+		ranked: !!room.ranked,
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
@@ -720,6 +732,89 @@ function startSeries(room) {
 	startGame(room);
 }
 
+// ---- Ranked matchmaking ------------------------------------------------
+function broadcastRankedQueue() {
+	for (var i = 0; i < rankedQueue.length; i++) {
+		var s = sockets[rankedQueue[i]];
+		if (s) s.emit("ranked_searching", { count: rankedQueue.length, size: RANKED_MATCH_SIZE, deadline: rankedDeadline });
+	}
+}
+
+function enqueueRanked(playerID) {
+	if (!accounts[playerID]) return;          // ranked requires a signed-in account
+	if (roomMapping[playerID]) return;         // already in a room
+	if (rankedQueue.indexOf(playerID) !== -1) return;
+	rankedQueue.push(playerID);
+	if (rankedQueue.length >= RANKED_MATCH_SIZE) {
+		formRankedMatch();
+	} else {
+		if (!rankedTimer) {
+			rankedDeadline = Date.now() + RANKED_WAIT_MS;
+			rankedTimer = setTimeout(formRankedMatch, RANKED_WAIT_MS);
+		}
+		broadcastRankedQueue();
+	}
+}
+
+function dequeueRanked(playerID) {
+	var idx = rankedQueue.indexOf(playerID);
+	if (idx === -1) return;
+	rankedQueue.splice(idx, 1);
+	if (rankedQueue.length === 0 && rankedTimer) {
+		clearTimeout(rankedTimer);
+		rankedTimer = null;
+		rankedDeadline = null;
+	} else {
+		broadcastRankedQueue();
+	}
+}
+
+function formRankedMatch() {
+	if (rankedTimer) { clearTimeout(rankedTimer); rankedTimer = null; }
+	rankedDeadline = null;
+
+	var humans = [];
+	while (rankedQueue.length && humans.length < RANKED_MATCH_SIZE) {
+		var pid = rankedQueue.shift();
+		if (sockets[pid] && accounts[pid] && !roomMapping[pid]) humans.push(pid);
+	}
+	if (humans.length === 0) return;
+
+	var id = nextRoomId++;
+	var room = roomCreator.createRoom(id, humans[0]);
+	room.ranked = true;
+	room.gameCount = RANKED_RULES.gameCount;
+	room.roundSeconds = RANKED_RULES.roundSeconds;
+	room.deathPenalty = RANKED_RULES.deathPenalty;
+	room.mineCount = RANKED_RULES.mineCount;
+	rooms[id] = room;
+
+	for (var i = 0; i < humans.length; i++) {
+		var hid = humans[i];
+		var socket = sockets[hid];
+		games[hid] = createPlayerGame(hid);
+		roomMapping[hid] = room;
+		room.addPlayer(hid);
+		socket.leave("lobby");
+		socket.join("room:" + room.id);
+		socket.emit("joined_room", { roomId: room.id, ranked: true });
+	}
+
+	while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
+		if (!addBotToRoom(room)) break;
+	}
+
+	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);
+	broadcastRoomState(room);
+	startSeries(room);
+
+	if (rankedQueue.length > 0) {
+		rankedDeadline = Date.now() + RANKED_WAIT_MS;
+		rankedTimer = setTimeout(formRankedMatch, RANKED_WAIT_MS);
+		broadcastRankedQueue();
+	}
+}
+
 function createPlayerGame(playerID) {
 	var game = gameCreator.createGame();
 	game.playerName = names[playerID] || "Anonymous";
@@ -850,6 +945,16 @@ io.on("connection", function (socket) {
 
 	socket.on("list_rooms", function() {
 		socket.emit("room_list", { rooms: getRoomList() });
+	});
+
+	socket.on("find_ranked", function() {
+		if (!accounts[playerID]) { socket.emit("ranked_rejected", { reason: "Sign in to play ranked." }); return; }
+		if (roomMapping[playerID]) return;
+		enqueueRanked(playerID);
+	});
+
+	socket.on("cancel_ranked", function() {
+		dequeueRanked(playerID);
 	});
 
 	socket.on("create_room", function() {
@@ -1002,6 +1107,7 @@ io.on("connection", function (socket) {
 	});
 
 	socket.on("disconnect", function() {
+		dequeueRanked(playerID);
 		if (roomMapping[playerID]) {
 			removePlayerFromRoom(playerID);
 		}

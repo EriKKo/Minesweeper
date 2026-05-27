@@ -44,6 +44,21 @@
 		</section>
 
 		<section id="lobby_view" class="view" style="display:none">
+			<div id="ranked_panel" class="ranked-panel" style="display:none">
+				<div class="ranked-cta">
+					<div>
+						<h2 class="ranked-title">Ranked</h2>
+						<p class="ranked-sub">Matched opponents · fixed rules · rating on the line.</p>
+					</div>
+					<button id="find_ranked_button" class="btn btn-primary">Find ranked match</button>
+				</div>
+				<div id="ranked_searching" class="ranked-searching" style="display:none">
+					<span class="ranked-spinner"></span>
+					<span id="ranked_searching_text">Searching…</span>
+					<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
+				</div>
+			</div>
+
 			<div class="lobby-actions">
 				<button id="create_room_button" class="btn btn-primary">Create new room</button>
 				<button id="refresh_button" class="btn btn-secondary">Refresh</button>
@@ -66,6 +81,7 @@
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Back to lobby</button>
 				<div class="game-progress">
+					<span id="ranked_tag" class="ranked-tag" style="display:none">RANKED</span>
 					<span id="game_progress_text"></span>
 					<span id="round_timer" class="round-timer"></span>
 				</div>
@@ -310,6 +326,12 @@ var gameView = document.getElementById("game_view");
 var openRoomList = document.getElementById("open_room_list");
 var busyRoomList = document.getElementById("busy_room_list");
 var lobbyMessage = document.getElementById("lobby_message");
+var rankedTag = document.getElementById("ranked_tag");
+var rankedPanel = document.getElementById("ranked_panel");
+var findRankedButton = document.getElementById("find_ranked_button");
+var rankedSearching = document.getElementById("ranked_searching");
+var rankedSearchingText = document.getElementById("ranked_searching_text");
+var cancelRankedButton = document.getElementById("cancel_ranked_button");
 var nameForm = document.getElementById("name_form");
 var nameInput = document.getElementById("name_input");
 var nameError = document.getElementById("name_error");
@@ -426,6 +448,42 @@ document.getElementById("create_room_button").addEventListener("click", function
 document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });
+
+findRankedButton.addEventListener("click", function() {
+	socket.emit("find_ranked");
+	setRankedSearching(true);
+});
+
+cancelRankedButton.addEventListener("click", function() {
+	socket.emit("cancel_ranked");
+	setRankedSearching(false);
+});
+
+var rankedSearchInfo = null;
+var rankedTickHandle = null;
+
+function setRankedSearching(on) {
+	rankedSearching.style.display = on ? "" : "none";
+	findRankedButton.style.display = on ? "none" : "";
+	if (on) {
+		updateRankedSearchingText();
+		if (!rankedTickHandle) rankedTickHandle = setInterval(updateRankedSearchingText, 500);
+	} else {
+		rankedSearchInfo = null;
+		if (rankedTickHandle) { clearInterval(rankedTickHandle); rankedTickHandle = null; }
+	}
+}
+
+function updateRankedSearchingText() {
+	var info = rankedSearchInfo || {};
+	var count = info.count || 1, size = info.size || 4;
+	var text = "Searching… " + count + "/" + size + " players";
+	if (info.deadline) {
+		var secs = Math.max(0, Math.ceil((info.deadline - Date.now()) / 1000));
+		text += " · filling with bots in " + secs + "s";
+	}
+	rankedSearchingText.textContent = text;
+}
 
 document.getElementById("leave_button").addEventListener("click", function() {
 	socket.emit("leave_room");
@@ -582,8 +640,19 @@ socket.on("room_list", function(data) {
 
 socket.on("joined_room", function() {
 	inRoom = true;
+	setRankedSearching(false);
 	showGameView();
 	resetGameUI();
+});
+
+socket.on("ranked_searching", function(data) {
+	rankedSearchInfo = data || {};
+	setRankedSearching(true);
+});
+
+socket.on("ranked_rejected", function(data) {
+	setRankedSearching(false);
+	showLobbyMessage((data && data.reason) || "Couldn't start ranked search.");
 });
 
 socket.on("left_room", function() {
@@ -677,6 +746,7 @@ function showLobbyView() {
 	lobbyView.style.display = "";
 	gameView.style.display = "none";
 	lobbyMessage.style.display = "none";
+	rankedPanel.style.display = account ? "" : "none";
 }
 
 function showGameView() {
@@ -987,25 +1057,28 @@ function renderRoomState(state) {
 	deathPenaltySelect.value = String(state.deathPenalty);
 	mineCountSelect.value = String(state.mineCount);
 
-	var canEdit = isOwner && state.phase === "planning";
+	rankedTag.style.display = state.ranked ? "" : "none";
+	// Ranked rooms have a locked ruleset — show the values read-only, even to the owner.
+	var showSelects = isOwner && !state.ranked;
+	var canEdit = showSelects && state.phase === "planning";
 	gameCountSelect.disabled = !canEdit;
 	roundSecondsSelect.disabled = !canEdit;
 	deathPenaltySelect.disabled = !canEdit;
 	mineCountSelect.disabled = !canEdit;
-	gameCountSelect.style.display = isOwner ? "" : "none";
-	roundSecondsSelect.style.display = isOwner ? "" : "none";
-	deathPenaltySelect.style.display = isOwner ? "" : "none";
-	mineCountSelect.style.display = isOwner ? "" : "none";
-	gameCountReadonly.style.display = isOwner ? "none" : "";
-	roundSecondsReadonly.style.display = isOwner ? "none" : "";
-	deathPenaltyReadonly.style.display = isOwner ? "none" : "";
-	mineCountReadonly.style.display = isOwner ? "none" : "";
+	gameCountSelect.style.display = showSelects ? "" : "none";
+	roundSecondsSelect.style.display = showSelects ? "" : "none";
+	deathPenaltySelect.style.display = showSelects ? "" : "none";
+	mineCountSelect.style.display = showSelects ? "" : "none";
+	gameCountReadonly.style.display = showSelects ? "none" : "";
+	roundSecondsReadonly.style.display = showSelects ? "none" : "";
+	deathPenaltyReadonly.style.display = showSelects ? "none" : "";
+	mineCountReadonly.style.display = showSelects ? "none" : "";
 	gameCountReadonly.textContent = "Best of " + state.gameCount;
 	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
 	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
 	mineCountReadonly.textContent = formatMineCount(state.mineCount);
 
-	var showBotCard = isOwner || (state.botCount && state.botCount > 0);
+	var showBotCard = !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";
 	if (showBotCard) {
 		var canAddBot = isOwner && state.phase === "planning" && state.botCount < state.maxBots;
