@@ -55,6 +55,8 @@ function handler (req, res) {
 		contentType = "text/javascript";
 	} else if (extension == ".css") {
 		contentType = "text/css";
+	} else if (extension == ".svg") {
+		contentType = "image/svg+xml";
 	}
 	fs.access(filePath, fs.constants.R_OK, function(err) {
 		if (err) {
