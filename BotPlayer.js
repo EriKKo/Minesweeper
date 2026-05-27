@@ -27,6 +27,42 @@ function speedFor(difficulty) {
 	return DIFFICULTY_SPEEDS.hasOwnProperty(difficulty) ? DIFFICULTY_SPEEDS[difficulty] : DIFFICULTY_SPEEDS[DEFAULT_DIFFICULTY];
 }
 
+// Elo range we map bot strength across.
+var ELO_MIN = 600, ELO_MAX = 1800;
+
+function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// Build a bot tuned to play at roughly `elo`. Strength rises with elo via two
+// knobs — faster pace and fewer blunders. A random "style" then trades those off
+// (slow & safe ⇄ fast & reckless). To keep style roughly strength-neutral, the
+// per-move speed bonus a reckless bot gets is derived from the expected penalty
+// cost of its extra blunders, so the time saved ≈ the time lost to mines.
+var STYLE_MISTAKE = 1.0;   // reckless doubles blunders; safe drops them to ~0
+var MINE_PROB = 0.3;       // ~chance a blunder actually uncovers a mine
+var PENALTY_MS = 5000;     // ranked death-penalty freeze
+
+function configForElo(elo) {
+	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), 0, 1);
+	var baseSpeed = lerp(950, 130, s);       // ms between actions; faster as s rises
+	var baseMistake = lerp(0.06, 0.002, s);  // blunder chance; lower as s rises
+	var style = Math.random() * 2 - 1;        // -1 = slow & safe, +1 = fast & reckless
+
+	// Extra blunders from +style cost ~ (baseMistake*STYLE_MISTAKE)*MINE_PROB*PENALTY_MS
+	// per move; give that same amount back as a per-move speed bonus so the styles
+	// stay about equally strong.
+	var speedSwing = baseMistake * STYLE_MISTAKE * MINE_PROB * PENALTY_MS;
+	var speedMs = Math.round(clamp(baseSpeed - style * speedSwing, 70, 1400));
+	var mistakeRate = clamp(baseMistake * (1 + STYLE_MISTAKE * style), 0, 0.4);
+	return {
+		rating: Math.round(elo),
+		speedMs: speedMs,
+		mistakeRate: mistakeRate,
+		style: style,
+		reckless: style > 0
+	};
+}
+
 var BOT_NAMES = [
 	"Botty", "Sweeper", "Minnie", "Clicker", "Flagger",
 	"Defuser", "Tickr", "Boomer", "Sniffer", "Probe"
@@ -197,3 +233,4 @@ exports.DIFFICULTIES = DIFFICULTIES;
 exports.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY;
 exports.mistakeRateFor = mistakeRateFor;
 exports.speedFor = speedFor;
+exports.configForElo = configForElo;

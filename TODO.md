@@ -48,6 +48,9 @@
     rating delta shown in the result panel + live badge update
   - [x] Phase 4: rank tiers (Bronze→Master, Unranked while provisional) on the badge,
     and a top-20 ranked leaderboard in the lobby
+  - [x] Elo-tuned filler bots: `BotPlayer.configForElo(elo)` scales pace + blunder rate
+    with strength and adds a strength-neutral style axis (slow/safe ⇄ fast/reckless);
+    ranked fills bots tuned to the lobby's average rating, each with its own style
 
 ## Later: new formats
 

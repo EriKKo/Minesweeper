@@ -196,7 +196,9 @@ var roundTimers = {};
 var roundDeadlines = {};
 var roundStarts = {}; // roomId -> ms timestamp when the current round's play began
 var bots = {}; // botId -> true
-var botDifficulty = {}; // botId -> "easy" | "medium" | "hard"
+var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
+var botSpeedMs = {}; // botId -> ms between actions
+var botRating = {}; // botId -> Elo used for ranked rating math
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -273,7 +275,7 @@ function buildRoomState(room) {
 				score: room.scores[pid] || 0,
 				isOwner: pid === room.owner,
 				isBot: isBot(pid),
-				difficulty: isBot(pid) ? (botDifficulty[pid] || botPlayer.DEFAULT_DIFFICULTY) : null,
+				difficulty: isBot(pid) ? (botDifficulty[pid] || null) : null,
 				finished: g ? !!g.finished : false
 			};
 		})
@@ -338,7 +340,7 @@ function scheduleBotTick(room, botId) {
 	}
 	if (!move) return;
 
-	var baseMs = botPlayer.speedFor(botDifficulty[botId]);
+	var baseMs = botSpeedMs[botId] || botPlayer.speedFor(botDifficulty[botId]);
 	var delay = botPlayer.computeMoveDelay(baseMs, botLastClick[botId] || null, move);
 	botTickHandles[botId] = setTimeout(function() {
 		delete botTickHandles[botId];
@@ -405,16 +407,25 @@ function getRoomBotNames(room) {
 	return ret;
 }
 
-function addBotToRoom(room) {
+function addBotToRoom(room, config) {
 	if (room.phase !== "planning") return false;
 	if (room.isFull()) return false;
 	if (botCount(room) >= MAX_BOTS_PER_ROOM) return false;
 	var botId = "bot:" + (nextBotId++);
 	bots[botId] = true;
-	botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 	names[botId] = botPlayer.pickBotName(getRoomBotNames(room));
 	games[botId] = createPlayerGame(botId);
-	games[botId].botMistakeRate = botPlayer.mistakeRateFor(botDifficulty[botId]);
+	if (config) {
+		// Elo-tuned bot (ranked): explicit speed, mistake rate, and rating.
+		botDifficulty[botId] = null;
+		botSpeedMs[botId] = config.speedMs;
+		botRating[botId] = config.rating;
+		games[botId].botMistakeRate = config.mistakeRate;
+	} else {
+		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
+		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
+		games[botId].botMistakeRate = botPlayer.mistakeRateFor(botDifficulty[botId]);
+	}
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -441,6 +452,8 @@ function removeBotEntirely(botId) {
 	delete names[botId];
 	delete bots[botId];
 	delete botDifficulty[botId];
+	delete botSpeedMs[botId];
+	delete botRating[botId];
 	delete botLastClick[botId];
 }
 
@@ -565,7 +578,7 @@ function applyRankedElo(standings) {
 	var parts = standings.map(function(s) {
 		var bot = isBot(s.id);
 		var acc = accounts[s.id];
-		var rating = RANKED_BOT_RATING, userId = null, played = 0;
+		var rating = bot ? (botRating[s.id] || RANKED_BOT_RATING) : RANKED_BOT_RATING, userId = null, played = 0;
 		if (!bot && acc) {
 			var u = db.getUserById(acc.userId);
 			if (u) { rating = u.rating; userId = acc.userId; played = u.played; }
@@ -844,8 +857,17 @@ function formRankedMatch() {
 		socket.emit("joined_room", { roomId: room.id, ranked: true });
 	}
 
+	// Tune filler bots to the lobby's average human rating, each with its own style.
+	var sumElo = 0, eloCount = 0;
+	for (var h = 0; h < humans.length; h++) {
+		var acc = accounts[humans[h]];
+		var u = acc ? db.getUserById(acc.userId) : null;
+		if (u) { sumElo += u.rating; eloCount++; }
+	}
+	var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
+
 	while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
-		if (!addBotToRoom(room)) break;
+		if (!addBotToRoom(room, botPlayer.configForElo(targetElo))) break;
 	}
 
 	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);
@@ -1098,6 +1120,7 @@ io.on("connection", function (socket) {
 		if (!isBot(botId) || roomMapping[botId] !== room) return;
 		if (botPlayer.DIFFICULTIES.indexOf(difficulty) === -1) return;
 		botDifficulty[botId] = difficulty;
+		botSpeedMs[botId] = botPlayer.speedFor(difficulty);
 		if (games[botId]) games[botId].botMistakeRate = botPlayer.mistakeRateFor(difficulty);
 		broadcastRoomState(room);
 	});
