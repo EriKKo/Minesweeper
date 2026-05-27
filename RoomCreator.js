@@ -5,8 +5,16 @@ var DEFAULT_ROUND_SECONDS = 120;
 var ROUND_SECONDS_OPTIONS = [60, 120, 180, 300, 0]; // 0 = unlimited
 var DEFAULT_DEATH_PENALTY = 5;
 var DEATH_PENALTY_OPTIONS = [0, 3, 5, 10];
-var DEFAULT_MINE_COUNT = 30; // out of a 15x20 = 300 cell board
-var MINE_COUNT_OPTIONS = [20, 30, 45, 60];
+// Mines are a fraction of the board so density stays consistent across sizes.
+var DEFAULT_MINE_DENSITY = 0.10;
+var MINE_DENSITY_OPTIONS = [0.07, 0.10, 0.15, 0.20];
+var BOARD_SIZES = {
+	small: { rows: 10, cols: 13 },
+	medium: { rows: 15, cols: 20 },
+	large: { rows: 16, cols: 30 }
+};
+var BOARD_SIZE_OPTIONS = ["small", "medium", "large"];
+var DEFAULT_BOARD_SIZE = "medium";
 
 function createRoom(id, ownerID) {
 	var players = [];
@@ -23,7 +31,10 @@ function createRoom(id, ownerID) {
 	room.gameCount = DEFAULT_GAME_COUNT;
 	room.roundSeconds = DEFAULT_ROUND_SECONDS;
 	room.deathPenalty = DEFAULT_DEATH_PENALTY;
-	room.mineCount = DEFAULT_MINE_COUNT;
+	room.mineDensity = DEFAULT_MINE_DENSITY;
+	room.boardSize = DEFAULT_BOARD_SIZE;
+	room.rows = BOARD_SIZES[DEFAULT_BOARD_SIZE].rows;
+	room.cols = BOARD_SIZES[DEFAULT_BOARD_SIZE].cols;
 	room.gamesPlayed = 0;
 	room.lastGameWinner = null;
 	room.seriesWinner = null;
@@ -40,7 +51,8 @@ function createRoom(id, ownerID) {
 	room.setGameCount = setGameCount;
 	room.setRoundSeconds = setRoundSeconds;
 	room.setDeathPenalty = setDeathPenalty;
-	room.setMineCount = setMineCount;
+	room.setMineDensity = setMineDensity;
+	room.setBoardSize = setBoardSize;
 	room.startSeries = startSeries;
 	room.recordRoundResult = recordRoundResult;
 	room.resetScores = resetScores;
@@ -48,7 +60,8 @@ function createRoom(id, ownerID) {
 	room.gameCountOptions = GAME_COUNT_OPTIONS.slice();
 	room.roundSecondsOptions = ROUND_SECONDS_OPTIONS.slice();
 	room.deathPenaltyOptions = DEATH_PENALTY_OPTIONS.slice();
-	room.mineCountOptions = MINE_COUNT_OPTIONS.slice();
+	room.mineDensityOptions = MINE_DENSITY_OPTIONS.slice();
+	room.boardSizeOptions = BOARD_SIZE_OPTIONS.slice();
 
 	function addPlayer(playerID) {
 		players.push(playerID);
@@ -120,10 +133,19 @@ function createRoom(id, ownerID) {
 		return true;
 	}
 
-	function setMineCount(count) {
-		if (MINE_COUNT_OPTIONS.indexOf(count) === -1) return false;
+	function setMineDensity(density) {
+		if (MINE_DENSITY_OPTIONS.indexOf(density) === -1) return false;
 		if (room.phase !== "planning") return false;
-		room.mineCount = count;
+		room.mineDensity = density;
+		return true;
+	}
+
+	function setBoardSize(size) {
+		if (!BOARD_SIZES[size]) return false;
+		if (room.phase !== "planning") return false;
+		room.boardSize = size;
+		room.rows = BOARD_SIZES[size].rows;
+		room.cols = BOARD_SIZES[size].cols;
 		return true;
 	}
 
@@ -164,4 +186,6 @@ exports.createRoom = createRoom;
 exports.GAME_COUNT_OPTIONS = GAME_COUNT_OPTIONS;
 exports.ROUND_SECONDS_OPTIONS = ROUND_SECONDS_OPTIONS;
 exports.DEATH_PENALTY_OPTIONS = DEATH_PENALTY_OPTIONS;
-exports.MINE_COUNT_OPTIONS = MINE_COUNT_OPTIONS;
+exports.MINE_DENSITY_OPTIONS = MINE_DENSITY_OPTIONS;
+exports.BOARD_SIZES = BOARD_SIZES;
+exports.BOARD_SIZE_OPTIONS = BOARD_SIZE_OPTIONS;

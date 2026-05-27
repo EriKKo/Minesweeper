@@ -4,8 +4,7 @@ var MINE = gameCreator.MINE;
 var FLAGGED = gameCreator.FLAGGED;
 var UNKNOWN = gameCreator.UNKNOWN;
 var KNOWN = gameCreator.KNOWN;
-var rows = gameCreator.rows;
-var cols = gameCreator.cols;
+// Board dimensions are derived per game from game.board (boards can vary in size).
 
 // Per-bot skill bundles both pace and accuracy:
 //  - speed is the baseline "thinking" pace (ms between actions); lower = faster.
@@ -103,7 +102,7 @@ function pickBotName(taken) {
 	return "player" + Math.floor(Math.random() * 10000);
 }
 
-function neighbors(r, c) {
+function neighbors(r, c, rows, cols) {
 	var ret = [];
 	for (var dr = -1; dr <= 1; dr++) {
 		for (var dc = -1; dc <= 1; dc++) {
@@ -155,11 +154,12 @@ function pickByFocus(game, actions) {
 // would plausibly misclick. Returns an uncertain reveal (may hit a mine).
 function pickFrontierGuess(game) {
 	var board = game.board, state = game.state;
+	var rows = board.length, cols = board[0].length;
 	var frontier = [];
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== UNKNOWN) continue;
-			var nbrs = neighbors(r, c);
+			var nbrs = neighbors(r, c, rows, cols);
 			for (var k = 0; k < nbrs.length; k++) {
 				var rr = nbrs[k][0], cc = nbrs[k][1];
 				if (state[rr][cc] === KNOWN && board[rr][cc] > 0) { frontier.push([r, c]); break; }
@@ -174,6 +174,7 @@ function pickFrontierGuess(game) {
 function computeBestMove(game) {
 	var board = game.board;
 	var state = game.state;
+	var rows = board.length, cols = board[0].length;
 
 	var hasKnown = false;
 	for (var r = 0; r < rows && !hasKnown; r++) {
@@ -209,7 +210,7 @@ function computeBestMove(game) {
 			if (state[r][c] !== KNOWN) continue;
 			var n = board[r][c];
 			if (n <= 0) continue;
-			var nbrs = neighbors(r, c);
+			var nbrs = neighbors(r, c, rows, cols);
 			var unknownList = [];
 			for (var i = 0; i < nbrs.length; i++) {
 				if (state[nbrs[i][0]][nbrs[i][1]] === UNKNOWN) unknownList.push(nbrs[i]);

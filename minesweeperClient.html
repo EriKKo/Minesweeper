@@ -153,9 +153,14 @@
 							<span id="death_penalty_readonly" class="series-config-readonly"></span>
 						</div>
 						<div class="series-config">
+							<span class="series-config-label">Board size</span>
+							<select id="board_size_select" disabled></select>
+							<span id="board_size_readonly" class="series-config-readonly"></span>
+						</div>
+						<div class="series-config">
 							<span class="series-config-label">Mine density</span>
-							<select id="mine_count_select" disabled></select>
-							<span id="mine_count_readonly" class="series-config-readonly"></span>
+							<select id="mine_density_select" disabled></select>
+							<span id="mine_density_readonly" class="series-config-readonly"></span>
 						</div>
 						<div id="series_status" class="series-status"></div>
 					</div>
@@ -386,8 +391,10 @@ var roundSecondsSelect = document.getElementById("round_seconds_select");
 var roundSecondsReadonly = document.getElementById("round_seconds_readonly");
 var deathPenaltySelect = document.getElementById("death_penalty_select");
 var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
-var mineCountSelect = document.getElementById("mine_count_select");
-var mineCountReadonly = document.getElementById("mine_count_readonly");
+var mineDensitySelect = document.getElementById("mine_density_select");
+var mineDensityReadonly = document.getElementById("mine_density_readonly");
+var boardSizeSelect = document.getElementById("board_size_select");
+var boardSizeReadonly = document.getElementById("board_size_readonly");
 var seriesStatus = document.getElementById("series_status");
 var scoreboardEl = document.getElementById("scoreboard");
 var botsCard = document.getElementById("bots_card");
@@ -523,8 +530,12 @@ deathPenaltySelect.addEventListener("change", function() {
 	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
 });
 
-mineCountSelect.addEventListener("change", function() {
-	socket.emit("set_mine_count", { count: parseInt(mineCountSelect.value, 10) });
+mineDensitySelect.addEventListener("change", function() {
+	socket.emit("set_mine_density", { density: parseFloat(mineDensitySelect.value) });
+});
+
+boardSizeSelect.addEventListener("change", function() {
+	socket.emit("set_board_size", { size: boardSizeSelect.value });
 });
 
 addBotButton.addEventListener("click", function() {
@@ -550,8 +561,32 @@ function formatPenaltyOption(s) {
 	return s === 0 ? "None" : s + "s";
 }
 
-function formatMineCount(n) {
-	return n + " (" + Math.round(n / (rows * cols) * 100) + "%)";
+// Mirror of the server's board presets, for option labels.
+var BOARD_DIMS = { small: [10, 13], medium: [15, 20], large: [16, 30] };
+
+function formatMineDensity(d) {
+	return Math.round(d * 100) + "%";
+}
+
+function formatBoardSize(size) {
+	var dims = BOARD_DIMS[size];
+	var label = size.charAt(0).toUpperCase() + size.slice(1);
+	return dims ? label + " (" + dims[0] + "×" + dims[1] + ")" : label;
+}
+
+// Update board dimensions and re-size canvases when the room's size changes.
+function applyBoardDims(newRows, newCols) {
+	if (!newRows || !newCols || (newRows === rows && newCols === cols)) return;
+	rows = newRows;
+	cols = newCols;
+	sizeBoardCanvas(playerCanvas, PLAYER_CELL);
+	for (var i = 1; i <= 5; i++) sizeBoardCanvas(document.getElementById("game" + i), OPP_CELL);
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	focusedR = Math.floor(rows / 2);
+	focusedC = Math.floor(cols / 2);
 }
 
 function tierFor(rating, provisional) {
@@ -747,6 +782,7 @@ socket.on("join_failed", function(data) {
 
 socket.on("room_state", function(state) {
 	currentRoom = state;
+	applyBoardDims(state.rows, state.cols);
 	renderRoomState(state);
 });
 
@@ -1149,12 +1185,14 @@ function renderRoomState(state) {
 	populateSelect(gameCountSelect, state.gameCountOptions, function(n) { return String(n); });
 	populateSelect(roundSecondsSelect, state.roundSecondsOptions, formatRoundOption);
 	populateSelect(deathPenaltySelect, state.deathPenaltyOptions, formatPenaltyOption);
-	populateSelect(mineCountSelect, state.mineCountOptions, formatMineCount);
+	populateSelect(boardSizeSelect, state.boardSizeOptions, formatBoardSize);
+	populateSelect(mineDensitySelect, state.mineDensityOptions, formatMineDensity);
 
 	gameCountSelect.value = String(state.gameCount);
 	roundSecondsSelect.value = String(state.roundSeconds);
 	deathPenaltySelect.value = String(state.deathPenalty);
-	mineCountSelect.value = String(state.mineCount);
+	boardSizeSelect.value = String(state.boardSize);
+	mineDensitySelect.value = String(state.mineDensity);
 
 	rankedTag.style.display = state.ranked ? "" : "none";
 	// Ranked rooms have a locked ruleset — show the values read-only, even to the owner.
@@ -1163,19 +1201,23 @@ function renderRoomState(state) {
 	gameCountSelect.disabled = !canEdit;
 	roundSecondsSelect.disabled = !canEdit;
 	deathPenaltySelect.disabled = !canEdit;
-	mineCountSelect.disabled = !canEdit;
+	boardSizeSelect.disabled = !canEdit;
+	mineDensitySelect.disabled = !canEdit;
 	gameCountSelect.style.display = showSelects ? "" : "none";
 	roundSecondsSelect.style.display = showSelects ? "" : "none";
 	deathPenaltySelect.style.display = showSelects ? "" : "none";
-	mineCountSelect.style.display = showSelects ? "" : "none";
+	boardSizeSelect.style.display = showSelects ? "" : "none";
+	mineDensitySelect.style.display = showSelects ? "" : "none";
 	gameCountReadonly.style.display = showSelects ? "none" : "";
 	roundSecondsReadonly.style.display = showSelects ? "none" : "";
 	deathPenaltyReadonly.style.display = showSelects ? "none" : "";
-	mineCountReadonly.style.display = showSelects ? "none" : "";
+	boardSizeReadonly.style.display = showSelects ? "none" : "";
+	mineDensityReadonly.style.display = showSelects ? "none" : "";
 	gameCountReadonly.textContent = "Best of " + state.gameCount;
 	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
 	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
-	mineCountReadonly.textContent = formatMineCount(state.mineCount);
+	boardSizeReadonly.textContent = formatBoardSize(state.boardSize);
+	mineDensityReadonly.textContent = formatMineDensity(state.mineDensity);
 
 	var showBotCard = !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";

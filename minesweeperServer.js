@@ -201,6 +201,7 @@ var bots = {}; // botId -> true
 var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
 var botSpeedMs = {}; // botId -> ms between actions
 var botRating = {}; // botId -> Elo used for ranked rating math
+var botMistake = {}; // botId -> blunder rate (re-applied to the game each round)
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -208,7 +209,7 @@ var MAX_BOTS_PER_ROOM = 3;
 
 // Ranked matchmaking
 var RANKED_MATCH_SIZE = 4;
-var RANKED_RULES = { gameCount: 5, roundSeconds: 120, deathPenalty: 5, mineCount: 30 };
+var RANKED_RULES = { gameCount: 5, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.10, boardSize: "medium" };
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
@@ -258,7 +259,10 @@ function buildRoomState(room) {
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
-		mineCount: room.mineCount,
+		mineDensity: room.mineDensity,
+		boardSize: room.boardSize,
+		rows: room.rows,
+		cols: room.cols,
 		roundDeadline: roundDeadlines[room.id] || null,
 		lastGameWinner: room.lastGameWinner,
 		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
@@ -267,7 +271,8 @@ function buildRoomState(room) {
 		gameCountOptions: room.gameCountOptions,
 		roundSecondsOptions: room.roundSecondsOptions,
 		deathPenaltyOptions: room.deathPenaltyOptions,
-		mineCountOptions: room.mineCountOptions,
+		mineDensityOptions: room.mineDensityOptions,
+		boardSizeOptions: room.boardSizeOptions,
 		botDifficultyOptions: botPlayer.DIFFICULTIES,
 		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
 		maxBots: MAX_BOTS_PER_ROOM,
@@ -419,18 +424,19 @@ function addBotToRoom(room, config) {
 	var botId = "bot:" + (nextBotId++);
 	bots[botId] = true;
 	names[botId] = botPlayer.pickBotName(getRoomBotNames(room));
-	games[botId] = createPlayerGame(botId);
+	games[botId] = createPlayerGame(botId, room.rows, room.cols);
 	if (config) {
 		// Elo-tuned bot (ranked): explicit speed, mistake rate, and rating.
 		botDifficulty[botId] = null;
 		botSpeedMs[botId] = config.speedMs;
 		botRating[botId] = config.rating;
-		games[botId].botMistakeRate = config.mistakeRate;
+		botMistake[botId] = config.mistakeRate;
 	} else {
 		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
-		games[botId].botMistakeRate = botPlayer.mistakeRateFor(botDifficulty[botId]);
+		botMistake[botId] = botPlayer.mistakeRateFor(botDifficulty[botId]);
 	}
+	games[botId].botMistakeRate = botMistake[botId];
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -459,6 +465,7 @@ function removeBotEntirely(botId) {
 	delete botDifficulty[botId];
 	delete botSpeedMs[botId];
 	delete botRating[botId];
+	delete botMistake[botId];
 	delete botLastClick[botId];
 }
 
@@ -746,14 +753,15 @@ function gameMineHit(playerID) {
 
 function startGame(room) {
 	clearRoundTimer(room.id);
-	var centerR = Math.floor(gameCreator.rows / 2);
-	var centerC = Math.floor(gameCreator.cols / 2);
-	var template = gameCreator.createNoGuessTemplate(centerR, centerC, room.mineCount);
+	var mines = Math.round(room.mineDensity * room.rows * room.cols);
+	var centerR = Math.floor(room.rows / 2);
+	var centerC = Math.floor(room.cols / 2);
+	var template = gameCreator.createNoGuessTemplate(centerR, centerC, mines, undefined, room.rows, room.cols);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
-		if (!games[pid]) {
-			games[pid] = createPlayerGame(pid);
-		}
+		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
+		games[pid] = createPlayerGame(pid, room.rows, room.cols);
+		if (isBot(pid)) games[pid].botMistakeRate = botMistake[pid];
 		games[pid].init(template);
 	}
 	for (var i = 0; i < room.players.length; i++) {
@@ -866,13 +874,14 @@ function formRankedMatch() {
 	room.gameCount = RANKED_RULES.gameCount;
 	room.roundSeconds = RANKED_RULES.roundSeconds;
 	room.deathPenalty = RANKED_RULES.deathPenalty;
-	room.mineCount = RANKED_RULES.mineCount;
+	room.mineDensity = RANKED_RULES.mineDensity;
+	room.setBoardSize(RANKED_RULES.boardSize);
 	rooms[id] = room;
 
 	for (var i = 0; i < humans.length; i++) {
 		var hid = humans[i];
 		var socket = sockets[hid];
-		games[hid] = createPlayerGame(hid);
+		games[hid] = createPlayerGame(hid, room.rows, room.cols);
 		roomMapping[hid] = room;
 		room.addPlayer(hid);
 		socket.leave("lobby");
@@ -903,8 +912,8 @@ function formRankedMatch() {
 	}
 }
 
-function createPlayerGame(playerID) {
-	var game = gameCreator.createGame();
+function createPlayerGame(playerID, gameRows, gameCols) {
+	var game = gameCreator.createGame(0, gameRows, gameCols);
 	game.playerName = names[playerID] || "Anonymous";
 	game.win = function() { gameWin(playerID); };
 	game.mineHit = function() { gameMineHit(playerID); };
@@ -913,7 +922,7 @@ function createPlayerGame(playerID) {
 
 function addPlayerToRoom(socket, room) {
 	var playerID = socket.id;
-	games[playerID] = createPlayerGame(playerID);
+	games[playerID] = createPlayerGame(playerID, room.rows, room.cols);
 	roomMapping[playerID] = room;
 	room.addPlayer(playerID);
 
@@ -1121,12 +1130,22 @@ io.on("connection", function (socket) {
 		}
 	});
 
-	socket.on("set_mine_count", function(data) {
+	socket.on("set_mine_density", function(data) {
 		var room = roomMapping[playerID];
 		if (!room) return;
 		if (room.owner !== playerID) return;
-		var count = data && parseInt(data.count, 10);
-		if (room.setMineCount(count)) {
+		var density = data && parseFloat(data.density);
+		if (room.setMineDensity(density)) {
+			broadcastRoomState(room);
+			broadcastRoomList();
+		}
+	});
+
+	socket.on("set_board_size", function(data) {
+		var room = roomMapping[playerID];
+		if (!room) return;
+		if (room.owner !== playerID) return;
+		if (room.setBoardSize(data && data.size)) {
 			broadcastRoomState(room);
 			broadcastRoomList();
 		}
@@ -1143,7 +1162,8 @@ io.on("connection", function (socket) {
 		if (botPlayer.DIFFICULTIES.indexOf(difficulty) === -1) return;
 		botDifficulty[botId] = difficulty;
 		botSpeedMs[botId] = botPlayer.speedFor(difficulty);
-		if (games[botId]) games[botId].botMistakeRate = botPlayer.mistakeRateFor(difficulty);
+		botMistake[botId] = botPlayer.mistakeRateFor(difficulty);
+		if (games[botId]) games[botId].botMistakeRate = botMistake[botId];
 		broadcastRoomState(room);
 	});
 

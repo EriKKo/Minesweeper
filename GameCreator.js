@@ -1,6 +1,6 @@
 var DEFAULT_MINES = 30;
-var rows = 15;
-var cols = 20;
+var DEFAULT_ROWS = 15;
+var DEFAULT_COLS = 20;
 
 var dr = [0, 1, 0, -1, -1, 1, -1, 1];
 var dc = [-1, 0, 1, 0, -1, -1, 1, 1];
@@ -10,8 +10,10 @@ var FLAGGED = -2;
 var UNKNOWN = -3;
 var KNOWN = -4;
 
-function createGame(mineCount) {
+function createGame(mineCount, gameRows, gameCols) {
 	var numMines = mineCount > 0 ? mineCount : DEFAULT_MINES;
+	var rows = gameRows > 0 ? gameRows : DEFAULT_ROWS;
+	var cols = gameCols > 0 ? gameCols : DEFAULT_COLS;
 	var board = new Array(rows);
 	var state = new Array(rows);
 	for (var i = 0; i < rows; i++) {
@@ -25,6 +27,8 @@ function createGame(mineCount) {
 	var game = {};
 	game.board = board;
 	game.state = state;
+	game.rows = rows;
+	game.cols = cols;
 	game.playing = false;
 	game.frozenUntil = 0;
 	game.finished = false;
@@ -230,9 +234,11 @@ function createGame(mineCount) {
 	return game;
 }
 
-function createTemplate(startR, startC, mineCount) {
+function createTemplate(startR, startC, mineCount, tRows, tCols) {
 	var numMines = mineCount > 0 ? mineCount : DEFAULT_MINES;
-	var tmp = createGame(numMines);
+	var rows = tRows > 0 ? tRows : DEFAULT_ROWS;
+	var cols = tCols > 0 ? tCols : DEFAULT_COLS;
+	var tmp = createGame(numMines, rows, cols);
 	tmp.win = function() {};
 	tmp.mineHit = function() {};
 	tmp.playing = true;
@@ -248,20 +254,11 @@ function createTemplate(startR, startC, mineCount) {
 			if (tmp.state[r][c] === KNOWN) knownCells.push([r, c]);
 		}
 	}
-	return { board: board, knownCells: knownCells, numMines: numMines };
+	return { board: board, knownCells: knownCells, numMines: numMines, rows: rows, cols: cols };
 }
 
 var NOGUESS_MAX_TRIES = 100;
 var ENUM_CAP = 18; // max frontier-component size we brute-force enumerate
-
-function neighborsOf(r, c) {
-	var ret = [];
-	for (var i = 0; i < 8; i++) {
-		var nr = r + dr[i], nc = c + dc[i];
-		if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) ret.push([nr, nc]);
-	}
-	return ret;
-}
 
 function popcount(x) {
 	var c = 0;
@@ -273,6 +270,16 @@ function popcount(x) {
 // from the pre-revealed opening, and reports whether every safe cell can be
 // uncovered. Used to pick boards that don't force a guess.
 function analyzeSolvability(board, knownCells, numMines) {
+	var rows = board.length, cols = board[0].length;
+	function neighborsOf(r, c) {
+		var ret = [];
+		for (var i = 0; i < 8; i++) {
+			var nr = r + dr[i], nc = c + dc[i];
+			if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) ret.push([nr, nc]);
+		}
+		return ret;
+	}
+
 	var revealed = [], mineKnown = [];
 	for (var r = 0; r < rows; r++) {
 		revealed.push(new Array(cols).fill(false));
@@ -425,11 +432,11 @@ function analyzeSolvability(board, knownCells, numMines) {
 
 // Generate-and-test: return the first board solvable without guessing, or — if
 // none turns up within maxTries — the closest (most logically-revealable) one.
-function createNoGuessTemplate(startR, startC, mineCount, maxTries) {
+function createNoGuessTemplate(startR, startC, mineCount, maxTries, tRows, tCols) {
 	maxTries = maxTries > 0 ? maxTries : NOGUESS_MAX_TRIES;
 	var best = null, bestScore = -1;
 	for (var i = 0; i < maxTries; i++) {
-		var cand = createTemplate(startR, startC, mineCount);
+		var cand = createTemplate(startR, startC, mineCount, tRows, tCols);
 		var res = analyzeSolvability(cand.board, cand.knownCells, cand.numMines);
 		if (res.solved) return cand;
 		if (res.revealedSafe > bestScore) { bestScore = res.revealedSafe; best = cand; }
@@ -445,5 +452,7 @@ exports.MINE = MINE;
 exports.FLAGGED = FLAGGED;
 exports.UNKNOWN = UNKNOWN;
 exports.KNOWN = KNOWN;
-exports.rows = rows;
-exports.cols = cols;
+exports.DEFAULT_ROWS = DEFAULT_ROWS;
+exports.DEFAULT_COLS = DEFAULT_COLS;
+exports.rows = DEFAULT_ROWS;
+exports.cols = DEFAULT_COLS;
