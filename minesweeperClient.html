@@ -141,13 +141,28 @@ var COLOR_GO_MESSAGE = "#22c55e";
 var COLOR_WINNER = "#22c55e";
 var COLOR_LOSER = "#f87171";
 
-var COLOR_MINE = "#ef4444";
-var COLOR_NUMBER = "#22c55e";
-var COLOR_KNOWN = "#0f172a";
-var COLOR_UNKNOWN = "#3b82f6";
-var COLOR_BORDER = "#020617";
-var COLOR_FLAGGED = "#ef4444";
+var COLOR_MINE = "#fca5a5";
+// Distinct per-number palette tuned to read on a dark revealed cell.
+var NUMBER_COLORS = {
+	1: "#60a5fa", 2: "#4ade80", 3: "#f87171", 4: "#c084fc",
+	5: "#fbbf24", 6: "#22d3ee", 7: "#f9a8d4", 8: "#e2e8f0"
+};
+var COLOR_KNOWN_BG = "#162033";
+var COLOR_KNOWN_EDGE = "#0b1220";
+var COLOR_UNKNOWN_TOP = "#4f93f7";
+var COLOR_UNKNOWN_BOTTOM = "#2563eb";
+var COLOR_UNKNOWN_EDGE = "#1e40af";
+var COLOR_UNKNOWN_HILITE = "rgba(255,255,255,0.28)";
+var COLOR_FLAG_CLOTH = "#ef4444";
+var COLOR_FLAG_POLE = "#e2e8f0";
 var NUMBER_FONT = "Inter, system-ui, sans-serif";
+
+// Reveal/flag/mine animation tuning (ms).
+var REVEAL_DUR = 230;
+var FLAG_DUR = 260;
+var MINE_DUR = 460;
+var STAGGER_MS = 13;     // per unit of distance from the reveal origin
+var STAGGER_CAP = 340;   // max ripple delay so big floods stay snappy
 
 var MINE = -1;
 var FLAGGED = -2;
@@ -156,7 +171,6 @@ var KNOWN = -4;
 
 var rows = 15;
 var cols = 20;
-var border = 1;
 
 var playerCanvas = document.getElementById("game0");
 var playerCanvasHeight = playerCanvas.height;
@@ -220,6 +234,10 @@ var focusedC = Math.floor(cols / 2);
 var focusVisible = false;
 var myBoard = null;
 var myState = null;
+var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
+var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
+var animRAF = null;
+var lastActionCell = null;     // where the local player last revealed, for ripple origin
 
 nameForm.addEventListener("submit", function(e) {
 	e.preventDefault();
@@ -353,6 +371,7 @@ socket.on("start_game", function(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
+	resetBoardAnimations();
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 });
@@ -403,10 +422,14 @@ socket.on("draw_board", function(data) {
 		var slot = i === 0 ? null : slots[i - 1];
 		if (i < games.length) {
 			nameEl.textContent = games[i].playerName;
-			drawBoard(games[i].board, games[i].state, canvasEl);
 			if (i === 0) {
 				myBoard = games[i].board;
+				queueRevealAnimations(games[i].state, games[i].board);
 				myState = games[i].state;
+				prevPlayerState = cloneState(games[i].state);
+				renderPlayerBoard();
+			} else {
+				drawBoardStatic(games[i].board, games[i].state, canvasEl);
 			}
 			if (slot) slot.style.display = "";
 		} else {
@@ -415,7 +438,6 @@ socket.on("draw_board", function(data) {
 			if (slot) slot.style.display = "none";
 		}
 	}
-	drawFocusHighlight();
 });
 
 function showNameView() {
@@ -457,6 +479,7 @@ function resetGameUI() {
 	hideOverlay();
 	clearFreeze();
 	stopRoundTimer();
+	resetBoardAnimations();
 	gameProgressText.textContent = "";
 	roundTimer.textContent = "";
 	for (var i = 0; i < 6; i++) {
@@ -796,6 +819,7 @@ function boardClicked(event) {
 	focusedC = c;
 	focusVisible = false;
 	if (isLeftClick(event)) {
+		lastActionCell = { r: r, c: c };
 		socket.emit("left_click", { r: r, c: c, id: id });
 	} else if (isRightClick(event)) {
 		socket.emit("right_click", { r: r, c: c, id: id });
@@ -810,18 +834,17 @@ function drawFocusHighlight() {
 	var ctx = playerCanvas.getContext("2d");
 	var x = focusedC * playerCanvasSquareWidth;
 	var y = focusedR * playerCanvasSquareHeight;
+	var gap = Math.max(1, Math.round(Math.min(playerCanvasSquareWidth, playerCanvasSquareHeight) * 0.08));
 	ctx.save();
 	ctx.strokeStyle = "#facc15";
 	ctx.lineWidth = 2;
-	ctx.strokeRect(x + 1.5, y + 1.5, playerCanvasSquareWidth - 3, playerCanvasSquareHeight - 3);
+	roundRectPath(ctx, x + gap / 2, y + gap / 2, playerCanvasSquareWidth - gap, playerCanvasSquareHeight - gap, (Math.min(playerCanvasSquareWidth, playerCanvasSquareHeight) - gap) * 0.2);
+	ctx.stroke();
 	ctx.restore();
 }
 
 function redrawOwnBoardWithFocus() {
-	if (myBoard && myState) {
-		drawBoard(myBoard, myState, playerCanvas);
-	}
-	drawFocusHighlight();
+	renderPlayerBoard();
 }
 
 function stepFocus(dr, dc, skipRevealed) {
@@ -887,6 +910,7 @@ document.addEventListener("keydown", function(e) {
 		e.preventDefault();
 		focusVisible = true;
 		if (Date.now() < frozenUntil) { redrawOwnBoardWithFocus(); return; }
+		lastActionCell = { r: focusedR, c: focusedC };
 		socket.emit("left_click", { r: focusedR, c: focusedC, id: id });
 		return;
 	} else if (key === "z" || key === "Z") {
@@ -914,38 +938,286 @@ function isLeftClick(e) {
 function getRow(y) { return Math.floor(y / playerCanvasSquareHeight); }
 function getCol(x) { return Math.floor(x / playerCanvasSquareWidth); }
 
-function getText(r, c, board) {
-	return board[r][c] == MINE ? "X" : board[r][c] != 0 ? board[r][c] : "";
+// ---- easing + geometry helpers ----------------------------------------
+function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInCubic(t) { return t * t * t; }
+function easeOutBack(t) {
+	var s = 1.70158;
+	t = t - 1;
+	return 1 + (s + 1) * t * t * t + s * t * t;
 }
 
-function drawSquare(r, c, board, state, canvas) {
-	var ctx = canvas.getContext("2d");
-	var height = canvas.height;
-	var width = canvas.width;
-	var squareWidth = width / cols;
-	var squareHeight = height / rows;
-	var x = c*squareWidth;
-	var y = r*squareHeight;
+function roundRectPath(ctx, x, y, w, h, r) {
+	r = Math.min(r, w / 2, h / 2);
+	ctx.beginPath();
+	ctx.moveTo(x + r, y);
+	ctx.arcTo(x + w, y, x + w, y + h, r);
+	ctx.arcTo(x + w, y + h, x, y + h, r);
+	ctx.arcTo(x, y + h, x, y, r);
+	ctx.arcTo(x, y, x + w, y, r);
+	ctx.closePath();
+}
 
-	ctx.fillStyle = COLOR_BORDER;
-	ctx.fillRect(x, y, squareWidth, squareHeight);
-	ctx.fillStyle = state[r][c] == KNOWN ? COLOR_KNOWN : state[r][c] == FLAGGED ? COLOR_FLAGGED : COLOR_UNKNOWN;
-	ctx.fillRect(c*squareWidth+border, r*squareHeight+border, squareWidth - 2*border, squareHeight - 2*border);
-	if (state[r][c] == KNOWN) {
-		ctx.fillStyle = board[r][c] != MINE ? COLOR_NUMBER : COLOR_MINE;
-		ctx.font = "bold " + Math.floor(0.7*squareHeight) + "px " + NUMBER_FONT;
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-		ctx.fillText(getText(r, c, board), x + squareWidth/2, y + squareHeight/2 + 1);
+// ---- one cell ----------------------------------------------------------
+// anim (optional): { type, t } with t already normalised; t may be < 0 (not
+// started yet) or > 1 (finished — caller usually drops it before then).
+function drawCell(ctx, r, c, board, state, sw, sh, anim) {
+	var st = state[r][c];
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
+	ctx.save();
+	ctx.translate(c * sw + gap / 2, r * sh + gap / 2);
+
+	if (st === KNOWN) {
+		var revealing = anim && (anim.type === "reveal" || anim.type === "mine");
+		var t = revealing ? clamp01(anim.t) : 1;
+		drawKnownBase(ctx, w, h, rad);
+		var isMine = board[r][c] === MINE;
+		if (isMine) {
+			if (anim && anim.type === "mine") {
+				// red danger flash that fades as the bomb settles in
+				ctx.globalAlpha = (1 - easeOutCubic(t)) * 0.85;
+				ctx.fillStyle = "#dc2626";
+				roundRectPath(ctx, 0, 0, w, h, rad);
+				ctx.fill();
+				ctx.globalAlpha = 1;
+			}
+			drawMine(ctx, w, h, t);
+		} else if (board[r][c] > 0) {
+			drawNumber(ctx, board[r][c], w, h, t);
+		}
+		// the unknown "cover" lifts off as the reveal plays
+		if (revealing && anim.t < 1) {
+			ctx.globalAlpha = 1 - easeOutCubic(t);
+			drawUnknown(ctx, w, h, rad);
+			ctx.globalAlpha = 1;
+		}
+	} else if (st === FLAGGED) {
+		drawUnknown(ctx, w, h, rad);
+		var fs = anim && anim.type === "flag" ? easeOutBack(clamp01(anim.t)) : 1;
+		drawFlag(ctx, w, h, fs);
+	} else {
+		drawUnknown(ctx, w, h, rad);
 	}
+	ctx.restore();
 }
 
-function drawBoard(board, state, canvas) {
+function drawUnknown(ctx, w, h, rad) {
+	var g = ctx.createLinearGradient(0, 0, 0, h);
+	g.addColorStop(0, COLOR_UNKNOWN_TOP);
+	g.addColorStop(1, COLOR_UNKNOWN_BOTTOM);
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = g;
+	ctx.fill();
+	// raised top highlight
+	ctx.strokeStyle = COLOR_UNKNOWN_HILITE;
+	ctx.lineWidth = Math.max(1, h * 0.06);
+	ctx.beginPath();
+	ctx.moveTo(rad, ctx.lineWidth / 2);
+	ctx.lineTo(w - rad, ctx.lineWidth / 2);
+	ctx.stroke();
+	// darker bottom edge
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.strokeStyle = COLOR_UNKNOWN_EDGE;
+	ctx.lineWidth = 1;
+	ctx.stroke();
+}
+
+function drawKnownBase(ctx, w, h, rad) {
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = COLOR_KNOWN_BG;
+	ctx.fill();
+	ctx.strokeStyle = COLOR_KNOWN_EDGE;
+	ctx.lineWidth = 1;
+	ctx.stroke();
+}
+
+function drawNumber(ctx, n, w, h, t) {
+	ctx.save();
+	ctx.globalAlpha = clamp01(t);
+	var scale = 0.7 + 0.3 * easeOutBack(clamp01(t));
+	ctx.translate(w / 2, h / 2 + 1);
+	ctx.scale(scale, scale);
+	ctx.fillStyle = NUMBER_COLORS[n] || "#e2e8f0";
+	ctx.font = "bold " + Math.floor(0.72 * h) + "px " + NUMBER_FONT;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.fillText(String(n), 0, 0);
+	ctx.restore();
+}
+
+function drawMine(ctx, w, h, t) {
+	ctx.save();
+	ctx.globalAlpha = clamp01(t);
+	var scale = 0.6 + 0.4 * easeOutBack(clamp01(t));
+	ctx.translate(w / 2, h / 2);
+	ctx.scale(scale, scale);
+	var rad = Math.min(w, h) * 0.26;
+	// spikes
+	ctx.strokeStyle = COLOR_MINE;
+	ctx.lineWidth = Math.max(1, rad * 0.22);
+	ctx.lineCap = "round";
+	for (var i = 0; i < 8; i++) {
+		var a = i * Math.PI / 4;
+		ctx.beginPath();
+		ctx.moveTo(Math.cos(a) * rad * 0.7, Math.sin(a) * rad * 0.7);
+		ctx.lineTo(Math.cos(a) * rad * 1.5, Math.sin(a) * rad * 1.5);
+		ctx.stroke();
+	}
+	// body
+	ctx.beginPath();
+	ctx.arc(0, 0, rad, 0, Math.PI * 2);
+	ctx.fillStyle = COLOR_MINE;
+	ctx.fill();
+	// shine
+	ctx.beginPath();
+	ctx.arc(-rad * 0.3, -rad * 0.3, rad * 0.3, 0, Math.PI * 2);
+	ctx.fillStyle = "rgba(255,255,255,0.7)";
+	ctx.fill();
+	ctx.restore();
+}
+
+function drawFlag(ctx, w, h, scale) {
+	ctx.save();
+	ctx.translate(w / 2, h / 2);
+	ctx.scale(scale, scale);
+	var ph = h * 0.5;          // pole height
+	var px = -w * 0.12;        // pole x
+	// pole
+	ctx.strokeStyle = COLOR_FLAG_POLE;
+	ctx.lineWidth = Math.max(1, w * 0.07);
+	ctx.lineCap = "round";
+	ctx.beginPath();
+	ctx.moveTo(px, -ph / 2);
+	ctx.lineTo(px, ph / 2);
+	ctx.stroke();
+	// base
+	ctx.beginPath();
+	ctx.moveTo(px - w * 0.16, ph / 2);
+	ctx.lineTo(px + w * 0.16, ph / 2);
+	ctx.stroke();
+	// cloth
+	ctx.beginPath();
+	ctx.moveTo(px, -ph / 2);
+	ctx.lineTo(px + w * 0.34, -ph * 0.28);
+	ctx.lineTo(px, -ph * 0.06);
+	ctx.closePath();
+	ctx.fillStyle = COLOR_FLAG_CLOTH;
+	ctx.fill();
+	ctx.restore();
+}
+
+// ---- whole boards ------------------------------------------------------
+function drawBoardStatic(board, state, canvas) {
+	var ctx = canvas.getContext("2d");
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	var sw = canvas.width / cols, sh = canvas.height / rows;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
-			drawSquare(r, c, board, state, canvas);
+			drawCell(ctx, r, c, board, state, sw, sh, null);
 		}
 	}
+}
+
+function renderPlayerBoard() {
+	var ctx = playerCanvas.getContext("2d");
+	ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
+	if (myBoard && myState) {
+		var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
+		var now = performance.now();
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				var a = cellAnims[r + "," + c];
+				var animArg = null;
+				if (a) {
+					var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
+					animArg = { type: a.type, t: (now - a.start) / dur };
+				}
+				drawCell(ctx, r, c, myBoard, myState, sw, sh, animArg);
+			}
+		}
+	}
+	drawFocusHighlight();
+}
+
+// ---- reveal/flag animation bookkeeping ---------------------------------
+function cloneState(state) {
+	var out = new Array(rows);
+	for (var r = 0; r < rows; r++) out[r] = state[r].slice();
+	return out;
+}
+
+function resetBoardAnimations() {
+	prevPlayerState = null;
+	cellAnims = {};
+	lastActionCell = null;
+	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+}
+
+function queueRevealAnimations(newState, newBoard) {
+	var now = performance.now();
+	var revealed = [];
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			var was = prevPlayerState ? prevPlayerState[r][c] : UNKNOWN;
+			var cur = newState[r][c];
+			var key = r + "," + c;
+			if (cur === KNOWN && was !== KNOWN) {
+				revealed.push([r, c]);
+			} else if (cur === FLAGGED && was !== FLAGGED) {
+				cellAnims[key] = { type: "flag", start: now };
+			} else if (cur !== KNOWN && cur !== FLAGGED) {
+				delete cellAnims[key];
+			}
+		}
+	}
+	if (revealed.length) {
+		var origin = lastActionCell;
+		if (!origin || newState[origin.r][origin.c] !== KNOWN) {
+			var sr = 0, sc = 0;
+			for (var i = 0; i < revealed.length; i++) { sr += revealed[i][0]; sc += revealed[i][1]; }
+			origin = { r: sr / revealed.length, c: sc / revealed.length };
+		}
+		var hitMine = false;
+		for (var j = 0; j < revealed.length; j++) {
+			var rr = revealed[j][0], cc = revealed[j][1];
+			var d = Math.hypot(rr - origin.r, cc - origin.c);
+			var delay = Math.min(d * STAGGER_MS, STAGGER_CAP);
+			var isMine = newBoard[rr][cc] === MINE;
+			if (isMine) hitMine = true;
+			cellAnims[rr + "," + cc] = { type: isMine ? "mine" : "reveal", start: now + delay };
+		}
+		if (hitMine) triggerShake();
+	}
+	startAnimLoop();
+}
+
+function startAnimLoop() {
+	if (animRAF) return;
+	var step = function() {
+		var now = performance.now();
+		var alive = false;
+		for (var key in cellAnims) {
+			var a = cellAnims[key];
+			var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
+			if (now >= a.start + dur) { delete cellAnims[key]; }
+			else { alive = true; }
+		}
+		renderPlayerBoard();
+		if (alive) { animRAF = requestAnimationFrame(step); }
+		else { animRAF = null; }
+	};
+	animRAF = requestAnimationFrame(step);
+}
+
+function triggerShake() {
+	var wrap = playerCanvas.parentNode;
+	if (!wrap) return;
+	wrap.classList.remove("shake");
+	void wrap.offsetWidth; // reflow so the animation can replay
+	wrap.classList.add("shake");
 }
 </script>
 </body>
