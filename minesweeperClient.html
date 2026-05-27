@@ -59,6 +59,13 @@
 				</div>
 			</div>
 
+			<div id="leaderboard_card" class="leaderboard-card">
+				<h2 class="section-title">Ranked leaderboard</h2>
+				<ol id="leaderboard_list" class="leaderboard-list">
+					<li class="room-empty">No ranked players yet.</li>
+				</ol>
+			</div>
+
 			<div class="lobby-actions">
 				<button id="create_room_button" class="btn btn-primary">Create new room</button>
 				<button id="refresh_button" class="btn btn-secondary">Refresh</button>
@@ -332,6 +339,7 @@ var findRankedButton = document.getElementById("find_ranked_button");
 var rankedSearching = document.getElementById("ranked_searching");
 var rankedSearchingText = document.getElementById("ranked_searching_text");
 var cancelRankedButton = document.getElementById("cancel_ranked_button");
+var leaderboardList = document.getElementById("leaderboard_list");
 var nameForm = document.getElementById("name_form");
 var nameInput = document.getElementById("name_input");
 var nameError = document.getElementById("name_error");
@@ -536,6 +544,25 @@ function formatMineCount(n) {
 	return n + " (" + Math.round(n / (rows * cols) * 100) + "%)";
 }
 
+function tierFor(rating, provisional) {
+	if (provisional) return { name: "Unranked", color: "#94a3b8" };
+	if (rating >= 1500) return { name: "Master", color: "#c084fc" };
+	if (rating >= 1350) return { name: "Diamond", color: "#60a5fa" };
+	if (rating >= 1200) return { name: "Platinum", color: "#5eead4" };
+	if (rating >= 1050) return { name: "Gold", color: "#fbbf24" };
+	if (rating >= 900) return { name: "Silver", color: "#cbd5e1" };
+	return { name: "Bronze", color: "#d08b5b" };
+}
+
+function renderRatingBadge() {
+	if (!account) return;
+	var t = tierFor(account.rating, account.provisional);
+	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating;
+	ratingChip.style.color = t.color;
+	ratingChip.style.background = t.color + "22";
+	ratingChip.style.display = "";
+}
+
 function formatDifficulty(d) {
 	return d ? d.charAt(0).toUpperCase() + d.slice(1) : "";
 }
@@ -606,14 +633,57 @@ socket.on("authenticated", function(data) {
 	account = data;
 	myName = data.name;
 	userBadgeName.textContent = myName;
-	ratingChip.textContent = (data.provisional ? "~" : "") + data.rating;
 	ratingChip.title = "Ranked rating" + (data.provisional ? " (provisional)" : "");
-	ratingChip.style.display = "";
+	renderRatingBadge();
 	changeNameButton.style.display = "none";
 	signOutButton.style.display = "";
 	userBadge.style.display = "";
 	if (!inRoom) showLobbyView();
 });
+
+var leaderboardProvisional = 10;
+socket.on("leaderboard", function(data) {
+	if (data && data.provisionalGames) leaderboardProvisional = data.provisionalGames;
+	renderLeaderboard((data && data.players) || []);
+});
+
+function renderLeaderboard(players) {
+	leaderboardList.innerHTML = "";
+	if (!players.length) {
+		leaderboardList.appendChild(emptyRow("No ranked players yet."));
+		return;
+	}
+	players.forEach(function(p, i) {
+		var prov = p.played < leaderboardProvisional;
+		var t = tierFor(p.rating, prov);
+		var li = document.createElement("li");
+		li.className = "lb-row";
+		if (account && p.name === account.name) li.classList.add("lb-row-me");
+
+		var rank = document.createElement("span");
+		rank.className = "lb-rank";
+		rank.textContent = (i + 1);
+		li.appendChild(rank);
+
+		var name = document.createElement("span");
+		name.className = "lb-name";
+		name.textContent = p.name;
+		li.appendChild(name);
+
+		var tier = document.createElement("span");
+		tier.className = "lb-tier";
+		tier.textContent = t.name;
+		tier.style.color = t.color;
+		li.appendChild(tier);
+
+		var rating = document.createElement("span");
+		rating.className = "lb-rating";
+		rating.textContent = (prov ? "~" : "") + p.rating;
+		li.appendChild(rating);
+
+		leaderboardList.appendChild(li);
+	});
+}
 
 socket.on("auth_failed", function() {
 	localStorage.removeItem("ms_session");
@@ -747,6 +817,7 @@ function showLobbyView() {
 	gameView.style.display = "none";
 	lobbyMessage.style.display = "none";
 	rankedPanel.style.display = account ? "" : "none";
+	socket.emit("get_leaderboard");
 }
 
 function showGameView() {
@@ -890,8 +961,7 @@ function updateRatingFromStandings(standings) {
 	if (!mine || typeof mine.rating !== "number") return;
 	account.rating = mine.rating;
 	if (mine.provisional != null) account.provisional = mine.provisional;
-	ratingChip.textContent = (account.provisional ? "~" : "") + mine.rating;
-	ratingChip.style.display = "";
+	renderRatingBadge();
 	ratingChip.classList.remove("rating-chip-bump");
 	void ratingChip.offsetWidth;
 	ratingChip.classList.add("rating-chip-bump");

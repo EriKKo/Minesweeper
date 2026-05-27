@@ -35,7 +35,7 @@
 
 ## Ranked mode
 
-- [~] **Ranked mode** — accounts + pairwise-Elo ladder, matchmaking queue with bot fill
+- [x] **Ranked mode** — accounts + pairwise-Elo ladder, matchmaking queue with bot fill
   - [x] Phase 1: SQLite accounts/sessions (`db.js`, node:sqlite), GitHub OAuth +
     env-gated dev login, authenticated socket, "Signed in as X · rating" badge.
     Guest nickname path still works. Real GitHub login needs an OAuth app +
@@ -46,7 +46,8 @@
   - [x] Phase 3: pairwise Elo after each round (K40 provisional <10 games, else K20),
     delta normalized by lobby size; bots use a fixed 1000 rating; persisted to DB;
     rating delta shown in the result panel + live badge update
-  - [ ] Phase 4: rank tiers + leaderboard UI
+  - [x] Phase 4: rank tiers (Bronze→Master, Unranked while provisional) on the badge,
+    and a top-20 ranked leaderboard in the lobby
 
 ## Later: new formats
 

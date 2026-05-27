@@ -1001,6 +1001,10 @@ io.on("connection", function (socket) {
 		dequeueRanked(playerID);
 	});
 
+	socket.on("get_leaderboard", function() {
+		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
+	});
+
 	socket.on("create_room", function() {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
