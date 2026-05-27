@@ -63,16 +63,44 @@ function configForElo(elo) {
 	};
 }
 
-var BOT_NAMES = [
-	"Botty", "Sweeper", "Minnie", "Clicker", "Flagger",
-	"Defuser", "Tickr", "Boomer", "Sniffer", "Probe"
+// Pools for generating player-looking handles (so ranked bots blend in).
+var NAME_FIRST = [
+	"Liam", "Emma", "Noah", "Olivia", "Kai", "Mia", "Leo", "Zoe", "Max", "Aria",
+	"Ivan", "Sara", "Tom", "Ana", "Nils", "Oskar", "Freya", "Elin", "Henke", "Sven",
+	"Bea", "Patrik", "Sanna", "Milo", "Iris", "Jonas", "Tova", "Felix", "Nora", "Erik"
+];
+var NAME_WORDS = [
+	"shadow", "frost", "nova", "echo", "blaze", "pixel", "rogue", "zen", "drift", "lunar",
+	"comet", "raven", "ghost", "turbo", "mango", "viper", "zephyr", "grim", "noodle", "cosmo",
+	"jet", "salt", "mint", "fox", "wolf", "ember", "storm", "quartz", "neon", "pine"
 ];
 
-function pickBotName(taken) {
-	for (var i = 0; i < BOT_NAMES.length; i++) {
-		if (taken.indexOf(BOT_NAMES[i]) === -1) return BOT_NAMES[i];
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function randOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function maybeNum() { return Math.random() < 0.55 ? String(Math.floor(Math.random() * 89) + 10) : ""; }
+
+function generateName() {
+	var r = Math.random();
+	if (r < 0.3) {
+		return randOf(NAME_FIRST) + maybeNum();
+	} else if (r < 0.62) {
+		var w = randOf(NAME_WORDS);
+		w = Math.random() < 0.5 ? cap(w) : w;
+		var num = maybeNum();
+		var sep = (num && Math.random() < 0.35) ? "_" : "";
+		return w + sep + num;
+	} else if (r < 0.85) {
+		return randOf(NAME_WORDS) + cap(randOf(NAME_WORDS));
 	}
-	return "Bot " + (Math.floor(Math.random() * 1000));
+	return randOf(NAME_FIRST) + "_" + randOf(NAME_WORDS);
+}
+
+function pickBotName(taken) {
+	for (var attempt = 0; attempt < 60; attempt++) {
+		var name = generateName();
+		if (taken.indexOf(name) === -1) return name;
+	}
+	return "player" + Math.floor(Math.random() * 10000);
 }
 
 function neighbors(r, c) {

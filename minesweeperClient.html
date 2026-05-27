@@ -1200,7 +1200,8 @@ function renderRoomState(state) {
 		var name = document.createElement("span");
 		name.className = "score-name";
 		name.textContent = p.name + (p.isOwner ? " ★" : "");
-		if (p.isBot) {
+		// In ranked, bots pose as real players, so hide the BOT chip there.
+		if (p.isBot && !state.ranked) {
 			var tag = document.createElement("span");
 			tag.className = "score-bot-tag";
 			tag.textContent = "BOT";
