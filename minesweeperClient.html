@@ -29,6 +29,7 @@
 				<h2>Welcome</h2>
 				<div id="signin_options" class="signin-options" style="display:none">
 					<button id="github_signin" class="btn btn-primary" type="button" style="display:none">Sign in with GitHub</button>
+					<button id="google_signin" class="btn btn-primary" type="button" style="display:none">Sign in with Google</button>
 					<button id="dev_signin" class="btn btn-secondary" type="button" style="display:none">Dev sign-in</button>
 					<p class="signin-note">Sign in to play ranked — or just pick a nickname for casual.</p>
 					<div class="signin-divider"><span>or play as guest</span></div>
@@ -319,6 +320,7 @@ var signOutButton = document.getElementById("sign_out_button");
 var ratingChip = document.getElementById("rating_chip");
 var signinOptions = document.getElementById("signin_options");
 var githubSigninButton = document.getElementById("github_signin");
+var googleSigninButton = document.getElementById("google_signin");
 var devSigninButton = document.getElementById("dev_signin");
 var boardOverlay = document.getElementById("board_overlay");
 var roundTimer = document.getElementById("round_timer");
@@ -396,6 +398,10 @@ changeNameButton.addEventListener("click", function() {
 
 githubSigninButton.addEventListener("click", function() {
 	window.location.href = "/auth/github/login";
+});
+
+googleSigninButton.addEventListener("click", function() {
+	window.location.href = "/auth/google/login";
 });
 
 devSigninButton.addEventListener("click", function() {
@@ -531,8 +537,9 @@ socket.on("connected", function(data) {
 	id = data.id;
 	var oauth = (data && data.oauth) || {};
 	githubSigninButton.style.display = oauth.github ? "" : "none";
+	googleSigninButton.style.display = oauth.google ? "" : "none";
 	devSigninButton.style.display = oauth.dev ? "" : "none";
-	signinOptions.style.display = (oauth.github || oauth.dev) ? "" : "none";
+	signinOptions.style.display = (oauth.github || oauth.google || oauth.dev) ? "" : "none";
 	var token = localStorage.getItem("ms_session");
 	if (token) socket.emit("authenticate", { token: token });
 });

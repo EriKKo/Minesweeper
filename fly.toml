@@ -5,6 +5,12 @@ primary_region = "arn"
 
 [env]
   PORT = "8080"
+  OAUTH_REDIRECT_BASE = "https://erik-minesweeper.fly.dev"
+  RANKED_DB = "/data/ranked.db"
+
+[mounts]
+  source = "minesweeper_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080

@@ -7,6 +7,18 @@ var http = require("http")
   , botPlayer = require("./BotPlayer")
   , db = require("./db");
 
+// Load a local .env if present (no-op in production, where env vars are set directly).
+try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
+
+// Return the first set value among several candidate env var names, so both the
+// conventional UPPER_CASE names and the fly.io secret names work.
+function envAny() {
+	for (var i = 0; i < arguments.length; i++) {
+		if (process.env[arguments[i]]) return process.env[arguments[i]];
+	}
+	return "";
+}
+
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
 var SERIES_END_DELAY = 6000;
@@ -14,8 +26,10 @@ var PROVISIONAL_GAMES = 10;
 
 var PORT = process.env.PORT || 1337;
 var OAUTH_BASE = process.env.OAUTH_REDIRECT_BASE || ("http://localhost:" + PORT);
-var GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
-var GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+var GITHUB_CLIENT_ID = envAny("GITHUB_CLIENT_ID", "GITHUB_AUTH_CLIENT_ID", "github_auth_client_id");
+var GITHUB_CLIENT_SECRET = envAny("GITHUB_CLIENT_SECRET", "GITHUB_AUTH_CLIENT_SECRET", "github_auth_client_secret");
+var GOOGLE_CLIENT_ID = envAny("GOOGLE_CLIENT_ID", "GOOGLE_AUTH_CLIENT_ID", "google_auth_client_id");
+var GOOGLE_CLIENT_SECRET = envAny("GOOGLE_CLIENT_SECRET", "GOOGLE_AUTH_CLIENT_SECRET", "google_auth_client_secret");
 var DEV_AUTH = process.env.DEV_AUTH === "1";
 var oauthStates = {}; // state -> expiry ms
 
@@ -27,6 +41,8 @@ function handler (req, res) {
 	var pathname = url.pathname;
 	if (pathname === "/auth/github/login") return authGithubLogin(req, res);
 	if (pathname === "/auth/github/callback") return authGithubCallback(req, res, url);
+	if (pathname === "/auth/google/login") return authGoogleLogin(req, res);
+	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 
 	var filePath = "." + pathname;
@@ -101,6 +117,56 @@ function authGithubCallback(req, res, url) {
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("github oauth error", e);
+			res.writeHead(500); res.end("OAuth error");
+		}
+	})();
+}
+
+function authGoogleLogin(req, res) {
+	if (!GOOGLE_CLIENT_ID) { res.writeHead(500); res.end("Google OAuth is not configured (set GOOGLE_CLIENT_ID/SECRET)."); return; }
+	var state = crypto.randomBytes(16).toString("hex");
+	oauthStates[state] = Date.now() + 10 * 60 * 1000;
+	var params = new URLSearchParams({
+		client_id: GOOGLE_CLIENT_ID,
+		redirect_uri: OAUTH_BASE + "/auth/google/callback",
+		response_type: "code",
+		scope: "openid email profile",
+		state: state
+	});
+	res.writeHead(302, { Location: "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString() });
+	res.end();
+}
+
+function authGoogleCallback(req, res, url) {
+	var code = url.searchParams.get("code");
+	var state = url.searchParams.get("state");
+	if (!state || !oauthStates[state] || oauthStates[state] < Date.now()) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
+	delete oauthStates[state];
+	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
+	(async function() {
+		try {
+			var tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+				body: new URLSearchParams({
+					code: code,
+					client_id: GOOGLE_CLIENT_ID,
+					client_secret: GOOGLE_CLIENT_SECRET,
+					redirect_uri: OAUTH_BASE + "/auth/google/callback",
+					grant_type: "authorization_code"
+				}).toString()
+			});
+			var tokenJson = await tokenResp.json();
+			var accessToken = tokenJson.access_token;
+			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
+			var uResp = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+				headers: { "Authorization": "Bearer " + accessToken }
+			});
+			var g = await uResp.json();
+			var user = db.upsertUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture);
+			finishLogin(res, user.id);
+		} catch (e) {
+			console.error("google oauth error", e);
 			res.writeHead(500); res.end("OAuth error");
 		}
 	})();
@@ -729,7 +795,7 @@ io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
 	socket.join("lobby");
-	socket.emit("connected", { id: playerID, oauth: { github: !!GITHUB_CLIENT_ID, dev: DEV_AUTH } });
+	socket.emit("connected", { id: playerID, oauth: { github: !!GITHUB_CLIENT_ID, google: !!GOOGLE_CLIENT_ID, dev: DEV_AUTH } });
 
 	socket.on("authenticate", function(data) {
 		var token = data && data.token;
