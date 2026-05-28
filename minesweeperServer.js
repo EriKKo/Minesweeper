@@ -241,14 +241,20 @@ var MAX_BOTS_PER_ROOM = 3;
 
 // Ranked matchmaking
 var RANKED_MATCH_SIZE = 4;
-var RANKED_RULES = { gameCount: 5, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.10, boardSize: "medium" };
+var RANKED_RULES = { scoreTarget: 15, gameCount: 99, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.10, boardSize: "medium" };
+// Brief pause between forming a ranked match and starting the first game so
+// players can see who they're playing and at what tier.
+var RANKED_MATCH_REVEAL_MS = 3000;
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
 var BOT_JOIN_MIN_MS = 1500;
 var BOT_JOIN_MAX_MS = 4200;
 var rankedQueue = []; // socketIds of signed-in players searching
-var pendingBots = 0;  // bots that have "arrived" so far this search
+// Bots that have "arrived" in the queue so far this search. Each entry holds a
+// pre-generated identity (name + Elo-tuned config) so the search-screen slots
+// show the same opponents that end up in the match.
+var pendingBotsList = [];
 var rankedFillTimer = null;
 
 function isBot(playerID) {
@@ -289,6 +295,7 @@ function buildRoomState(room) {
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
+		scoreTarget: room.scoreTarget || null,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
 		mineDensity: room.mineDensity,
@@ -456,13 +463,13 @@ function getRoomBotNames(room) {
 	return ret;
 }
 
-function addBotToRoom(room, config) {
+function addBotToRoom(room, config, prechosenName) {
 	if (room.phase !== "planning") return false;
 	if (room.isFull()) return false;
 	if (botCount(room) >= MAX_BOTS_PER_ROOM) return false;
 	var botId = "bot:" + (nextBotId++);
 	bots[botId] = true;
-	names[botId] = botPlayer.pickBotName(getRoomBotNames(room));
+	names[botId] = prechosenName || botPlayer.pickBotName(getRoomBotNames(room));
 	games[botId] = createPlayerGame(botId, room.rows, room.cols);
 	if (config) {
 		// Elo-tuned bot (ranked): explicit speed, mistake rate, and rating.
@@ -695,18 +702,23 @@ function endIndividualGame(room, reason) {
 		if (tiedAtTop === 1) winnerID = standings[0].id;
 	}
 	room.recordRoundResult(standings, winnerID);
-	if (room.ranked) applyRankedElo(standings);
+	// Ranked Elo is computed once at series end — see endSeries — so the rating
+	// shown to the player only moves when the whole match finishes.
 	io.to("room:" + room.id).emit("game_result", {
 		winnerId: winnerID,
 		winnerName: winnerID ? names[winnerID] : null,
 		gameNumber: room.gamesPlayed,
 		gameCount: room.gameCount,
+		scoreTarget: room.scoreTarget || null,
 		reason: reason || "cleared",
 		standings: standings
 	});
 	broadcastRoomState(room);
 
-	if (room.gamesPlayed >= room.gameCount) {
+	var seriesOver = room.scoreTarget
+		? Object.keys(room.scores).some(function(pid) { return (room.scores[pid] || 0) >= room.scoreTarget; })
+		: room.gamesPlayed >= room.gameCount;
+	if (seriesOver) {
 		endSeries(room);
 	} else {
 		nextGameTimers[room.id] = setTimeout(function() {
@@ -736,6 +748,25 @@ function reduceRoundDeadline(room, targetSeconds) {
 	}, targetSeconds * 1000);
 }
 
+// Rank players for series-end purposes: highest cumulative score wins, ties share
+// a rank. Mirrors the per-round ranking logic but reads from room.scores.
+function buildSeriesStandings(room) {
+	var N = room.players.length;
+	var entries = room.players.map(function(pid) {
+		return { id: pid, name: names[pid] || "Anonymous", score: room.scores[pid] || 0 };
+	});
+	for (var i = 0; i < entries.length; i++) {
+		var strictlyHigher = 0;
+		for (var j = 0; j < entries.length; j++) {
+			if (i !== j && entries[j].score > entries[i].score) strictlyHigher++;
+		}
+		entries[i].rank = strictlyHigher + 1;
+		entries[i].points = N - strictlyHigher;
+	}
+	entries.sort(function(a, b) { return a.rank - b.rank; });
+	return entries;
+}
+
 function endSeries(room) {
 	if (nextGameTimers[room.id]) {
 		clearTimeout(nextGameTimers[room.id]);
@@ -743,11 +774,18 @@ function endSeries(room) {
 	}
 	room.seriesWinner = computeSeriesWinner(room);
 	room.phase = "planning";
+	// Apply Elo once at series end based on cumulative scoring. Mutates the
+	// standings entries with ratingDelta / rating / provisional so the client can
+	// show the bump on the series_ended panel.
+	var seriesStandings = buildSeriesStandings(room);
+	if (room.ranked) applyRankedElo(seriesStandings);
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
-		scores: room.players.map(function(pid) {
-			return { id: pid, name: names[pid] || "Anonymous", score: room.scores[pid] || 0 };
+		scoreTarget: room.scoreTarget || null,
+		standings: seriesStandings,
+		scores: seriesStandings.map(function(s) {
+			return { id: s.id, name: s.name, score: s.score };
 		})
 	});
 	broadcastRoomState(room);
@@ -864,12 +902,60 @@ function startSeries(room) {
 }
 
 // ---- Ranked matchmaking ------------------------------------------------
-function rankedCount() { return rankedQueue.length + pendingBots; }
+function rankedCount() { return rankedQueue.length + pendingBotsList.length; }
+
+// Average human rating in the queue — used to tune freshly-arriving bots so the
+// lobby's overall skill stays consistent.
+function rankedTargetElo() {
+	var sum = 0, n = 0;
+	for (var i = 0; i < rankedQueue.length; i++) {
+		var acc = accounts[rankedQueue[i]];
+		var u = acc ? db.getUserById(acc.userId) : null;
+		if (u) { sum += u.rating; n++; }
+	}
+	return n ? Math.round(sum / n) : 1000;
+}
+
+// What each player should see in the search-screen slots: humans in the queue
+// plus already-arrived pending bots, ordered humans-first. `isYou` is per-viewer.
+function rankedSearchMembers(viewerID) {
+	var members = [];
+	for (var i = 0; i < rankedQueue.length; i++) {
+		var pid = rankedQueue[i];
+		var acc = accounts[pid];
+		var u = acc ? db.getUserById(acc.userId) : null;
+		members.push({
+			id: pid,
+			name: names[pid] || (u && u.name) || "Anonymous",
+			rating: u ? u.rating : 1000,
+			provisional: u ? (u.played < PROVISIONAL_GAMES) : true,
+			isYou: pid === viewerID,
+			isBot: false
+		});
+	}
+	for (var j = 0; j < pendingBotsList.length; j++) {
+		var b = pendingBotsList[j];
+		members.push({
+			id: "pending_bot_" + j,
+			name: b.name,
+			rating: b.config.rating,
+			provisional: false,
+			isYou: false,
+			isBot: true
+		});
+	}
+	return members;
+}
 
 function broadcastRankedQueue() {
 	for (var i = 0; i < rankedQueue.length; i++) {
-		var s = sockets[rankedQueue[i]];
-		if (s) s.emit("ranked_searching", { count: rankedCount(), size: RANKED_MATCH_SIZE });
+		var pid = rankedQueue[i];
+		var s = sockets[pid];
+		if (s) s.emit("ranked_searching", {
+			count: rankedCount(),
+			size: RANKED_MATCH_SIZE,
+			members: rankedSearchMembers(pid)
+		});
 	}
 }
 
@@ -882,8 +968,12 @@ function scheduleBotArrival() {
 	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
 	rankedFillTimer = setTimeout(function() {
 		rankedFillTimer = null;
-		if (rankedQueue.length === 0) { pendingBots = 0; return; } // everyone left
-		pendingBots++;
+		if (rankedQueue.length === 0) { pendingBotsList = []; return; } // everyone left
+		var taken = pendingBotsList.map(function(b) { return b.name; });
+		pendingBotsList.push({
+			name: botPlayer.pickBotName(taken),
+			config: botPlayer.configForElo(rankedTargetElo())
+		});
 		if (rankedCount() >= RANKED_MATCH_SIZE) {
 			formRankedMatch();
 		} else {
@@ -912,7 +1002,7 @@ function dequeueRanked(playerID) {
 	rankedQueue.splice(idx, 1);
 	if (rankedQueue.length === 0) {
 		clearRankedFill();
-		pendingBots = 0;
+		pendingBotsList = [];
 	} else {
 		broadcastRankedQueue();
 	}
@@ -920,7 +1010,8 @@ function dequeueRanked(playerID) {
 
 function formRankedMatch() {
 	clearRankedFill();
-	pendingBots = 0;
+	var queuedBots = pendingBotsList;
+	pendingBotsList = [];
 
 	var humans = [];
 	while (rankedQueue.length && humans.length < RANKED_MATCH_SIZE) {
@@ -933,6 +1024,7 @@ function formRankedMatch() {
 	var room = roomCreator.createRoom(id, humans[0]);
 	room.ranked = true;
 	room.gameCount = RANKED_RULES.gameCount;
+	room.scoreTarget = RANKED_RULES.scoreTarget;
 	room.roundSeconds = RANKED_RULES.roundSeconds;
 	room.deathPenalty = RANKED_RULES.deathPenalty;
 	room.mineDensity = RANKED_RULES.mineDensity;
@@ -950,22 +1042,38 @@ function formRankedMatch() {
 		socket.emit("joined_room", { roomId: room.id, ranked: true });
 	}
 
-	// Tune filler bots to the lobby's average human rating, each with its own style.
-	var sumElo = 0, eloCount = 0;
-	for (var h = 0; h < humans.length; h++) {
-		var acc = accounts[humans[h]];
-		var u = acc ? db.getUserById(acc.userId) : null;
-		if (u) { sumElo += u.rating; eloCount++; }
+	// Use the bot identities already shown to the player during the search so the
+	// opponents who appear in the lobby slot list are the same who join the match.
+	for (var b = 0; b < queuedBots.length && room.players.length < RANKED_MATCH_SIZE; b++) {
+		if (botCount(room) >= MAX_BOTS_PER_ROOM) break;
+		addBotToRoom(room, queuedBots[b].config, queuedBots[b].name);
 	}
-	var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
-
-	while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
-		if (!addBotToRoom(room, botPlayer.configForElo(targetElo))) break;
+	// If queued bots weren't enough (e.g. a player joined late and the queue size
+	// jumped without enough bot timers firing), top up with fresh bots tuned to
+	// the lobby's average human rating.
+	if (room.players.length < RANKED_MATCH_SIZE) {
+		var sumElo = 0, eloCount = 0;
+		for (var h = 0; h < humans.length; h++) {
+			var acc = accounts[humans[h]];
+			var u = acc ? db.getUserById(acc.userId) : null;
+			if (u) { sumElo += u.rating; eloCount++; }
+		}
+		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
+		while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
+			if (!addBotToRoom(room, botPlayer.configForElo(targetElo))) break;
+		}
 	}
 
 	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);
 	broadcastRoomState(room);
-	startSeries(room);
+
+	// Pause so the players can read the opponent slates + tiers before the first
+	// countdown starts. The room is in planning phase during this window.
+	io.to("room:" + room.id).emit("match_reveal", { delayMs: RANKED_MATCH_REVEAL_MS });
+	setTimeout(function() {
+		if (!rooms[room.id] || room.phase !== "planning") return;
+		startSeries(room);
+	}, RANKED_MATCH_REVEAL_MS);
 
 	if (rankedQueue.length > 0) {
 		broadcastRankedQueue();

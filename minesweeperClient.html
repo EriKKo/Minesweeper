@@ -57,9 +57,12 @@
 					<button id="find_ranked_button" class="btn btn-primary">Find ranked match</button>
 				</div>
 				<div id="ranked_searching" class="ranked-searching" style="display:none">
-					<span class="ranked-spinner"></span>
-					<span id="ranked_searching_text">Searching…</span>
-					<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
+					<div class="ranked-search-header">
+						<span class="ranked-spinner"></span>
+						<span id="ranked_searching_text">Searching for opponents…</span>
+						<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
+					</div>
+					<div id="ranked_slots" class="ranked-slots"></div>
 				</div>
 			</div>
 
@@ -912,7 +915,56 @@ function setRankedSearching(on) {
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
 	var count = info.count || 1, size = info.size || 4;
-	rankedSearchingText.textContent = "Searching… " + count + "/" + size + " players";
+	rankedSearchingText.textContent = count >= size
+		? "Match found — joining…"
+		: "Searching for opponents…  " + count + "/" + size;
+	renderRankedSlots(info);
+}
+
+var rankedSlotsEl = document.getElementById("ranked_slots");
+
+function renderRankedSlots(info) {
+	if (!rankedSlotsEl) return;
+	var size = info.size || 4;
+	var members = info.members || [];
+	rankedSlotsEl.innerHTML = "";
+	for (var i = 0; i < size; i++) {
+		var slot = document.createElement("div");
+		slot.className = "ranked-slot";
+		var m = members[i];
+		if (m) {
+			if (m.isYou) slot.classList.add("ranked-slot-you");
+			var name = document.createElement("div");
+			name.className = "ranked-slot-name";
+			name.textContent = m.name;
+			if (m.isYou) {
+				var youTag = document.createElement("span");
+				youTag.className = "ranked-slot-you-tag";
+				youTag.textContent = "YOU";
+				name.appendChild(document.createTextNode(" "));
+				name.appendChild(youTag);
+			}
+			slot.appendChild(name);
+
+			var meta = document.createElement("div");
+			meta.className = "ranked-slot-meta";
+			var t = tierFor(m.rating, m.provisional);
+			var tierEl = document.createElement("span");
+			tierEl.className = "ranked-slot-tier";
+			tierEl.textContent = t.name;
+			tierEl.style.color = t.color;
+			meta.appendChild(tierEl);
+			var ratingEl = document.createElement("span");
+			ratingEl.className = "ranked-slot-rating";
+			ratingEl.textContent = (m.provisional ? "~" : "") + m.rating;
+			meta.appendChild(ratingEl);
+			slot.appendChild(meta);
+		} else {
+			slot.classList.add("ranked-slot-empty");
+			slot.textContent = "Searching for opponent…";
+		}
+		rankedSlotsEl.appendChild(slot);
+	}
 }
 
 document.getElementById("leave_button").addEventListener("click", function() {
@@ -1011,6 +1063,17 @@ var SUB_TIER_WIDTH = 50;
 var SUB_TIERS_PER_TIER = 3;
 var SUB_TIER_NUMERALS = ["I", "II", "III"];
 var MASTER_THRESHOLD = TIER_BASE_RATING + TIER_BANDS.length * SUB_TIERS_PER_TIER * SUB_TIER_WIDTH;
+
+// Series progress label: ranked rooms race to a score target, casual rooms play
+// a fixed best-of-N. The pre-game lobby uses formatSeriesFormat instead.
+function formatGameProgress(gameNumber, gameCount, scoreTarget) {
+	if (scoreTarget) return "Game " + gameNumber + " · First to " + scoreTarget;
+	return "Game " + gameNumber + " of " + gameCount;
+}
+
+function formatSeriesFormat(gameCount, scoreTarget) {
+	return scoreTarget ? "First to " + scoreTarget : "Best of " + gameCount;
+}
 
 function tierFor(rating, provisional) {
 	if (rating >= MASTER_THRESHOLD) return { name: "Master", color: "#c084fc" };
@@ -1220,7 +1283,7 @@ socket.on("start_game", function(data) {
 	if (data.boardData && data.boardMask) {
 		installBoardDecoder(data.boardData, data.boardMask, data.rows || rows, data.cols || cols);
 	}
-	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
+	gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
@@ -1249,8 +1312,12 @@ function base64ToBytes(s) {
 socket.on("game_result", function(data) {
 	roundResultShown = true;
 	showRoundResultPanel(data);
-	// On the final round, let the series sting play instead of doubling up.
-	if (data.gameNumber < data.gameCount) {
+	// Skip the round win/lose sting when the series sting is about to play.
+	var target = (currentRoom && currentRoom.scoreTarget) || data.scoreTarget;
+	var seriesOver = target
+		? (currentRoom && currentRoom.players.some(function(p) { return (p.score || 0) >= target; }))
+		: data.gameNumber >= data.gameCount;
+	if (!seriesOver) {
 		if (data.winnerId === id) sound.win(); else sound.lose();
 	}
 	clearFreeze();
@@ -1448,10 +1515,11 @@ function showRoundResultPanel(data) {
 
 	var foot = document.createElement("div");
 	foot.className = "result-foot";
-	foot.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
+	foot.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
 	panel.appendChild(foot);
 
-	updateRatingFromStandings(standings);
+	// Ranked rating now only changes once at series end, so the per-round panel
+	// doesn't apply the bump anymore — see series_ended → showSeriesResultPanel.
 
 	presentPanel(panel, won ? "win" : "lose");
 }
@@ -1470,7 +1538,11 @@ function updateRatingFromStandings(standings) {
 }
 
 function showSeriesResultPanel(data) {
-	var scores = (data.scores || []).slice().sort(function(a, b) { return b.score - a.score; });
+	// Prefer the new `standings` (with Elo deltas + tiers); fall back to plain
+	// `scores` for casual rooms that don't produce standings.
+	var entries = (data.standings && data.standings.length)
+		? data.standings.slice()
+		: (data.scores || []).slice().sort(function(a, b) { return b.score - a.score; });
 	var won = data.winnerId === id;
 	var panel = document.createElement("div");
 	panel.className = "result-panel";
@@ -1484,11 +1556,13 @@ function showSeriesResultPanel(data) {
 
 	var list = document.createElement("ol");
 	list.className = "result-list";
-	var prevScore = null, rank = 0;
-	scores.forEach(function(s, idx) {
-		if (s.score !== prevScore) { rank = idx + 1; prevScore = s.score; }
-		var row = resultRow(medal(rank), s.id === id ? "You" : s.name, "", String(s.score),
-			{ me: s.id === id, top: rank === 1 });
+	entries.forEach(function(s, idx) {
+		var rank = s.rank != null ? s.rank : (idx + 1);
+		var detail = "";
+		if (s.ratingDelta != null) detail = (s.ratingDelta >= 0 ? "▲" : "▼") + Math.abs(s.ratingDelta);
+		var tier = typeof s.rating === "number" ? tierFor(s.rating, s.provisional) : null;
+		var row = resultRow(medal(rank), s.id === id ? "You" : s.name, detail, String(s.score),
+			{ me: s.id === id, top: rank === 1, tier: tier });
 		row.style.animationDelay = (idx * 55) + "ms";
 		list.appendChild(row);
 	});
@@ -1498,6 +1572,9 @@ function showSeriesResultPanel(data) {
 	foot.className = "result-foot";
 	foot.textContent = "Final standings";
 	panel.appendChild(foot);
+
+	// Apply the ranked rating change once, at series end.
+	if (data.standings) updateRatingFromStandings(data.standings);
 
 	presentPanel(panel, won ? "win" : "lose", 5500);
 }
@@ -1669,7 +1746,7 @@ function renderRoomState(state) {
 	deathPenaltyReadonly.style.display = showSelects ? "none" : "";
 	boardSizeReadonly.style.display = showSelects ? "none" : "";
 	mineDensityReadonly.style.display = showSelects ? "none" : "";
-	gameCountReadonly.textContent = "Best of " + state.gameCount;
+	gameCountReadonly.textContent = formatSeriesFormat(state.gameCount, state.scoreTarget);
 	roundSecondsReadonly.textContent = formatRoundOption(state.roundSeconds);
 	deathPenaltyReadonly.textContent = formatPenaltyOption(state.deathPenalty);
 	boardSizeReadonly.textContent = formatBoardSize(state.boardSize);
@@ -1803,11 +1880,14 @@ function renderRoomState(state) {
 		gameProgressText.textContent = "";
 		clearCanvas(playerCanvas);
 	} else {
-		seriesStatus.textContent = "Game " + (state.gamesPlayed >= state.gameCount ? state.gameCount : (state.gamesPlayed + 1)) + " of " + state.gameCount;
+		var nextGameNum = state.scoreTarget
+			? state.gamesPlayed + 1
+			: Math.min(state.gamesPlayed + 1, state.gameCount);
+		seriesStatus.textContent = formatGameProgress(nextGameNum, state.gameCount, state.scoreTarget);
 		readyButton.style.display = "none";
 		readyStatus.textContent = "";
 		if (!gameProgressText.textContent) {
-			gameProgressText.textContent = "Game " + Math.min(state.gamesPlayed + 1, state.gameCount) + " of " + state.gameCount;
+			gameProgressText.textContent = formatGameProgress(nextGameNum, state.gameCount, state.scoreTarget);
 		}
 	}
 }
