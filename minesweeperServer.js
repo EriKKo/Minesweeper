@@ -241,7 +241,7 @@ var MAX_BOTS_PER_ROOM = 3;
 
 // Ranked matchmaking
 var RANKED_MATCH_SIZE = 4;
-var RANKED_RULES = { scoreTarget: 15, gameCount: 99, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.10, boardSize: "medium" };
+var RANKED_RULES = { scoreTarget: 15, gameCount: 99, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
 // players can see who they're playing and at what tier.
 var RANKED_MATCH_REVEAL_MS = 3000;
