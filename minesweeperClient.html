@@ -1009,6 +1009,7 @@ var TIER_BANDS = [
 var TIER_BASE_RATING = 1000;
 var SUB_TIER_WIDTH = 50;
 var SUB_TIERS_PER_TIER = 3;
+var SUB_TIER_NUMERALS = ["I", "II", "III"];
 var MASTER_THRESHOLD = TIER_BASE_RATING + TIER_BANDS.length * SUB_TIERS_PER_TIER * SUB_TIER_WIDTH;
 
 function tierFor(rating, provisional) {
@@ -1016,9 +1017,8 @@ function tierFor(rating, provisional) {
 	var clamped = rating < TIER_BASE_RATING ? TIER_BASE_RATING : rating;
 	var subIdx = Math.floor((clamped - TIER_BASE_RATING) / SUB_TIER_WIDTH);
 	var tierIdx = Math.min(TIER_BANDS.length - 1, Math.floor(subIdx / SUB_TIERS_PER_TIER));
-	var subNum = (subIdx % SUB_TIERS_PER_TIER) + 1;
 	var t = TIER_BANDS[tierIdx];
-	return { name: t.name + " " + subNum, color: t.color };
+	return { name: t.name + " " + SUB_TIER_NUMERALS[subIdx % SUB_TIERS_PER_TIER], color: t.color };
 }
 
 function renderRatingBadge() {
