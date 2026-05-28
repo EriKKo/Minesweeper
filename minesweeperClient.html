@@ -2083,11 +2083,15 @@ document.addEventListener("keydown", function(e) {
 		moved = jumpToNextUnknown(!e.shiftKey);
 	} else if (key === " " || key === "x" || key === "X") {
 		e.preventDefault();
+		// Browser key-repeat fires keydown ~30/sec when a key is held; each tick
+		// would toggle/re-emit, so reveal/flag are one-press-one-action.
+		if (e.repeat) return;
 		focusVisible = true;
 		performAction(focusedR, focusedC, false);
 		return;
 	} else if (key === "z" || key === "Z") {
 		e.preventDefault();
+		if (e.repeat) return;
 		focusVisible = true;
 		performAction(focusedR, focusedC, true);
 		return;
