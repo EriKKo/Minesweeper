@@ -107,6 +107,10 @@
 						</div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
+							<button id="flag_mode_button" class="flag-mode-button" type="button" aria-pressed="false">
+								<span class="flag-mode-icon">🚩</span>
+								<span class="flag-mode-label">Tap to flag</span>
+							</button>
 							<span id="ready_status" class="ready-status"></span>
 						</div>
 						<p class="hotkey-hint">Move: arrows (Shift = skip revealed, Tab = next blank) · Reveal: Space / X · Flag: Z</p>
@@ -243,11 +247,113 @@ var playerCanvasWidth = playerCanvas.width;
 var playerCanvasSquareWidth = playerCanvasWidth / cols;
 var playerCanvasSquareHeight = playerCanvasHeight / rows;
 
-playerCanvas.onclick = boardClicked;
+// Touch input: set body.touch so the flag-mode toggle becomes visible, and
+// install tap/long-press handlers below. boardClicked is mouse-only — synthesized
+// mouse events that follow a touch are suppressed via lastTouchAt.
+var touchInput = ("ontouchstart" in window) || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+if (touchInput) document.body.classList.add("touch");
+
+var lastTouchAt = 0;
+var flagMode = false;
+var flagModeButton = document.getElementById("flag_mode_button");
+var flagModeLabel = flagModeButton.querySelector(".flag-mode-label");
+
+function updateFlagModeButton() {
+	flagModeButton.setAttribute("aria-pressed", flagMode ? "true" : "false");
+	flagModeLabel.textContent = flagMode ? "Flag mode" : "Tap to flag";
+}
+updateFlagModeButton();
+
+flagModeButton.addEventListener("click", function() {
+	flagMode = !flagMode;
+	updateFlagModeButton();
+	if (navigator.vibrate) navigator.vibrate(8);
+});
+
+playerCanvas.onclick = function(event) {
+	if (Date.now() - lastTouchAt < 500) return;
+	boardClicked(event);
+};
 playerCanvas.oncontextmenu = function(event) {
+	event.preventDefault();
+	if (Date.now() - lastTouchAt < 600) return false;
 	boardClicked(event);
 	return false;
 };
+
+var touchStartX = 0, touchStartY = 0, touchMoved = false, longPressFired = false, longPressTimer = null;
+var LONG_PRESS_MS = 420;
+var TOUCH_MOVE_TOLERANCE = 12;
+
+function emitBoardActionAt(clientX, clientY, asFlag) {
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (Date.now() < frozenUntil) return;
+	var rect = playerCanvas.getBoundingClientRect();
+	var scaleX = playerCanvas.width / rect.width;
+	var scaleY = playerCanvas.height / rect.height;
+	var x = (clientX - rect.left) * scaleX;
+	var y = (clientY - rect.top) * scaleY;
+	var c = getCol(x);
+	var r = getRow(y);
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	focusedR = r;
+	focusedC = c;
+	focusVisible = false;
+	if (asFlag) {
+		socket.emit("right_click", { r: r, c: c, id: id });
+	} else {
+		lastActionCell = { r: r, c: c };
+		socket.emit("left_click", { r: r, c: c, id: id });
+	}
+	redrawOwnBoardWithFocus();
+}
+
+playerCanvas.addEventListener("touchstart", function(e) {
+	lastTouchAt = Date.now();
+	if (e.touches.length !== 1) {
+		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+		return;
+	}
+	var t = e.touches[0];
+	touchStartX = t.clientX;
+	touchStartY = t.clientY;
+	touchMoved = false;
+	longPressFired = false;
+	if (longPressTimer) clearTimeout(longPressTimer);
+	longPressTimer = setTimeout(function() {
+		longPressTimer = null;
+		if (touchMoved) return;
+		longPressFired = true;
+		emitBoardActionAt(touchStartX, touchStartY, true);
+		if (navigator.vibrate) navigator.vibrate(15);
+	}, LONG_PRESS_MS);
+}, { passive: true });
+
+playerCanvas.addEventListener("touchmove", function(e) {
+	lastTouchAt = Date.now();
+	if (e.touches.length !== 1) return;
+	var t = e.touches[0];
+	if (Math.abs(t.clientX - touchStartX) > TOUCH_MOVE_TOLERANCE || Math.abs(t.clientY - touchStartY) > TOUCH_MOVE_TOLERANCE) {
+		touchMoved = true;
+		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	}
+}, { passive: true });
+
+playerCanvas.addEventListener("touchend", function(e) {
+	lastTouchAt = Date.now();
+	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	if (longPressFired || touchMoved) {
+		e.preventDefault();
+		return;
+	}
+	e.preventDefault();
+	emitBoardActionAt(touchStartX, touchStartY, flagMode);
+}, { passive: false });
+
+playerCanvas.addEventListener("touchcancel", function() {
+	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	touchMoved = true;
+});
 
 var id;
 var myName = "";

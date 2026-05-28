@@ -626,6 +626,40 @@ main {
 	letter-spacing: 0.01em;
 }
 
+/* Flag-mode toggle — only rendered for touch input (set via body.touch).
+   The mode flips what a single tap on the board does; long-press always flags. */
+.flag-mode-button {
+	display: none;
+	align-items: center;
+	gap: 0.45rem;
+	font: inherit;
+	font-weight: 600;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--text);
+	border-radius: 8px;
+	padding: 0.55rem 0.9rem;
+	cursor: pointer;
+	user-select: none;
+	touch-action: manipulation;
+	transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+body.touch .flag-mode-button { display: inline-flex; }
+
+.flag-mode-button[aria-pressed="true"] {
+	background: rgba(239, 68, 68, 0.85);
+	border-color: rgba(239, 68, 68, 1);
+	color: #fff;
+	box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+.flag-mode-icon { font-size: 1rem; line-height: 1; }
+.flag-mode-label { line-height: 1; }
+
+/* Disable browser pan/zoom/double-tap on the player board so the game owns the gesture. */
+#game0 { touch-action: none; }
+
 .opponents {
 	display: flex;
 	flex-direction: column;
@@ -812,6 +846,15 @@ main {
 @media (max-width: 900px) {
 	.game-grid { grid-template-columns: 1fr; }
 	.game-side { position: static; }
+}
+
+/* Mobile: hide the unreadable mini opponent boards and the keyboard hint;
+   the scoreboard already shows each opponent's tier and status. */
+@media (max-width: 700px) {
+	.opponents { display: none; }
+	.hotkey-hint { display: none; }
+	.player-controls { flex-wrap: wrap; }
+	.flag-mode-button { padding: 0.7rem 1rem; }
 }
 
 @media (max-width: 640px) {
