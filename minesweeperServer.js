@@ -237,11 +237,14 @@ var botMistake = {}; // botId -> blunder rate (re-applied to the game each round
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
-var MAX_BOTS_PER_ROOM = 3;
+var MAX_BOTS_PER_ROOM = 5;
 
-// Ranked matchmaking
-var RANKED_MATCH_SIZE = 4;
-var RANKED_RULES = { scoreTarget: 15, gameCount: 99, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
+// Ranked matchmaking — two modes, one match per lobby.
+var RANKED_MODES = {
+	duo: { size: 2, label: "1v1" },
+	six: { size: 6, label: "6-player" }
+};
+var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
 // players can see who they're playing and at what tier.
 var RANKED_MATCH_REVEAL_MS = 3000;
@@ -250,12 +253,11 @@ var RANKED_BOT_RATING = 1000;
 // players trickling in, rather than all appearing at a fixed deadline.
 var BOT_JOIN_MIN_MS = 1500;
 var BOT_JOIN_MAX_MS = 4200;
-var rankedQueue = []; // socketIds of signed-in players searching
-// Bots that have "arrived" in the queue so far this search. Each entry holds a
-// pre-generated identity (name + Elo-tuned config) so the search-screen slots
-// show the same opponents that end up in the match.
-var pendingBotsList = [];
-var rankedFillTimer = null;
+// Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
+var rankedQueues = { duo: [], six: [] };
+var pendingBotsLists = { duo: [], six: [] };
+var rankedFillTimers = { duo: null, six: null };
+var rankedQueueMode = {}; // playerID -> "duo" | "six"
 
 function isBot(playerID) {
 	return !!bots[playerID];
@@ -292,6 +294,7 @@ function buildRoomState(room) {
 		id: room.id,
 		owner: room.owner,
 		ranked: !!room.ranked,
+		rankedMode: room.rankedMode || null,
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
@@ -782,7 +785,8 @@ function endSeries(room) {
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
-		scoreTarget: room.scoreTarget || null,
+		ranked: !!room.ranked,
+		mode: room.rankedMode || null,
 		standings: seriesStandings,
 		scores: seriesStandings.map(function(s) {
 			return { id: s.id, name: s.name, score: s.score };
@@ -790,6 +794,10 @@ function endSeries(room) {
 	});
 	broadcastRoomState(room);
 	broadcastRoomList();
+
+	// Ranked rooms are single-match: don't auto-reset bots or scores. The client
+	// shows "Play another" (re-queues) and "Back to menu" (leaves the room).
+	if (room.ranked) return;
 
 	setTimeout(function() {
 		if (!rooms[room.id]) return;
@@ -902,14 +910,20 @@ function startSeries(room) {
 }
 
 // ---- Ranked matchmaking ------------------------------------------------
-function rankedCount() { return rankedQueue.length + pendingBotsList.length; }
+function isValidMode(mode) { return !!RANKED_MODES[mode]; }
+function modeSize(mode) { return RANKED_MODES[mode].size; }
 
-// Average human rating in the queue — used to tune freshly-arriving bots so the
-// lobby's overall skill stays consistent.
-function rankedTargetElo() {
+function rankedCount(mode) {
+	return rankedQueues[mode].length + pendingBotsLists[mode].length;
+}
+
+// Average human rating in this mode's queue — used to tune freshly-arriving
+// bots so the lobby's overall skill stays consistent.
+function rankedTargetElo(mode) {
+	var q = rankedQueues[mode];
 	var sum = 0, n = 0;
-	for (var i = 0; i < rankedQueue.length; i++) {
-		var acc = accounts[rankedQueue[i]];
+	for (var i = 0; i < q.length; i++) {
+		var acc = accounts[q[i]];
 		var u = acc ? db.getUserById(acc.userId) : null;
 		if (u) { sum += u.rating; n++; }
 	}
@@ -918,10 +932,11 @@ function rankedTargetElo() {
 
 // What each player should see in the search-screen slots: humans in the queue
 // plus already-arrived pending bots, ordered humans-first. `isYou` is per-viewer.
-function rankedSearchMembers(viewerID) {
+function rankedSearchMembers(viewerID, mode) {
 	var members = [];
-	for (var i = 0; i < rankedQueue.length; i++) {
-		var pid = rankedQueue[i];
+	var q = rankedQueues[mode], pending = pendingBotsLists[mode];
+	for (var i = 0; i < q.length; i++) {
+		var pid = q[i];
 		var acc = accounts[pid];
 		var u = acc ? db.getUserById(acc.userId) : null;
 		members.push({
@@ -933,10 +948,10 @@ function rankedSearchMembers(viewerID) {
 			isBot: false
 		});
 	}
-	for (var j = 0; j < pendingBotsList.length; j++) {
-		var b = pendingBotsList[j];
+	for (var j = 0; j < pending.length; j++) {
+		var b = pending[j];
 		members.push({
-			id: "pending_bot_" + j,
+			id: "pending_bot_" + mode + "_" + j,
 			name: b.name,
 			rating: b.config.rating,
 			provisional: false,
@@ -947,20 +962,22 @@ function rankedSearchMembers(viewerID) {
 	return members;
 }
 
-function broadcastRankedQueue() {
-	for (var i = 0; i < rankedQueue.length; i++) {
-		var pid = rankedQueue[i];
+function broadcastRankedQueue(mode) {
+	var q = rankedQueues[mode];
+	for (var i = 0; i < q.length; i++) {
+		var pid = q[i];
 		var s = sockets[pid];
 		if (s) s.emit("ranked_searching", {
-			count: rankedCount(),
-			size: RANKED_MATCH_SIZE,
-			members: rankedSearchMembers(pid)
+			mode: mode,
+			count: rankedCount(mode),
+			size: modeSize(mode),
+			members: rankedSearchMembers(pid, mode)
 		});
 	}
 }
 
-function clearRankedFill() {
-	if (rankedFillTimer) { clearTimeout(rankedFillTimer); rankedFillTimer = null; }
+function clearRankedFill(mode) {
+	if (rankedFillTimers[mode]) { clearTimeout(rankedFillTimers[mode]); rankedFillTimers[mode] = null; }
 }
 
 // Spread bot ratings around the target so the lobby looks like real matchmaking
@@ -972,59 +989,67 @@ function jitterBotElo(targetElo) {
 	return jittered;
 }
 
-function scheduleBotArrival() {
-	if (rankedFillTimer) return;
+function scheduleBotArrival(mode) {
+	if (rankedFillTimers[mode]) return;
 	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
-	rankedFillTimer = setTimeout(function() {
-		rankedFillTimer = null;
-		if (rankedQueue.length === 0) { pendingBotsList = []; return; } // everyone left
-		var taken = pendingBotsList.map(function(b) { return b.name; });
-		pendingBotsList.push({
+	rankedFillTimers[mode] = setTimeout(function() {
+		rankedFillTimers[mode] = null;
+		if (rankedQueues[mode].length === 0) { pendingBotsLists[mode] = []; return; }
+		var taken = pendingBotsLists[mode].map(function(b) { return b.name; });
+		pendingBotsLists[mode].push({
 			name: botPlayer.pickBotName(taken),
-			config: botPlayer.configForElo(jitterBotElo(rankedTargetElo()))
+			config: botPlayer.configForElo(jitterBotElo(rankedTargetElo(mode)))
 		});
-		if (rankedCount() >= RANKED_MATCH_SIZE) {
-			formRankedMatch();
+		if (rankedCount(mode) >= modeSize(mode)) {
+			formRankedMatch(mode);
 		} else {
-			broadcastRankedQueue();
-			scheduleBotArrival();
+			broadcastRankedQueue(mode);
+			scheduleBotArrival(mode);
 		}
 	}, delay);
 }
 
-function enqueueRanked(playerID) {
+function enqueueRanked(playerID, mode) {
+	if (!isValidMode(mode)) return;
 	if (!accounts[playerID]) return;          // ranked requires a signed-in account
 	if (roomMapping[playerID]) return;         // already in a room
-	if (rankedQueue.indexOf(playerID) !== -1) return;
-	rankedQueue.push(playerID);
-	if (rankedCount() >= RANKED_MATCH_SIZE) {
-		formRankedMatch();
+	// Player can only be in one ranked queue at a time.
+	if (rankedQueueMode[playerID]) dequeueRanked(playerID);
+	rankedQueues[mode].push(playerID);
+	rankedQueueMode[playerID] = mode;
+	if (rankedCount(mode) >= modeSize(mode)) {
+		formRankedMatch(mode);
 	} else {
-		broadcastRankedQueue();
-		scheduleBotArrival();
+		broadcastRankedQueue(mode);
+		scheduleBotArrival(mode);
 	}
 }
 
 function dequeueRanked(playerID) {
-	var idx = rankedQueue.indexOf(playerID);
-	if (idx === -1) return;
-	rankedQueue.splice(idx, 1);
-	if (rankedQueue.length === 0) {
-		clearRankedFill();
-		pendingBotsList = [];
+	var mode = rankedQueueMode[playerID];
+	if (!mode) return;
+	delete rankedQueueMode[playerID];
+	var q = rankedQueues[mode];
+	var idx = q.indexOf(playerID);
+	if (idx !== -1) q.splice(idx, 1);
+	if (q.length === 0) {
+		clearRankedFill(mode);
+		pendingBotsLists[mode] = [];
 	} else {
-		broadcastRankedQueue();
+		broadcastRankedQueue(mode);
 	}
 }
 
-function formRankedMatch() {
-	clearRankedFill();
-	var queuedBots = pendingBotsList;
-	pendingBotsList = [];
+function formRankedMatch(mode) {
+	clearRankedFill(mode);
+	var matchSize = modeSize(mode);
+	var queuedBots = pendingBotsLists[mode];
+	pendingBotsLists[mode] = [];
 
 	var humans = [];
-	while (rankedQueue.length && humans.length < RANKED_MATCH_SIZE) {
-		var pid = rankedQueue.shift();
+	while (rankedQueues[mode].length && humans.length < matchSize) {
+		var pid = rankedQueues[mode].shift();
+		delete rankedQueueMode[pid];
 		if (sockets[pid] && accounts[pid] && !roomMapping[pid]) humans.push(pid);
 	}
 	if (humans.length === 0) return;
@@ -1032,8 +1057,8 @@ function formRankedMatch() {
 	var id = nextRoomId++;
 	var room = roomCreator.createRoom(id, humans[0]);
 	room.ranked = true;
+	room.rankedMode = mode;
 	room.gameCount = RANKED_RULES.gameCount;
-	room.scoreTarget = RANKED_RULES.scoreTarget;
 	room.roundSeconds = RANKED_RULES.roundSeconds;
 	room.deathPenalty = RANKED_RULES.deathPenalty;
 	room.mineDensity = RANKED_RULES.mineDensity;
@@ -1048,19 +1073,19 @@ function formRankedMatch() {
 		room.addPlayer(hid);
 		socket.leave("lobby");
 		socket.join("room:" + room.id);
-		socket.emit("joined_room", { roomId: room.id, ranked: true });
+		socket.emit("joined_room", { roomId: room.id, ranked: true, mode: mode });
 	}
 
 	// Use the bot identities already shown to the player during the search so the
 	// opponents who appear in the lobby slot list are the same who join the match.
-	for (var b = 0; b < queuedBots.length && room.players.length < RANKED_MATCH_SIZE; b++) {
+	for (var b = 0; b < queuedBots.length && room.players.length < matchSize; b++) {
 		if (botCount(room) >= MAX_BOTS_PER_ROOM) break;
 		addBotToRoom(room, queuedBots[b].config, queuedBots[b].name);
 	}
 	// If queued bots weren't enough (e.g. a player joined late and the queue size
 	// jumped without enough bot timers firing), top up with fresh bots tuned to
 	// the lobby's average human rating.
-	if (room.players.length < RANKED_MATCH_SIZE) {
+	if (room.players.length < matchSize) {
 		var sumElo = 0, eloCount = 0;
 		for (var h = 0; h < humans.length; h++) {
 			var acc = accounts[humans[h]];
@@ -1068,7 +1093,7 @@ function formRankedMatch() {
 			if (u) { sumElo += u.rating; eloCount++; }
 		}
 		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
-		while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
+		while (room.players.length < matchSize && botCount(room) < MAX_BOTS_PER_ROOM) {
 			if (!addBotToRoom(room, botPlayer.configForElo(jitterBotElo(targetElo)))) break;
 		}
 	}
@@ -1084,9 +1109,9 @@ function formRankedMatch() {
 		startSeries(room);
 	}, RANKED_MATCH_REVEAL_MS);
 
-	if (rankedQueue.length > 0) {
-		broadcastRankedQueue();
-		scheduleBotArrival();
+	if (rankedQueues[mode].length > 0) {
+		broadcastRankedQueue(mode);
+		scheduleBotArrival(mode);
 	}
 }
 
@@ -1222,10 +1247,12 @@ io.on("connection", function (socket) {
 		socket.emit("room_list", { rooms: getRoomList() });
 	});
 
-	socket.on("find_ranked", function() {
+	socket.on("find_ranked", function(data) {
 		if (!accounts[playerID]) { socket.emit("ranked_rejected", { reason: "Sign in to play ranked." }); return; }
 		if (roomMapping[playerID]) return;
-		enqueueRanked(playerID);
+		var mode = (data && data.mode) || "duo";
+		if (!isValidMode(mode)) { socket.emit("ranked_rejected", { reason: "Unknown ranked mode." }); return; }
+		enqueueRanked(playerID, mode);
 	});
 
 	socket.on("cancel_ranked", function() {

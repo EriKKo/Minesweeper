@@ -265,6 +265,22 @@ main {
 .ranked-title { margin: 0; font-size: 1.2rem; }
 .ranked-sub { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.85rem; }
 
+.ranked-mode-buttons {
+	display: flex;
+	gap: 0.55rem;
+}
+
+.ranked-mode-buttons .btn { min-width: 96px; }
+
+.result-actions {
+	display: flex;
+	gap: 0.55rem;
+	justify-content: center;
+	margin-top: 0.8rem;
+}
+
+.result-actions .btn { flex: 0 0 auto; }
+
 .ranked-searching {
 	margin-top: 1rem;
 	color: var(--text);

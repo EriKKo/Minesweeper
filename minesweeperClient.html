@@ -52,9 +52,12 @@
 				<div class="ranked-cta">
 					<div>
 						<h2 class="ranked-title">Ranked</h2>
-						<p class="ranked-sub">Matched opponents · fixed rules · rating on the line.</p>
+						<p class="ranked-sub">One match per lobby · rating on the line.</p>
 					</div>
-					<button id="find_ranked_button" class="btn btn-primary">Find ranked match</button>
+					<div class="ranked-mode-buttons">
+						<button id="find_ranked_duo" class="btn btn-primary" data-mode="duo">1v1</button>
+						<button id="find_ranked_six" class="btn btn-primary" data-mode="six">6-player</button>
+					</div>
 				</div>
 				<div id="ranked_searching" class="ranked-searching" style="display:none">
 					<div class="ranked-search-header">
@@ -762,7 +765,9 @@ var busyRoomList = document.getElementById("busy_room_list");
 var lobbyMessage = document.getElementById("lobby_message");
 var rankedTag = document.getElementById("ranked_tag");
 var rankedPanel = document.getElementById("ranked_panel");
-var findRankedButton = document.getElementById("find_ranked_button");
+var findRankedDuoButton = document.getElementById("find_ranked_duo");
+var findRankedSixButton = document.getElementById("find_ranked_six");
+var currentRankedMode = null;
 var rankedSearching = document.getElementById("ranked_searching");
 var rankedSearchingText = document.getElementById("ranked_searching_text");
 var cancelRankedButton = document.getElementById("cancel_ranked_button");
@@ -893,31 +898,40 @@ document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });
 
-findRankedButton.addEventListener("click", function() {
-	socket.emit("find_ranked");
-	setRankedSearching(true);
-});
+function findRanked(mode) {
+	currentRankedMode = mode;
+	socket.emit("find_ranked", { mode: mode });
+	setRankedSearching(true, mode);
+}
+
+findRankedDuoButton.addEventListener("click", function() { findRanked("duo"); });
+findRankedSixButton.addEventListener("click", function() { findRanked("six"); });
 
 cancelRankedButton.addEventListener("click", function() {
 	socket.emit("cancel_ranked");
+	currentRankedMode = null;
 	setRankedSearching(false);
 });
 
 var rankedSearchInfo = null;
+var MODE_LABELS = { duo: "1v1", six: "6-player" };
 
-function setRankedSearching(on) {
+function setRankedSearching(on, mode) {
 	rankedSearching.style.display = on ? "" : "none";
-	findRankedButton.style.display = on ? "none" : "";
+	findRankedDuoButton.style.display = on ? "none" : "";
+	findRankedSixButton.style.display = on ? "none" : "";
 	if (on) updateRankedSearchingText();
 	else rankedSearchInfo = null;
+	// currentRankedMode stays set after match formation so series-end can re-queue.
 }
 
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
-	var count = info.count || 1, size = info.size || 4;
+	var count = info.count || 1, size = info.size || 2;
+	var modeLabel = MODE_LABELS[info.mode || currentRankedMode] || "Ranked";
 	rankedSearchingText.textContent = count >= size
-		? "Match found — joining…"
-		: "Searching for opponents…  " + count + "/" + size;
+		? modeLabel + " match found — joining…"
+		: "Finding " + modeLabel + " opponents…  " + count + "/" + size;
 	renderRankedSlots(info);
 }
 
@@ -1067,15 +1081,21 @@ var SUB_TIERS_PER_TIER = 3;
 var SUB_TIER_NUMERALS = ["I", "II", "III"];
 var MASTER_THRESHOLD = TIER_BASE_RATING + TIER_BANDS.length * SUB_TIERS_PER_TIER * SUB_TIER_WIDTH;
 
-// Series progress label: ranked rooms race to a score target, casual rooms play
-// a fixed best-of-N. The pre-game lobby uses formatSeriesFormat instead.
+// Series progress label: ranked plays exactly one match per lobby; casual plays
+// a best-of-N. The pre-game lobby uses formatSeriesFormat instead.
 function formatGameProgress(gameNumber, gameCount, scoreTarget) {
 	if (scoreTarget) return "Game " + gameNumber + " · First to " + scoreTarget;
+	if (gameCount === 1) {
+		var mode = currentRoom && currentRoom.rankedMode;
+		return mode ? (MODE_LABELS[mode] || "Ranked") + " match" : "Single match";
+	}
 	return "Game " + gameNumber + " of " + gameCount;
 }
 
 function formatSeriesFormat(gameCount, scoreTarget) {
-	return scoreTarget ? "First to " + scoreTarget : "Best of " + gameCount;
+	if (scoreTarget) return "First to " + scoreTarget;
+	if (gameCount === 1) return "One match";
+	return "Best of " + gameCount;
 }
 
 function tierFor(rating, provisional) {
@@ -1241,8 +1261,9 @@ socket.on("room_list", function(data) {
 	renderRoomList(data.rooms || []);
 });
 
-socket.on("joined_room", function() {
+socket.on("joined_room", function(data) {
 	inRoom = true;
+	if (data && data.mode) currentRankedMode = data.mode;
 	setRankedSearching(false);
 	showGameView();
 	resetGameUI();
@@ -1579,7 +1600,35 @@ function showSeriesResultPanel(data) {
 	// Apply the ranked rating change once, at series end.
 	if (data.standings) updateRatingFromStandings(data.standings);
 
-	presentPanel(panel, won ? "win" : "lose", 5500);
+	// Ranked single-match flow: players explicitly choose to re-queue or leave.
+	// Casual rooms keep the existing auto-hide behaviour.
+	if (data.ranked) {
+		var actions = document.createElement("div");
+		actions.className = "result-actions";
+
+		var again = document.createElement("button");
+		again.className = "btn btn-primary";
+		again.textContent = "Play another";
+		again.addEventListener("click", function() {
+			var mode = data.mode || currentRankedMode || "duo";
+			socket.emit("leave_room");
+			findRanked(mode);
+		});
+		actions.appendChild(again);
+
+		var back = document.createElement("button");
+		back.className = "btn btn-secondary";
+		back.textContent = "Back to menu";
+		back.addEventListener("click", function() {
+			socket.emit("leave_room");
+		});
+		actions.appendChild(back);
+
+		panel.appendChild(actions);
+		presentPanel(panel, won ? "win" : "lose"); // no auto-hide — player decides
+	} else {
+		presentPanel(panel, won ? "win" : "lose", 5500);
+	}
 }
 
 function startFreezeTick() {
