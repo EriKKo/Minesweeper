@@ -54,7 +54,7 @@ function gameForBroadcast(g) {
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
 var SERIES_END_DELAY = 6000;
-var PROVISIONAL_GAMES = 10;
+var PROVISIONAL_GAMES = 5;
 
 var PORT = process.env.PORT || 1337;
 var OAUTH_BASE = process.env.OAUTH_REDIRECT_BASE || ("http://localhost:" + PORT);
@@ -657,7 +657,9 @@ function applyRankedElo(standings) {
 			var expected = 1 / (1 + Math.pow(10, (q.rating - p.rating) / 400));
 			sum += score - expected;
 		}
-		var K = p.played < PROVISIONAL_GAMES ? 40 : 20;
+		// Smooth K-factor curve so new accounts climb fast and ratings settle
+		// after ~15 games: K=80 game 1, K=60 at 5, K=40 at 10, K=20 from 15 on.
+		var K = Math.max(20, 80 - p.played * 4);
 		p.delta = Math.round(K * sum / (n - 1));
 		p.newRating = p.rating + p.delta;
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;

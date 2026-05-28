@@ -994,14 +994,31 @@ function applyBoardDims(newRows, newCols) {
 	focusedC = Math.floor(cols / 2);
 }
 
+// Sub-tier ladder: Bronze 1 → 2 → 3 → Silver 1 → ... → Diamond 3 → Master.
+// Bronze 1 starts at the DB default rating (1000); 50 ELO per sub-tier, 150 per
+// tier, Master is the open-ended top at 1750+. Provisional players still get a
+// real tier so progress is visible — the `~` rating prefix elsewhere signals
+// that the number hasn't settled yet.
+var TIER_BANDS = [
+	{ name: "Bronze",   color: "#d08b5b" },
+	{ name: "Silver",   color: "#cbd5e1" },
+	{ name: "Gold",     color: "#fbbf24" },
+	{ name: "Platinum", color: "#5eead4" },
+	{ name: "Diamond",  color: "#60a5fa" }
+];
+var TIER_BASE_RATING = 1000;
+var SUB_TIER_WIDTH = 50;
+var SUB_TIERS_PER_TIER = 3;
+var MASTER_THRESHOLD = TIER_BASE_RATING + TIER_BANDS.length * SUB_TIERS_PER_TIER * SUB_TIER_WIDTH;
+
 function tierFor(rating, provisional) {
-	if (provisional) return { name: "Unranked", color: "#94a3b8" };
-	if (rating >= 1500) return { name: "Master", color: "#c084fc" };
-	if (rating >= 1350) return { name: "Diamond", color: "#60a5fa" };
-	if (rating >= 1200) return { name: "Platinum", color: "#5eead4" };
-	if (rating >= 1050) return { name: "Gold", color: "#fbbf24" };
-	if (rating >= 900) return { name: "Silver", color: "#cbd5e1" };
-	return { name: "Bronze", color: "#d08b5b" };
+	if (rating >= MASTER_THRESHOLD) return { name: "Master", color: "#c084fc" };
+	var clamped = rating < TIER_BASE_RATING ? TIER_BASE_RATING : rating;
+	var subIdx = Math.floor((clamped - TIER_BASE_RATING) / SUB_TIER_WIDTH);
+	var tierIdx = Math.min(TIER_BANDS.length - 1, Math.floor(subIdx / SUB_TIERS_PER_TIER));
+	var subNum = (subIdx % SUB_TIERS_PER_TIER) + 1;
+	var t = TIER_BANDS[tierIdx];
+	return { name: t.name + " " + subNum, color: t.color };
 }
 
 function renderRatingBadge() {
