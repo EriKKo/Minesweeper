@@ -251,8 +251,8 @@ var RANKED_MATCH_REVEAL_MS = 3000;
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
-var BOT_JOIN_MIN_MS = 1500;
-var BOT_JOIN_MAX_MS = 4200;
+var BOT_JOIN_MIN_MS = 500;
+var BOT_JOIN_MAX_MS = 1600;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = { duo: [], six: [] };
 var pendingBotsLists = { duo: [], six: [] };
@@ -983,7 +983,7 @@ function clearRankedFill(mode) {
 // Spread bot ratings around the target so the lobby looks like real matchmaking
 // instead of N copies of the player's rating. Clamped to the bot strength curve.
 function jitterBotElo(targetElo) {
-	var jittered = targetElo + Math.round((Math.random() - 0.5) * 200);  // ±100
+	var jittered = targetElo + Math.round((Math.random() - 0.5) * 100);  // ±50
 	if (jittered < 600) jittered = 600;
 	if (jittered > 1800) jittered = 1800;
 	return jittered;
