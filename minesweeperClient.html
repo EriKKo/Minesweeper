@@ -102,8 +102,14 @@
 					<div id="player_div" class="player-board">
 						<p id="player_name0" class="player-name"></p>
 						<div class="board-wrap">
-							<canvas id="game0" width="500" height="350"></canvas>
+							<div id="board_scroll" class="board-scroll">
+								<canvas id="game0" width="500" height="350"></canvas>
+							</div>
 							<div id="board_overlay" class="board-overlay" style="display:none"></div>
+							<button id="find_next_button" class="find-next-button" type="button" aria-label="Find next unrevealed cell">
+								<span aria-hidden="true">⤴</span>
+								<span>Find next</span>
+							</button>
 						</div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
@@ -224,9 +230,12 @@ var KNOWN = -4;
 var rows = 15;
 var cols = 20;
 
-var PLAYER_CELL = 34; // target on-screen px per cell on the player's board
-var OPP_CELL = 13;    // smaller cells for opponent boards
+var PLAYER_CELL = 34;          // desktop player cell CSS px
+var MOBILE_PLAYER_CELL = 42;   // mobile cell CSS px — finger-friendly, board may exceed viewport
+var OPP_CELL = 13;             // smaller cells for opponent boards
 var DPR = window.devicePixelRatio || 1;
+var mobileMQL = window.matchMedia ? window.matchMedia("(max-width: 700px)") : null;
+var mobileLayout = !!(mobileMQL && mobileMQL.matches);
 
 // Size a board canvas from the cell grid: render at devicePixelRatio for crispness,
 // display at the logical size, and let it shrink responsively on narrow screens.
@@ -239,7 +248,25 @@ function sizeBoardCanvas(canvas, cellPx) {
 }
 
 var playerCanvas = document.getElementById("game0");
-sizeBoardCanvas(playerCanvas, PLAYER_CELL);
+var boardScroll = document.getElementById("board_scroll");
+
+// Player canvas is sized differently on mobile: a fixed bigger cell size, no max-width
+// clamp — the surrounding .board-scroll handles pan when the board exceeds the screen.
+function sizePlayerCanvas() {
+	var cellPx = mobileLayout ? MOBILE_PLAYER_CELL : PLAYER_CELL;
+	playerCanvas.width = Math.round(cols * cellPx * DPR);
+	playerCanvas.height = Math.round(rows * cellPx * DPR);
+	playerCanvas.style.width = (cols * cellPx) + "px";
+	if (mobileLayout) {
+		playerCanvas.style.height = (rows * cellPx) + "px";
+		playerCanvas.style.maxWidth = "none";
+	} else {
+		playerCanvas.style.height = "auto";
+		playerCanvas.style.maxWidth = "100%";
+	}
+}
+
+sizePlayerCanvas();
 for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
 
 var playerCanvasHeight = playerCanvas.height;
@@ -354,6 +381,81 @@ playerCanvas.addEventListener("touchcancel", function() {
 	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 	touchMoved = true;
 });
+
+// Any actual pan kills the pending tap/long-press, even if the finger moved less
+// than TOUCH_MOVE_TOLERANCE before the browser started scrolling.
+boardScroll.addEventListener("scroll", function() {
+	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	touchMoved = true;
+});
+
+// Pan / find-next-cell helpers --------------------------------------------------
+function scrollToCell(r, c, smooth) {
+	if (!boardScroll) return;
+	var rect = playerCanvas.getBoundingClientRect();
+	var cellW = rect.width / cols, cellH = rect.height / rows;
+	var targetX = (c + 0.5) * cellW - boardScroll.clientWidth / 2;
+	var targetY = (r + 0.5) * cellH - boardScroll.clientHeight / 2;
+	if (smooth && typeof boardScroll.scrollTo === "function") {
+		try { boardScroll.scrollTo({ left: targetX, top: targetY, behavior: "smooth" }); return; } catch (e) {}
+	}
+	boardScroll.scrollLeft = targetX;
+	boardScroll.scrollTop = targetY;
+}
+
+// Unrevealed cell adjacent to a revealed numbered cell — the "interesting" frontier
+// of the puzzle. Falls back to any unknown cell if no frontier exists yet.
+function findNearestFrontierCell() {
+	if (!myState) return null;
+	var rect = playerCanvas.getBoundingClientRect();
+	var cellW = rect.width / cols, cellH = rect.height / rows;
+	var viewCol = (boardScroll.scrollLeft + boardScroll.clientWidth / 2) / cellW - 0.5;
+	var viewRow = (boardScroll.scrollTop + boardScroll.clientHeight / 2) / cellH - 0.5;
+	var bestFrontier = null, bestFrontierD = Infinity;
+	var bestUnknown = null, bestUnknownD = Infinity;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (myState[r][c] !== UNKNOWN) continue;
+			var dr = r - viewRow, dc = c - viewCol;
+			var d = dr * dr + dc * dc;
+			if (d < bestUnknownD) { bestUnknownD = d; bestUnknown = { r: r, c: c }; }
+			var frontier = false;
+			for (var er = -1; er <= 1 && !frontier; er++) {
+				for (var ec = -1; ec <= 1; ec++) {
+					if (er === 0 && ec === 0) continue;
+					var nr = r + er, nc = c + ec;
+					if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+					if (myState[nr][nc] >= 0) { frontier = true; break; }
+				}
+			}
+			if (frontier && d < bestFrontierD) { bestFrontierD = d; bestFrontier = { r: r, c: c }; }
+		}
+	}
+	return bestFrontier || bestUnknown;
+}
+
+var findNextButton = document.getElementById("find_next_button");
+findNextButton.addEventListener("click", function(e) {
+	e.preventDefault();
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	var cell = findNearestFrontierCell();
+	if (cell) scrollToCell(cell.r, cell.c, true);
+	if (navigator.vibrate) navigator.vibrate(8);
+});
+
+// Respond to rotation / viewport changes so the player board re-sizes correctly.
+function onMobileLayoutChange() {
+	mobileLayout = !!(mobileMQL && mobileMQL.matches);
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+}
+if (mobileMQL) {
+	if (typeof mobileMQL.addEventListener === "function") mobileMQL.addEventListener("change", onMobileLayoutChange);
+	else if (typeof mobileMQL.addListener === "function") mobileMQL.addListener(onMobileLayoutChange);
+}
 
 var id;
 var myName = "";
@@ -687,7 +789,7 @@ function applyBoardDims(newRows, newCols) {
 	if (!newRows || !newCols || (newRows === rows && newCols === cols)) return;
 	rows = newRows;
 	cols = newCols;
-	sizeBoardCanvas(playerCanvas, PLAYER_CELL);
+	sizePlayerCanvas();
 	for (var i = 1; i <= 5; i++) sizeBoardCanvas(document.getElementById("game" + i), OPP_CELL);
 	playerCanvasWidth = playerCanvas.width;
 	playerCanvasHeight = playerCanvas.height;
@@ -905,6 +1007,7 @@ socket.on("start_game", function(data) {
 	lastFinished = {};
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
+	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 });
 
 socket.on("game_result", function(data) {

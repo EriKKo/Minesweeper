@@ -657,8 +657,41 @@ body.touch .flag-mode-button { display: inline-flex; }
 .flag-mode-icon { font-size: 1rem; line-height: 1; }
 .flag-mode-label { line-height: 1; }
 
-/* Disable browser pan/zoom/double-tap on the player board so the game owns the gesture. */
-#game0 { touch-action: none; }
+/* Let the browser pan inside the scroll container but block pinch/double-tap zoom. */
+#game0 { touch-action: pan-x pan-y; }
+
+/* Board scroll container — pass-through on desktop, a scrollable viewport on mobile. */
+.board-scroll {
+	display: inline-block;
+	line-height: 0; /* eliminate gap under inline canvas */
+}
+
+/* Floating "find next unrevealed cell" action, mobile-only. Sits over the scroll viewport. */
+.find-next-button {
+	position: absolute;
+	bottom: 0.55rem;
+	right: 0.55rem;
+	z-index: 4;
+	display: none;
+	align-items: center;
+	gap: 0.35rem;
+	background: var(--accent);
+	color: #fff;
+	border: 1px solid var(--accent-hover);
+	border-radius: 999px;
+	padding: 0.45rem 0.85rem;
+	font: inherit;
+	font-weight: 700;
+	font-size: 0.82rem;
+	box-shadow: var(--shadow);
+	cursor: pointer;
+	touch-action: manipulation;
+	user-select: none;
+}
+
+body.touch .find-next-button { display: inline-flex; }
+.find-next-button:active { transform: translateY(1px); }
+.player-board.idle .find-next-button { display: none; }
 
 .opponents {
 	display: flex;
@@ -855,6 +888,25 @@ body.touch .flag-mode-button { display: inline-flex; }
 	.hotkey-hint { display: none; }
 	.player-controls { flex-wrap: wrap; }
 	.flag-mode-button { padding: 0.7rem 1rem; }
+
+	/* The board itself becomes a scrollable viewport so cells can be finger-sized
+	   even when the full grid is wider/taller than the screen. */
+	.player-board { display: block; padding: 0.85rem; }
+	.board-wrap { display: block; }
+	.board-scroll {
+		display: block;
+		max-width: 100%;
+		max-height: min(70vh, 520px);
+		overflow: auto;
+		-webkit-overflow-scrolling: touch;
+		touch-action: pan-x pan-y;
+		overscroll-behavior: contain;
+		border-radius: 4px;
+		background: var(--bg);
+	}
+	/* On mobile the canvas is set to a larger explicit pixel size in JS and is
+	   allowed to overflow the scroll container — undo the desktop max-width clamp. */
+	#game0 { max-width: none !important; width: auto; }
 }
 
 @media (max-width: 640px) {
@@ -875,9 +927,6 @@ body.touch .flag-mode-button { display: inline-flex; }
 
 	.game-header { flex-wrap: wrap; gap: 0.6rem; }
 	.game-progress { width: 100%; justify-content: space-between; gap: 0.75rem; }
-
-	.player-board { padding: 0.85rem; display: block; }
-	#game0 { width: 100%; height: auto; max-width: 100%; }
 
 	.opponents { grid-template-columns: 1fr; }
 	.opponent_div #game1,
