@@ -666,32 +666,46 @@ body.touch .flag-mode-button { display: inline-flex; }
 	line-height: 0; /* eliminate gap under inline canvas */
 }
 
-/* Floating "find next unrevealed cell" action, mobile-only. Sits over the scroll viewport. */
-.find-next-button {
+/* A directional arrow that only appears on touch devices when there's nothing
+   to do in the current viewport and unrevealed frontier exists elsewhere. The
+   glyph rotates per-direction; the button itself snaps to the nearest edge. */
+.find-next-arrow {
 	position: absolute;
-	bottom: 0.55rem;
-	right: 0.55rem;
 	z-index: 4;
 	display: none;
 	align-items: center;
-	gap: 0.35rem;
-	background: var(--accent);
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: rgba(99, 102, 241, 0.92);
 	color: #fff;
-	border: 1px solid var(--accent-hover);
-	border-radius: 999px;
-	padding: 0.45rem 0.85rem;
-	font: inherit;
-	font-weight: 700;
-	font-size: 0.82rem;
+	border: 2px solid var(--accent-hover);
 	box-shadow: var(--shadow);
 	cursor: pointer;
 	touch-action: manipulation;
 	user-select: none;
+	font-size: 0;
+	padding: 0;
+	opacity: 0;
+	transition: opacity 180ms ease;
+	pointer-events: none;
 }
 
-body.touch .find-next-button { display: inline-flex; }
-.find-next-button:active { transform: translateY(1px); }
-.player-board.idle .find-next-button { display: none; }
+/* On touch devices it's always mounted (display:inline-flex) but invisible until
+   the .visible class is added — needed so the opacity transition can run. */
+body.touch .find-next-arrow { display: inline-flex; }
+.find-next-arrow.visible { opacity: 1; pointer-events: auto; }
+
+.find-next-arrow-glyph {
+	display: inline-block;
+	font-size: 1.4rem;
+	line-height: 1;
+	font-weight: 800;
+}
+
+.find-next-arrow:active { transform: scale(0.95); }
+.player-board.idle .find-next-arrow { display: none; }
 
 .opponents {
 	display: flex;

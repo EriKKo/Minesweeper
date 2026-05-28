@@ -106,9 +106,8 @@
 								<canvas id="game0" width="500" height="350"></canvas>
 							</div>
 							<div id="board_overlay" class="board-overlay" style="display:none"></div>
-							<button id="find_next_button" class="find-next-button" type="button" aria-label="Find next unrevealed cell">
-								<span aria-hidden="true">⤴</span>
-								<span>Find next</span>
+							<button id="find_next_arrow" class="find-next-arrow" type="button" aria-label="Pan to next unrevealed area">
+								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
 							</button>
 						</div>
 						<div class="player-controls">
@@ -309,24 +308,51 @@ playerCanvas.oncontextmenu = function(event) {
 };
 
 var touchStartX = 0, touchStartY = 0, touchMoved = false, longPressFired = false, longPressTimer = null;
+var pressedCell = null; // cell currently under the finger — drawn highlighted for instant feedback
 var LONG_PRESS_MS = 420;
 var TOUCH_MOVE_TOLERANCE = 12;
 
-function emitBoardActionAt(clientX, clientY, asFlag) {
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
-	if (Date.now() < frozenUntil) return;
+function cellFromClient(clientX, clientY) {
 	var rect = playerCanvas.getBoundingClientRect();
 	var scaleX = playerCanvas.width / rect.width;
 	var scaleY = playerCanvas.height / rect.height;
 	var x = (clientX - rect.left) * scaleX;
 	var y = (clientY - rect.top) * scaleY;
-	var c = getCol(x);
-	var r = getRow(y);
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	var c = getCol(x), r = getRow(y);
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return null;
+	return { r: r, c: c };
+}
+
+function clearPressed() {
+	if (!pressedCell) return;
+	pressedCell = null;
+	redrawOwnBoardWithFocus();
+}
+
+function emitBoardActionAt(clientX, clientY, asFlag) {
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (Date.now() < frozenUntil) return;
+	var cell = cellFromClient(clientX, clientY);
+	if (!cell) return;
+	var r = cell.r, c = cell.c;
 	focusedR = r;
 	focusedC = c;
 	focusVisible = false;
 	if (asFlag) {
+		// Optimistic: toggle the flag locally so the user sees the result instantly,
+		// before the server roundtrip. Update prevPlayerState too so the broadcast
+		// echo doesn't re-trigger the flag animation.
+		if (myState) {
+			if (myState[r][c] === UNKNOWN) {
+				myState[r][c] = FLAGGED;
+				if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
+				cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
+			} else if (myState[r][c] === FLAGGED) {
+				myState[r][c] = UNKNOWN;
+				if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
+				delete cellAnims[r + "," + c];
+			}
+		}
 		socket.emit("right_click", { r: r, c: c, id: id });
 	} else {
 		lastActionCell = { r: r, c: c };
@@ -339,6 +365,7 @@ playerCanvas.addEventListener("touchstart", function(e) {
 	lastTouchAt = Date.now();
 	if (e.touches.length !== 1) {
 		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+		pressedCell = null;
 		return;
 	}
 	var t = e.touches[0];
@@ -346,11 +373,15 @@ playerCanvas.addEventListener("touchstart", function(e) {
 	touchStartY = t.clientY;
 	touchMoved = false;
 	longPressFired = false;
+	// Immediate visual feedback so taps don't feel "lost" while the server processes.
+	pressedCell = cellFromClient(t.clientX, t.clientY);
+	if (pressedCell) redrawOwnBoardWithFocus();
 	if (longPressTimer) clearTimeout(longPressTimer);
 	longPressTimer = setTimeout(function() {
 		longPressTimer = null;
 		if (touchMoved) return;
 		longPressFired = true;
+		pressedCell = null;
 		emitBoardActionAt(touchStartX, touchStartY, true);
 		if (navigator.vibrate) navigator.vibrate(15);
 	}, LONG_PRESS_MS);
@@ -363,14 +394,17 @@ playerCanvas.addEventListener("touchmove", function(e) {
 	if (Math.abs(t.clientX - touchStartX) > TOUCH_MOVE_TOLERANCE || Math.abs(t.clientY - touchStartY) > TOUCH_MOVE_TOLERANCE) {
 		touchMoved = true;
 		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+		clearPressed();
 	}
 }, { passive: true });
 
 playerCanvas.addEventListener("touchend", function(e) {
 	lastTouchAt = Date.now();
 	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	pressedCell = null;
 	if (longPressFired || touchMoved) {
 		e.preventDefault();
+		redrawOwnBoardWithFocus();
 		return;
 	}
 	e.preventDefault();
@@ -380,6 +414,7 @@ playerCanvas.addEventListener("touchend", function(e) {
 playerCanvas.addEventListener("touchcancel", function() {
 	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 	touchMoved = true;
+	clearPressed();
 });
 
 // Any actual pan kills the pending tap/long-press, even if the finger moved less
@@ -387,6 +422,8 @@ playerCanvas.addEventListener("touchcancel", function() {
 boardScroll.addEventListener("scroll", function() {
 	if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 	touchMoved = true;
+	clearPressed();
+	updateMobileFindNextHint();
 });
 
 // Pan / find-next-cell helpers --------------------------------------------------
@@ -403,8 +440,22 @@ function scrollToCell(r, c, smooth) {
 	boardScroll.scrollTop = targetY;
 }
 
-// Unrevealed cell adjacent to a revealed numbered cell — the "interesting" frontier
-// of the puzzle. Falls back to any unknown cell if no frontier exists yet.
+// "Interesting" cell = unrevealed and adjacent to a revealed numbered cell — the
+// puzzle's solvable frontier. Returns nearest such cell, falling back to any
+// unknown cell if no frontier exists yet (very early game).
+function isFrontierCell(r, c) {
+	if (myState[r][c] !== UNKNOWN) return false;
+	for (var dr = -1; dr <= 1; dr++) {
+		for (var dc = -1; dc <= 1; dc++) {
+			if (dr === 0 && dc === 0) continue;
+			var nr = r + dr, nc = c + dc;
+			if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+			if (myState[nr][nc] === KNOWN) return true;
+		}
+	}
+	return false;
+}
+
 function findNearestFrontierCell() {
 	if (!myState) return null;
 	var rect = playerCanvas.getBoundingClientRect();
@@ -419,27 +470,85 @@ function findNearestFrontierCell() {
 			var dr = r - viewRow, dc = c - viewCol;
 			var d = dr * dr + dc * dc;
 			if (d < bestUnknownD) { bestUnknownD = d; bestUnknown = { r: r, c: c }; }
-			var frontier = false;
-			for (var er = -1; er <= 1 && !frontier; er++) {
-				for (var ec = -1; ec <= 1; ec++) {
-					if (er === 0 && ec === 0) continue;
-					var nr = r + er, nc = c + ec;
-					if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-					if (myState[nr][nc] >= 0) { frontier = true; break; }
-				}
-			}
-			if (frontier && d < bestFrontierD) { bestFrontierD = d; bestFrontier = { r: r, c: c }; }
+			if (isFrontierCell(r, c) && d < bestFrontierD) { bestFrontierD = d; bestFrontier = { r: r, c: c }; }
 		}
 	}
 	return bestFrontier || bestUnknown;
 }
 
-var findNextButton = document.getElementById("find_next_button");
-findNextButton.addEventListener("click", function(e) {
+// The directional hint arrow: appears only when the current viewport contains no
+// frontier cells (nothing solvable on screen), pointing toward the nearest one.
+var findNextArrow = document.getElementById("find_next_arrow");
+var arrowGlyph = findNextArrow.querySelector(".find-next-arrow-glyph");
+var arrowTargetCell = null;
+
+function updateMobileFindNextHint() {
+	if (!mobileLayout || !findNextArrow) return;
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing" || !myState) {
+		findNextArrow.classList.remove("visible");
+		arrowTargetCell = null;
+		return;
+	}
+	var rect = playerCanvas.getBoundingClientRect();
+	if (!rect.width || !rect.height) return;
+	var cellW = rect.width / cols, cellH = rect.height / rows;
+	var minCol = Math.max(0, Math.floor(boardScroll.scrollLeft / cellW));
+	var maxCol = Math.min(cols, Math.ceil((boardScroll.scrollLeft + boardScroll.clientWidth) / cellW));
+	var minRow = Math.max(0, Math.floor(boardScroll.scrollTop / cellH));
+	var maxRow = Math.min(rows, Math.ceil((boardScroll.scrollTop + boardScroll.clientHeight) / cellH));
+
+	// If any frontier is visible (or the whole board is solved), no arrow.
+	for (var r = minRow; r < maxRow; r++) {
+		for (var c = minCol; c < maxCol; c++) {
+			if (isFrontierCell(r, c)) {
+				findNextArrow.classList.remove("visible");
+				arrowTargetCell = null;
+				return;
+			}
+		}
+	}
+
+	var target = findNearestFrontierCell();
+	// Guard against the target already being inside the viewport (race condition).
+	if (!target || (target.r >= minRow && target.r < maxRow && target.c >= minCol && target.c < maxCol)) {
+		findNextArrow.classList.remove("visible");
+		arrowTargetCell = null;
+		return;
+	}
+	arrowTargetCell = target;
+
+	// Direction from viewport centre to the target cell.
+	var viewCenterX = boardScroll.scrollLeft + boardScroll.clientWidth / 2;
+	var viewCenterY = boardScroll.scrollTop + boardScroll.clientHeight / 2;
+	var dx = (target.c + 0.5) * cellW - viewCenterX;
+	var dy = (target.r + 0.5) * cellH - viewCenterY;
+	var theta = Math.atan2(dy, dx);
+	var deg = theta * 180 / Math.PI;
+
+	// Snap arrow to the closest of 8 viewport positions (4 edges + 4 corners).
+	var margin = 8, aw = 44, ah = 44;
+	var bw = boardScroll.clientWidth, bh = boardScroll.clientHeight;
+	var ax, ay;
+	var absDeg = Math.abs(deg);
+	if (absDeg < 22.5)               { ax = bw - aw - margin; ay = (bh - ah) / 2; }
+	else if (deg >= 22.5 && deg < 67.5)   { ax = bw - aw - margin; ay = bh - ah - margin; }
+	else if (deg >= 67.5 && deg < 112.5)  { ax = (bw - aw) / 2;    ay = bh - ah - margin; }
+	else if (deg >= 112.5 && deg < 157.5) { ax = margin;           ay = bh - ah - margin; }
+	else if (absDeg >= 157.5)             { ax = margin;           ay = (bh - ah) / 2; }
+	else if (deg <= -22.5 && deg > -67.5) { ax = bw - aw - margin; ay = margin; }
+	else if (deg <= -67.5 && deg > -112.5){ ax = (bw - aw) / 2;    ay = margin; }
+	else                                  { ax = margin;           ay = margin; }
+
+	findNextArrow.style.left = ax + "px";
+	findNextArrow.style.top = ay + "px";
+	arrowGlyph.style.transform = "rotate(" + theta + "rad)";
+	findNextArrow.classList.add("visible");
+}
+
+findNextArrow.addEventListener("click", function(e) {
 	e.preventDefault();
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
-	var cell = findNearestFrontierCell();
-	if (cell) scrollToCell(cell.r, cell.c, true);
+	if (!arrowTargetCell) return;
+	scrollToCell(arrowTargetCell.r, arrowTargetCell.c, true);
 	if (navigator.vibrate) navigator.vibrate(8);
 });
 
@@ -1008,6 +1117,7 @@ socket.on("start_game", function(data) {
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+	updateMobileFindNextHint();
 });
 
 socket.on("game_result", function(data) {
@@ -1048,6 +1158,7 @@ socket.on("draw_board", function(data) {
 				myState = games[i].state;
 				prevPlayerState = cloneState(games[i].state);
 				renderPlayerBoard();
+				updateMobileFindNextHint();
 			} else {
 				drawBoardStatic(games[i].board, games[i].state, canvasEl);
 			}
@@ -1630,6 +1741,24 @@ function boardClicked(event) {
 	redrawOwnBoardWithFocus();
 }
 
+// Touch press indicator: brightens the cell under the finger so taps feel
+// acknowledged immediately, before the server confirms the action.
+function drawPressedHighlight() {
+	if (!pressedCell || !myState) return;
+	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	var r = pressedCell.r, c = pressedCell.c;
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	var ctx = playerCanvas.getContext("2d");
+	var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
+	var x = c * sw, y = r * sh;
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	ctx.save();
+	ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+	roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
+	ctx.fill();
+	ctx.restore();
+}
+
 function drawFocusHighlight() {
 	if (!focusVisible) return;
 	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
@@ -1942,6 +2071,7 @@ function renderPlayerBoard() {
 			}
 		}
 	}
+	drawPressedHighlight();
 	drawFocusHighlight();
 }
 
