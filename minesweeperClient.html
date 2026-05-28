@@ -48,25 +48,55 @@
 		</section>
 
 		<section id="lobby_view" class="view" style="display:none">
-			<div id="ranked_panel" class="ranked-panel" style="display:none">
-				<div class="ranked-cta">
-					<div>
-						<h2 class="ranked-title">Ranked</h2>
-						<p class="ranked-sub">One match per lobby · rating on the line.</p>
+			<div id="home_cards" class="home-cards">
+				<div class="home-card home-card-ranked" data-mode="duo">
+					<div class="home-card-head">
+						<span class="home-card-tag">RANKED · 1v1</span>
 					</div>
-					<div class="ranked-mode-buttons">
-						<button id="find_ranked_duo" class="btn btn-primary" data-mode="duo">1v1</button>
-						<button id="find_ranked_six" class="btn btn-primary" data-mode="six">6-player</button>
+					<h2 class="home-card-title">1v1</h2>
+					<p class="home-card-sub">Head-to-head against a matched opponent.</p>
+					<div class="home-card-rank" id="rank_chip_duo">
+						<span class="home-card-rank-label">Your rank</span>
+						<span class="home-card-rank-tier" id="rank_tier_duo">—</span>
+						<span class="home-card-rank-rating" id="rank_rating_duo"></span>
+					</div>
+					<button id="find_ranked_duo" class="btn btn-primary home-card-action">Find 1v1 match</button>
+				</div>
+
+				<div class="home-card home-card-ranked" data-mode="six">
+					<div class="home-card-head">
+						<span class="home-card-tag">RANKED · 6-PLAYER</span>
+					</div>
+					<h2 class="home-card-title">6-player</h2>
+					<p class="home-card-sub">Free-for-all sprint — top of the pack takes the lobby.</p>
+					<div class="home-card-rank" id="rank_chip_six">
+						<span class="home-card-rank-label">Your rank</span>
+						<span class="home-card-rank-tier" id="rank_tier_six">—</span>
+						<span class="home-card-rank-rating" id="rank_rating_six"></span>
+					</div>
+					<button id="find_ranked_six" class="btn btn-primary home-card-action">Find 6-player match</button>
+				</div>
+
+				<div class="home-card home-card-custom">
+					<div class="home-card-head">
+						<span class="home-card-tag home-card-tag-casual">CASUAL</span>
+					</div>
+					<h2 class="home-card-title">Custom lobby</h2>
+					<p class="home-card-sub">Make your own room and tweak board size, mine density, and series length.</p>
+					<div class="home-card-actions">
+						<button id="create_room_button" class="btn btn-primary home-card-action">Create new room</button>
+						<button id="refresh_button" class="btn btn-secondary">Refresh rooms</button>
 					</div>
 				</div>
-				<div id="ranked_searching" class="ranked-searching" style="display:none">
-					<div class="ranked-search-header">
-						<span class="ranked-spinner"></span>
-						<span id="ranked_searching_text">Searching for opponents…</span>
-						<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
-					</div>
-					<div id="ranked_slots" class="ranked-slots"></div>
+			</div>
+
+			<div id="ranked_searching" class="ranked-searching" style="display:none">
+				<div class="ranked-search-header">
+					<span class="ranked-spinner"></span>
+					<span id="ranked_searching_text">Searching for opponents…</span>
+					<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
 				</div>
+				<div id="ranked_slots" class="ranked-slots"></div>
 			</div>
 
 			<div id="leaderboard_card" class="leaderboard-card">
@@ -74,11 +104,6 @@
 				<ol id="leaderboard_list" class="leaderboard-list">
 					<li class="room-empty">No ranked players yet.</li>
 				</ol>
-			</div>
-
-			<div class="lobby-actions">
-				<button id="create_room_button" class="btn btn-primary">Create new room</button>
-				<button id="refresh_button" class="btn btn-secondary">Refresh</button>
 			</div>
 
 			<h2 class="section-title">Open rooms</h2>
@@ -764,9 +789,13 @@ var openRoomList = document.getElementById("open_room_list");
 var busyRoomList = document.getElementById("busy_room_list");
 var lobbyMessage = document.getElementById("lobby_message");
 var rankedTag = document.getElementById("ranked_tag");
-var rankedPanel = document.getElementById("ranked_panel");
+var homeCards = document.getElementById("home_cards");
 var findRankedDuoButton = document.getElementById("find_ranked_duo");
 var findRankedSixButton = document.getElementById("find_ranked_six");
+var rankTierDuo = document.getElementById("rank_tier_duo");
+var rankRatingDuo = document.getElementById("rank_rating_duo");
+var rankTierSix = document.getElementById("rank_tier_six");
+var rankRatingSix = document.getElementById("rank_rating_six");
 var currentRankedMode = null;
 var rankedSearching = document.getElementById("ranked_searching");
 var rankedSearchingText = document.getElementById("ranked_searching_text");
@@ -918,8 +947,8 @@ var MODE_LABELS = { duo: "1v1", six: "6-player" };
 
 function setRankedSearching(on, mode) {
 	rankedSearching.style.display = on ? "" : "none";
-	findRankedDuoButton.style.display = on ? "none" : "";
-	findRankedSixButton.style.display = on ? "none" : "";
+	// Hide the whole home grid while searching — the search panel takes the spot.
+	if (homeCards) homeCards.style.display = on ? "none" : "";
 	if (on) updateRankedSearchingText();
 	else rankedSearchInfo = null;
 	// currentRankedMode stays set after match formation so series-end can re-queue.
@@ -1108,6 +1137,7 @@ function tierFor(rating, provisional) {
 }
 
 function renderRatingBadge() {
+	renderHomeRankChips();
 	if (!account) return;
 	var t = tierFor(account.rating, account.provisional);
 	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating;
@@ -1400,8 +1430,27 @@ function showLobbyView() {
 	lobbyView.style.display = "";
 	gameView.style.display = "none";
 	lobbyMessage.style.display = "none";
-	rankedPanel.style.display = account ? "" : "none";
+	// Ranked cards only make sense for signed-in players; custom lobby card is
+	// always visible so guests can still create casual rooms.
+	var rankedCards = document.querySelectorAll(".home-card-ranked");
+	for (var i = 0; i < rankedCards.length; i++) {
+		rankedCards[i].style.display = account ? "" : "none";
+	}
+	renderHomeRankChips();
 	socket.emit("get_leaderboard");
+}
+
+function renderHomeRankChips() {
+	function applyTo(tierEl, ratingEl) {
+		if (!tierEl || !ratingEl) return;
+		if (!account) { tierEl.textContent = "—"; tierEl.style.color = ""; ratingEl.textContent = ""; return; }
+		var t = tierFor(account.rating, account.provisional);
+		tierEl.textContent = t.name;
+		tierEl.style.color = t.color;
+		ratingEl.textContent = (account.provisional ? "~" : "") + account.rating;
+	}
+	applyTo(rankTierDuo, rankRatingDuo);
+	applyTo(rankTierSix, rankRatingSix);
 }
 
 function showGameView() {

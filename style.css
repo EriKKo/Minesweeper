@@ -272,6 +272,114 @@ main {
 
 .ranked-mode-buttons .btn { min-width: 96px; }
 
+/* Home page: three side-by-side cards (1v1, 6-player, Custom). */
+.home-cards {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+}
+
+.home-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	padding: 1.4rem 1.3rem 1.3rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+	box-shadow: var(--shadow);
+	min-height: 220px;
+}
+
+.home-card-ranked {
+	background: linear-gradient(160deg, rgba(99, 102, 241, 0.22), rgba(99, 102, 241, 0.05) 70%);
+	border-color: rgba(99, 102, 241, 0.45);
+}
+
+.home-card-custom {
+	background: linear-gradient(160deg, rgba(94, 234, 212, 0.10), rgba(94, 234, 212, 0.02) 70%);
+	border-color: rgba(148, 163, 184, 0.35);
+}
+
+.home-card-head { display: flex; align-items: center; gap: 0.5rem; }
+
+.home-card-tag {
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	padding: 0.18rem 0.45rem;
+	border-radius: 5px;
+	background: rgba(99, 102, 241, 0.25);
+	color: var(--accent-hover);
+	border: 1px solid rgba(99, 102, 241, 0.45);
+}
+
+.home-card-tag-casual {
+	background: rgba(94, 234, 212, 0.15);
+	color: #5eead4;
+	border-color: rgba(94, 234, 212, 0.45);
+}
+
+.home-card-title {
+	margin: 0;
+	font-size: 1.6rem;
+	font-weight: 800;
+}
+
+.home-card-sub {
+	color: var(--muted);
+	font-size: 0.9rem;
+	margin: 0;
+	flex: 1;
+	line-height: 1.45;
+}
+
+.home-card-rank {
+	display: flex;
+	align-items: baseline;
+	gap: 0.45rem;
+	padding: 0.55rem 0.7rem;
+	background: rgba(11, 16, 32, 0.45);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
+}
+
+.home-card-rank-label {
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+	text-transform: uppercase;
+	margin-right: 0.15rem;
+}
+
+.home-card-rank-tier {
+	font-size: 1rem;
+	font-weight: 700;
+}
+
+.home-card-rank-rating {
+	font-size: 0.85rem;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.home-card-action { align-self: stretch; padding: 0.65rem 1rem; font-weight: 600; }
+
+.home-card-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.home-card-actions .home-card-action { flex: 1 1 auto; }
+.home-card-actions .btn-secondary { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+	.home-cards { grid-template-columns: 1fr; }
+}
+
 .result-actions {
 	display: flex;
 	gap: 0.55rem;
