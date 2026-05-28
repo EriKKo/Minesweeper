@@ -521,6 +521,11 @@ function scrollToCell(r, c, smooth) {
 // unknown cell if no frontier exists yet (very early game).
 function isFrontierCell(r, c) {
 	if (myState[r][c] !== UNKNOWN) return false;
+	// Treat unflagged mines as "marked dangerous" — players skip flagging them at
+	// speed, but they still aren't candidates to explore toward. Uses the real
+	// board (a deliberate cheat for the hint UI only — clicks still go via the
+	// server, which doesn't know what the player has mentally deduced).
+	if (boardCell(r, c) === MINE) return false;
 	for (var dr = -1; dr <= 1; dr++) {
 		for (var dc = -1; dc <= 1; dc++) {
 			if (dr === 0 && dc === 0) continue;
