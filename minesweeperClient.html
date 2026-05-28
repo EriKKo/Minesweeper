@@ -329,19 +329,77 @@ function clearPressed() {
 	redrawOwnBoardWithFocus();
 }
 
-function emitBoardActionAt(clientX, clientY, asFlag) {
+// Mirror the server's dfs reveal: walks from (r,c) marking unknown cells KNOWN,
+// cascading through 0-cells, recording each newly-revealed cell and whether the
+// path hit a mine. Mutates myState in place.
+function localReveal(r, c, revealed, visited) {
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return false;
+	var key = r + "," + c;
+	if (visited[key]) return false;
+	visited[key] = true;
+	if (myState[r][c] !== UNKNOWN) return false;
+	var v = boardCell(r, c);
+	myState[r][c] = KNOWN;
+	revealed.push([r, c]);
+	if (v === MINE) return true;
+	if (v === 0) {
+		var hit = false;
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				if (localReveal(r + dr, c + dc, revealed, visited)) hit = true;
+			}
+		}
+		return hit;
+	}
+	return false;
+}
+
+// Click on a revealed number-cell with the right flag-count → chord (auto-reveal
+// the remaining unflagged neighbors). Matches server clearAdjacentIfEnoughFlags.
+function applyLocalLeftClick(r, c) {
+	if (!myState || !boardDecoder) return { revealed: [], hitMine: false, anyChange: false };
+	var revealed = [];
+	var visited = {};
+	var hitMine = false;
+	if (myState[r][c] === UNKNOWN) {
+		hitMine = localReveal(r, c, revealed, visited);
+	} else if (myState[r][c] === KNOWN) {
+		var v = boardCell(r, c);
+		if (v > 0) {
+			var flagCount = 0;
+			var unknowns = [];
+			for (var dr = -1; dr <= 1; dr++) {
+				for (var dc = -1; dc <= 1; dc++) {
+					if (dr === 0 && dc === 0) continue;
+					var nr = r + dr, nc = c + dc;
+					if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+					if (myState[nr][nc] === FLAGGED) flagCount++;
+					else if (myState[nr][nc] === KNOWN && boardCell(nr, nc) === MINE) flagCount++;
+					else if (myState[nr][nc] === UNKNOWN) unknowns.push([nr, nc]);
+				}
+			}
+			if (flagCount === v) {
+				for (var i = 0; i < unknowns.length; i++) {
+					if (localReveal(unknowns[i][0], unknowns[i][1], revealed, visited)) hitMine = true;
+				}
+			}
+		}
+	}
+	return { revealed: revealed, hitMine: hitMine, anyChange: revealed.length > 0 };
+}
+
+// Single point of truth for "the user did a board action": optimistically apply
+// it locally and emit to the server. Called from mouse, touch, and keyboard.
+function performAction(r, c, asFlag) {
 	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
 	if (Date.now() < frozenUntil) return;
-	var cell = cellFromClient(clientX, clientY);
-	if (!cell) return;
-	var r = cell.r, c = cell.c;
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	focusedR = r;
 	focusedC = c;
-	focusVisible = false;
 	if (asFlag) {
-		// Optimistic: toggle the flag locally so the user sees the result instantly,
-		// before the server roundtrip. Update prevPlayerState too so the broadcast
-		// echo doesn't re-trigger the flag animation.
+		// Optimistic flag toggle. prevPlayerState is updated too so the server's
+		// matching broadcast doesn't re-trigger the animation.
 		if (myState) {
 			if (myState[r][c] === UNKNOWN) {
 				myState[r][c] = FLAGGED;
@@ -355,10 +413,28 @@ function emitBoardActionAt(clientX, clientY, asFlag) {
 		}
 		socket.emit("right_click", { r: r, c: c, id: id });
 	} else {
+		// Optimistic reveal + cascade. On a mine hit, apply the local freeze
+		// straight away; the server's echo will match.
 		lastActionCell = { r: r, c: c };
+		var result = applyLocalLeftClick(r, c);
+		if (result.anyChange) {
+			queueRevealAnimations(myState);
+			prevPlayerState = cloneState(myState);
+		}
+		if (result.hitMine && currentRoom && currentRoom.deathPenalty) {
+			frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
+			startFreezeTick();
+		}
 		socket.emit("left_click", { r: r, c: c, id: id });
 	}
 	redrawOwnBoardWithFocus();
+}
+
+function emitBoardActionAt(clientX, clientY, asFlag) {
+	var cell = cellFromClient(clientX, clientY);
+	if (!cell) return;
+	focusVisible = false;
+	performAction(cell.r, cell.c, asFlag);
 }
 
 playerCanvas.addEventListener("touchstart", function(e) {
@@ -731,7 +807,12 @@ var roundResultShown = false;
 var focusedR = Math.floor(rows / 2);
 var focusedC = Math.floor(cols / 2);
 var focusVisible = false;
-var myBoard = null;
+// The full board (mines + numbers) arrives once at start_game in obfuscated form
+// and lives inside `boardDecoder` as a closure. Module-level code never holds the
+// decoded 2D board; everything goes through boardCell(r, c) — readable from the
+// JS console with effort, but not as a single dump.
+var boardDecoder = null;
+function boardCell(r, c) { return boardDecoder ? boardDecoder(r, c) : 0; }
 var myState = null;
 var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
 var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
@@ -1114,11 +1195,34 @@ socket.on("start_game", function(data) {
 	focusVisible = false;
 	resetBoardAnimations();
 	lastFinished = {};
+	if (data.boardData && data.boardMask) {
+		installBoardDecoder(data.boardData, data.boardMask, data.rows || rows, data.cols || cols);
+	}
 	gameProgressText.textContent = "Game " + data.gameNumber + " of " + data.gameCount;
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
 });
+
+// Decode a XOR-masked board blob from the server. The decoded bytes never leave
+// this closure; outsiders only get the (r,c) accessor via boardCell().
+function installBoardDecoder(dataB64, maskB64, decodeRows, decodeCols) {
+	var data = base64ToBytes(dataB64);
+	var mask = base64ToBytes(maskB64);
+	var width = decodeCols;
+	boardDecoder = function(r, c) {
+		var idx = r * width + c;
+		var v = data[idx] ^ mask[idx % mask.length];
+		return v === 9 ? MINE : v;
+	};
+}
+
+function base64ToBytes(s) {
+	var bin = atob(s);
+	var out = new Uint8Array(bin.length);
+	for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+	return out;
+}
 
 socket.on("game_result", function(data) {
 	roundResultShown = true;
@@ -1153,14 +1257,13 @@ socket.on("draw_board", function(data) {
 		if (i < games.length) {
 			nameEl.textContent = games[i].playerName;
 			if (i === 0) {
-				myBoard = games[i].board;
-				queueRevealAnimations(games[i].state, games[i].board);
+				queueRevealAnimations(games[i].state);
 				myState = games[i].state;
 				prevPlayerState = cloneState(games[i].state);
 				renderPlayerBoard();
 				updateMobileFindNextHint();
 			} else {
-				drawBoardStatic(games[i].board, games[i].state, canvasEl);
+				drawBoardStatic(games[i].state, canvasEl);
 			}
 			if (slot) slot.style.display = "";
 		} else {
@@ -1718,27 +1821,12 @@ function countDownStep(number) {
 }
 
 function boardClicked(event) {
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
-	if (Date.now() < frozenUntil) return;
 	event = event || window.event;
-	var rect = playerCanvas.getBoundingClientRect();
-	var scaleX = playerCanvas.width / rect.width;
-	var scaleY = playerCanvas.height / rect.height;
-	var x = (event.clientX - rect.left) * scaleX;
-	var y = (event.clientY - rect.top) * scaleY;
-	var c = getCol(x);
-	var r = getRow(y);
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
-	focusedR = r;
-	focusedC = c;
+	var cell = cellFromClient(event.clientX, event.clientY);
+	if (!cell) return;
 	focusVisible = false;
-	if (isLeftClick(event)) {
-		lastActionCell = { r: r, c: c };
-		socket.emit("left_click", { r: r, c: c, id: id });
-	} else if (isRightClick(event)) {
-		socket.emit("right_click", { r: r, c: c, id: id });
-	}
-	redrawOwnBoardWithFocus();
+	if (isLeftClick(event)) performAction(cell.r, cell.c, false);
+	else if (isRightClick(event)) performAction(cell.r, cell.c, true);
 }
 
 // Touch press indicator: brightens the cell under the finger so taps feel
@@ -1841,15 +1929,12 @@ document.addEventListener("keydown", function(e) {
 	} else if (key === " " || key === "x" || key === "X") {
 		e.preventDefault();
 		focusVisible = true;
-		if (Date.now() < frozenUntil) { redrawOwnBoardWithFocus(); return; }
-		lastActionCell = { r: focusedR, c: focusedC };
-		socket.emit("left_click", { r: focusedR, c: focusedC, id: id });
+		performAction(focusedR, focusedC, false);
 		return;
 	} else if (key === "z" || key === "Z") {
 		e.preventDefault();
 		focusVisible = true;
-		if (Date.now() < frozenUntil) { redrawOwnBoardWithFocus(); return; }
-		socket.emit("right_click", { r: focusedR, c: focusedC, id: id });
+		performAction(focusedR, focusedC, true);
 		return;
 	} else {
 		return;
@@ -1894,7 +1979,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
 // ---- one cell ----------------------------------------------------------
 // anim (optional): { type, t } with t already normalised; t may be < 0 (not
 // started yet) or > 1 (finished — caller usually drops it before then).
-function drawCell(ctx, r, c, board, state, sw, sh, anim) {
+function drawCell(ctx, r, c, state, sw, sh, anim) {
 	var st = state[r][c];
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	var w = sw - gap, h = sh - gap;
@@ -1906,7 +1991,8 @@ function drawCell(ctx, r, c, board, state, sw, sh, anim) {
 		var revealing = anim && (anim.type === "reveal" || anim.type === "mine");
 		var t = revealing ? clamp01(anim.t) : 1;
 		drawKnownBase(ctx, w, h, rad);
-		var isMine = board[r][c] === MINE;
+		var cellVal = boardCell(r, c);
+		var isMine = cellVal === MINE;
 		if (isMine) {
 			if (anim && anim.type === "mine") {
 				// red danger flash that fades as the bomb settles in
@@ -1917,8 +2003,8 @@ function drawCell(ctx, r, c, board, state, sw, sh, anim) {
 				ctx.globalAlpha = 1;
 			}
 			drawMine(ctx, w, h, t);
-		} else if (board[r][c] > 0) {
-			drawNumber(ctx, board[r][c], w, h, t);
+		} else if (cellVal > 0) {
+			drawNumber(ctx, cellVal, w, h, t);
 		}
 		// the unknown "cover" lifts off as the reveal plays
 		if (revealing && anim.t < 1) {
@@ -2042,13 +2128,13 @@ function drawFlag(ctx, w, h, scale) {
 }
 
 // ---- whole boards ------------------------------------------------------
-function drawBoardStatic(board, state, canvas) {
+function drawBoardStatic(state, canvas) {
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	var sw = canvas.width / cols, sh = canvas.height / rows;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
-			drawCell(ctx, r, c, board, state, sw, sh, null);
+			drawCell(ctx, r, c, state, sw, sh, null);
 		}
 	}
 }
@@ -2056,7 +2142,7 @@ function drawBoardStatic(board, state, canvas) {
 function renderPlayerBoard() {
 	var ctx = playerCanvas.getContext("2d");
 	ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
-	if (myBoard && myState) {
+	if (boardDecoder && myState) {
 		var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
 		var now = performance.now();
 		for (var r = 0; r < rows; r++) {
@@ -2067,7 +2153,7 @@ function renderPlayerBoard() {
 					var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
 					animArg = { type: a.type, t: (now - a.start) / dur };
 				}
-				drawCell(ctx, r, c, myBoard, myState, sw, sh, animArg);
+				drawCell(ctx, r, c, myState, sw, sh, animArg);
 			}
 		}
 	}
@@ -2089,7 +2175,7 @@ function resetBoardAnimations() {
 	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
 }
 
-function queueRevealAnimations(newState, newBoard) {
+function queueRevealAnimations(newState) {
 	var now = performance.now();
 	var revealed = [];
 	var newlyFlagged = 0, newlyUnflagged = 0;
@@ -2121,7 +2207,7 @@ function queueRevealAnimations(newState, newBoard) {
 			var rr = revealed[j][0], cc = revealed[j][1];
 			var d = Math.hypot(rr - origin.r, cc - origin.c);
 			var delay = Math.min(d * STAGGER_MS, STAGGER_CAP);
-			var isMine = newBoard[rr][cc] === MINE;
+			var isMine = boardCell(rr, cc) === MINE;
 			if (isMine) hitMine = true; else safeRevealed++;
 			cellAnims[rr + "," + cc] = { type: isMine ? "mine" : "reveal", start: now + delay };
 		}

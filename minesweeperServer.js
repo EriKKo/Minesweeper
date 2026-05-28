@@ -19,6 +19,38 @@ function envAny() {
 	return "";
 }
 
+// Pack the full board into a XOR-masked byte blob the client can decode lazily
+// from inside a closure. This isn't real anti-cheat — anyone with the JS console
+// can call the decoder for every cell — but it does mean the over-the-wire bytes
+// aren't a trivially-readable JSON board, and `window.myBoard` doesn't exist.
+function obfuscateBoard(board, rows, cols) {
+	var bytes = Buffer.alloc(rows * cols);
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			bytes[r * cols + c] = board[r][c] === -1 ? 9 : board[r][c];
+		}
+	}
+	var mask = crypto.randomBytes(256);
+	for (var j = 0; j < bytes.length; j++) bytes[j] = bytes[j] ^ mask[j % mask.length];
+	return { data: bytes.toString("base64"), mask: mask.toString("base64") };
+}
+
+// Game objects carry the full board (mines + numbers) — we don't ship that in
+// per-tick broadcasts anymore, since the client received the obfuscated board
+// once at game start and renders from it.
+function gameForBroadcast(g) {
+	if (!g) return null;
+	return {
+		playerName: g.playerName,
+		state: g.state,
+		finished: g.finished,
+		finishedAt: g.finishedAt,
+		safeCount: g.safeCount,
+		frozenUntil: g.frozenUntil,
+		playing: g.playing
+	};
+}
+
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
 var SERIES_END_DELAY = 6000;
@@ -524,7 +556,9 @@ function updateDraw(room) {
 	for (var i = 0; i < room.players.length; i++) {
 		var playerID = room.players[i];
 		if (sockets[playerID]) {
-			sockets[playerID].emit("draw_board", {games: getGamesWithPlayerOnTop(playerID, room.players)});
+			var ordered = getGamesWithPlayerOnTop(playerID, room.players);
+			var stripped = ordered.map(gameForBroadcast);
+			sockets[playerID].emit("draw_board", {games: stripped});
 		}
 	}
 }
@@ -782,6 +816,9 @@ function startGame(room) {
 		if (isBot(pid)) games[pid].botMistakeRate = botMistake[pid];
 		games[pid].init(template);
 	}
+	// Players share one shared no-guess map this round — obfuscate it once and
+	// hand the same blob to every client so reveals can be resolved locally.
+	var obf = obfuscateBoard(template.board, room.rows, room.cols);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (sockets[pid]) {
@@ -790,7 +827,11 @@ function startGame(room) {
 				gameNumber: room.gamesPlayed + 1,
 				gameCount: room.gameCount,
 				roundSeconds: room.roundSeconds,
-				deathPenalty: room.deathPenalty
+				deathPenalty: room.deathPenalty,
+				rows: room.rows,
+				cols: room.cols,
+				boardData: obf.data,
+				boardMask: obf.mask
 			});
 		}
 	}
