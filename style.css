@@ -458,7 +458,7 @@ main {
 
 .game-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 280px;
+	grid-template-columns: minmax(0, 1fr) 320px;
 	gap: 1.25rem;
 	align-items: start;
 }
@@ -627,9 +627,8 @@ main {
 }
 
 .opponents {
-	margin-top: 1.25rem;
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	display: flex;
+	flex-direction: column;
 	gap: 0.75rem;
 }
 
@@ -750,6 +749,14 @@ main {
 	0% { transform: scale(1); color: var(--text); }
 	30% { transform: scale(1.45); color: var(--success); }
 	100% { transform: scale(1); color: var(--text); }
+}
+
+.score-tier, .result-tier {
+	display: inline-block;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	margin-left: 0.15rem;
 }
 
 .score-bot-tag {

@@ -111,7 +111,9 @@
 						</div>
 						<p class="hotkey-hint">Move: arrows (Shift = skip revealed, Tab = next blank) · Reveal: Space / X · Flag: Z</p>
 					</div>
-					<div id="all_opponents_div" class="opponents">
+				</div>
+				<aside class="game-side">
+					<div id="all_opponents_div" class="opponents" style="display:none">
 						<div class="opponent_div" data-slot>
 							<p id="player_name1" class="player-name"></p>
 							<canvas id="game1" width="250" height="175"></canvas>
@@ -133,9 +135,7 @@
 							<canvas id="game5" width="250" height="175"></canvas>
 						</div>
 					</div>
-				</div>
-				<aside class="game-side">
-					<div class="side-card">
+					<div id="series_card" class="side-card">
 						<h3 class="side-title">Series</h3>
 						<div class="series-config">
 							<span class="series-config-label">Games</span>
@@ -396,6 +396,8 @@ var mineDensityReadonly = document.getElementById("mine_density_readonly");
 var boardSizeSelect = document.getElementById("board_size_select");
 var boardSizeReadonly = document.getElementById("board_size_readonly");
 var seriesStatus = document.getElementById("series_status");
+var seriesCard = document.getElementById("series_card");
+var allOpponentsDiv = document.getElementById("all_opponents_div");
 var scoreboardEl = document.getElementById("scoreboard");
 var botsCard = document.getElementById("bots_card");
 var addBotButton = document.getElementById("add_bot_button");
@@ -935,6 +937,14 @@ function resultRow(rankLabel, nameText, detailText, pointsText, opts) {
 	var name = document.createElement("span");
 	name.className = "result-name";
 	name.textContent = nameText;
+	if (opts.tier) {
+		var tierChip = document.createElement("span");
+		tierChip.className = "result-tier";
+		tierChip.textContent = opts.tier.name;
+		tierChip.style.color = opts.tier.color;
+		name.appendChild(document.createTextNode(" "));
+		name.appendChild(tierChip);
+	}
 	row.appendChild(name);
 
 	var detail = document.createElement("span");
@@ -983,8 +993,9 @@ function showRoundResultPanel(data) {
 		if (s.ratingDelta != null) {
 			detail += "  " + (s.ratingDelta >= 0 ? "▲" : "▼") + Math.abs(s.ratingDelta);
 		}
+		var tier = typeof s.rating === "number" ? tierFor(s.rating, s.provisional) : null;
 		var row = resultRow(medal(s.rank), s.id === id ? "You" : s.name, detail, "+" + s.points,
-			{ me: s.id === id, top: s.rank === 1 });
+			{ me: s.id === id, top: s.rank === 1, tier: tier });
 		row.style.animationDelay = (idx * 55) + "ms";
 		list.appendChild(row);
 	});
@@ -1219,7 +1230,12 @@ function renderRoomState(state) {
 	boardSizeReadonly.textContent = formatBoardSize(state.boardSize);
 	mineDensityReadonly.textContent = formatMineDensity(state.mineDensity);
 
-	var showBotCard = !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
+	// During play, the right column shows the other players; in planning, it shows
+	// the room options. The scoreboard stays visible in both phases.
+	var playing = state.phase !== "planning";
+	allOpponentsDiv.style.display = playing ? "" : "none";
+	seriesCard.style.display = playing ? "none" : "";
+	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";
 	if (showBotCard) {
 		var canAddBot = isOwner && state.phase === "planning" && state.botCount < state.maxBots;
@@ -1266,6 +1282,16 @@ function renderRoomState(state) {
 			tag.textContent = "BOT";
 			name.appendChild(document.createTextNode(" "));
 			name.appendChild(tag);
+		}
+		if (typeof p.rating === "number") {
+			var t = tierFor(p.rating, p.provisional);
+			var tierChip = document.createElement("span");
+			tierChip.className = "score-tier";
+			tierChip.textContent = t.name;
+			tierChip.style.color = t.color;
+			tierChip.title = (p.provisional ? "~" : "") + p.rating;
+			name.appendChild(document.createTextNode(" "));
+			name.appendChild(tierChip);
 		}
 		li.appendChild(name);
 

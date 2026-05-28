@@ -278,14 +278,21 @@ function buildRoomState(room) {
 		maxBots: MAX_BOTS_PER_ROOM,
 		players: room.players.map(function(pid) {
 			var g = games[pid];
+			var bot = isBot(pid);
+			var rating = bot ? (botRating[pid] || RANKED_BOT_RATING)
+				: (accounts[pid] ? accounts[pid].rating : null);
+			var provisional = bot ? false
+				: (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
 			return {
 				id: pid,
 				name: names[pid] || "Anonymous",
 				ready: room.isReady(pid),
 				score: room.scores[pid] || 0,
 				isOwner: pid === room.owner,
-				isBot: isBot(pid),
-				difficulty: isBot(pid) ? (botDifficulty[pid] || null) : null,
+				isBot: bot,
+				difficulty: bot ? (botDifficulty[pid] || null) : null,
+				rating: rating,
+				provisional: provisional,
 				finished: g ? !!g.finished : false
 			};
 		})
@@ -435,6 +442,7 @@ function addBotToRoom(room, config) {
 		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
 		botMistake[botId] = botPlayer.mistakeRateFor(botDifficulty[botId]);
+		botRating[botId] = RANKED_BOT_RATING;
 	}
 	games[botId].botMistakeRate = botMistake[botId];
 	roomMapping[botId] = room;
@@ -560,13 +568,18 @@ function buildStandings(room) {
 		var g = games[pid];
 		var finished = g ? !!g.finished : false;
 		var finishedAt = g ? (g.finishedAt || 0) : 0;
+		var bot = isBot(pid);
+		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : (accounts[pid] ? accounts[pid].rating : null);
+		var provisional = bot ? false : (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
 		return {
 			id: pid,
 			name: names[pid] || "Anonymous",
 			safeCount: g ? g.revealedSafeCount() : 0,
 			finished: finished,
 			finishedAt: finishedAt,
-			finishMs: (finished && roundStart && finishedAt) ? (finishedAt - roundStart) : null
+			finishMs: (finished && roundStart && finishedAt) ? (finishedAt - roundStart) : null,
+			rating: rating,
+			provisional: provisional
 		};
 	});
 	for (var i = 0; i < entries.length; i++) {
@@ -621,6 +634,11 @@ function applyRankedElo(standings) {
 			standings[k].ratingDelta = parts[k].delta;
 			standings[k].rating = parts[k].newRating;
 			standings[k].provisional = parts[k].provisional;
+			// Keep the in-memory cache in sync with what we just persisted.
+			if (accounts[standings[k].id]) {
+				accounts[standings[k].id].rating = parts[k].newRating;
+				accounts[standings[k].id].played = parts[k].played + 1;
+			}
 		}
 	}
 }
@@ -993,7 +1011,7 @@ io.on("connection", function (socket) {
 		var token = data && data.token;
 		var user = db.getUserByToken(token);
 		if (!user) { socket.emit("auth_failed"); return; }
-		accounts[playerID] = { userId: user.id, token: token };
+		accounts[playerID] = { userId: user.id, token: token, rating: user.rating, played: user.played };
 		var isFirst = !names[playerID];
 		names[playerID] = user.name;
 		if (games[playerID]) {
