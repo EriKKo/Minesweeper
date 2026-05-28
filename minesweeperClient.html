@@ -954,10 +954,13 @@ function renderRankedSlots(info) {
 			tierEl.textContent = t.name;
 			tierEl.style.color = t.color;
 			meta.appendChild(tierEl);
-			var ratingEl = document.createElement("span");
-			ratingEl.className = "ranked-slot-rating";
-			ratingEl.textContent = (m.provisional ? "~" : "") + m.rating;
-			meta.appendChild(ratingEl);
+			// Only the player sees their own exact rating; opponents are tier-only.
+			if (m.isYou) {
+				var ratingEl = document.createElement("span");
+				ratingEl.className = "ranked-slot-rating";
+				ratingEl.textContent = (m.provisional ? "~" : "") + m.rating;
+				meta.appendChild(ratingEl);
+			}
 			slot.appendChild(meta);
 		} else {
 			slot.classList.add("ranked-slot-empty");
@@ -1811,7 +1814,8 @@ function renderRoomState(state) {
 			tierChip.className = "score-tier";
 			tierChip.textContent = t.name;
 			tierChip.style.color = t.color;
-			tierChip.title = (p.provisional ? "~" : "") + p.rating;
+			// Only the player sees their own exact rating tooltip.
+			if (p.id === id) tierChip.title = (p.provisional ? "~" : "") + p.rating;
 			name.appendChild(document.createTextNode(" "));
 			name.appendChild(tierChip);
 		}

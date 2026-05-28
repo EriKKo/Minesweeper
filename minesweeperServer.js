@@ -963,6 +963,15 @@ function clearRankedFill() {
 	if (rankedFillTimer) { clearTimeout(rankedFillTimer); rankedFillTimer = null; }
 }
 
+// Spread bot ratings around the target so the lobby looks like real matchmaking
+// instead of N copies of the player's rating. Clamped to the bot strength curve.
+function jitterBotElo(targetElo) {
+	var jittered = targetElo + Math.round((Math.random() - 0.5) * 200);  // ±100
+	if (jittered < 600) jittered = 600;
+	if (jittered > 1800) jittered = 1800;
+	return jittered;
+}
+
 function scheduleBotArrival() {
 	if (rankedFillTimer) return;
 	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
@@ -972,7 +981,7 @@ function scheduleBotArrival() {
 		var taken = pendingBotsList.map(function(b) { return b.name; });
 		pendingBotsList.push({
 			name: botPlayer.pickBotName(taken),
-			config: botPlayer.configForElo(rankedTargetElo())
+			config: botPlayer.configForElo(jitterBotElo(rankedTargetElo()))
 		});
 		if (rankedCount() >= RANKED_MATCH_SIZE) {
 			formRankedMatch();
@@ -1060,7 +1069,7 @@ function formRankedMatch() {
 		}
 		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
 		while (room.players.length < RANKED_MATCH_SIZE && botCount(room) < MAX_BOTS_PER_ROOM) {
-			if (!addBotToRoom(room, botPlayer.configForElo(targetElo))) break;
+			if (!addBotToRoom(room, botPlayer.configForElo(jitterBotElo(targetElo)))) break;
 		}
 	}
 
