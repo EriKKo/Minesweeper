@@ -106,11 +106,19 @@
 
 			<div id="ranked_searching" class="ranked-searching" style="display:none">
 				<div class="ranked-search-header">
-					<span class="ranked-spinner"></span>
-					<span id="ranked_searching_text">Searching for opponents…</span>
+					<span id="ranked_searching_text">Finding match…</span>
 					<button id="cancel_ranked_button" class="btn btn-ghost">Cancel</button>
 				</div>
-				<div id="ranked_slots" class="ranked-slots"></div>
+				<div class="search-progress-wrap">
+					<svg class="search-progress-ring" viewBox="0 0 120 120">
+						<circle class="search-progress-bg" cx="60" cy="60" r="52"/>
+						<circle id="search_progress_fill" class="search-progress-fill" cx="60" cy="60" r="52"/>
+					</svg>
+					<div class="search-progress-text">
+						<div class="search-progress-count"><span id="search_count_text">0</span></div>
+						<div class="search-progress-of">of <span id="search_size_text">0</span></div>
+					</div>
+				</div>
 			</div>
 
 			<div id="leaderboard_card" class="leaderboard-card">
@@ -975,19 +983,30 @@ function setRankedSearching(on, mode) {
 	// currentRankedMode stays set after match formation so series-end can re-queue.
 }
 
+var SEARCH_RING_CIRC = 2 * Math.PI * 52;
+var searchProgressFill = document.getElementById("search_progress_fill");
+var searchCountText = document.getElementById("search_count_text");
+var searchSizeText = document.getElementById("search_size_text");
+
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
 	var count = info.count || 1, size = info.size || 2;
 	var modeLabel = MODE_LABELS[info.mode || currentRankedMode] || "Ranked";
 	rankedSearchingText.textContent = count >= size
 		? modeLabel + " match found — joining…"
-		: "Finding " + modeLabel + " opponents…  " + count + "/" + size;
-	renderRankedSlots(info);
+		: "Finding " + modeLabel + " match…";
+	if (searchCountText) searchCountText.textContent = count;
+	if (searchSizeText) searchSizeText.textContent = size;
+	if (searchProgressFill) {
+		var ratio = Math.max(0, Math.min(1, count / size));
+		searchProgressFill.style.strokeDashoffset = SEARCH_RING_CIRC * (1 - ratio);
+	}
 }
 
-var rankedSlotsEl = document.getElementById("ranked_slots");
+// (Old slot rendering intentionally removed — the searching view shows only a
+// player count + filling ring; the full lobby reveals once the match starts.)
 
-function renderRankedSlots(info) {
+function renderRankedSlots_DISABLED(info) {
 	if (!rankedSlotsEl) return;
 	var size = info.size || 4;
 	var members = info.members || [];
@@ -2135,7 +2154,15 @@ function renderScoreboard() {
 			return (lpb.progress || 0) - (lpa.progress || 0);
 		});
 	} else {
-		sorted.sort(function(a, b) { return b.score - a.score; });
+		// Planning / match-preview: rank by rating (highest first) so the player
+		// can see where they place in the lobby. Score remains the tiebreaker
+		// for casual rooms after the first game has been played.
+		sorted.sort(function(a, b) {
+			if (b.score !== a.score) return b.score - a.score;
+			var ar = typeof a.rating === "number" ? a.rating : 0;
+			var br = typeof b.rating === "number" ? b.rating : 0;
+			return br - ar;
+		});
 	}
 
 	// Top 5 are always shown. If your position is below rank 8 in a lobby of
