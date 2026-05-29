@@ -2079,22 +2079,23 @@ function renderScoreboard() {
 		sorted.sort(function(a, b) { return b.score - a.score; });
 	}
 
-	// Top 3 are always shown. If your position is below rank 5 in a lobby of
-	// more than 8, the rows between fold into a "···" gap.
+	// Top 5 are always shown. If your position is below rank 8 in a lobby of
+	// more than 11, the rows between fold into a "···" gap. Otherwise the whole
+	// field fits and we render every player.
+	var TOP_COUNT = 5;
+	var NEIGHBOURS = 2; // rows above and below you
 	var rows;
 	var myIdx = -1;
 	for (var mi = 0; mi < sorted.length; mi++) { if (sorted[mi].id === id) { myIdx = mi; break; } }
-	if (sorted.length <= 8 || myIdx <= 4) {
+	var canFitAll = sorted.length <= TOP_COUNT + 1 + 2 * NEIGHBOURS + 1;
+	if (canFitAll || myIdx < TOP_COUNT + NEIGHBOURS) {
 		rows = sorted.map(function(p, idx) { return { kind: "player", p: p, rank: idx + 1 }; });
 	} else {
-		rows = [
-			{ kind: "player", p: sorted[0], rank: 1 },
-			{ kind: "player", p: sorted[1], rank: 2 },
-			{ kind: "player", p: sorted[2], rank: 3 }
-		];
-		var meStart = Math.max(3, myIdx - 1);
-		if (meStart > 3) rows.push({ kind: "gap" });
-		var meEnd = Math.min(sorted.length, myIdx + 2);
+		rows = [];
+		for (var ti = 0; ti < TOP_COUNT; ti++) rows.push({ kind: "player", p: sorted[ti], rank: ti + 1 });
+		var meStart = Math.max(TOP_COUNT, myIdx - NEIGHBOURS);
+		if (meStart > TOP_COUNT) rows.push({ kind: "gap" });
+		var meEnd = Math.min(sorted.length, myIdx + NEIGHBOURS + 1);
 		for (var k = meStart; k < meEnd; k++) rows.push({ kind: "player", p: sorted[k], rank: k + 1 });
 	}
 

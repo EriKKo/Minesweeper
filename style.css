@@ -1040,6 +1040,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 	box-shadow: var(--shadow);
 }
 
+/* The live leaderboard sits at the top of the side column — give it the same
+   visual weight as the player board so it can show more entries. */
+#scoreboard_card { min-height: 480px; display: flex; flex-direction: column; }
+#scoreboard_card .scoreboard { flex: 1; }
+
 .side-title {
 	margin: 0 0 0.85rem;
 	font-size: 0.8rem;
