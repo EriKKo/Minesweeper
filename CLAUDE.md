@@ -24,6 +24,9 @@ no-guess solver, bot behaviour, Elo) can be checked with short `node -e` scripts
 - `minesweeperServer.js` — HTTP + socket.io server: rooms, series, ranked matchmaking,
   OAuth/dev auth endpoints, bot orchestration.
 - `minesweeperClient.html` — the entire client (markup + inline JS), canvas rendering.
+  The Learn page is an interactive deduction trainer driven by the `LEARN_LESSONS`
+  data array (8 lessons + clickable puzzles); editable source content lives in
+  `../minesweeper-trainer/`. No mine-count deductions, since the game hides the total.
 - `style.css` — all styles.
 - `GameCreator.js` — board/game state, mine placement, and the no-guess generator
   (`createNoGuessTemplate`) + deduction solver.

@@ -58,17 +58,31 @@ carousels). Getting there in phases via Proposal **B — "Game Launcher"**
 
 ## 4. Concrete sub-page sketches
 
-### Learn
+### Learn  *(implemented)*
 
-A single scrollable page (not a course):
+A single scrollable page (not a course): an interactive **deduction trainer**.
+Eight collapsible lessons, ordered by difficulty, each with a written
+explanation, a "watch out" pitfall, and clickable puzzle boards. Left-click marks
+a cell safe, right-click (or a Safe/Mine toggle) flags a mine; the board grades
+each move and reveals the reasoning once solved.
 
-1. **Read a number cell** — interactive grid. Hover a "1" cell, neighbouring
-   squares highlight; one is the mine.
-2. **Cascade reveals** — animated demo of why clicking a 0 opens up a region.
-3. **Common patterns** — 1-1-2 wall, edge corner, 1-2-1 chain.
-4. **Speed tricks** — chord (click number with enough flags), no-flag
-   strategy, where to start.
-5. **Ranked rules** — round timer, mine penalty, scoring, tournament cuts.
+1. **Forced mines** — number == covered neighbours.
+2. **Satisfied clear** — number == known mines, so the rest are safe.
+3. **Subset rule — safe cells** — nested clues, equal counts.
+4. **Subset rule — mines** — nested clues, count gap == extra cells.
+5. **Named patterns** — 1-2-1 and 1-2-2-1.
+6. **Chains** — multi-clue cascades, including islands.
+7. **Enumeration** — assume-and-contradict case analysis.
+8. **Smart guessing** — comparing local per-cell odds (no global mine count,
+   matching the game).
+
+Because the game never shows the total mine count, all whole-board counting
+deductions are deliberately excluded — every technique is local.
+
+Lesson + puzzle content is data-driven (`LEARN_LESSONS` in
+`minesweeperClient.html`); the editable source-of-truth text lives outside the
+repo in `../minesweeper-trainer/` (lesson plan + one `.txt` per puzzle). Ranked
+rules stayed as a separate card on the same page.
 
 ### Practice
 
