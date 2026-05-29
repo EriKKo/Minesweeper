@@ -879,6 +879,7 @@ var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
 var lastScores = {};           // playerId -> last rendered score, to flash gains
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
+var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
 nameForm.addEventListener("submit", function(e) {
@@ -1318,6 +1319,7 @@ socket.on("room_list", function(data) {
 socket.on("joined_room", function(data) {
 	inRoom = true;
 	if (data && data.mode) currentRankedMode = data.mode;
+	iAmEliminated = null;
 	setRankedSearching(false);
 	showGameView();
 	resetGameUI();
@@ -1336,6 +1338,7 @@ socket.on("ranked_rejected", function(data) {
 socket.on("left_room", function() {
 	inRoom = false;
 	currentRoom = null;
+	iAmEliminated = null;
 	showLobbyView();
 });
 
@@ -1350,6 +1353,14 @@ socket.on("room_state", function(state) {
 });
 
 socket.on("start_game", function(data) {
+	// If we've been eliminated this tournament we stay in the room to spectate
+	// but skip the playable countdown — re-show the persistent elimination panel.
+	if (iAmEliminated) {
+		hideReadyButton();
+		gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
+		showTournamentEliminationPanel(iAmEliminated);
+		return;
+	}
 	hideReadyButton();
 	clearFreeze();
 	roundResultShown = false;
@@ -1417,6 +1428,7 @@ socket.on("series_ended", function(data) {
 // Sent only to the player(s) cut at the end of a tournament round. They stay
 // in the room (sockets joined) so they still receive series_ended at the end.
 socket.on("tournament_eliminated", function(data) {
+	iAmEliminated = data;
 	showTournamentEliminationPanel(data);
 	sound.lose();
 	stopRoundTimer();

@@ -856,6 +856,10 @@ main {
 	display: flex;
 	flex-direction: column;
 	gap: 0.3rem;
+	/* Long lobbies (e.g. 16-player tournament finals) scroll inside the panel
+	   instead of pushing it past the board edges. */
+	max-height: 60vh;
+	overflow-y: auto;
 }
 
 .result-row {

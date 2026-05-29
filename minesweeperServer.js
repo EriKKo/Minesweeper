@@ -894,10 +894,10 @@ function gameWin(playerID) {
 	game.finishedAt = Date.now();
 	game.playing = false;
 
-	// First finish in this round? Pull the remaining time down to 5s — anyone
+	// First finish in this round? Pull the remaining time down to 10s — anyone
 	// still working gets one last sprint before the round closes.
 	if (countFinishedPlayers(room) === 1) {
-		reduceRoundDeadline(room, 5);
+		reduceRoundDeadline(room, 10);
 	}
 
 	if (isBot(playerID)) {
