@@ -670,7 +670,9 @@ function applyRankedElo(standings) {
 		// Smooth K-factor curve so new accounts climb fast and ratings settle
 		// after ~12 games: K=80 game 1, K=60 at 5, K=40 at 10, K=30 from 13 on.
 		var K = Math.max(30, 80 - p.played * 4);
-		p.delta = Math.round(K * sum / (n - 1));
+		// Normalize by sqrt(n-1) instead of (n-1) so beating more opponents pays
+		// more: 1v1 top spot ~K/2; 6-player top spot ~K*sqrt(5)/2 ≈ 2.2× as much.
+		p.delta = Math.round(K * sum / Math.sqrt(n - 1));
 		p.newRating = p.rating + p.delta;
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
 		db.updateRating(p.userId, p.newRating, p.rank === 1);
