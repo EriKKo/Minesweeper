@@ -142,6 +142,7 @@
 		</section>
 
 		<section id="game_view" class="view game-view" style="display:none">
+			<div id="danger_frame" class="danger-frame"></div>
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Back to lobby</button>
 				<div class="game-progress">
@@ -889,6 +890,10 @@ var lastScores = {};           // playerId -> last rendered score, to flash gain
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
 var elimPanelDismissed = false;// player chose "Keep watching" — don't redraw the panel each round
+var roundStartTime = 0;        // ms timestamp when the current round actually went live (after GO!)
+var dangerActive = false;      // current red-border state; hysteresis keeps it from flickering
+var DANGER_GRACE_MS = 10000;   // don't warn within the first N ms of a round
+var dangerFrame = null;        // lazily resolved div#danger_frame
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
 nameForm.addEventListener("submit", function(e) {
@@ -1361,6 +1366,8 @@ socket.on("left_room", function() {
 	currentRoom = null;
 	iAmEliminated = null;
 	elimPanelDismissed = false;
+	roundStartTime = 0;
+	if (dangerActive && dangerFrame) { dangerActive = false; dangerFrame.classList.remove("active"); }
 	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
 	showLobbyView();
 });
@@ -1394,6 +1401,8 @@ socket.on("start_game", function(data) {
 	focusVisible = false;
 	resetBoardAnimations();
 	lastFinished = {};
+	roundStartTime = 0;
+	if (dangerActive && dangerFrame) { dangerActive = false; dangerFrame.classList.remove("active"); }
 	if (data.boardData && data.boardMask) {
 		installBoardDecoder(data.boardData, data.boardMask, data.rows || rows, data.cols || cols);
 	}
@@ -1639,7 +1648,50 @@ socket.on("draw_board", function(data) {
 	}
 
 	renderScoreboard();
+	updateDangerWarning();
 });
+
+// Red border-flash when the player is currently below the elimination cut
+// for this tournament round. Activates only after a grace period into the
+// round, and uses hysteresis so a tight rank battle doesn't strobe the screen.
+function updateDangerWarning() {
+	if (!dangerFrame) dangerFrame = document.getElementById("danger_frame");
+	if (!dangerFrame) return;
+	if (!currentRoom || currentRoom.rankedMode !== "tournament"
+		|| currentRoom.phase !== "playing"
+		|| iAmEliminated
+		|| (liveProgress[id] && liveProgress[id].finished)) {
+		if (dangerActive) { dangerActive = false; dangerFrame.classList.remove("active"); }
+		return;
+	}
+	// Grace window after GO: no warning yet.
+	if (!roundStartTime || Date.now() - roundStartTime < DANGER_GRACE_MS) {
+		if (dangerActive) { dangerActive = false; dangerFrame.classList.remove("active"); }
+		return;
+	}
+	var schedule = currentRoom.tournamentSchedule || [];
+	var survivors = schedule[currentRoom.gamesPlayed || 0];
+	if (!survivors) { if (dangerActive) { dangerActive = false; dangerFrame.classList.remove("active"); } return; }
+	// Sort players by progress (same ordering as the scoreboard).
+	var sorted = currentRoom.players.slice().sort(function(a, b) {
+		var lpa = liveProgress[a.id] || {}, lpb = liveProgress[b.id] || {};
+		if (lpa.finished !== lpb.finished) return lpa.finished ? -1 : 1;
+		if (lpa.finished && lpb.finished) return (lpa.finishedAt || 0) - (lpb.finishedAt || 0);
+		return (lpb.progress || 0) - (lpa.progress || 0);
+	});
+	var myIdx = -1;
+	for (var i = 0; i < sorted.length; i++) if (sorted[i].id === id) { myIdx = i; break; }
+	if (myIdx === -1) return;
+	// Hysteresis: enter danger when below the cut, exit only after climbing one
+	// full rank into safety. Stops oscillation at the boundary.
+	if (!dangerActive && myIdx >= survivors) {
+		dangerActive = true;
+		dangerFrame.classList.add("active");
+	} else if (dangerActive && myIdx < survivors - 1) {
+		dangerActive = false;
+		dangerFrame.classList.remove("active");
+	}
+}
 
 function showNameView() {
 	nameView.style.display = "";
@@ -2340,6 +2392,7 @@ function countDownStep(number) {
 	if (number <= 0) {
 		showOverlay("GO", "go");
 		sound.go();
+		roundStartTime = Date.now(); // danger-warning grace period starts here
 		setTimeout(function() {
 			if (boardOverlay.textContent === "GO") hideOverlay();
 		}, 700);

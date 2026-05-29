@@ -252,7 +252,10 @@ var MAX_BOTS_PER_ROOM = 15;
 var RANKED_MODES = {
 	duo: { size: 2, label: "1v1" },
 	six: { size: 6, label: "6-player" },
-	tournament: { size: 16, label: "Tournament", schedule: [8, 4, 2, 1] }
+	// Cut 4 per round while many players are alive (16 → 12 → 8), then drop to
+	// 2 per round (8 → 6 → 4 → 2) so the bottom of the bracket gets dramatic
+	// per-round 1v1 elimination drama all the way to the 2 → 1 final.
+	tournament: { size: 16, label: "Tournament", schedule: [12, 8, 6, 4, 2, 1] }
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
@@ -309,6 +312,7 @@ function buildRoomState(room) {
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
 		scoreTarget: room.scoreTarget || null,
+		tournamentSchedule: room.tournamentSchedule || null,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
 		mineDensity: room.mineDensity,

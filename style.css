@@ -758,7 +758,30 @@ main {
 .btn-ghost:hover { color: var(--text); background: var(--surface); }
 
 /* Game view */
-.game-view { animation: fade 180ms ease; }
+.game-view { animation: fade 180ms ease; position: relative; }
+
+/* Red border-flash warning when a player is in danger of elimination this
+   round (tournament only). Sits over the page edges via fixed positioning so
+   it always covers the visible viewport, regardless of scroll. */
+.danger-frame {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 50;
+	opacity: 0;
+	box-shadow: inset 0 0 80px 8px rgba(239, 68, 68, 0);
+	transition: opacity 700ms ease;
+}
+
+.danger-frame.active {
+	opacity: 1;
+	animation: danger-flash 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes danger-flash {
+	from { box-shadow: inset 0 0 80px 8px rgba(239, 68, 68, 0.35); }
+	to   { box-shadow: inset 0 0 160px 26px rgba(239, 68, 68, 0.85); }
+}
 
 .game-header {
 	display: flex;
