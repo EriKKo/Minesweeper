@@ -347,13 +347,15 @@ main {
 
 .ranked-mode-buttons .btn { min-width: 96px; }
 
-/* Home page: three side-by-side cards (1v1, 6-player, Custom). */
+/* Home page cards: 1v1, 6-player, Tournament, Custom. */
 .home-cards {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 1rem;
 	margin-bottom: 1.5rem;
 }
+
+@media (max-width: 1100px) { .home-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .home-card {
 	background: var(--surface);
@@ -394,6 +396,17 @@ main {
 	background: rgba(94, 234, 212, 0.15);
 	color: #5eead4;
 	border-color: rgba(94, 234, 212, 0.45);
+}
+
+.home-card-tournament {
+	background: linear-gradient(160deg, rgba(251, 191, 36, 0.16), rgba(192, 132, 252, 0.06) 70%);
+	border-color: rgba(251, 191, 36, 0.45);
+}
+
+.home-card-tag-tournament {
+	background: rgba(251, 191, 36, 0.18);
+	color: #fbbf24;
+	border-color: rgba(251, 191, 36, 0.5);
 }
 
 .home-card-title {
@@ -868,6 +881,15 @@ main {
 .result-points { color: var(--success); font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2.5ch; text-align: right; }
 
 .result-foot { text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+.tournament-place {
+	text-align: center;
+	font-weight: 800;
+	font-size: 2.4rem;
+	color: var(--accent-hover);
+	margin: 0.5rem 0;
+	letter-spacing: 0.02em;
+}
 
 @keyframes result-row-in {
 	from { opacity: 0; transform: translateY(8px) scale(0.97); }

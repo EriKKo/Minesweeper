@@ -16,11 +16,11 @@ var BOARD_SIZES = {
 var BOARD_SIZE_OPTIONS = ["small", "medium", "large"];
 var DEFAULT_BOARD_SIZE = "medium";
 
-function createRoom(id, ownerID) {
+function createRoom(id, ownerID, customMaxPlayers) {
 	var players = [];
 	var ready = {};
 	var scores = {};
-	var maxPlayers = PLAYERS_PER_ROOM;
+	var maxPlayers = customMaxPlayers || PLAYERS_PER_ROOM;
 
 	var room = {};
 	room.id = id;

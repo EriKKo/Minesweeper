@@ -237,12 +237,17 @@ var botMistake = {}; // botId -> blunder rate (re-applied to the game each round
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
-var MAX_BOTS_PER_ROOM = 5;
+var MAX_BOTS_PER_ROOM = 15;
 
-// Ranked matchmaking — two modes, one match per lobby.
+// Ranked matchmaking — three modes.
+//   duo / six  → single-match lobbies (one game, then Elo).
+//   tournament → 16-player battle royale; bottom half eliminated each round
+//                until one survivor remains. `schedule` lists how many players
+//                survive *after* each round.
 var RANKED_MODES = {
 	duo: { size: 2, label: "1v1" },
-	six: { size: 6, label: "6-player" }
+	six: { size: 6, label: "6-player" },
+	tournament: { size: 16, label: "Tournament", schedule: [8, 4, 2, 1] }
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
@@ -254,9 +259,9 @@ var RANKED_BOT_RATING = 1000;
 var BOT_JOIN_MIN_MS = 500;
 var BOT_JOIN_MAX_MS = 1600;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
-var rankedQueues = { duo: [], six: [] };
-var pendingBotsLists = { duo: [], six: [] };
-var rankedFillTimers = { duo: null, six: null };
+var rankedQueues = { duo: [], six: [], tournament: [] };
+var pendingBotsLists = { duo: [], six: [], tournament: [] };
+var rankedFillTimers = { duo: null, six: null, tournament: null };
 var rankedQueueMode = {}; // playerID -> "duo" | "six"
 
 function isBot(playerID) {
@@ -707,6 +712,33 @@ function endIndividualGame(room, reason) {
 		if (tiedAtTop === 1) winnerID = standings[0].id;
 	}
 	room.recordRoundResult(standings, winnerID);
+
+	// Tournament elimination: top N from this round's standings advance, the
+	// rest get a fixed final place (ranks below the survivor cut) and are
+	// removed from the room. Their final tournament place is just their rank
+	// in the standings of the round they were eliminated in.
+	var tournamentSurvivors = null;
+	if (room.ranked && room.rankedMode === "tournament" && room.tournamentSchedule) {
+		var roundIdx = room.gamesPlayed - 1;
+		var survivorsTarget = room.tournamentSchedule[roundIdx] || 1;
+		// Walk highest rank → lowest so each .deletePlayer doesn't shift indices we care about.
+		for (var ei = standings.length - 1; ei >= survivorsTarget; ei--) {
+			var sCut = standings[ei];
+			room.tournamentEliminated[sCut.id] = { round: room.gamesPlayed, place: ei + 1 };
+			if (sockets[sCut.id]) {
+				sockets[sCut.id].emit("tournament_eliminated", {
+					round: room.gamesPlayed,
+					totalRounds: room.tournamentSchedule.length,
+					place: ei + 1,
+					totalParticipants: room.tournamentParticipants.length
+				});
+			}
+			if (isBot(sCut.id)) clearBotTick(sCut.id);
+			room.deletePlayer(sCut.id);
+		}
+		tournamentSurvivors = room.players.length;
+	}
+
 	// Ranked Elo is computed once at series end — see endSeries — so the rating
 	// shown to the player only moves when the whole match finishes.
 	io.to("room:" + room.id).emit("game_result", {
@@ -715,14 +747,20 @@ function endIndividualGame(room, reason) {
 		gameNumber: room.gamesPlayed,
 		gameCount: room.gameCount,
 		scoreTarget: room.scoreTarget || null,
+		tournamentRemaining: tournamentSurvivors,
 		reason: reason || "cleared",
 		standings: standings
 	});
 	broadcastRoomState(room);
 
-	var seriesOver = room.scoreTarget
-		? Object.keys(room.scores).some(function(pid) { return (room.scores[pid] || 0) >= room.scoreTarget; })
-		: room.gamesPlayed >= room.gameCount;
+	var seriesOver;
+	if (tournamentSurvivors !== null) {
+		seriesOver = tournamentSurvivors <= 1;
+	} else if (room.scoreTarget) {
+		seriesOver = Object.keys(room.scores).some(function(pid) { return (room.scores[pid] || 0) >= room.scoreTarget; });
+	} else {
+		seriesOver = room.gamesPlayed >= room.gameCount;
+	}
 	if (seriesOver) {
 		endSeries(room);
 	} else {
@@ -772,6 +810,26 @@ function buildSeriesStandings(room) {
 	return entries;
 }
 
+// Tournament final standings: each participant's rank is their tournament-
+// elimination place (1 = winner, last = first eliminated). Used for Elo at end.
+function buildTournamentStandings(room) {
+	var N = room.tournamentParticipants.length;
+	var entries = room.tournamentParticipants.map(function(pid) {
+		var elim = room.tournamentEliminated[pid];
+		var rank = elim ? elim.place : 1;  // still in room = winner, rank 1
+		return {
+			id: pid,
+			name: names[pid] || "Anonymous",
+			score: 0,
+			rank: rank,
+			points: N - rank + 1,
+			eliminatedRound: elim ? elim.round : null
+		};
+	});
+	entries.sort(function(a, b) { return a.rank - b.rank; });
+	return entries;
+}
+
 function endSeries(room) {
 	if (nextGameTimers[room.id]) {
 		clearTimeout(nextGameTimers[room.id]);
@@ -782,7 +840,13 @@ function endSeries(room) {
 	// Apply Elo once at series end based on cumulative scoring. Mutates the
 	// standings entries with ratingDelta / rating / provisional so the client can
 	// show the bump on the series_ended panel.
-	var seriesStandings = buildSeriesStandings(room);
+	var seriesStandings;
+	if (room.rankedMode === "tournament") {
+		seriesStandings = buildTournamentStandings(room);
+		room.seriesWinner = seriesStandings[0] ? seriesStandings[0].id : null;
+	} else {
+		seriesStandings = buildSeriesStandings(room);
+	}
 	if (room.ranked) applyRankedElo(seriesStandings);
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
@@ -1057,14 +1121,21 @@ function formRankedMatch(mode) {
 	if (humans.length === 0) return;
 
 	var id = nextRoomId++;
-	var room = roomCreator.createRoom(id, humans[0]);
+	var room = roomCreator.createRoom(id, humans[0], matchSize);
 	room.ranked = true;
 	room.rankedMode = mode;
-	room.gameCount = RANKED_RULES.gameCount;
 	room.roundSeconds = RANKED_RULES.roundSeconds;
 	room.deathPenalty = RANKED_RULES.deathPenalty;
 	room.mineDensity = RANKED_RULES.mineDensity;
 	room.setBoardSize(RANKED_RULES.boardSize);
+	if (mode === "tournament") {
+		room.tournamentSchedule = RANKED_MODES.tournament.schedule.slice();
+		room.tournamentParticipants = [];   // populated after players join
+		room.tournamentEliminated = {};      // pid -> { round, place }
+		room.gameCount = RANKED_MODES.tournament.schedule.length;
+	} else {
+		room.gameCount = RANKED_RULES.gameCount;
+	}
 	rooms[id] = room;
 
 	for (var i = 0; i < humans.length; i++) {
@@ -1101,6 +1172,7 @@ function formRankedMatch(mode) {
 	}
 
 	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);
+	if (mode === "tournament") room.tournamentParticipants = room.players.slice();
 	broadcastRoomState(room);
 
 	// Pause so the players can read the opponent slates + tiers before the first
