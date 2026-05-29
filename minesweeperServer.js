@@ -668,8 +668,8 @@ function applyRankedElo(standings) {
 			sum += score - expected;
 		}
 		// Smooth K-factor curve so new accounts climb fast and ratings settle
-		// after ~15 games: K=80 game 1, K=60 at 5, K=40 at 10, K=20 from 15 on.
-		var K = Math.max(20, 80 - p.played * 4);
+		// after ~12 games: K=80 game 1, K=60 at 5, K=40 at 10, K=30 from 13 on.
+		var K = Math.max(30, 80 - p.played * 4);
 		p.delta = Math.round(K * sum / (n - 1));
 		p.newRating = p.rating + p.delta;
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
