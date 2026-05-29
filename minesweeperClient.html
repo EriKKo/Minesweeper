@@ -1185,6 +1185,96 @@ function tierFor(rating, provisional) {
 	return { name: t.name + " " + SUB_TIER_NUMERALS[subIdx % SUB_TIERS_PER_TIER], color: t.color };
 }
 
+// Returns { tierClass: "bronze"|"silver"|.., subNum: "I"|"II"|"III"|null, label: "Bronze" }
+// Used to render the round rank badges in the series-end panel.
+function rankIconFor(rating) {
+	if (rating >= MASTER_THRESHOLD) return { tierClass: "master", subNum: null, label: "Master" };
+	var clamped = rating < TIER_BASE_RATING ? TIER_BASE_RATING : rating;
+	var subIdx = Math.floor((clamped - TIER_BASE_RATING) / SUB_TIER_WIDTH);
+	var tierIdx = Math.min(TIER_BANDS.length - 1, Math.floor(subIdx / SUB_TIERS_PER_TIER));
+	var t = TIER_BANDS[tierIdx];
+	return {
+		tierClass: t.name.toLowerCase(),
+		subNum: SUB_TIER_NUMERALS[subIdx % SUB_TIERS_PER_TIER],
+		label: t.name
+	};
+}
+
+function buildRankBadge(rating) {
+	var info = rankIconFor(rating);
+	var badge = document.createElement("div");
+	badge.className = "rank-badge tier-" + info.tierClass;
+	if (info.subNum) {
+		var num = document.createElement("div");
+		num.className = "rank-badge-numeral";
+		num.textContent = info.subNum;
+		badge.appendChild(num);
+		var label = document.createElement("div");
+		label.className = "rank-badge-tier";
+		label.textContent = info.label.toUpperCase();
+		badge.appendChild(label);
+	} else {
+		var icon = document.createElement("div");
+		icon.className = "rank-badge-icon";
+		icon.textContent = "★";
+		badge.appendChild(icon);
+		var label2 = document.createElement("div");
+		label2.className = "rank-badge-tier";
+		label2.textContent = "MASTER";
+		badge.appendChild(label2);
+	}
+	return badge;
+}
+
+// Builds the left column for showSeriesResultPanel: old → new rank badge with
+// a swap animation if the tier changed, then the new rating + delta below.
+function buildRankSwapColumn(oldRating, newRating, ratingDelta) {
+	var col = document.createElement("div");
+	col.className = "result-rank-column";
+
+	var swap = document.createElement("div");
+	swap.className = "rank-swap";
+	var oldInfo = rankIconFor(oldRating);
+	var newInfo = rankIconFor(newRating);
+	var tierChanged = oldInfo.tierClass !== newInfo.tierClass || oldInfo.subNum !== newInfo.subNum;
+
+	if (tierChanged) {
+		var oldBadge = buildRankBadge(oldRating);
+		oldBadge.classList.add("rank-badge-old");
+		swap.appendChild(oldBadge);
+		var newBadge = buildRankBadge(newRating);
+		newBadge.classList.add("rank-badge-new");
+		swap.appendChild(newBadge);
+		swap.classList.add("changed");
+	} else {
+		swap.appendChild(buildRankBadge(newRating));
+	}
+	col.appendChild(swap);
+
+	var rating = document.createElement("div");
+	rating.className = "result-rank-rating";
+	rating.textContent = String(newRating);
+	col.appendChild(rating);
+
+	if (typeof ratingDelta === "number") {
+		var delta = document.createElement("span");
+		var sign = ratingDelta > 0 ? "+" : ratingDelta < 0 ? "" : "±";
+		delta.textContent = sign + ratingDelta;
+		delta.className = "result-rank-delta " + (ratingDelta > 0 ? "gain" : ratingDelta < 0 ? "loss" : "flat");
+		col.appendChild(delta);
+	}
+
+	if (tierChanged) {
+		var changed = document.createElement("div");
+		var promoted = newRating > oldRating;
+		changed.className = "result-rank-changed " + (promoted ? "promoted" : "demoted");
+		changed.textContent = promoted ? "RANK UP" : "RANK DOWN";
+		col.appendChild(changed);
+	}
+
+	return col;
+}
+
 function renderRatingBadge() {
 	renderHomeRankChips();
 	if (!account) return;
@@ -1877,7 +1967,11 @@ function showRoundResultPanel(data) {
 }
 
 // Apply our own ranked rating change to the badge (server already persisted it).
-function updateRatingFromStandings(standings) {
+// `opts.suppressBanner` skips the centered RANK UP / DOWN banner — useful when
+// the series-end panel is already showing the old → new icon swap in its
+// rank column, so the two indicators don't fight for attention.
+function updateRatingFromStandings(standings, opts) {
+	opts = opts || {};
 	if (!account) return;
 	var mine = standings.find(function(s) { return s.id === id; });
 	if (!mine || typeof mine.rating !== "number") return;
@@ -1891,8 +1985,8 @@ function updateRatingFromStandings(standings) {
 	void ratingChip.offsetWidth;
 	ratingChip.classList.add("rating-chip-bump");
 	var delta = account.rating - oldRating;
-	if (delta !== 0) showRatingDelta(delta);
-	if (newTier.name !== oldTier.name) showRankChangeBanner(account.rating > oldRating, newTier);
+	if (delta !== 0 && !opts.suppressDelta) showRatingDelta(delta);
+	if (newTier.name !== oldTier.name && !opts.suppressBanner) showRankChangeBanner(account.rating > oldRating, newTier);
 }
 
 // Floating "+15"/"-15" that drifts up from below the topbar rating chip, so
@@ -1954,15 +2048,29 @@ function showSeriesResultPanel(data) {
 		row.style.animationDelay = (idx * 55) + "ms";
 		list.appendChild(row);
 	});
-	panel.appendChild(list);
+
+	// Body wraps the rank-swap column (if ranked) and the standings list side
+	// by side. For casual rooms (no rating change), just append the list.
+	var mine = (data.standings || []).find(function(s) { return s.id === id; });
+	if (data.ranked && account && mine && typeof mine.rating === "number") {
+		var body = document.createElement("div");
+		body.className = "result-body";
+		body.appendChild(buildRankSwapColumn(account.rating, mine.rating, mine.ratingDelta));
+		body.appendChild(list);
+		panel.appendChild(body);
+	} else {
+		panel.appendChild(list);
+	}
 
 	var foot = document.createElement("div");
 	foot.className = "result-foot";
 	foot.textContent = "Final standings";
 	panel.appendChild(foot);
 
-	// Apply the ranked rating change once, at series end.
-	if (data.standings) updateRatingFromStandings(data.standings);
+	// Apply the ranked rating change once, at series end. The rank-swap column
+	// already shows the old → new icon animation, so suppress the centered
+	// banner; the topbar bump + floating delta still fire.
+	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true });
 
 	// Ranked single-match flow: players explicitly choose to re-queue or leave.
 	// Casual rooms keep the existing auto-hide behaviour.
