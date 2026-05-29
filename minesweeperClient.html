@@ -13,6 +13,13 @@
 			<span class="logo-tile"><span class="logo-mine"></span></span>
 			<span class="logo-name">MSBattle</span>
 		</div>
+		<nav id="site_nav" class="site-nav" aria-label="Main navigation">
+			<a href="#/" class="site-nav-link" data-route="home">Play</a>
+			<a href="#/learn" class="site-nav-link" data-route="learn">Learn</a>
+			<a href="#/practice" class="site-nav-link" data-route="practice">Practice</a>
+			<a href="#/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
+			<a href="#/profile" class="site-nav-link" data-route="profile">Profile</a>
+		</nav>
 		<div class="topbar-right">
 			<div class="audio-control">
 				<button id="mute_button" class="btn btn-ghost" type="button" aria-label="Toggle sound">🔊</button>
@@ -139,6 +146,69 @@
 			</ul>
 
 			<p id="lobby_message" class="lobby-message" style="display:none"></p>
+		</section>
+
+		<section id="learn_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Learn Minesweeper</h1>
+			<div class="section-card">
+				<h2>How the numbers work</h2>
+				<p>Each revealed numbered cell tells you how many of the eight neighbouring cells are mines. With practice you can deduce safe cells and flag mines without guessing.</p>
+				<p class="section-stub-note">A guided interactive tutorial is coming soon. For now, the best way to learn is to try a <a href="#/practice" class="section-link-inline">practice game</a>.</p>
+			</div>
+			<div class="section-card">
+				<h2>Ranked rules</h2>
+				<ul class="section-rules">
+					<li><strong>1v1</strong> — head-to-head race against one opponent, fastest clear wins.</li>
+					<li><strong>6-player</strong> — free-for-all on a shared no-guess board, your finish order determines points and Elo.</li>
+					<li><strong>Tournament</strong> — 16 players, the bottom four are cut each early round, then the bottom two, until a 1v1 final.</li>
+					<li><strong>Death penalty</strong> — clicking a mine freezes you for 5 seconds before you can play again.</li>
+					<li><strong>Sprint timer</strong> — once one player clears, everyone else has 10 seconds to finish.</li>
+				</ul>
+			</div>
+		</section>
+
+		<section id="practice_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Practice</h1>
+			<p class="section-page-sub">Warm up before going ranked — no rating on the line.</p>
+			<div class="section-grid">
+				<div class="section-card section-card-stub">
+					<h2>Daily Speedrun</h2>
+					<p>Same shared no-guess board for everyone today. Race the clock; leaderboard resets weekly.</p>
+					<p class="section-stub-note">Coming soon.</p>
+				</div>
+				<div class="section-card">
+					<h2>Free play</h2>
+					<p>Make a casual room with any board size, mine density, or game count. Play solo or invite a bot.</p>
+					<button id="practice_create_room" class="btn btn-primary">Create casual room</button>
+				</div>
+				<div class="section-card section-card-stub">
+					<h2>Pattern drills</h2>
+					<p>Short focused puzzles on classic minesweeper patterns (1-1-2 walls, edge corners, 1-2-1 chains).</p>
+					<p class="section-stub-note">Coming soon.</p>
+				</div>
+				<div class="section-card section-card-stub">
+					<h2>Bot trainer</h2>
+					<p>Pick a tier and play a 1v1 against a bot tuned to that Elo.</p>
+					<p class="section-stub-note">Coming soon.</p>
+				</div>
+			</div>
+		</section>
+
+		<section id="leaderboard_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Leaderboard</h1>
+			<p class="section-page-sub">Top-rated players overall. Mode and time-window filters are coming in the next pass.</p>
+			<div class="section-card">
+				<ol id="leaderboard_full_list" class="leaderboard-list">
+					<li class="room-empty">Loading…</li>
+				</ol>
+			</div>
+		</section>
+
+		<section id="profile_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Profile</h1>
+			<div id="profile_card" class="section-card">
+				<p>Sign in to see your rating, win rate, and recent matches.</p>
+			</div>
 		</section>
 
 		<section id="game_view" class="view game-view" style="display:none">
@@ -959,6 +1029,10 @@ document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });
 
+document.getElementById("practice_create_room").addEventListener("click", function() {
+	socket.emit("create_room");
+});
+
 function findRanked(mode) {
 	currentRankedMode = mode;
 	socket.emit("find_ranked", { mode: mode });
@@ -1360,7 +1434,7 @@ socket.on("authenticated", function(data) {
 	changeNameButton.style.display = "none";
 	signOutButton.style.display = "";
 	userBadge.style.display = "";
-	if (!inRoom) showLobbyView();
+	if (!inRoom) applyRouteFromHash();
 });
 
 var leaderboardProvisional = 10;
@@ -1369,41 +1443,46 @@ socket.on("leaderboard", function(data) {
 	renderLeaderboard((data && data.players) || []);
 });
 
+var leaderboardFullList = document.getElementById("leaderboard_full_list");
+
 function renderLeaderboard(players) {
-	leaderboardList.innerHTML = "";
+	var targets = [leaderboardList, leaderboardFullList].filter(Boolean);
+	targets.forEach(function(target) { target.innerHTML = ""; });
 	if (!players.length) {
-		leaderboardList.appendChild(emptyRow("No ranked players yet."));
+		targets.forEach(function(target) { target.appendChild(emptyRow("No ranked players yet.")); });
 		return;
 	}
 	players.forEach(function(p, i) {
 		var prov = p.played < leaderboardProvisional;
 		var t = tierFor(p.rating, prov);
-		var li = document.createElement("li");
-		li.className = "lb-row";
-		if (account && p.name === account.name) li.classList.add("lb-row-me");
+		targets.forEach(function(target) {
+			var li = document.createElement("li");
+			li.className = "lb-row";
+			if (account && p.name === account.name) li.classList.add("lb-row-me");
 
-		var rank = document.createElement("span");
-		rank.className = "lb-rank";
-		rank.textContent = (i + 1);
-		li.appendChild(rank);
+			var rank = document.createElement("span");
+			rank.className = "lb-rank";
+			rank.textContent = (i + 1);
+			li.appendChild(rank);
 
-		var name = document.createElement("span");
-		name.className = "lb-name";
-		name.textContent = p.name;
-		li.appendChild(name);
+			var name = document.createElement("span");
+			name.className = "lb-name";
+			name.textContent = p.name;
+			li.appendChild(name);
 
-		var tier = document.createElement("span");
-		tier.className = "lb-tier";
-		tier.textContent = t.name;
-		tier.style.color = t.color;
-		li.appendChild(tier);
+			var tier = document.createElement("span");
+			tier.className = "lb-tier";
+			tier.textContent = t.name;
+			tier.style.color = t.color;
+			li.appendChild(tier);
 
-		var rating = document.createElement("span");
-		rating.className = "lb-rating";
-		rating.textContent = (prov ? "~" : "") + p.rating;
-		li.appendChild(rating);
+			var rating = document.createElement("span");
+			rating.className = "lb-rating";
+			rating.textContent = (prov ? "~" : "") + p.rating;
+			li.appendChild(rating);
 
-		leaderboardList.appendChild(li);
+			target.appendChild(li);
+		});
 	});
 }
 
@@ -1423,7 +1502,7 @@ socket.on("name_accepted", function(data) {
 	changeNameButton.style.display = "";
 	signOutButton.style.display = "none";
 	userBadge.style.display = "";
-	if (!inRoom) showLobbyView();
+	if (!inRoom) applyRouteFromHash();
 });
 
 socket.on("room_list", function(data) {
@@ -1785,18 +1864,25 @@ function updateDangerWarning() {
 	else if (dangerActive && myIdx < survivors - 1) setDanger(false);
 }
 
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view"];
+function hideAllViews() {
+	for (var i = 0; i < allViews.length; i++) {
+		var el = document.getElementById(allViews[i]);
+		if (el) el.style.display = "none";
+	}
+}
+
 function showNameView() {
+	hideAllViews();
 	nameView.style.display = "";
-	lobbyView.style.display = "none";
-	gameView.style.display = "none";
 	nameError.style.display = "none";
+	setSiteNavActive(null);
 	setTimeout(function() { nameInput.focus(); }, 0);
 }
 
 function showLobbyView() {
-	nameView.style.display = "none";
+	hideAllViews();
 	lobbyView.style.display = "";
-	gameView.style.display = "none";
 	lobbyMessage.style.display = "none";
 	// Ranked cards only make sense for signed-in players; custom lobby card is
 	// always visible so guests can still create casual rooms.
@@ -1805,7 +1891,118 @@ function showLobbyView() {
 		rankedCards[i].style.display = account ? "" : "none";
 	}
 	renderHomeRankChips();
+	setSiteNavActive("home");
 	socket.emit("get_leaderboard");
+}
+
+function showLearnView() {
+	hideAllViews();
+	document.getElementById("learn_view").style.display = "";
+	setSiteNavActive("learn");
+}
+
+function showPracticeView() {
+	hideAllViews();
+	document.getElementById("practice_view").style.display = "";
+	setSiteNavActive("practice");
+}
+
+function showLeaderboardView() {
+	hideAllViews();
+	document.getElementById("leaderboard_view").style.display = "";
+	setSiteNavActive("leaderboard");
+	socket.emit("get_leaderboard");
+}
+
+function showProfileView() {
+	hideAllViews();
+	document.getElementById("profile_view").style.display = "";
+	setSiteNavActive("profile");
+	renderProfile();
+}
+
+function setSiteNavActive(route) {
+	var links = document.querySelectorAll(".site-nav-link");
+	for (var i = 0; i < links.length; i++) {
+		links[i].classList.toggle("active", links[i].getAttribute("data-route") === route);
+	}
+}
+
+// Hash router. Only takes effect when the player is NOT in a room — in-room
+// always means the game view, regardless of hash.
+function applyRouteFromHash() {
+	if (inRoom) return;
+	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
+	var hash = (location.hash || "#/").replace(/^#/, "");
+	if (hash === "/" || hash === "") return showLobbyView();
+	if (hash === "/learn") return showLearnView();
+	if (hash === "/practice") return showPracticeView();
+	if (hash === "/leaderboard") return showLeaderboardView();
+	if (hash === "/profile") return showProfileView();
+	showLobbyView();
+}
+
+window.addEventListener("hashchange", applyRouteFromHash);
+
+// Profile renders from the account cache plus the most recent leaderboard snapshot.
+function renderProfile() {
+	var card = document.getElementById("profile_card");
+	if (!card) return;
+	if (!account) {
+		card.innerHTML = "";
+		var p = document.createElement("p");
+		p.textContent = "Sign in to see your rating, win rate, and recent matches.";
+		card.appendChild(p);
+		return;
+	}
+	card.innerHTML = "";
+	var summary = document.createElement("div");
+	summary.className = "profile-summary";
+	summary.appendChild(buildRankBadge(account.rating));
+	var text = document.createElement("div");
+	text.className = "profile-summary-text";
+	var nameLine = document.createElement("div");
+	nameLine.className = "profile-summary-name";
+	nameLine.textContent = myName || (account.name || "You");
+	text.appendChild(nameLine);
+	var ratingLine = document.createElement("div");
+	ratingLine.className = "profile-summary-rating";
+	var t = tierFor(account.rating, account.provisional);
+	ratingLine.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating + (account.provisional ? " (provisional)" : "");
+	ratingLine.style.color = t.color;
+	text.appendChild(ratingLine);
+	summary.appendChild(text);
+	card.appendChild(summary);
+
+	var stats = document.createElement("div");
+	stats.className = "profile-stats";
+	var played = (account.played != null) ? account.played : 0;
+	var wins = (account.wins != null) ? account.wins : 0;
+	var winRate = played > 0 ? Math.round((wins / played) * 100) + "%" : "—";
+	stats.appendChild(profileStat("Played", String(played)));
+	stats.appendChild(profileStat("Wins", String(wins)));
+	stats.appendChild(profileStat("Win rate", winRate));
+	card.appendChild(stats);
+
+	var note = document.createElement("p");
+	note.className = "section-stub-note";
+	note.style.marginTop = "1rem";
+	note.textContent = "Per-mode breakdown, match history, and rating chart are coming next.";
+	card.appendChild(note);
+}
+
+function profileStat(label, value) {
+	var box = document.createElement("div");
+	box.className = "profile-stat";
+	var l = document.createElement("div");
+	l.className = "profile-stat-label";
+	l.textContent = label;
+	box.appendChild(l);
+	var v = document.createElement("div");
+	v.className = "profile-stat-value";
+	v.textContent = value;
+	box.appendChild(v);
+	return box;
 }
 
 function renderHomeRankChips() {

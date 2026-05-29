@@ -84,6 +84,147 @@ body {
 	gap: 1rem;
 }
 
+/* Main site nav between the logo and the user badge. Kept light-touch so the
+   home page is still where the action is. */
+.site-nav {
+	display: flex;
+	gap: 0.25rem;
+	flex: 1;
+	justify-content: center;
+}
+
+.site-nav-link {
+	color: var(--muted);
+	text-decoration: none;
+	font-weight: 600;
+	font-size: 0.92rem;
+	padding: 0.45rem 0.85rem;
+	border-radius: 8px;
+	transition: color 120ms ease, background 120ms ease;
+}
+
+.site-nav-link:hover { color: var(--text); background: var(--surface); }
+.site-nav-link.active { color: #fff; background: rgba(99, 102, 241, 0.22); }
+
+@media (max-width: 800px) {
+	.site-nav { flex-wrap: wrap; justify-content: flex-start; gap: 0.1rem; }
+	.site-nav-link { padding: 0.35rem 0.55rem; font-size: 0.85rem; }
+}
+
+/* Layouts for the Learn / Practice / Leaderboard / Profile pages. */
+.section-view { animation: fade 180ms ease; }
+
+.section-page-title {
+	font-size: 1.5rem;
+	font-weight: 800;
+	margin: 0 0 0.35rem;
+}
+
+.section-page-sub {
+	color: var(--muted);
+	margin: 0 0 1.4rem;
+}
+
+.section-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 1.25rem 1.4rem;
+	box-shadow: var(--shadow);
+	margin-bottom: 1rem;
+}
+
+.section-card h2 { margin: 0 0 0.55rem; font-size: 1.1rem; }
+.section-card p { margin: 0 0 0.6rem; color: var(--muted); line-height: 1.55; }
+.section-card p:last-child { margin-bottom: 0; }
+
+.section-card-stub { opacity: 0.85; }
+.section-card-stub h2::after {
+	content: "·  preview";
+	font-size: 0.65rem;
+	letter-spacing: 0.12em;
+	margin-left: 0.5rem;
+	padding: 0.1rem 0.4rem;
+	border-radius: 4px;
+	background: rgba(99, 102, 241, 0.18);
+	color: var(--accent-hover);
+	font-weight: 700;
+	vertical-align: middle;
+}
+
+.section-stub-note {
+	font-size: 0.85rem;
+	color: var(--muted);
+	font-style: italic;
+}
+
+.section-link-inline { color: var(--accent-hover); text-decoration: none; font-weight: 600; }
+.section-link-inline:hover { text-decoration: underline; }
+
+.section-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+}
+
+@media (max-width: 700px) {
+	.section-grid { grid-template-columns: 1fr; }
+}
+
+.section-rules {
+	margin: 0;
+	padding-left: 1.2rem;
+	color: var(--muted);
+	line-height: 1.6;
+}
+
+.section-rules li { margin-bottom: 0.35rem; }
+.section-rules strong { color: var(--text); }
+
+/* Profile-specific small bits */
+.profile-summary {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+}
+
+.profile-summary-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.profile-summary-name { font-size: 1.25rem; font-weight: 800; }
+.profile-summary-rating { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.profile-stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+@media (max-width: 600px) {
+	.profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.profile-stat {
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 0.8rem 0.9rem;
+}
+
+.profile-stat-label {
+	font-size: 0.7rem;
+	letter-spacing: 0.12em;
+	color: var(--muted);
+	text-transform: uppercase;
+	font-weight: 700;
+}
+
+.profile-stat-value {
+	font-size: 1.4rem;
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+	margin-top: 0.25rem;
+}
+
 .audio-control {
 	display: flex;
 	align-items: center;
@@ -1022,8 +1163,8 @@ main {
 }
 
 .rank-badge {
-	position: absolute;
-	inset: 0;
+	width: 92px;
+	height: 92px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -1035,6 +1176,14 @@ main {
 	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2);
 	border: 3px solid rgba(255, 255, 255, 0.22);
 	user-select: none;
+}
+
+/* Inside the swap container, both badges stack on top of each other. */
+.rank-swap .rank-badge {
+	position: absolute;
+	inset: 0;
+	width: auto;
+	height: auto;
 }
 
 .rank-badge-numeral { font-size: 1.6rem; line-height: 1; letter-spacing: 0.02em; }
