@@ -150,11 +150,12 @@
 
 		<section id="learn_view" class="view section-view" style="display:none">
 			<h1 class="section-page-title">Learn Minesweeper</h1>
+			<p class="section-page-sub">Every safe move comes from logic, not luck. Work through the techniques below — each ends with puzzles you solve by clicking. <strong>Left-click</strong> a cell you can prove is safe; <strong>right-click</strong> (or switch to Mine mode) to flag one you can prove is a mine.</p>
 			<div class="section-card">
 				<h2>How the numbers work</h2>
-				<p>Each revealed numbered cell tells you how many of the eight neighbouring cells are mines. With practice you can deduce safe cells and flag mines without guessing.</p>
-				<p class="section-stub-note">A guided interactive tutorial is coming soon. For now, the best way to learn is to try a <a href="#/practice" class="section-link-inline">practice game</a>.</p>
+				<p>Each revealed number tells you how many of its eight neighbouring cells are mines. Every technique here is built from that one fact — and none of them need the total mine count.</p>
 			</div>
+			<div id="learn_lessons" class="learn-lessons"></div>
 			<div class="section-card">
 				<h2>Ranked rules</h2>
 				<ul class="section-rules">
@@ -308,6 +309,25 @@
 							<button id="remove_bot_button" class="btn btn-ghost" type="button">Remove bot</button>
 						</div>
 						<p id="bot_status" class="series-status"></p>
+					</div>
+					<div id="solo_card" class="side-card" style="display:none">
+						<h3 class="side-title">Free play</h3>
+						<div class="solo-stats">
+							<div class="solo-stat">
+								<span class="solo-stat-label">Time</span>
+								<span id="solo_timer" class="solo-stat-value">0:00</span>
+							</div>
+							<div class="solo-stat">
+								<span class="solo-stat-label">Mines</span>
+								<span id="solo_mines" class="solo-stat-value">0 / 0</span>
+							</div>
+						</div>
+						<div class="solo-size-picker">
+							<button class="btn btn-secondary solo-size-btn" data-size="small" type="button">Small</button>
+							<button class="btn btn-secondary solo-size-btn active" data-size="medium" type="button">Medium</button>
+							<button class="btn btn-secondary solo-size-btn" data-size="large" type="button">Large</button>
+						</div>
+						<button id="solo_restart" class="btn btn-primary" type="button">New board</button>
 					</div>
 				</aside>
 			</div>
@@ -515,6 +535,7 @@ function applyLocalLeftClick(r, c) {
 // Single point of truth for "the user did a board action": optimistically apply
 // it locally and emit to the server. Called from mouse, touch, and keyboard.
 function performAction(r, c, asFlag) {
+	if (soloSession) return performSoloAction(r, c, asFlag);
 	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
@@ -558,6 +579,235 @@ function emitBoardActionAt(clientX, clientY, asFlag) {
 	if (!cell) return;
 	focusVisible = false;
 	performAction(cell.r, cell.c, asFlag);
+}
+
+// ---- Solo (single-player Free play) ------------------------------------
+function performSoloAction(r, c, asFlag) {
+	if (!soloSession || soloSession.finished) return;
+	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	if (!soloSession.startTime) {
+		soloSession.startTime = Date.now();
+		startSoloTimer();
+	}
+	focusedR = r;
+	focusedC = c;
+	if (asFlag) {
+		if (myState[r][c] === UNKNOWN) {
+			myState[r][c] = FLAGGED;
+			if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
+			cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
+			sound.flag && sound.flag();
+		} else if (myState[r][c] === FLAGGED) {
+			myState[r][c] = UNKNOWN;
+			if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
+			delete cellAnims[r + "," + c];
+			sound.unflag && sound.unflag();
+		}
+		updateSoloHud();
+		redrawOwnBoardWithFocus();
+		return;
+	}
+	lastActionCell = { r: r, c: c };
+	var result = applyLocalLeftClick(r, c);
+	if (result.anyChange) {
+		queueRevealAnimations(myState);
+		prevPlayerState = cloneState(myState);
+	}
+	if (result.hitMine) {
+		soloSession.finished = true;
+		soloSession.finishTime = Date.now();
+		stopSoloTimer();
+		triggerShake && triggerShake();
+		sound.mine && sound.mine();
+		updateSoloHud();
+		showSoloOutcome(false);
+		redrawOwnBoardWithFocus();
+		return;
+	}
+	updateSoloHud();
+	redrawOwnBoardWithFocus();
+	if (countSoloSafeRevealed() >= soloSession.totalSafe) {
+		soloSession.finished = true;
+		soloSession.finishTime = Date.now();
+		stopSoloTimer();
+		sound.win && sound.win();
+		updateSoloHud();
+		showSoloOutcome(true);
+	}
+}
+
+function countSoloSafeRevealed() {
+	var n = 0;
+	for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+		if (myState[r][c] === KNOWN && boardCell(r, c) !== MINE) n++;
+	}
+	return n;
+}
+
+function startSolo(size) {
+	soloSelectedSize = size || soloSelectedSize || "medium";
+	socket.emit("request_solo_board", { size: soloSelectedSize });
+}
+
+function exitSolo() {
+	soloSession = null;
+	stopSoloTimer();
+	hideOverlay();
+	myState = null;
+	prevPlayerState = null;
+	boardDecoder = null;
+	location.hash = "#/practice";
+}
+
+function startSoloTimer() {
+	stopSoloTimer();
+	soloTimerHandle = setInterval(updateSoloHud, 100);
+}
+
+function stopSoloTimer() {
+	if (soloTimerHandle) { clearInterval(soloTimerHandle); soloTimerHandle = null; }
+}
+
+function formatSoloTime(ms) {
+	if (ms == null || ms < 0) ms = 0;
+	var totalSec = ms / 1000;
+	var m = Math.floor(totalSec / 60);
+	var s = totalSec - m * 60;
+	return m + ":" + (s < 10 ? "0" : "") + s.toFixed(s >= 10 || m > 0 ? 1 : 2).slice(0, s >= 10 || m > 0 ? 4 : 5);
+}
+
+function updateSoloHud() {
+	if (!soloSession) return;
+	var timerEl = document.getElementById("solo_timer");
+	var minesEl = document.getElementById("solo_mines");
+	if (timerEl) {
+		var elapsed = soloSession.startTime
+			? (soloSession.finishTime || Date.now()) - soloSession.startTime
+			: 0;
+		timerEl.textContent = formatSoloTime(elapsed);
+	}
+	if (minesEl) {
+		var flagged = 0;
+		if (myState) for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+			if (myState[r][c] === FLAGGED) flagged++;
+		}
+		minesEl.textContent = flagged + " / " + soloSession.totalMines;
+	}
+}
+
+function showSoloOutcome(won) {
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	header.textContent = won ? "Cleared!" : "Mine hit";
+	panel.appendChild(header);
+
+	var time = document.createElement("div");
+	time.className = "tournament-place";
+	time.style.color = won ? "#4ade80" : "#f87171";
+	var elapsed = (soloSession.finishTime || Date.now()) - (soloSession.startTime || soloSession.finishTime || Date.now());
+	time.textContent = formatSoloTime(elapsed);
+	panel.appendChild(time);
+
+	if (!won) {
+		var sub = document.createElement("div");
+		sub.className = "result-foot";
+		var safe = countSoloSafeRevealed();
+		sub.textContent = "Revealed " + safe + " of " + soloSession.totalSafe + " safe cells.";
+		panel.appendChild(sub);
+	}
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "New board";
+	again.addEventListener("click", function() {
+		hideOverlay();
+		startSolo(soloSelectedSize);
+	});
+	actions.appendChild(again);
+
+	var back = document.createElement("button");
+	back.className = "btn btn-secondary";
+	back.textContent = "Back to Practice";
+	back.addEventListener("click", exitSolo);
+	actions.appendChild(back);
+
+	panel.appendChild(actions);
+	presentPanel(panel, won ? "win" : "lose");
+}
+
+socket.on("solo_rejected", function(data) {
+	showLobbyMessage((data && data.reason) || "Couldn't start solo board.");
+	exitSolo();
+});
+
+socket.on("solo_board", function(data) {
+	rows = data.rows;
+	cols = data.cols;
+	soloSession = {
+		size: data.size,
+		totalSafe: data.totalSafe,
+		totalMines: data.mines,
+		startTime: null,
+		finishTime: null,
+		finished: false
+	};
+	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
+	// Build myState from the no-guess template's pre-revealed cells.
+	myState = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		myState[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
+	}
+	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
+	prevPlayerState = cloneState(myState);
+	resetBoardAnimations();
+	frozenUntil = 0;
+	roundResultShown = false;
+	focusedR = Math.floor(rows / 2);
+	focusedC = Math.floor(cols / 2);
+	focusVisible = false;
+	lastFinished = {};
+	cellAnims = {};
+	hideOverlay();
+
+	// Resize the player canvas to match the new board dimensions, then show
+	// the game view (with solo-only chrome via toggleSoloChrome).
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+	hideAllViews();
+	gameView.style.display = "";
+	gameView.classList.add("solo");
+	toggleSoloChrome(true);
+	updateSoloHud();
+	renderPlayerBoard();
+	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+});
+
+function toggleSoloChrome(on) {
+	// Show solo info card; hide multiplayer side cards. Re-shown when leaving solo.
+	var soloCard = document.getElementById("solo_card");
+	if (soloCard) soloCard.style.display = on ? "" : "none";
+	if (allOpponentsDiv) allOpponentsDiv.style.display = on ? "none" : "";
+	var scoreboardCard = document.getElementById("scoreboard_card");
+	if (scoreboardCard) scoreboardCard.style.display = on ? "none" : "";
+	if (seriesCard) seriesCard.style.display = on ? "none" : "";
+	if (botsCard) botsCard.style.display = on ? "none" : "";
+	var rankedTagEl = document.getElementById("ranked_tag");
+	if (rankedTagEl) rankedTagEl.style.display = "none";
+	if (gameProgressText) gameProgressText.textContent = on ? "Free play" : "";
+	var roundTimerEl = document.getElementById("round_timer");
+	if (roundTimerEl) roundTimerEl.style.display = on ? "none" : "";
+	if (readyButton) readyButton.style.display = on ? "none" : "";
 }
 
 playerCanvas.addEventListener("touchstart", function(e) {
@@ -958,6 +1208,9 @@ var lastActionCell = null;     // where the local player last revealed, for ripp
 var lastScores = {};           // playerId -> last rendered score, to flash gains
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
+var soloSession = null;        // { size, totalSafe, totalMines, startTime, finished, finishTime } when in single-player Free play
+var soloTimerHandle = null;
+var soloSelectedSize = "medium";
 var elimPanelDismissed = false;// player chose "Keep watching" — don't redraw the panel each round
 var roundStartTime = 0;        // ms timestamp when the current round actually went live (after GO!)
 var dangerActive = false;      // current red-border state; hysteresis keeps it from flickering
@@ -1030,8 +1283,25 @@ document.getElementById("refresh_button").addEventListener("click", function() {
 });
 
 document.getElementById("practice_create_room").addEventListener("click", function() {
-	socket.emit("create_room");
+	startSolo(soloSelectedSize);
 });
+
+// Solo info card buttons (visible inside the game view when soloSession is active).
+document.getElementById("solo_restart").addEventListener("click", function() {
+	startSolo(soloSelectedSize);
+});
+
+(function wireSoloSizeButtons() {
+	var btns = document.querySelectorAll(".solo-size-btn");
+	for (var i = 0; i < btns.length; i++) {
+		btns[i].addEventListener("click", function(e) {
+			var size = e.currentTarget.getAttribute("data-size");
+			soloSelectedSize = size;
+			for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j] === e.currentTarget);
+			startSolo(size);
+		});
+	}
+})();
 
 function findRanked(mode) {
 	currentRankedMode = mode;
@@ -1132,6 +1402,7 @@ function renderRankedSlots_DISABLED(info) {
 }
 
 document.getElementById("leave_button").addEventListener("click", function() {
+	if (soloSession) { exitSolo(); return; }
 	socket.emit("leave_room");
 });
 
@@ -1895,10 +2166,334 @@ function showLobbyView() {
 	socket.emit("get_leaderboard");
 }
 
+// ---- Learn: interactive deduction trainer ----
+// Each puzzle is a small slice of a board. Tokens: 0-8 clue, "." covered (solve
+// it), "*" known mine, "?" irrelevant/background (counts as no mine). The matching
+// solution grid replaces each "." with M (mine), S (safe) or "." (undeterminable
+// by this technique). Guess puzzles use G (lower-risk guess) / B (higher-risk).
+var LEARN_LESSONS = [
+	{
+		title: "Forced mines",
+		idea: "If a clue's number equals how many covered cells touch it, they're all mines.",
+		how: "Look at a number, count the covered cells around it. If that count equals the number, every one of them is a mine.",
+		mistake: "Only covered cells still in play can be mines — don't count revealed cells or background.",
+		puzzles: [
+			{ title: "One forced mine", grid: ["? ? ?", "? 1 .", "? ? ?"], solution: ["? ? ?", "? 1 M", "? ? ?"],
+			  why: "The 1 needs one mine and touches just one covered cell, so that cell is the mine." },
+			{ title: "A corner of mines", grid: [". . ?", ". 3 ?", "? ? ?"], solution: ["M M ?", "M 3 ?", "? ? ?"],
+			  why: "The 3 touches exactly three covered cells. Three mines, three candidates → all are mines." }
+		]
+	},
+	{
+		title: "Satisfied clear",
+		idea: "If a clue already touches enough known mines, its other neighbours are safe.",
+		how: "When a number equals the known mines (🚩) around it, it is finished — open every other covered cell it touches.",
+		mistake: "Keep going: a freshly-cleared safe cell often becomes a new clue you can use again.",
+		puzzles: [
+			{ title: "Clue already satisfied", grid: ["? ? ?", "* 1 .", "? ? ?"], solution: ["? ? ?", "* 1 S", "? ? ?"],
+			  why: "The 1 already sees its one mine (🚩), so the other covered cell is safe." },
+			{ title: "Clear them all", grid: [". . .", "* 1 .", "? ? ?"], solution: ["S S S", "* 1 S", "? ? ?"],
+			  why: "The 1's mine is the flag on its left, so all four other covered cells it touches are safe." }
+		]
+	},
+	{
+		title: "Subset rule — safe cells",
+		idea: "Two clues need the same number of mines, one's cells sit inside the other's → the extra cells are safe.",
+		how: "If clue A's candidates are entirely inside clue B's candidates and both need the same number of mines, the cells in B but not A hold no mine — they're safe.",
+		mistake: "This only works when the two numbers are equal. If they differ, see the next lesson.",
+		puzzles: [
+			{ title: "The 1-1 wall", grid: [". . .", "1 1 ?", "? ? ?"], solution: [". . S", "1 1 ?", "? ? ?"],
+			  why: "Left 1: one mine in the two left cells. Right 1: one mine across all three. Same count → the extra right cell is safe." },
+			{ title: "Same idea, mid-board", grid: ["? ? ? ?", "? 1 1 ?", "? . . .", "? ? ? ?"], solution: ["? ? ? ?", "? 1 1 ?", "? . . S", "? ? ? ?"],
+			  why: "An island, but identical logic: both 1s need one mine, the left's cells are inside the right's, so the extra cell is safe." }
+		]
+	},
+	{
+		title: "Subset rule — mines",
+		idea: "Same nesting, but the bigger clue needs exactly as many extra mines as it has extra cells → those are mines.",
+		how: "If A's cells sit inside B's, and B's number exceeds A's by exactly the number of extra cells, every extra cell is a mine.",
+		mistake: "The shared cells usually stay unknown — you've pinned the extra cells, not the whole region.",
+		puzzles: [
+			{ title: "The 1-2 wall", grid: [". . .", "1 2 ?", "? ? ?"], solution: [". . M", "1 2 ?", "? ? ?"],
+			  why: "The 2 needs one more mine than the 1, and has exactly one more cell, so that extra cell is a mine." },
+			{ title: "Same idea, mid-board", grid: ["? ? ? ?", "? 1 2 ?", "? . . .", "? ? ? ?"], solution: ["? ? ? ?", "? 1 2 ?", "? . . M", "? ? ? ?"],
+			  why: "The 2 needs one extra mine over the 1 and has one extra cell → that cell is a mine. The shared pair stays unknown." }
+		]
+	},
+	{
+		title: "Named patterns",
+		idea: "Memorise the shapes that recur: 1-2-1 and 1-2-2-1 along a wall.",
+		how: "These are just the subset rule applied at several spots at once. Learn the signature: a 1-2-1 has mines on the ends; a 1-2-2-1 has mines in the two middle cells.",
+		mistake: "The pattern only holds when the covered run lines up exactly with the numbers — check the framing.",
+		puzzles: [
+			{ title: "1-2-1 → ends are mines", grid: [". . . ?", "1 2 1 ?", "? ? ? ?"], solution: ["M S M ?", "1 2 1 ?", "? ? ? ?"],
+			  why: "Subtracting each 1 from the centre 2 forces both ends to be mines; the middle is then safe." },
+			{ title: "1-2-2-1 → middle two are mines", grid: [". . . . ?", "1 2 2 1 ?", "? ? ? ? ?"], solution: ["S M M S ?", "1 2 2 1 ?", "? ? ? ? ?"],
+			  why: "Each 2 over its 1 forces an inner mine; the ends fall out safe. Classic 1-2-2-1." }
+		]
+	},
+	{
+		title: "Chains",
+		idea: "When no single rule finishes, solve one cell, re-read the neighbours, and let it cascade.",
+		how: "Treat the frontier as a system. Start from the most constrained clue (fewest covered cells), mark what it forces, then re-check the clues next to it.",
+		mistake: "Don't give up because the first clue you look at isn't solvable — start from the tightest one.",
+		puzzles: [
+			{ title: "1-1-2-1 cascade", grid: [". . . . ?", "1 1 2 1 ?", "? ? ? ? ?"], solution: ["S M S M ?", "1 1 2 1 ?", "? ? ? ? ?"],
+			  why: "The two 1s subtract to a safe cell, the 2 then forces two mines, and the rest follows step by step." },
+			{ title: "Island ringed by 1s", grid: ["? ? ? ? ?", "? 1 1 1 ?", "? . . . ?", "? ? ? ? ?"], solution: ["? ? ? ? ?", "? 1 1 1 ?", "? S M S ?", "? ? ? ? ?"],
+			  why: "The middle 1 overlaps the others; subtracting clears the ends and forces the centre mine." }
+		]
+	},
+	{
+		title: "Enumeration",
+		idea: "When patterns fail, assume a cell is a mine (or safe) and follow the clues until something breaks.",
+		how: "Pick a pivotal cell. Try 'mine' and propagate; try 'safe' and propagate. If one option always leads to a contradiction, the other is forced.",
+		mistake: "Follow the assumption all the way — a contradiction can be two or three clues downstream.",
+		puzzles: [
+			{ title: "Find the forced cells", grid: [". . . .", "? 1 2 ?", "? ? ? ?"], solution: ["S . . M", "? 1 2 ?", "? ? ? ?"],
+			  why: "If the right cell were safe the 2 would need both shared cells, but then the 1 sees two mines — impossible. So it's a mine; symmetrically the left cell is safe." },
+			{ title: "The mirror image", grid: [". . . .", "? 2 1 ?", "? ? ? ?"], solution: ["M . . S", "? 2 1 ?", "? ? ? ?"],
+			  why: "Same reasoning flipped: the left cell is forced to a mine and the right cell to safe." }
+		]
+	},
+	{
+		title: "Smart guessing",
+		idea: "When nothing is certain, compare the local groups and guess the lowest per-cell risk.",
+		how: "Each clue group's risk per cell is roughly mines ÷ candidate cells. A 1 over two cells is 1/2 each; a 1 over three is 1/3 each. Click the cell you'd guess.",
+		mistake: "Don't just count cells — a bigger group is only safer when the mine counts match. Always divide mines by cells.",
+		guess: true,
+		puzzles: [
+			{ title: "Two cells vs three", grid: [". . . . .", "1 ? ? 1 ?", "? ? ? ? ?"], solution: ["B B G G G", "1 ? ? 1 ?", "? ? ? ? ?"],
+			  why: "Left 1 over two cells → 1/2 each. Right 1 over three cells → 1/3 each. Guess in the right group." },
+			{ title: "Watch the number", grid: [". . . . .", "1 ? ? 2 ?", "? ? ? ? ?"], solution: ["G G B B B", "1 ? ? 2 ?", "? ? ? ? ?"],
+			  why: "Left 1 over two cells → 1/2 each. Right 2 over three cells → 2/3 each. This time the left group is safer." }
+		]
+	}
+];
+
+var learnRendered = false;
+function renderLearnOnce() {
+	if (learnRendered) return;
+	var root = document.getElementById("learn_lessons");
+	if (!root) return;
+	learnRendered = true;
+	for (var i = 0; i < LEARN_LESSONS.length; i++) {
+		root.appendChild(buildLearnLesson(LEARN_LESSONS[i], i));
+	}
+}
+
+function buildLearnLesson(lesson, idx) {
+	var details = document.createElement("details");
+	details.className = "section-card learn-lesson";
+	if (idx === 0) details.open = true;
+
+	var summary = document.createElement("summary");
+	var num = document.createElement("span");
+	num.className = "learn-lesson-num";
+	num.textContent = String(idx + 1);
+	var title = document.createElement("span");
+	title.className = "learn-lesson-title";
+	title.textContent = lesson.title;
+	var idea = document.createElement("span");
+	idea.className = "learn-lesson-idea";
+	idea.textContent = lesson.idea;
+	summary.appendChild(num);
+	summary.appendChild(title);
+	summary.appendChild(idea);
+	details.appendChild(summary);
+
+	var body = document.createElement("div");
+	body.className = "learn-lesson-body";
+	var how = document.createElement("p");
+	how.className = "learn-how";
+	how.textContent = lesson.how;
+	body.appendChild(how);
+	var mistake = document.createElement("p");
+	mistake.className = "learn-mistake";
+	var strong = document.createElement("strong");
+	strong.textContent = "Watch out: ";
+	mistake.appendChild(strong);
+	mistake.appendChild(document.createTextNode(lesson.mistake));
+	body.appendChild(mistake);
+
+	for (var p = 0; p < lesson.puzzles.length; p++) {
+		body.appendChild(buildLearnPuzzle(lesson.puzzles[p], !!lesson.guess));
+	}
+	details.appendChild(body);
+	return details;
+}
+
+function buildLearnPuzzle(puzzle, isGuess) {
+	var wrap = document.createElement("div");
+	wrap.className = "learn-puzzle";
+	var title = document.createElement("span");
+	title.className = "learn-puzzle-title";
+	title.textContent = puzzle.title;
+	wrap.appendChild(title);
+
+	var rows = puzzle.grid.map(function(r) { return r.trim().split(/\s+/); });
+	var sol = puzzle.solution.map(function(r) { return r.trim().split(/\s+/); });
+	var cols = rows[0].length;
+
+	var board = document.createElement("div");
+	board.className = "learn-board";
+	board.style.gridTemplateColumns = "repeat(" + cols + ", 32px)";
+
+	var status = document.createElement("span");
+	status.className = "learn-status";
+	var why = document.createElement("div");
+	why.className = "learn-why";
+	why.textContent = puzzle.why;
+
+	var coveredCells = [];   // interactive cells: {el, sol}
+	var needed = 0;          // number of provable cells (M/S)
+	var solvedCount = 0;
+	var mineMode = false;
+
+	for (var r = 0; r < rows.length; r++) {
+		for (var c = 0; c < cols; c++) {
+			var tok = rows[r][c];
+			var stok = sol[r][c];
+			var cell = document.createElement("div");
+			cell.className = "learn-cell";
+			if (/^[1-8]$/.test(tok)) {
+				cell.className += " lc-clue lc-n" + tok;
+				cell.textContent = tok;
+			} else if (tok === "*") {
+				cell.className += " lc-flag";
+				cell.textContent = "🚩";
+			} else if (tok === ".") {
+				cell.className += " lc-covered";
+				if (stok === "M" || stok === "S" || stok === "G" || stok === "B") {
+					if (stok === "M" || stok === "S") needed++;
+					coveredCells.push({ el: cell, sol: stok });
+				}
+			} else {
+				cell.className += " lc-bg";
+			}
+			board.appendChild(cell);
+		}
+	}
+	wrap.appendChild(board);
+
+	function setStatus(text, cls) {
+		status.textContent = text;
+		status.className = "learn-status" + (cls ? " " + cls : "");
+	}
+
+	function onLearnMark(item, asMine) {
+		var cellEl = item.el;
+		if (isGuess) {
+			var prev = board.querySelectorAll(".lc-good, .lc-bad");
+			for (var i = 0; i < prev.length; i++) prev[i].classList.remove("lc-good", "lc-bad");
+			if (item.sol === "G") {
+				cellEl.classList.add("lc-good");
+				setStatus("Good guess — lowest risk on the board.", "ok");
+			} else {
+				cellEl.classList.add("lc-bad");
+				setStatus("Risky — the other group has better odds.", "warn");
+			}
+			why.classList.add("show");
+			return;
+		}
+		if (cellEl.dataset.done) return;
+		var want = asMine ? "M" : "S";
+		if (item.sol === want) {
+			cellEl.dataset.done = "1";
+			cellEl.classList.remove("lc-covered");
+			if (asMine) { cellEl.classList.add("lc-mark-mine"); cellEl.textContent = "🚩"; }
+			else { cellEl.classList.add("lc-mark-safe"); cellEl.textContent = "✓"; }
+			solvedCount++;
+			if (solvedCount >= needed) {
+				setStatus("Solved! ✓", "ok");
+				why.classList.add("show");
+			} else {
+				setStatus(solvedCount + " / " + needed + " found", "");
+			}
+		} else {
+			cellEl.classList.add("lc-wrong");
+			setTimeout(function() { cellEl.classList.remove("lc-wrong"); }, 420);
+			if (item.sol === ".") setStatus("That cell can't be proven with this technique.", "warn");
+			else setStatus("Not quite — try again.", "warn");
+		}
+	}
+
+	coveredCells.forEach(function(item) {
+		item.el.addEventListener("click", function() { onLearnMark(item, isGuess ? false : mineMode); });
+		if (!isGuess) {
+			item.el.addEventListener("contextmenu", function(e) { e.preventDefault(); onLearnMark(item, true); });
+		}
+	});
+
+	var controls = document.createElement("div");
+	controls.className = "learn-controls";
+
+	if (!isGuess) {
+		var modeBtn = document.createElement("button");
+		modeBtn.className = "learn-btn";
+		modeBtn.textContent = "Mode: Safe";
+		modeBtn.addEventListener("click", function() {
+			mineMode = !mineMode;
+			modeBtn.textContent = mineMode ? "Mode: Mine 🚩" : "Mode: Safe";
+			modeBtn.classList.toggle("active", mineMode);
+		});
+
+		var answerBtn = document.createElement("button");
+		answerBtn.className = "learn-btn";
+		answerBtn.textContent = "Show answer";
+		answerBtn.addEventListener("click", function() {
+			coveredCells.forEach(function(item) {
+				if (item.el.dataset.done) return;
+				item.el.classList.remove("lc-covered");
+				if (item.sol === "M") { item.el.classList.add("lc-mark-mine"); item.el.textContent = "🚩"; }
+				else if (item.sol === "S") { item.el.classList.add("lc-mark-safe"); item.el.textContent = "✓"; }
+				else { item.el.classList.add("lc-bg"); item.el.textContent = "·"; }
+				item.el.dataset.done = "1";
+			});
+			setStatus("Answer revealed.", "");
+			why.classList.add("show");
+		});
+
+		var resetBtn = document.createElement("button");
+		resetBtn.className = "learn-btn";
+		resetBtn.textContent = "Reset";
+		resetBtn.addEventListener("click", function() {
+			solvedCount = 0;
+			coveredCells.forEach(function(item) {
+				item.el.className = "learn-cell lc-covered";
+				item.el.textContent = "";
+				delete item.el.dataset.done;
+			});
+			setStatus("", "");
+			why.classList.remove("show");
+		});
+
+		controls.appendChild(modeBtn);
+		controls.appendChild(answerBtn);
+		controls.appendChild(resetBtn);
+	} else {
+		var reasonBtn = document.createElement("button");
+		reasonBtn.className = "learn-btn";
+		reasonBtn.textContent = "Show reasoning";
+		reasonBtn.addEventListener("click", function() { why.classList.toggle("show"); });
+		controls.appendChild(reasonBtn);
+		var hint = document.createElement("span");
+		hint.className = "learn-status";
+		hint.textContent = "No certain move — click the cell you'd guess.";
+		controls.appendChild(hint);
+	}
+
+	controls.appendChild(status);
+	wrap.appendChild(controls);
+	wrap.appendChild(why);
+	return wrap;
+}
+
 function showLearnView() {
 	hideAllViews();
 	document.getElementById("learn_view").style.display = "";
 	setSiteNavActive("learn");
+	renderLearnOnce();
 }
 
 function showPracticeView() {
@@ -1931,7 +2526,7 @@ function setSiteNavActive(route) {
 // Hash router. Only takes effect when the player is NOT in a room — in-room
 // always means the game view, regardless of hash.
 function applyRouteFromHash() {
-	if (inRoom) return;
+	if (inRoom || soloSession) return;
 	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
 	var hash = (location.hash || "#/").replace(/^#/, "");
 	if (hash === "/" || hash === "") return showLobbyView();
@@ -2724,7 +3319,7 @@ function boardClicked(event) {
 // acknowledged immediately, before the server confirms the action.
 function drawPressedHighlight() {
 	if (!pressedCell || !myState) return;
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
 	var r = pressedCell.r, c = pressedCell.c;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
@@ -2740,7 +3335,7 @@ function drawPressedHighlight() {
 
 function drawFocusHighlight() {
 	if (!focusVisible) return;
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
 	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
 	var x = focusedC * playerCanvasSquareWidth;
@@ -2799,7 +3394,7 @@ function jumpToNextUnknown(forward) {
 }
 
 document.addEventListener("keydown", function(e) {
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
 	var tag = (e.target && e.target.tagName) || "";
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 	if (e.ctrlKey || e.metaKey || e.altKey) return;

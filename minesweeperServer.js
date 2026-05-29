@@ -1458,6 +1458,36 @@ io.on("connection", function (socket) {
 		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
 	});
 
+	// Solo-mode primitive: generate a fresh no-guess board on demand and ship
+	// the obfuscated blob back to this socket. No room, no opponents, no Elo
+	// — the client owns the play loop. Underpins Free play, drills, and the
+	// eventual daily speedrun.
+	socket.on("request_solo_board", function(data) {
+		var size = (data && data.size) || "medium";
+		var dims = roomCreator.BOARD_SIZES[size];
+		if (!dims) return;
+		var density = (data && typeof data.density === "number") ? data.density : 0.10;
+		if (density < 0.04) density = 0.04;
+		if (density > 0.30) density = 0.30;
+		var rows = dims.rows, cols = dims.cols;
+		var mines = Math.round(density * rows * cols);
+		var centerR = Math.floor(rows / 2);
+		var centerC = Math.floor(cols / 2);
+		var template = gameCreator.createNoGuessTemplate(centerR, centerC, mines, undefined, rows, cols);
+		if (!template) { socket.emit("solo_rejected", { reason: "Couldn't generate a no-guess board, try again." }); return; }
+		var obf = obfuscateBoard(template.board, rows, cols);
+		socket.emit("solo_board", {
+			size: size,
+			rows: rows,
+			cols: cols,
+			mines: mines,
+			totalSafe: rows * cols - mines,
+			knownCells: template.knownCells,  // pre-revealed cascade origin
+			boardData: obf.data,
+			boardMask: obf.mask
+		});
+	});
+
 	socket.on("create_room", function() {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
