@@ -2633,6 +2633,43 @@ function buildLearnLesson(lesson, idx, onLessonComplete) {
 	return card;
 }
 
+function createLearnMineSvg() {
+	// Matches the canvas drawMine: spike+circle in COLOR_MINE on the
+	// standard known-cell background, so demos look like real revealed mines.
+	var ns = "http://www.w3.org/2000/svg";
+	var svg = document.createElementNS(ns, "svg");
+	svg.setAttribute("viewBox", "0 0 32 32");
+	svg.setAttribute("width", "26");
+	svg.setAttribute("height", "26");
+	svg.setAttribute("aria-hidden", "true");
+	var g = document.createElementNS(ns, "g");
+	g.setAttribute("stroke", "#fca5a5");
+	g.setAttribute("stroke-width", "2.4");
+	g.setAttribute("stroke-linecap", "round");
+	g.setAttribute("fill", "none");
+	var spikes = [
+		[16, 10, 16, 4], [16, 22, 16, 28],
+		[10, 16, 4, 16], [22, 16, 28, 16],
+		[12, 12, 7, 7], [20, 20, 25, 25],
+		[12, 20, 7, 25], [20, 12, 25, 7]
+	];
+	for (var i = 0; i < spikes.length; i++) {
+		var s = spikes[i];
+		var line = document.createElementNS(ns, "line");
+		line.setAttribute("x1", s[0]); line.setAttribute("y1", s[1]);
+		line.setAttribute("x2", s[2]); line.setAttribute("y2", s[3]);
+		g.appendChild(line);
+	}
+	svg.appendChild(g);
+	var circle = document.createElementNS(ns, "circle");
+	circle.setAttribute("cx", "16");
+	circle.setAttribute("cy", "16");
+	circle.setAttribute("r", "6");
+	circle.setAttribute("fill", "#fca5a5");
+	svg.appendChild(circle);
+	return svg;
+}
+
 function renderDemoBoard(grid, solution) {
 	var rows = grid.map(function(r) { return r.trim().split(/\s+/); });
 	var sol = (solution || grid).map(function(r) { return r.trim().split(/\s+/); });
@@ -2656,7 +2693,7 @@ function renderDemoBoard(grid, solution) {
 				cell.textContent = "🚩";
 			} else if (tok === "b") {
 				cell.className += " lc-mine";
-				cell.textContent = "💣";
+				cell.appendChild(createLearnMineSvg());
 			} else if (tok === ".") {
 				if (stok === "M") {
 					cell.className += " lc-mark-mine lc-good";
@@ -2752,7 +2789,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 				cell.textContent = "🚩";
 			} else if (tok === "b") {
 				cell.className += " lc-mine";
-				cell.textContent = "💣";
+				cell.appendChild(createLearnMineSvg());
 			} else if (tok === ".") {
 				cell.className += " lc-covered";
 				if (stok === "M" || stok === "S" || stok === "G" || stok === "B") {

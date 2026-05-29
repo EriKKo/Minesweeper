@@ -1885,8 +1885,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 /* Mark-mine = "you deduced this is a mine" — distinct from a normal flag. */
 .lc-mark-mine { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
-/* Mine reveal = the bomb itself, like end-of-game when a mine is uncovered. */
-.lc-mine { background: #2a1320; box-shadow: inset 0 0 0 1px #4a1f30; }
+/* Revealed mine = the same slate background as a revealed clue (matches the
+   live game's `COLOR_KNOWN_BG`), with the spike-and-circle mine icon on top. */
+.lc-mine { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
+.lc-mine svg { display: block; }
 .lc-mark-safe { background: #10331f; box-shadow: inset 0 0 0 1px #14532d; color: var(--success); }
 .lc-good { box-shadow: inset 0 0 0 2px var(--success); }
 .lc-bad { box-shadow: inset 0 0 0 2px var(--danger); }
