@@ -349,8 +349,7 @@ var COLOR_GO_MESSAGE = "#22c55e";
 var COLOR_WINNER = "#22c55e";
 var COLOR_LOSER = "#f87171";
 
-var COLOR_MINE = "#0f172a";
-var COLOR_MINE_HILITE = "rgba(255, 255, 255, 0.85)";
+var COLOR_MINE = "#fca5a5";
 // Distinct per-number palette tuned to read on a dark revealed cell.
 var NUMBER_COLORS = {
 	1: "#60a5fa", 2: "#4ade80", 3: "#f87171", 4: "#c084fc",
@@ -4009,27 +4008,21 @@ function drawMine(ctx, w, h, t) {
 	ctx.translate(w / 2, h / 2);
 	ctx.scale(scale, scale);
 	var rad = Math.min(w, h) * 0.26;
-	var spikeLen = rad * 1.38;
-	// 4 full spike lines through the body, in the favicon style
+	// spikes — 8 short tips around the body, in the pink "exploded" look
 	ctx.strokeStyle = COLOR_MINE;
-	ctx.lineWidth = Math.max(1, rad * 0.38);
+	ctx.lineWidth = Math.max(1, rad * 0.22);
 	ctx.lineCap = "round";
-	for (var i = 0; i < 4; i++) {
+	for (var i = 0; i < 8; i++) {
 		var a = i * Math.PI / 4;
 		ctx.beginPath();
-		ctx.moveTo(-Math.cos(a) * spikeLen, -Math.sin(a) * spikeLen);
-		ctx.lineTo(Math.cos(a) * spikeLen, Math.sin(a) * spikeLen);
+		ctx.moveTo(Math.cos(a) * rad * 0.7, Math.sin(a) * rad * 0.7);
+		ctx.lineTo(Math.cos(a) * rad * 1.5, Math.sin(a) * rad * 1.5);
 		ctx.stroke();
 	}
 	// body
 	ctx.beginPath();
 	ctx.arc(0, 0, rad, 0, Math.PI * 2);
 	ctx.fillStyle = COLOR_MINE;
-	ctx.fill();
-	// shine highlight, matching the favicon
-	ctx.beginPath();
-	ctx.arc(-rad * 0.38, -rad * 0.38, rad * 0.3, 0, Math.PI * 2);
-	ctx.fillStyle = COLOR_MINE_HILITE;
 	ctx.fill();
 	// shine
 	ctx.beginPath();
