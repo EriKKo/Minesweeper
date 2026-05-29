@@ -349,7 +349,8 @@ var COLOR_GO_MESSAGE = "#22c55e";
 var COLOR_WINNER = "#22c55e";
 var COLOR_LOSER = "#f87171";
 
-var COLOR_MINE = "#fca5a5";
+var COLOR_MINE = "#0f172a";
+var COLOR_MINE_HILITE = "rgba(255, 255, 255, 0.85)";
 // Distinct per-number palette tuned to read on a dark revealed cell.
 var NUMBER_COLORS = {
 	1: "#60a5fa", 2: "#4ade80", 3: "#f87171", 4: "#c084fc",
@@ -2634,8 +2635,8 @@ function buildLearnLesson(lesson, idx, onLessonComplete) {
 }
 
 function createLearnMineSvg() {
-	// Matches the canvas drawMine: spike+circle in COLOR_MINE on the
-	// standard known-cell background, so demos look like real revealed mines.
+	// Same shape as the favicon's mine icon and the canvas drawMine: 4 full
+	// spike lines through a near-black body, with a small white highlight.
 	var ns = "http://www.w3.org/2000/svg";
 	var svg = document.createElementNS(ns, "svg");
 	svg.setAttribute("viewBox", "0 0 32 32");
@@ -2643,15 +2644,14 @@ function createLearnMineSvg() {
 	svg.setAttribute("height", "26");
 	svg.setAttribute("aria-hidden", "true");
 	var g = document.createElementNS(ns, "g");
-	g.setAttribute("stroke", "#fca5a5");
-	g.setAttribute("stroke-width", "2.4");
+	g.setAttribute("stroke", "#0f172a");
+	g.setAttribute("stroke-width", "2.5");
 	g.setAttribute("stroke-linecap", "round");
-	g.setAttribute("fill", "none");
 	var spikes = [
-		[16, 10, 16, 4], [16, 22, 16, 28],
-		[10, 16, 4, 16], [22, 16, 28, 16],
-		[12, 12, 7, 7], [20, 20, 25, 25],
-		[12, 20, 7, 25], [20, 12, 25, 7]
+		[16, 7, 16, 25],
+		[7, 16, 25, 16],
+		[9.5, 9.5, 22.5, 22.5],
+		[22.5, 9.5, 9.5, 22.5]
 	];
 	for (var i = 0; i < spikes.length; i++) {
 		var s = spikes[i];
@@ -2661,12 +2661,19 @@ function createLearnMineSvg() {
 		g.appendChild(line);
 	}
 	svg.appendChild(g);
-	var circle = document.createElementNS(ns, "circle");
-	circle.setAttribute("cx", "16");
-	circle.setAttribute("cy", "16");
-	circle.setAttribute("r", "6");
-	circle.setAttribute("fill", "#fca5a5");
-	svg.appendChild(circle);
+	var body = document.createElementNS(ns, "circle");
+	body.setAttribute("cx", "16");
+	body.setAttribute("cy", "16");
+	body.setAttribute("r", "6.5");
+	body.setAttribute("fill", "#0f172a");
+	svg.appendChild(body);
+	var hilite = document.createElementNS(ns, "circle");
+	hilite.setAttribute("cx", "13.5");
+	hilite.setAttribute("cy", "13.5");
+	hilite.setAttribute("r", "1.9");
+	hilite.setAttribute("fill", "#ffffff");
+	hilite.setAttribute("fill-opacity", "0.85");
+	svg.appendChild(hilite);
 	return svg;
 }
 
@@ -4002,21 +4009,27 @@ function drawMine(ctx, w, h, t) {
 	ctx.translate(w / 2, h / 2);
 	ctx.scale(scale, scale);
 	var rad = Math.min(w, h) * 0.26;
-	// spikes
+	var spikeLen = rad * 1.38;
+	// 4 full spike lines through the body, in the favicon style
 	ctx.strokeStyle = COLOR_MINE;
-	ctx.lineWidth = Math.max(1, rad * 0.22);
+	ctx.lineWidth = Math.max(1, rad * 0.38);
 	ctx.lineCap = "round";
-	for (var i = 0; i < 8; i++) {
+	for (var i = 0; i < 4; i++) {
 		var a = i * Math.PI / 4;
 		ctx.beginPath();
-		ctx.moveTo(Math.cos(a) * rad * 0.7, Math.sin(a) * rad * 0.7);
-		ctx.lineTo(Math.cos(a) * rad * 1.5, Math.sin(a) * rad * 1.5);
+		ctx.moveTo(-Math.cos(a) * spikeLen, -Math.sin(a) * spikeLen);
+		ctx.lineTo(Math.cos(a) * spikeLen, Math.sin(a) * spikeLen);
 		ctx.stroke();
 	}
 	// body
 	ctx.beginPath();
 	ctx.arc(0, 0, rad, 0, Math.PI * 2);
 	ctx.fillStyle = COLOR_MINE;
+	ctx.fill();
+	// shine highlight, matching the favicon
+	ctx.beginPath();
+	ctx.arc(-rad * 0.38, -rad * 0.38, rad * 0.3, 0, Math.PI * 2);
+	ctx.fillStyle = COLOR_MINE_HILITE;
 	ctx.fill();
 	// shine
 	ctx.beginPath();
