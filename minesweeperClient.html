@@ -1361,6 +1361,7 @@ socket.on("left_room", function() {
 	currentRoom = null;
 	iAmEliminated = null;
 	elimPanelDismissed = false;
+	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
 	showLobbyView();
 });
 
@@ -1448,6 +1449,67 @@ socket.on("series_ended", function(data) {
 	gameProgressText.textContent = "";
 	stopRoundTimer();
 });
+
+// Match-found reveal: server pauses for delayMs after forming a ranked match
+// so the lobby gets a moment to absorb who they're playing against. The panel
+// lists everyone sorted by rating with the player's row highlighted.
+var matchRevealTickHandle = null;
+
+socket.on("match_reveal", function(data) {
+	showMatchRevealPanel((data && data.delayMs) || 4000);
+});
+
+function showMatchRevealPanel(delayMs) {
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header result-header-series";
+	var modeLabel = (MODE_LABELS[currentRankedMode] || "Ranked");
+	header.textContent = modeLabel + " match found";
+	panel.appendChild(header);
+
+	var sub = document.createElement("div");
+	sub.className = "result-foot";
+	sub.textContent = (currentRoom && currentRoom.players ? currentRoom.players.length : 0) + " players";
+	panel.appendChild(sub);
+
+	var list = document.createElement("ol");
+	list.className = "result-list";
+	var players = (currentRoom && currentRoom.players ? currentRoom.players.slice() : []);
+	players.sort(function(a, b) {
+		var ar = typeof a.rating === "number" ? a.rating : 0;
+		var br = typeof b.rating === "number" ? b.rating : 0;
+		return br - ar;
+	});
+	players.forEach(function(p, idx) {
+		var tier = typeof p.rating === "number" ? tierFor(p.rating, p.provisional) : null;
+		var row = resultRow(String(idx + 1) + ".", p.id === id ? "You" : p.name, "", "",
+			{ me: p.id === id, top: idx === 0, tier: tier });
+		row.style.animationDelay = (idx * 35) + "ms";
+		list.appendChild(row);
+	});
+	panel.appendChild(list);
+
+	var counter = document.createElement("div");
+	counter.className = "result-foot match-reveal-counter";
+	counter.textContent = "Starting in " + Math.ceil(delayMs / 1000) + "…";
+	panel.appendChild(counter);
+
+	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
+	var startedAt = Date.now();
+	matchRevealTickHandle = setInterval(function() {
+		var remaining = delayMs - (Date.now() - startedAt);
+		if (remaining <= 0) {
+			clearInterval(matchRevealTickHandle); matchRevealTickHandle = null;
+			counter.textContent = "Starting…";
+			return;
+		}
+		counter.textContent = "Starting in " + Math.ceil(remaining / 1000) + "…";
+	}, 200);
+
+	presentPanel(panel);
+}
 
 // Sent only to the player(s) cut at the end of a tournament round. They stay
 // in the room (sockets joined) so they still receive series_ended at the end.

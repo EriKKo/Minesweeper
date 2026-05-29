@@ -257,7 +257,7 @@ var RANKED_MODES = {
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
 // players can see who they're playing and at what tier.
-var RANKED_MATCH_REVEAL_MS = 3000;
+var RANKED_MATCH_REVEAL_MS = 5000;
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
