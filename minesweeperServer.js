@@ -261,8 +261,8 @@ var RANKED_MATCH_REVEAL_MS = 3000;
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
-var BOT_JOIN_MIN_MS = 500;
-var BOT_JOIN_MAX_MS = 1600;
+var BOT_JOIN_MIN_MS = 200;
+var BOT_JOIN_MAX_MS = 850;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = { duo: [], six: [], tournament: [] };
 var pendingBotsLists = { duo: [], six: [], tournament: [] };
@@ -1158,17 +1158,31 @@ function jitterBotElo(targetElo) {
 	return jittered;
 }
 
+// How many bots "arrive" on this trickle tick. Mostly one, but occasionally a
+// pair or a small cluster — feels more like real players spawning in.
+function pickBotBatchSize() {
+	var r = Math.random();
+	if (r < 0.10) return 3;
+	if (r < 0.35) return 2;
+	return 1;
+}
+
 function scheduleBotArrival(mode) {
 	if (rankedFillTimers[mode]) return;
 	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
 	rankedFillTimers[mode] = setTimeout(function() {
 		rankedFillTimers[mode] = null;
 		if (rankedQueues[mode].length === 0) { pendingBotsLists[mode] = []; return; }
-		var taken = pendingBotsLists[mode].map(function(b) { return b.name; });
-		pendingBotsLists[mode].push({
-			name: botPlayer.pickBotName(taken),
-			config: botPlayer.configForElo(jitterBotElo(rankedTargetElo(mode)))
-		});
+		var slotsLeft = modeSize(mode) - rankedCount(mode);
+		if (slotsLeft <= 0) return;
+		var batch = Math.min(slotsLeft, pickBotBatchSize());
+		for (var b = 0; b < batch; b++) {
+			var taken = pendingBotsLists[mode].map(function(p) { return p.name; });
+			pendingBotsLists[mode].push({
+				name: botPlayer.pickBotName(taken),
+				config: botPlayer.configForElo(jitterBotElo(rankedTargetElo(mode)))
+			});
+		}
 		if (rankedCount(mode) >= modeSize(mode)) {
 			formRankedMatch(mode);
 		} else {
