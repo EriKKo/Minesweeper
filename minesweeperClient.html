@@ -741,58 +741,6 @@ function showSoloOutcome(won) {
 	presentPanel(panel, won ? "win" : "lose");
 }
 
-socket.on("solo_rejected", function(data) {
-	showLobbyMessage((data && data.reason) || "Couldn't start solo board.");
-	exitSolo();
-});
-
-socket.on("solo_board", function(data) {
-	rows = data.rows;
-	cols = data.cols;
-	soloSession = {
-		size: data.size,
-		totalSafe: data.totalSafe,
-		totalMines: data.mines,
-		startTime: null,
-		finishTime: null,
-		finished: false
-	};
-	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
-	// Build myState from the no-guess template's pre-revealed cells.
-	myState = new Array(rows);
-	for (var r = 0; r < rows; r++) {
-		myState[r] = new Array(cols);
-		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
-	}
-	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
-	prevPlayerState = cloneState(myState);
-	resetBoardAnimations();
-	frozenUntil = 0;
-	roundResultShown = false;
-	focusedR = Math.floor(rows / 2);
-	focusedC = Math.floor(cols / 2);
-	focusVisible = false;
-	lastFinished = {};
-	cellAnims = {};
-	hideOverlay();
-
-	// Resize the player canvas to match the new board dimensions, then show
-	// the game view (with solo-only chrome via toggleSoloChrome).
-	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
-	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
-	hideAllViews();
-	gameView.style.display = "";
-	gameView.classList.add("solo");
-	toggleSoloChrome(true);
-	updateSoloHud();
-	renderPlayerBoard();
-	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
-});
-
 function toggleSoloChrome(on) {
 	// Show solo info card; hide multiplayer side cards. Re-shown when leaving solo.
 	var soloCard = document.getElementById("solo_card");
@@ -1036,6 +984,58 @@ var account = null; // { name, rating, ... } when signed in
 })();
 
 var socket = io({ transports: ["websocket"] });
+
+socket.on("solo_rejected", function(data) {
+	showLobbyMessage((data && data.reason) || "Couldn't start solo board.");
+	exitSolo();
+});
+
+socket.on("solo_board", function(data) {
+	rows = data.rows;
+	cols = data.cols;
+	soloSession = {
+		size: data.size,
+		totalSafe: data.totalSafe,
+		totalMines: data.mines,
+		startTime: null,
+		finishTime: null,
+		finished: false
+	};
+	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
+	// Build myState from the no-guess template's pre-revealed cells.
+	myState = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		myState[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
+	}
+	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
+	prevPlayerState = cloneState(myState);
+	resetBoardAnimations();
+	frozenUntil = 0;
+	roundResultShown = false;
+	focusedR = Math.floor(rows / 2);
+	focusedC = Math.floor(cols / 2);
+	focusVisible = false;
+	lastFinished = {};
+	cellAnims = {};
+	hideOverlay();
+
+	// Resize the player canvas to match the new board dimensions, then show
+	// the game view (with solo-only chrome via toggleSoloChrome).
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+	hideAllViews();
+	gameView.style.display = "";
+	gameView.classList.add("solo");
+	toggleSoloChrome(true);
+	updateSoloHud();
+	renderPlayerBoard();
+	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+});
 
 // Procedural sound effects (WebAudio, no asset files). Short and soft — these
 // fire hundreds of times per game, so everything is brief and low-gain.
