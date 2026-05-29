@@ -654,6 +654,65 @@ function buildStandings(room) {
 	return entries;
 }
 
+// Compute and apply Elo for a single player against a known set of standings.
+// Used by tournament mode so eliminated players get their rating change the
+// moment they're cut, instead of waiting for the survivor to be crowned. The
+// math is the same pairwise formula as applyRankedElo. Returns the delta info
+// (or null if the player isn't a persisted human).
+function applyEloForPlayer(targetPid, allParts) {
+	var target = null;
+	for (var i = 0; i < allParts.length; i++) if (allParts[i].id === targetPid) { target = allParts[i]; break; }
+	if (!target || target.bot || !target.userId) return null;
+	var n = allParts.length;
+	if (n < 2) return null;
+	var sum = 0;
+	for (var j = 0; j < n; j++) {
+		var q = allParts[j];
+		if (q.id === targetPid) continue;
+		var score = target.rank < q.rank ? 1 : target.rank > q.rank ? 0 : 0.5;
+		var expected = 1 / (1 + Math.pow(10, (q.rating - target.rating) / 400));
+		sum += score - expected;
+	}
+	var K = Math.max(30, 80 - target.played * 4);
+	var delta = Math.round(K * sum / Math.sqrt(n - 1));
+	var newRating = target.rating + delta;
+	var provisional = (target.played + 1) < PROVISIONAL_GAMES;
+	db.updateRating(target.userId, newRating, target.rank === 1);
+	if (accounts[targetPid]) {
+		accounts[targetPid].rating = newRating;
+		accounts[targetPid].played = target.played + 1;
+	}
+	return { delta: delta, newRating: newRating, provisional: provisional };
+}
+
+// Build the pairwise-Elo parts snapshot for a tournament room from the
+// perspective of a single eliminated/finishing player. Survivors are slotted
+// at rank 1 (they outranked anyone already eliminated); the focused player
+// keeps their just-determined rank; previously-eliminated players retain
+// their stored places.
+function tournamentEloParts(room, focusedPid, focusedRank) {
+	var participants = room.tournamentParticipants || [];
+	return participants.map(function(pid) {
+		var rank;
+		if (pid === focusedPid) {
+			rank = focusedRank;
+		} else if (room.tournamentEliminated[pid]) {
+			rank = room.tournamentEliminated[pid].place;
+		} else {
+			rank = 1; // survivor — will outrank the focused player
+		}
+		var bot = isBot(pid);
+		var acc = accounts[pid];
+		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : RANKED_BOT_RATING;
+		var userId = null, played = 0;
+		if (!bot && acc) {
+			var u = db.getUserById(acc.userId);
+			if (u) { rating = u.rating; userId = acc.userId; played = u.played; }
+		}
+		return { id: pid, rank: rank, rating: rating, bot: bot, userId: userId, played: played };
+	});
+}
+
 // Pairwise Elo over the round's standings. Each pair of players is a mini-match;
 // a player's delta is K * mean(score - expected) across opponents (so a round's
 // swing stays ~K regardless of lobby size). Bots use a fixed rating and aren't
@@ -732,15 +791,26 @@ function endIndividualGame(room, reason) {
 		var roundIdx = room.gamesPlayed - 1;
 		var survivorsTarget = room.tournamentSchedule[roundIdx] || 1;
 		// Walk highest rank → lowest so each .deletePlayer doesn't shift indices we care about.
+		if (!room.tournamentElo) room.tournamentElo = {};
 		for (var ei = standings.length - 1; ei >= survivorsTarget; ei--) {
 			var sCut = standings[ei];
-			room.tournamentEliminated[sCut.id] = { round: room.gamesPlayed, place: ei + 1 };
+			var place = ei + 1;
+			room.tournamentEliminated[sCut.id] = { round: room.gamesPlayed, place: place };
+			// Apply this player's Elo immediately against the current snapshot —
+			// survivors are pinned at rank 1 (they outranked this player) and the
+			// already-eliminated keep their fixed places, so the pairwise math
+			// gives them their real final delta right now.
+			var eloInfo = applyEloForPlayer(sCut.id, tournamentEloParts(room, sCut.id, place));
+			if (eloInfo) room.tournamentElo[sCut.id] = eloInfo;
 			if (sockets[sCut.id]) {
 				sockets[sCut.id].emit("tournament_eliminated", {
 					round: room.gamesPlayed,
 					totalRounds: room.tournamentSchedule.length,
-					place: ei + 1,
-					totalParticipants: room.tournamentParticipants.length
+					place: place,
+					totalParticipants: room.tournamentParticipants.length,
+					ratingDelta: eloInfo ? eloInfo.delta : null,
+					rating: eloInfo ? eloInfo.newRating : null,
+					provisional: eloInfo ? eloInfo.provisional : null
 				});
 			}
 			if (isBot(sCut.id)) clearBotTick(sCut.id);
@@ -821,13 +891,15 @@ function buildSeriesStandings(room) {
 }
 
 // Tournament final standings: each participant's rank is their tournament-
-// elimination place (1 = winner, last = first eliminated). Used for Elo at end.
+// elimination place (1 = winner, last = first eliminated). Eliminated players'
+// rating deltas were applied at elimination time and stored in room.tournamentElo
+// — pull them through so the final panel can show each row's delta.
 function buildTournamentStandings(room) {
 	var N = room.tournamentParticipants.length;
 	var entries = room.tournamentParticipants.map(function(pid) {
 		var elim = room.tournamentEliminated[pid];
-		var rank = elim ? elim.place : 1;  // still in room = winner, rank 1
-		return {
+		var rank = elim ? elim.place : 1;
+		var entry = {
 			id: pid,
 			name: names[pid] || "Anonymous",
 			score: 0,
@@ -835,6 +907,18 @@ function buildTournamentStandings(room) {
 			points: N - rank + 1,
 			eliminatedRound: elim ? elim.round : null
 		};
+		var eloInfo = (room.tournamentElo || {})[pid];
+		if (eloInfo) {
+			entry.ratingDelta = eloInfo.delta;
+			entry.rating = eloInfo.newRating;
+			entry.provisional = eloInfo.provisional;
+		} else if (!isBot(pid)) {
+			// No stored Elo yet (likely the winner) — fall back to the persisted rating.
+			var acc = accounts[pid];
+			var u = acc ? db.getUserById(acc.userId) : null;
+			if (u) { entry.rating = u.rating; entry.provisional = u.played < PROVISIONAL_GAMES; }
+		}
+		return entry;
 	});
 	entries.sort(function(a, b) { return a.rank - b.rank; });
 	return entries;
@@ -852,12 +936,21 @@ function endSeries(room) {
 	// show the bump on the series_ended panel.
 	var seriesStandings;
 	if (room.rankedMode === "tournament") {
+		// Apply Elo for the winner (the lone survivor) against the now-complete
+		// standings. The eliminated players already had theirs applied as they
+		// were cut, so they're skipped here.
+		var winnerPid = room.players[0];
+		if (winnerPid) {
+			if (!room.tournamentElo) room.tournamentElo = {};
+			var winnerInfo = applyEloForPlayer(winnerPid, tournamentEloParts(room, winnerPid, 1));
+			if (winnerInfo) room.tournamentElo[winnerPid] = winnerInfo;
+		}
 		seriesStandings = buildTournamentStandings(room);
 		room.seriesWinner = seriesStandings[0] ? seriesStandings[0].id : null;
 	} else {
 		seriesStandings = buildSeriesStandings(room);
+		if (room.ranked) applyRankedElo(seriesStandings);
 	}
-	if (room.ranked) applyRankedElo(seriesStandings);
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,

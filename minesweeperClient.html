@@ -1432,9 +1432,19 @@ socket.on("series_ended", function(data) {
 
 // Sent only to the player(s) cut at the end of a tournament round. They stay
 // in the room (sockets joined) so they still receive series_ended at the end.
+// The Elo update is applied server-side at elimination time, and the rating
+// delta is carried in this event so the topbar bump + rank banner fire now.
 socket.on("tournament_eliminated", function(data) {
 	iAmEliminated = data;
 	elimPanelDismissed = false;
+	if (typeof data.rating === "number") {
+		updateRatingFromStandings([{
+			id: id,
+			rating: data.rating,
+			ratingDelta: data.ratingDelta,
+			provisional: data.provisional
+		}]);
+	}
 	showTournamentEliminationPanel(data);
 	sound.lose();
 	stopRoundTimer();
