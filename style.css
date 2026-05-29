@@ -1868,7 +1868,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	user-select: none;
 	font-family: Inter, system-ui, sans-serif;
 }
-.lc-bg { background: transparent; }
+/* "Background" cells used to render context now look like revealed empty
+   squares so every puzzle reads as a real minesweeper board fragment. */
+.lc-bg { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
 .lc-clue { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
 .lc-covered {
 	background: linear-gradient(#4f93f7, #2563eb);
@@ -1876,7 +1878,13 @@ body.touch .find-next-arrow { display: inline-flex; }
 	cursor: pointer;
 }
 .lc-covered:hover { filter: brightness(1.08); }
-.lc-flag, .lc-mark-mine { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
+/* Flag = real in-game look: covered cell with a flag emoji on top. */
+.lc-flag {
+	background: linear-gradient(#4f93f7, #2563eb);
+	box-shadow: inset 0 0 0 1px #1e40af, inset 0 2px 0 rgba(255, 255, 255, 0.28);
+}
+/* Mark-mine = "you deduced this is a mine" — distinct from a normal flag. */
+.lc-mark-mine { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
 .lc-mark-safe { background: #10331f; box-shadow: inset 0 0 0 1px #14532d; color: var(--success); }
 .lc-good { box-shadow: inset 0 0 0 2px var(--success); }
 .lc-bad { box-shadow: inset 0 0 0 2px var(--danger); }
@@ -1923,4 +1931,44 @@ body.touch .find-next-arrow { display: inline-flex; }
 	white-space: pre-line;
 }
 .learn-why.show { display: block; }
+
+.learn-demo {
+	margin: 0.85rem 0 0;
+	padding: 0.85rem 0.9rem;
+	background: rgba(96, 165, 250, 0.06);
+	border: 1px solid rgba(96, 165, 250, 0.22);
+	border-radius: 10px;
+}
+.learn-demo-label {
+	font-size: 0.7rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--muted);
+	font-weight: 700;
+	margin-bottom: 0.55rem;
+}
+.learn-demo .learn-board { background: var(--bg); }
+.learn-demo-why {
+	margin-top: 0.6rem;
+	font-size: 0.9rem;
+	color: var(--text);
+	line-height: 1.55;
+	background: transparent;
+	padding: 0;
+}
+.learn-try-label {
+	margin: 1rem 0 -0.25rem;
+	font-size: 0.7rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--muted);
+	font-weight: 700;
+}
+.learn-demo-tiles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.7rem;
+}
+.learn-demo-tile { display: inline-flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+.learn-demo-tile-cap { font-size: 0.75rem; color: var(--muted); }
 .learn-hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
