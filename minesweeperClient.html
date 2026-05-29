@@ -880,6 +880,7 @@ var lastActionCell = null;     // where the local player last revealed, for ripp
 var lastScores = {};           // playerId -> last rendered score, to flash gains
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
+var elimPanelDismissed = false;// player chose "Keep watching" — don't redraw the panel each round
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
 nameForm.addEventListener("submit", function(e) {
@@ -1320,6 +1321,7 @@ socket.on("joined_room", function(data) {
 	inRoom = true;
 	if (data && data.mode) currentRankedMode = data.mode;
 	iAmEliminated = null;
+	elimPanelDismissed = false;
 	setRankedSearching(false);
 	showGameView();
 	resetGameUI();
@@ -1339,6 +1341,7 @@ socket.on("left_room", function() {
 	inRoom = false;
 	currentRoom = null;
 	iAmEliminated = null;
+	elimPanelDismissed = false;
 	showLobbyView();
 });
 
@@ -1354,11 +1357,13 @@ socket.on("room_state", function(state) {
 
 socket.on("start_game", function(data) {
 	// If we've been eliminated this tournament we stay in the room to spectate
-	// but skip the playable countdown — re-show the persistent elimination panel.
+	// but skip the playable countdown. Re-show the elimination panel unless the
+	// player explicitly dismissed it via "Keep watching".
 	if (iAmEliminated) {
 		hideReadyButton();
 		gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
-		showTournamentEliminationPanel(iAmEliminated);
+		if (elimPanelDismissed) hideOverlay();
+		else showTournamentEliminationPanel(iAmEliminated);
 		return;
 	}
 	hideReadyButton();
@@ -1429,6 +1434,7 @@ socket.on("series_ended", function(data) {
 // in the room (sockets joined) so they still receive series_ended at the end.
 socket.on("tournament_eliminated", function(data) {
 	iAmEliminated = data;
+	elimPanelDismissed = false;
 	showTournamentEliminationPanel(data);
 	sound.lose();
 	stopRoundTimer();
@@ -1450,10 +1456,41 @@ function showTournamentEliminationPanel(data) {
 
 	var foot = document.createElement("div");
 	foot.className = "result-foot";
-	foot.textContent = "Standings + rating change when the tournament ends.";
+	foot.textContent = "Final standings + rating change when the tournament ends.";
 	panel.appendChild(foot);
 
-	// No auto-hide — replaced when series_ended fires (or when the player leaves).
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+
+	var watch = document.createElement("button");
+	watch.className = "btn btn-secondary";
+	watch.textContent = "Keep watching";
+	watch.addEventListener("click", function() {
+		elimPanelDismissed = true;
+		hideOverlay();
+	});
+	actions.appendChild(watch);
+
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Find new match";
+	again.addEventListener("click", function() {
+		socket.emit("leave_room");
+		findRanked("tournament");
+	});
+	actions.appendChild(again);
+
+	var back = document.createElement("button");
+	back.className = "btn btn-ghost";
+	back.textContent = "Back to menu";
+	back.addEventListener("click", function() {
+		socket.emit("leave_room");
+	});
+	actions.appendChild(back);
+
+	panel.appendChild(actions);
+
+	// No auto-hide — replaced when series_ended fires, dismissed via Keep watching, or when the player leaves.
 	presentPanel(panel, "lose");
 }
 
