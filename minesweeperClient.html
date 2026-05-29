@@ -149,14 +149,22 @@
 		</section>
 
 		<section id="learn_view" class="view section-view" style="display:none">
-			<h1 class="section-page-title">Learn Minesweeper</h1>
-			<p class="section-page-sub">Every safe move comes from logic, not luck. Work through the techniques below — each ends with puzzles you solve by clicking. <strong>Left-click</strong> a cell you can prove is safe; <strong>right-click</strong> (or switch to Mine mode) to flag one you can prove is a mine.</p>
-			<div class="section-card">
-				<h2>How the numbers work</h2>
-				<p>Each revealed number tells you how many of its eight neighbouring cells are mines. Every technique here is built from that one fact — and none of them need the total mine count.</p>
+			<h1 class="section-page-title">Introduction course</h1>
+			<p class="section-page-sub">Eight short lessons. Solve both puzzles in each to unlock the next.</p>
+			<div id="learn_stepper" class="learn-stepper" aria-label="Lesson progress"></div>
+			<div id="learn_lesson_container"></div>
+			<div id="learn_nav" class="learn-nav"></div>
+			<div id="learn_complete" class="section-card learn-complete" style="display:none">
+				<div class="learn-complete-badge">🏆</div>
+				<h2>Introduction course complete!</h2>
+				<p>You now know every local deduction the game leans on — forced mines, satisfied clears, subset rules, the named patterns, chains, enumeration, and smart guessing.</p>
+				<div class="learn-complete-actions">
+					<a href="#/practice" class="btn btn-primary">Try Free play</a>
+					<button id="learn_review" class="btn btn-secondary" type="button">Review lessons</button>
+					<button id="learn_reset_btn" class="btn btn-ghost" type="button">Reset progress</button>
+				</div>
 			</div>
-			<div id="learn_lessons" class="learn-lessons"></div>
-			<div class="section-card">
+			<div class="section-card learn-rules">
 				<h2>Ranked rules</h2>
 				<ul class="section-rules">
 					<li><strong>1v1</strong> — head-to-head race against one opponent, fastest clear wins.</li>
@@ -2271,36 +2279,198 @@ var LEARN_LESSONS = [
 	}
 ];
 
-var learnRendered = false;
-function renderLearnOnce() {
-	if (learnRendered) return;
-	var root = document.getElementById("learn_lessons");
-	if (!root) return;
-	learnRendered = true;
-	for (var i = 0; i < LEARN_LESSONS.length; i++) {
-		root.appendChild(buildLearnLesson(LEARN_LESSONS[i], i));
-	}
+// ---- Learn course state ------------------------------------------------
+var LEARN_STATE_KEY = "msbattle.learn.progress";
+var learnState = { currentLesson: 0, completed: new Array(LEARN_LESSONS.length).fill(false), completedAt: null };
+
+function loadLearnState() {
+	try {
+		var raw = localStorage.getItem(LEARN_STATE_KEY);
+		if (!raw) return;
+		var parsed = JSON.parse(raw);
+		if (parsed && Array.isArray(parsed.completed)) {
+			var n = LEARN_LESSONS.length;
+			learnState.completed = new Array(n).fill(false).map(function(_, i) { return !!parsed.completed[i]; });
+			learnState.currentLesson = Math.min(n - 1, Math.max(0, parsed.currentLesson | 0));
+			learnState.completedAt = parsed.completedAt || null;
+		}
+	} catch (e) { /* ignore corrupt state */ }
 }
 
-function buildLearnLesson(lesson, idx) {
-	var details = document.createElement("details");
-	details.className = "section-card learn-lesson";
-	if (idx === 0) details.open = true;
+function saveLearnState() {
+	try { localStorage.setItem(LEARN_STATE_KEY, JSON.stringify(learnState)); } catch (e) {}
+}
 
-	var summary = document.createElement("summary");
+function isCourseComplete() {
+	for (var i = 0; i < learnState.completed.length; i++) if (!learnState.completed[i]) return false;
+	return true;
+}
+
+function renderLearn() {
+	var container = document.getElementById("learn_lesson_container");
+	var stepper = document.getElementById("learn_stepper");
+	var navEl = document.getElementById("learn_nav");
+	var doneCard = document.getElementById("learn_complete");
+	var rulesCard = document.querySelector(".learn-rules");
+	if (!container || !stepper || !navEl) return;
+
+	// Course-complete screen takes the page over (rules card stays for reference).
+	if (isCourseComplete() && learnState.currentLesson >= LEARN_LESSONS.length) {
+		container.innerHTML = "";
+		stepper.innerHTML = "";
+		navEl.innerHTML = "";
+		doneCard.style.display = "";
+		return;
+	}
+	doneCard.style.display = "none";
+
+	// Stepper: one circle per lesson, joined by lines. Completed = green, current
+	// = highlighted, future = locked (unless the course has been completed once,
+	// in which case every lesson is freely re-clickable for review).
+	stepper.innerHTML = "";
+	var courseDone = isCourseComplete();
+	for (var i = 0; i < LEARN_LESSONS.length; i++) {
+		(function(idx) {
+			var step = document.createElement("button");
+			step.type = "button";
+			step.className = "learn-step";
+			step.textContent = String(idx + 1);
+			step.title = LEARN_LESSONS[idx].title;
+			if (learnState.completed[idx]) step.classList.add("done");
+			if (idx === learnState.currentLesson) step.classList.add("current");
+			var unlocked = courseDone || learnState.completed[idx] || idx <= learnState.currentLesson;
+			if (unlocked) step.classList.add("unlocked");
+			step.disabled = !unlocked;
+			step.addEventListener("click", function() {
+				if (!unlocked) return;
+				learnState.currentLesson = idx;
+				saveLearnState();
+				renderLearn();
+			});
+			stepper.appendChild(step);
+			if (idx < LEARN_LESSONS.length - 1) {
+				var line = document.createElement("span");
+				line.className = "learn-step-line" + (learnState.completed[idx] ? " done" : "");
+				stepper.appendChild(line);
+			}
+		})(i);
+	}
+
+	// Render the current lesson into the container.
+	container.innerHTML = "";
+	var lesson = LEARN_LESSONS[learnState.currentLesson];
+	container.appendChild(buildLearnLesson(lesson, learnState.currentLesson, function() {
+		// Called when both puzzles in the lesson are solved.
+		if (!learnState.completed[learnState.currentLesson]) {
+			learnState.completed[learnState.currentLesson] = true;
+			if (isCourseComplete() && !learnState.completedAt) learnState.completedAt = Date.now();
+			saveLearnState();
+			renderLearn();
+		}
+	}));
+
+	// Nav row: Previous / progress / Next.
+	navEl.innerHTML = "";
+	var prev = document.createElement("button");
+	prev.type = "button";
+	prev.className = "btn btn-secondary";
+	prev.textContent = "← Previous lesson";
+	prev.disabled = learnState.currentLesson === 0;
+	prev.addEventListener("click", function() {
+		if (learnState.currentLesson > 0) { learnState.currentLesson--; saveLearnState(); renderLearn(); }
+	});
+	navEl.appendChild(prev);
+
+	var progress = document.createElement("div");
+	progress.className = "learn-progress-text";
+	var doneCount = learnState.completed.filter(function(b) { return b; }).length;
+	progress.textContent = doneCount + " of " + LEARN_LESSONS.length + " complete";
+	navEl.appendChild(progress);
+
+	var next = document.createElement("button");
+	next.type = "button";
+	next.className = "btn btn-primary";
+	var isLast = learnState.currentLesson === LEARN_LESSONS.length - 1;
+	next.textContent = isLast ? "Finish course" : "Next lesson →";
+	next.disabled = !learnState.completed[learnState.currentLesson];
+	next.addEventListener("click", function() {
+		if (next.disabled) return;
+		if (isLast) {
+			learnState.currentLesson = LEARN_LESSONS.length; // signal completion view
+			if (!learnState.completedAt) learnState.completedAt = Date.now();
+		} else {
+			learnState.currentLesson++;
+		}
+		saveLearnState();
+		renderLearn();
+	});
+	navEl.appendChild(next);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+	loadLearnState();
+	var reviewBtn = document.getElementById("learn_review");
+	if (reviewBtn) reviewBtn.addEventListener("click", function() {
+		learnState.currentLesson = 0;
+		saveLearnState();
+		renderLearn();
+	});
+	var resetBtn = document.getElementById("learn_reset_btn");
+	if (resetBtn) resetBtn.addEventListener("click", function() {
+		if (!confirm("Reset all lesson progress?")) return;
+		learnState = { currentLesson: 0, completed: new Array(LEARN_LESSONS.length).fill(false), completedAt: null };
+		saveLearnState();
+		renderLearn();
+	});
+});
+// If DOMContentLoaded already fired (script is at end of body), wire immediately.
+if (document.readyState !== "loading") {
+	loadLearnState();
+	var _lr = document.getElementById("learn_review");
+	if (_lr) _lr.addEventListener("click", function() { learnState.currentLesson = 0; saveLearnState(); renderLearn(); });
+	var _rs = document.getElementById("learn_reset_btn");
+	if (_rs) _rs.addEventListener("click", function() {
+		if (!confirm("Reset all lesson progress?")) return;
+		learnState = { currentLesson: 0, completed: new Array(LEARN_LESSONS.length).fill(false), completedAt: null };
+		saveLearnState();
+		renderLearn();
+	});
+}
+
+function buildLearnLesson(lesson, idx, onLessonComplete) {
+	var card = document.createElement("div");
+	card.className = "section-card learn-lesson learn-lesson-open";
+
+	var heading = document.createElement("div");
+	heading.style.display = "flex";
+	heading.style.alignItems = "baseline";
+	heading.style.gap = "0.6rem";
+	heading.style.marginBottom = "0.4rem";
 	var num = document.createElement("span");
 	num.className = "learn-lesson-num";
-	num.textContent = String(idx + 1);
-	var title = document.createElement("span");
+	num.textContent = "Lesson " + (idx + 1) + " / " + LEARN_LESSONS.length;
+	num.style.fontSize = "0.7rem";
+	num.style.letterSpacing = "0.12em";
+	num.style.color = "var(--muted)";
+	num.style.fontWeight = "700";
+	num.style.textTransform = "uppercase";
+	heading.appendChild(num);
+	card.appendChild(heading);
+
+	var title = document.createElement("h2");
 	title.className = "learn-lesson-title";
+	title.style.fontSize = "1.4rem";
+	title.style.margin = "0 0 0.35rem";
 	title.textContent = lesson.title;
-	var idea = document.createElement("span");
+	card.appendChild(title);
+
+	var idea = document.createElement("p");
 	idea.className = "learn-lesson-idea";
+	idea.style.fontSize = "1rem";
+	idea.style.color = "var(--text)";
+	idea.style.margin = "0 0 0.85rem";
 	idea.textContent = lesson.idea;
-	summary.appendChild(num);
-	summary.appendChild(title);
-	summary.appendChild(idea);
-	details.appendChild(summary);
+	card.appendChild(idea);
 
 	var body = document.createElement("div");
 	body.className = "learn-lesson-body";
@@ -2316,19 +2486,34 @@ function buildLearnLesson(lesson, idx) {
 	mistake.appendChild(document.createTextNode(lesson.mistake));
 	body.appendChild(mistake);
 
-	for (var p = 0; p < lesson.puzzles.length; p++) {
-		body.appendChild(buildLearnPuzzle(lesson.puzzles[p], !!lesson.guess));
+	var puzzleSolved = lesson.puzzles.map(function() { return false; });
+	function markSolved(puzzleIdx) {
+		puzzleSolved[puzzleIdx] = true;
+		var done = puzzleSolved.every(function(b) { return b; });
+		if (done && typeof onLessonComplete === "function") onLessonComplete();
 	}
-	details.appendChild(body);
-	return details;
+
+	for (var p = 0; p < lesson.puzzles.length; p++) {
+		(function(pi) {
+			body.appendChild(buildLearnPuzzle(lesson.puzzles[pi], !!lesson.guess, function() {
+				markSolved(pi);
+			}));
+		})(p);
+	}
+	card.appendChild(body);
+	return card;
 }
 
-function buildLearnPuzzle(puzzle, isGuess) {
+function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-puzzle";
 	var title = document.createElement("span");
 	title.className = "learn-puzzle-title";
 	title.textContent = puzzle.title;
+	var solvedTick = document.createElement("span");
+	solvedTick.className = "learn-puzzle-solved";
+	solvedTick.textContent = "";
+	title.appendChild(solvedTick);
 	wrap.appendChild(title);
 
 	var rows = puzzle.grid.map(function(r) { return r.trim().split(/\s+/); });
@@ -2381,6 +2566,14 @@ function buildLearnPuzzle(puzzle, isGuess) {
 		status.className = "learn-status" + (cls ? " " + cls : "");
 	}
 
+	var puzzleSolved = false;
+	function notifySolved() {
+		if (puzzleSolved) return;
+		puzzleSolved = true;
+		solvedTick.textContent = "✓";
+		if (typeof onSolved === "function") onSolved();
+	}
+
 	function onLearnMark(item, asMine) {
 		var cellEl = item.el;
 		if (isGuess) {
@@ -2389,6 +2582,7 @@ function buildLearnPuzzle(puzzle, isGuess) {
 			if (item.sol === "G") {
 				cellEl.classList.add("lc-good");
 				setStatus("Good guess — lowest risk on the board.", "ok");
+				notifySolved();
 			} else {
 				cellEl.classList.add("lc-bad");
 				setStatus("Risky — the other group has better odds.", "warn");
@@ -2407,6 +2601,7 @@ function buildLearnPuzzle(puzzle, isGuess) {
 			if (solvedCount >= needed) {
 				setStatus("Solved! ✓", "ok");
 				why.classList.add("show");
+				notifySolved();
 			} else {
 				setStatus(solvedCount + " / " + needed + " found", "");
 			}
@@ -2452,6 +2647,7 @@ function buildLearnPuzzle(puzzle, isGuess) {
 			});
 			setStatus("Answer revealed.", "");
 			why.classList.add("show");
+			notifySolved();
 		});
 
 		var resetBtn = document.createElement("button");
@@ -2493,7 +2689,7 @@ function showLearnView() {
 	hideAllViews();
 	document.getElementById("learn_view").style.display = "";
 	setSiteNavActive("learn");
-	renderLearnOnce();
+	renderLearn();
 }
 
 function showPracticeView() {

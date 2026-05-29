@@ -1710,6 +1710,104 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 /* ---- Learn: interactive deduction trainer ---- */
 .learn-lessons { margin-bottom: 1rem; }
+
+/* Stepper bar above the current lesson — circles 1-8 with progress arcs. */
+.learn-stepper {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	margin-bottom: 1.25rem;
+	flex-wrap: wrap;
+}
+
+.learn-step {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	color: var(--muted);
+	font-weight: 700;
+	font-size: 0.85rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: not-allowed;
+	transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
+	flex: 0 0 auto;
+}
+
+.learn-step.unlocked { cursor: pointer; }
+.learn-step.unlocked:hover { transform: translateY(-1px); border-color: var(--accent-hover); color: var(--text); }
+
+.learn-step.done {
+	background: rgba(34, 197, 94, 0.22);
+	border-color: rgba(34, 197, 94, 0.55);
+	color: #4ade80;
+}
+
+.learn-step.current {
+	background: rgba(99, 102, 241, 0.28);
+	border-color: rgba(99, 102, 241, 0.7);
+	color: #fff;
+	box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.learn-step-line {
+	flex: 0 0 12px;
+	height: 2px;
+	background: var(--border);
+	border-radius: 1px;
+}
+
+.learn-step-line.done { background: rgba(34, 197, 94, 0.55); }
+
+/* Navigation row below the lesson body. */
+.learn-nav {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.75rem;
+	margin: 0.75rem 0 1.25rem;
+	flex-wrap: wrap;
+}
+
+.learn-nav .learn-progress-text {
+	color: var(--muted);
+	font-size: 0.88rem;
+	font-weight: 600;
+	text-align: center;
+	flex: 1 1 200px;
+}
+
+.learn-nav .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Inline "puzzle solved" tick beside the puzzle title. */
+.learn-puzzle-solved {
+	display: inline-block;
+	margin-left: 0.45rem;
+	color: #4ade80;
+	font-weight: 800;
+}
+
+/* Course-complete celebration card. */
+.learn-complete {
+	text-align: center;
+	background: linear-gradient(160deg, rgba(34, 197, 94, 0.12), rgba(99, 102, 241, 0.08));
+	border-color: rgba(99, 102, 241, 0.35);
+}
+
+.learn-complete-badge { font-size: 3rem; line-height: 1; margin-bottom: 0.6rem; }
+.learn-complete h2 { margin: 0 0 0.4rem; font-size: 1.5rem; }
+.learn-complete-actions {
+	display: flex;
+	gap: 0.55rem;
+	justify-content: center;
+	flex-wrap: wrap;
+	margin-top: 1rem;
+}
+
+.learn-rules { margin-top: 1rem; }
 .learn-lesson { margin-bottom: 1rem; }
 .learn-lesson > summary {
 	cursor: pointer;
