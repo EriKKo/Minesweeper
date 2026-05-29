@@ -167,6 +167,10 @@
 					</div>
 				</div>
 				<aside class="game-side">
+					<div id="scoreboard_card" class="side-card">
+						<h3 class="side-title">Scoreboard</h3>
+						<ol id="scoreboard" class="scoreboard"></ol>
+					</div>
 					<div id="all_opponents_div" class="opponents" style="display:none">
 						<div class="opponent_div" data-slot>
 							<p id="player_name1" class="player-name"></p>
@@ -176,15 +180,15 @@
 							<p id="player_name2" class="player-name"></p>
 							<canvas id="game2" width="250" height="175"></canvas>
 						</div>
-						<div class="opponent_div" data-slot>
+						<div class="opponent_div" data-slot style="display:none">
 							<p id="player_name3" class="player-name"></p>
 							<canvas id="game3" width="250" height="175"></canvas>
 						</div>
-						<div class="opponent_div" data-slot>
+						<div class="opponent_div" data-slot style="display:none">
 							<p id="player_name4" class="player-name"></p>
 							<canvas id="game4" width="250" height="175"></canvas>
 						</div>
-						<div class="opponent_div" data-slot>
+						<div class="opponent_div" data-slot style="display:none">
 							<p id="player_name5" class="player-name"></p>
 							<canvas id="game5" width="250" height="175"></canvas>
 						</div>
@@ -226,10 +230,6 @@
 							<button id="remove_bot_button" class="btn btn-ghost" type="button">Remove bot</button>
 						</div>
 						<p id="bot_status" class="series-status"></p>
-					</div>
-					<div class="side-card">
-						<h3 class="side-title">Scoreboard</h3>
-						<ol id="scoreboard" class="scoreboard"></ol>
 					</div>
 				</aside>
 			</div>
@@ -1460,21 +1460,36 @@ socket.on("draw_board", function(data) {
 			totalSafe: g.totalSafe || 0
 		};
 	}
-	for (var i = 0; i < 6; i++) {
+
+	// Slot 0 = player's own board (always).
+	var me = games[0];
+	if (me) {
+		document.getElementById("player_name0").textContent = me.playerName;
+		queueRevealAnimations(me.state);
+		myState = me.state;
+		prevPlayerState = cloneState(me.state);
+		renderPlayerBoard();
+		updateMobileFindNextHint();
+	}
+
+	// Slots 1-2 = top two opponents by live progress (finished outranks playing,
+	// then by % cleared). Other opponents stay hidden — large lobbies would be
+	// unreadable otherwise; the scoreboard surfaces everyone with progress bars.
+	var opponents = games.slice(1).filter(function(g) { return g; });
+	opponents.sort(function(a, b) {
+		if (a.finished !== b.finished) return a.finished ? -1 : 1;
+		if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+		return (b.progress || 0) - (a.progress || 0);
+	});
+
+	for (var i = 1; i <= 5; i++) {
 		var nameEl = document.getElementById("player_name" + i);
 		var canvasEl = document.getElementById("game" + i);
-		var slot = i === 0 ? null : slots[i - 1];
-		if (i < games.length) {
-			nameEl.textContent = games[i].playerName;
-			if (i === 0) {
-				queueRevealAnimations(games[i].state);
-				myState = games[i].state;
-				prevPlayerState = cloneState(games[i].state);
-				renderPlayerBoard();
-				updateMobileFindNextHint();
-			} else {
-				drawBoardStatic(games[i].state, canvasEl);
-			}
+		var slot = slots[i - 1];
+		var opp = i <= 2 ? opponents[i - 1] : null;
+		if (opp) {
+			nameEl.textContent = opp.playerName;
+			drawBoardStatic(opp.state, canvasEl);
 			if (slot) slot.style.display = "";
 		} else {
 			nameEl.textContent = "";
@@ -1482,6 +1497,7 @@ socket.on("draw_board", function(data) {
 			if (slot) slot.style.display = "none";
 		}
 	}
+
 	renderScoreboard();
 });
 
