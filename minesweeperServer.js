@@ -38,14 +38,19 @@ function obfuscateBoard(board, rows, cols) {
 // Game objects carry the full board (mines + numbers) — we don't ship that in
 // per-tick broadcasts anymore, since the client received the obfuscated board
 // once at game start and renders from it.
-function gameForBroadcast(g) {
+function gameForBroadcast(g, pid) {
 	if (!g) return null;
+	var safeCount = g.revealedSafeCount ? g.revealedSafeCount() : 0;
+	var totalSafe = g.totalSafeSquares || 0;
 	return {
+		id: pid,
 		playerName: g.playerName,
 		state: g.state,
 		finished: g.finished,
 		finishedAt: g.finishedAt,
-		safeCount: g.safeCount,
+		safeCount: safeCount,
+		totalSafe: totalSafe,
+		progress: totalSafe > 0 ? safeCount / totalSafe : 0,
 		frozenUntil: g.frozenUntil,
 		playing: g.playing
 	};
@@ -571,8 +576,13 @@ function updateDraw(room) {
 	for (var i = 0; i < room.players.length; i++) {
 		var playerID = room.players[i];
 		if (sockets[playerID]) {
-			var ordered = getGamesWithPlayerOnTop(playerID, room.players);
-			var stripped = ordered.map(gameForBroadcast);
+			// Carry the ids in the broadcast so the client can key live progress
+			// per player instead of relying on positional matching.
+			var orderedIds = [playerID];
+			for (var k = 0; k < room.players.length; k++) {
+				if (room.players[k] !== playerID) orderedIds.push(room.players[k]);
+			}
+			var stripped = orderedIds.map(function(pid) { return gameForBroadcast(games[pid], pid); });
 			sockets[playerID].emit("draw_board", {games: stripped});
 		}
 	}

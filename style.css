@@ -1090,6 +1090,45 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border: 1px solid transparent;
 }
 
+.score-row-gap {
+	display: block;
+	text-align: center;
+	color: var(--muted);
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	padding: 0.2rem 0;
+	background: transparent;
+	border: none;
+	font-size: 0.9rem;
+}
+
+.score-progress {
+	display: inline-block;
+	width: 60px;
+	height: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.score-progress-fill {
+	display: block;
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+	transition: width 0.25s ease-out;
+}
+
+.score-progress-finished .score-progress-fill {
+	background: linear-gradient(90deg, var(--success), #4ade80);
+}
+
+.score-pct {
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+	font-size: 0.82rem;
+	text-align: right;
+}
+
 .score-row-me {
 	background: rgba(99, 102, 241, 0.1);
 	border-color: rgba(99, 102, 241, 0.3);
