@@ -1602,12 +1602,48 @@ function updateRatingFromStandings(standings) {
 	if (!account) return;
 	var mine = standings.find(function(s) { return s.id === id; });
 	if (!mine || typeof mine.rating !== "number") return;
+	var oldRating = account.rating;
+	var oldTier = tierFor(oldRating, account.provisional);
 	account.rating = mine.rating;
 	if (mine.provisional != null) account.provisional = mine.provisional;
+	var newTier = tierFor(account.rating, account.provisional);
 	renderRatingBadge();
 	ratingChip.classList.remove("rating-chip-bump");
 	void ratingChip.offsetWidth;
 	ratingChip.classList.add("rating-chip-bump");
+	var delta = account.rating - oldRating;
+	if (delta !== 0) showRatingDelta(delta);
+	if (newTier.name !== oldTier.name) showRankChangeBanner(account.rating > oldRating, newTier);
+}
+
+// Floating "+15"/"-15" that drifts up from below the topbar rating chip, so
+// the animation always travels into the viewport even when the chip is near
+// the top of the screen.
+function showRatingDelta(delta) {
+	var rect = ratingChip.getBoundingClientRect();
+	var el = document.createElement("span");
+	el.className = "rating-delta " + (delta > 0 ? "rating-delta-gain" : "rating-delta-loss");
+	el.textContent = (delta > 0 ? "+" : "") + delta;
+	el.style.left = (rect.left + rect.width / 2 - 18) + "px";
+	el.style.top = (rect.bottom + 6) + "px";
+	document.body.appendChild(el);
+	setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1900);
+}
+
+// Centered banner shown when crossing a sub-tier boundary.
+function showRankChangeBanner(promoted, tier) {
+	var el = document.createElement("div");
+	el.className = "rank-banner " + (promoted ? "promoted" : "demoted");
+	var label = document.createElement("div");
+	label.className = "rank-banner-label";
+	label.textContent = promoted ? "RANK UP" : "RANK DOWN";
+	el.appendChild(label);
+	var tierEl = document.createElement("div");
+	tierEl.className = "rank-banner-tier";
+	tierEl.textContent = tier.name;
+	el.appendChild(tierEl);
+	document.body.appendChild(el);
+	setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 2900);
 }
 
 function showSeriesResultPanel(data) {

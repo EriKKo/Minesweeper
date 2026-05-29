@@ -247,6 +247,81 @@ main {
 	100% { transform: scale(1); }
 }
 
+/* Floating "+15"/"-15" that drifts up from the rating chip after a ranked match. */
+.rating-delta {
+	position: fixed;
+	font-weight: 800;
+	font-size: 1.1rem;
+	z-index: 999;
+	pointer-events: none;
+	white-space: nowrap;
+	text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+	animation: rating-delta-float 1.8s cubic-bezier(.22,1,.36,1) forwards;
+}
+
+.rating-delta-gain { color: #4ade80; }
+.rating-delta-loss { color: #f87171; }
+
+@keyframes rating-delta-float {
+	0%   { opacity: 0; transform: translateY(4px) scale(0.7); }
+	10%  { opacity: 1; transform: translateY(-4px) scale(1.25); }
+	25%  { opacity: 1; transform: translateY(-14px) scale(1); }
+	85%  { opacity: 1; transform: translateY(-44px) scale(1); }
+	100% { opacity: 0; transform: translateY(-58px) scale(0.9); }
+}
+
+/* Centered rank-change banner: shows when crossing a sub-tier boundary. */
+.rank-banner {
+	position: fixed;
+	top: 38%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	padding: 1.5rem 2.5rem;
+	border-radius: 18px;
+	text-align: center;
+	z-index: 1000;
+	pointer-events: none;
+	opacity: 0;
+	color: #fff;
+	min-width: 260px;
+	text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+	animation: rank-banner-show 2.8s ease forwards;
+}
+
+.rank-banner.promoted {
+	background: linear-gradient(135deg, rgba(34,197,94,0.96), rgba(16,150,80,0.96));
+	box-shadow: 0 0 60px rgba(34,197,94,0.55), 0 14px 36px rgba(0,0,0,0.55);
+	border: 1px solid rgba(134,239,172,0.6);
+}
+
+.rank-banner.demoted {
+	background: linear-gradient(135deg, rgba(239,68,68,0.94), rgba(190,30,30,0.94));
+	box-shadow: 0 0 50px rgba(239,68,68,0.45), 0 14px 36px rgba(0,0,0,0.55);
+	border: 1px solid rgba(252,165,165,0.55);
+}
+
+.rank-banner-label {
+	font-size: 0.82rem;
+	font-weight: 800;
+	letter-spacing: 0.22em;
+	opacity: 0.9;
+	margin-bottom: 0.4rem;
+}
+
+.rank-banner-tier {
+	font-size: 2.6rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+@keyframes rank-banner-show {
+	0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-4deg); }
+	14%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(1deg); }
+	22%  { transform: translate(-50%, -50%) scale(1) rotate(0); }
+	82%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+	100% { opacity: 0; transform: translate(-50%, -50%) scale(1.06); }
+}
+
 .ranked-panel {
 	background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(99,102,241,0.06));
 	border: 1px solid rgba(99,102,241,0.4);
