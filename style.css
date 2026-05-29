@@ -760,27 +760,20 @@ main {
 /* Game view */
 .game-view { animation: fade 180ms ease; position: relative; }
 
-/* Red border-flash warning when a player is in danger of elimination this
-   round (tournament only). Sits over the page edges via fixed positioning so
-   it always covers the visible viewport, regardless of scroll. */
-.danger-frame {
-	position: fixed;
-	inset: 0;
-	pointer-events: none;
-	z-index: 50;
-	opacity: 0;
-	box-shadow: inset 0 0 80px 8px rgba(239, 68, 68, 0);
-	transition: opacity 700ms ease;
+/* Subtle red glow around the player's own board when they're currently below
+   the elimination cut. Hugs the board frame instead of the whole viewport. */
+.player-board.danger {
+	border-color: rgba(239, 68, 68, 0.55);
+	animation: danger-board-pulse 1.6s ease-in-out infinite alternate;
 }
 
-.danger-frame.active {
-	opacity: 1;
-	animation: danger-flash 1.4s ease-in-out infinite alternate;
-}
-
-@keyframes danger-flash {
-	from { box-shadow: inset 0 0 80px 8px rgba(239, 68, 68, 0.35); }
-	to   { box-shadow: inset 0 0 160px 26px rgba(239, 68, 68, 0.85); }
+@keyframes danger-board-pulse {
+	from {
+		box-shadow: var(--shadow), 0 0 12px 1px rgba(239, 68, 68, 0.25), inset 0 0 0 1px rgba(239, 68, 68, 0.25);
+	}
+	to {
+		box-shadow: var(--shadow), 0 0 28px 4px rgba(239, 68, 68, 0.55), inset 0 0 0 1px rgba(239, 68, 68, 0.5);
+	}
 }
 
 .game-header {
