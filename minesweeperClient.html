@@ -2285,26 +2285,25 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Click an empty corner",
+				title: "Solve the right side",
 				grid: [
-					". . . . . . .",
-					". . . . . . .",
-					". . m . . . .",
-					". . . . . . .",
-					". . . . . m .",
-					". . . . . . .",
-					". m . . . . ."
+					"? ? 1 m . . .",
+					"? ? 1 . . . .",
+					"? ? 1 . . . .",
+					"? ? 1 m . . .",
+					"? ? 1 . . . .",
+					"? ? 1 . . . .",
+					"? ? 1 m . . ."
 				],
 				solution: [
-					"S . . . . . .",
-					". . . . . . .",
-					". . m . . . .",
-					". . . . . . .",
-					". . . . . m .",
-					". . . . . . .",
-					". m . . . . ."
-				],
-				why: "An empty corner can't touch any mine, so it's a value-0 cell. Clicking it cascades through every connected empty cell, stopping only at the clue ring around each mine — one click opens almost the whole board."
+					"? ? 1 m . S S",
+					"? ? 1 . . S S",
+					"? ? 1 . . S S",
+					"? ? 1 m . S S",
+					"? ? 1 . . S S",
+					"? ? 1 . . S S",
+					"? ? 1 m . S S"
+				]
 			}
 		]
 	},
@@ -3180,9 +3179,6 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 
 	var status = document.createElement("span");
 	status.className = "learn-status";
-	var why = document.createElement("div");
-	why.className = "learn-why";
-	why.textContent = puzzle.why;
 
 	var puzzleSolved = false, gameOver = false;
 
@@ -3233,7 +3229,6 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		if (puzzleSolved) return;
 		puzzleSolved = true;
 		solvedTick.textContent = "✓";
-		why.classList.add("show");
 		if (typeof onSolved === "function") onSolved();
 	}
 
@@ -3289,7 +3284,6 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			cellEls[r][c].classList.add("lc-wrong");
 			gameOver = true;
 			setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
-			why.classList.add("show");
 			return;
 		}
 		state[r][c] = REVEALED;
@@ -3362,7 +3356,6 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		gameOver = false;
 		puzzleSolved = false;
 		solvedTick.textContent = "";
-		why.classList.remove("show");
 		setStatus("", "");
 	}
 
@@ -3375,17 +3368,8 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	resetBtn.addEventListener("click", resetPuzzle);
 	controls.appendChild(resetBtn);
 
-	if (isGuess) {
-		var reasonBtn = document.createElement("button");
-		reasonBtn.className = "learn-btn";
-		reasonBtn.textContent = "Show reasoning";
-		reasonBtn.addEventListener("click", function() { why.classList.toggle("show"); });
-		controls.appendChild(reasonBtn);
-	}
-
 	controls.appendChild(status);
 	wrap.appendChild(controls);
-	wrap.appendChild(why);
 	return wrap;
 }
 
