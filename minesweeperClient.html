@@ -2750,37 +2750,79 @@ function renderLearnCourse(course) {
 	}
 	doneCard.style.display = "none";
 
-	// Stepper.
-	stepper.innerHTML = "";
-	var courseDone = courseIsComplete(course.id);
-	for (var i = 0; i < lessons.length; i++) {
-		(function(idx) {
-			var step = document.createElement("button");
-			step.type = "button";
-			step.className = "learn-step";
-			step.textContent = String(idx + 1);
-			step.title = lessons[idx].title;
-			if (completed[idx]) step.classList.add("done");
-			if (idx === learnState.currentLesson) step.classList.add("current");
-			var unlocked = courseDone || completed[idx] || idx <= learnState.currentLesson;
-			if (unlocked) step.classList.add("unlocked");
-			step.disabled = !unlocked;
-			step.addEventListener("click", function() {
-				if (!unlocked) return;
-				learnState.currentLesson = idx;
-				saveLearnState();
-				renderLearn();
-			});
-			stepper.appendChild(step);
-			if (idx < lessons.length - 1) {
-				var line = document.createElement("span");
-				line.className = "learn-step-line" + (completed[idx] ? " done" : "");
-				stepper.appendChild(line);
-			}
-		})(i);
+	function renderStepper() {
+		stepper.innerHTML = "";
+		var courseDone = courseIsComplete(course.id);
+		for (var i = 0; i < lessons.length; i++) {
+			(function(idx) {
+				var step = document.createElement("button");
+				step.type = "button";
+				step.className = "learn-step";
+				step.textContent = String(idx + 1);
+				step.title = lessons[idx].title;
+				if (completed[idx]) step.classList.add("done");
+				if (idx === learnState.currentLesson) step.classList.add("current");
+				var unlocked = courseDone || completed[idx] || idx <= learnState.currentLesson;
+				if (unlocked) step.classList.add("unlocked");
+				step.disabled = !unlocked;
+				step.addEventListener("click", function() {
+					if (!unlocked) return;
+					learnState.currentLesson = idx;
+					saveLearnState();
+					renderLearn();
+				});
+				stepper.appendChild(step);
+				if (idx < lessons.length - 1) {
+					var line = document.createElement("span");
+					line.className = "learn-step-line" + (completed[idx] ? " done" : "");
+					stepper.appendChild(line);
+				}
+			})(i);
+		}
 	}
 
-	// Lesson content.
+	function renderNav() {
+		navEl.innerHTML = "";
+		var prev = document.createElement("button");
+		prev.type = "button";
+		prev.className = "btn btn-secondary";
+		prev.textContent = "← Previous lesson";
+		prev.disabled = learnState.currentLesson === 0;
+		prev.addEventListener("click", function() {
+			if (learnState.currentLesson > 0) { learnState.currentLesson--; saveLearnState(); renderLearn(); }
+		});
+		navEl.appendChild(prev);
+
+		var progress = document.createElement("div");
+		progress.className = "learn-progress-text";
+		var prog = courseProgress(course.id);
+		progress.textContent = prog.done + " of " + prog.total + " complete";
+		navEl.appendChild(progress);
+
+		var next = document.createElement("button");
+		next.type = "button";
+		next.className = "btn btn-primary";
+		var isLast = learnState.currentLesson === lessons.length - 1;
+		next.textContent = isLast ? "Finish course" : "Next lesson →";
+		next.disabled = !completed[learnState.currentLesson];
+		next.addEventListener("click", function() {
+			if (next.disabled) return;
+			if (isLast) {
+				learnState.currentLesson = lessons.length;
+				if (!learnState.completedAt[course.id]) learnState.completedAt[course.id] = Date.now();
+			} else {
+				learnState.currentLesson++;
+			}
+			saveLearnState();
+			renderLearn();
+		});
+		navEl.appendChild(next);
+	}
+
+	renderStepper();
+
+	// Lesson content. On puzzle-completion we only refresh the stepper + nav so
+	// the lesson card (and its solved puzzle state) stays intact.
 	container.innerHTML = "";
 	var lesson = lessons[learnState.currentLesson];
 	container.appendChild(buildLearnLesson(lesson, learnState.currentLesson, lessons.length, function() {
@@ -2790,46 +2832,12 @@ function renderLearnCourse(course) {
 				learnState.completedAt[course.id] = Date.now();
 			}
 			saveLearnState();
-			renderLearn();
+			renderStepper();
+			renderNav();
 		}
 	}));
 
-	// Nav row.
-	navEl.innerHTML = "";
-	var prev = document.createElement("button");
-	prev.type = "button";
-	prev.className = "btn btn-secondary";
-	prev.textContent = "← Previous lesson";
-	prev.disabled = learnState.currentLesson === 0;
-	prev.addEventListener("click", function() {
-		if (learnState.currentLesson > 0) { learnState.currentLesson--; saveLearnState(); renderLearn(); }
-	});
-	navEl.appendChild(prev);
-
-	var progress = document.createElement("div");
-	progress.className = "learn-progress-text";
-	var prog = courseProgress(course.id);
-	progress.textContent = prog.done + " of " + prog.total + " complete";
-	navEl.appendChild(progress);
-
-	var next = document.createElement("button");
-	next.type = "button";
-	next.className = "btn btn-primary";
-	var isLast = learnState.currentLesson === lessons.length - 1;
-	next.textContent = isLast ? "Finish course" : "Next lesson →";
-	next.disabled = !completed[learnState.currentLesson];
-	next.addEventListener("click", function() {
-		if (next.disabled) return;
-		if (isLast) {
-			learnState.currentLesson = lessons.length;
-			if (!learnState.completedAt[course.id]) learnState.completedAt[course.id] = Date.now();
-		} else {
-			learnState.currentLesson++;
-		}
-		saveLearnState();
-		renderLearn();
-	});
-	navEl.appendChild(next);
+	renderNav();
 }
 
 function wireLearnControls() {
