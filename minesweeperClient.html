@@ -3014,90 +3014,54 @@ function buildLearnLesson(lesson, idx, total, onLessonComplete) {
 	return card;
 }
 
-function createLearnMineSvg() {
-	// Same shape as the favicon's mine icon and the canvas drawMine: 4 full
-	// spike lines through a near-black body, with a small white highlight.
-	var ns = "http://www.w3.org/2000/svg";
-	var svg = document.createElementNS(ns, "svg");
-	svg.setAttribute("viewBox", "0 0 32 32");
-	svg.setAttribute("width", "26");
-	svg.setAttribute("height", "26");
-	svg.setAttribute("aria-hidden", "true");
-	var g = document.createElementNS(ns, "g");
-	g.setAttribute("stroke", "#0f172a");
-	g.setAttribute("stroke-width", "2.5");
-	g.setAttribute("stroke-linecap", "round");
-	var spikes = [
-		[16, 7, 16, 25],
-		[7, 16, 25, 16],
-		[9.5, 9.5, 22.5, 22.5],
-		[22.5, 9.5, 9.5, 22.5]
-	];
-	for (var i = 0; i < spikes.length; i++) {
-		var s = spikes[i];
-		var line = document.createElementNS(ns, "line");
-		line.setAttribute("x1", s[0]); line.setAttribute("y1", s[1]);
-		line.setAttribute("x2", s[2]); line.setAttribute("y2", s[3]);
-		g.appendChild(line);
-	}
-	svg.appendChild(g);
-	var body = document.createElementNS(ns, "circle");
-	body.setAttribute("cx", "16");
-	body.setAttribute("cy", "16");
-	body.setAttribute("r", "6.5");
-	body.setAttribute("fill", "#0f172a");
-	svg.appendChild(body);
-	var hilite = document.createElementNS(ns, "circle");
-	hilite.setAttribute("cx", "13.5");
-	hilite.setAttribute("cy", "13.5");
-	hilite.setAttribute("r", "1.9");
-	hilite.setAttribute("fill", "#ffffff");
-	hilite.setAttribute("fill-opacity", "0.85");
-	svg.appendChild(hilite);
-	return svg;
-}
-
+// Render a demo grid to a canvas. Demos are static — the grid token IS the
+// display: `0-8` = revealed clue with that value, `?` = revealed empty,
+// `.` = covered, `*` = flagged, `b` = revealed mine, `m` = covered mine
+// shown via x-ray. A solution `M` on a `.` cell also promotes it to an
+// x-ray mine (existing demos use that convention). S/G/B are no longer
+// drawn — demos don't decorate cells with checkmarks anymore.
+var LEARN_CELL_PX = 32;
 function renderDemoBoard(grid, solution) {
 	var rows = grid.map(function(r) { return r.trim().split(/\s+/); });
 	var sol = (solution || grid).map(function(r) { return r.trim().split(/\s+/); });
-	var cols = rows[0].length;
-
-	var board = document.createElement("div");
-	board.className = "learn-board";
-	board.style.gridTemplateColumns = "repeat(" + cols + ", 32px)";
-
-	for (var r = 0; r < rows.length; r++) {
-		for (var c = 0; c < cols; c++) {
-			var tok = rows[r][c];
-			var stok = sol[r][c];
-			var cell = document.createElement("div");
-			cell.className = "learn-cell";
-			if (/^[1-8]$/.test(tok)) {
-				cell.className += " lc-clue lc-n" + tok;
-				cell.textContent = tok;
-			} else if (tok === "*") {
-				cell.className += " lc-flag";
-				cell.textContent = "🚩";
-			} else if (tok === "b") {
-				cell.className += " lc-mine";
-				cell.appendChild(createLearnMineSvg());
-			} else if (tok === ".") {
-				if (stok === "M") {
-					cell.className += " lc-mark-mine lc-good";
-					cell.textContent = "🚩";
-				} else if (stok === "S") {
-					cell.className += " lc-mark-safe lc-good";
-					cell.textContent = "✓";
-				} else {
-					cell.className += " lc-covered";
-				}
-			} else {
-				cell.className += " lc-bg";
-			}
-			board.appendChild(cell);
+	var R = rows.length, C = rows[0].length;
+	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
+	var state = [], isMineArr = [], clueArr = [];
+	for (var r = 0; r < R; r++) {
+		state[r] = []; isMineArr[r] = []; clueArr[r] = [];
+		for (var c = 0; c < C; c++) {
+			var t = rows[r][c];
+			var st = sol[r] && sol[r][c];
+			if (/^[1-8]$/.test(t)) { state[r][c] = REVEALED; isMineArr[r][c] = false; clueArr[r][c] = parseInt(t, 10); }
+			else if (t === "?") { state[r][c] = REVEALED; isMineArr[r][c] = false; clueArr[r][c] = 0; }
+			else if (t === "*") { state[r][c] = FLAGGED_S; isMineArr[r][c] = true; clueArr[r][c] = 0; }
+			else if (t === "b") { state[r][c] = REVEALED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
+			else if (t === "m") { state[r][c] = COVERED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
+			else if (st === "M" || st === "B") { state[r][c] = COVERED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
+			else { state[r][c] = COVERED; isMineArr[r][c] = false; clueArr[r][c] = 0; }
 		}
 	}
-	return board;
+	var view = {
+		rows: R, cols: C,
+		isCovered: function(r, c) { return state[r][c] === COVERED; },
+		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
+		isMine: function(r, c) { return isMineArr[r][c]; },
+		getClue: function(r, c) { return clueArr[r][c]; },
+		xray: true
+	};
+	var wrap = document.createElement("div");
+	wrap.className = "learn-board";
+	var canvas = document.createElement("canvas");
+	canvas.width = Math.round(C * LEARN_CELL_PX * DPR);
+	canvas.height = Math.round(R * LEARN_CELL_PX * DPR);
+	canvas.style.width = (C * LEARN_CELL_PX) + "px";
+	canvas.style.height = (R * LEARN_CELL_PX) + "px";
+	var ctx = canvas.getContext("2d");
+	var sw = canvas.width / C, sh = canvas.height / R;
+	for (var r2 = 0; r2 < R; r2++) for (var c2 = 0; c2 < C; c2++) drawCell(ctx, r2, c2, view, sw, sh, null);
+	wrap.appendChild(canvas);
+	return wrap;
 }
 
 function buildLearnDemo(demo) {
@@ -3129,41 +3093,6 @@ function buildLearnDemo(demo) {
 	}
 
 	return wrap;
-}
-
-function createExplodedMineSvg() {
-	// Matches the canvas drawMine in the live game: pink spike-pairs around a
-	// pink body, no shine — for cells the player just clicked open.
-	var ns = "http://www.w3.org/2000/svg";
-	var svg = document.createElementNS(ns, "svg");
-	svg.setAttribute("viewBox", "0 0 32 32");
-	svg.setAttribute("width", "26");
-	svg.setAttribute("height", "26");
-	svg.setAttribute("aria-hidden", "true");
-	var g = document.createElementNS(ns, "g");
-	g.setAttribute("stroke", "#fca5a5");
-	g.setAttribute("stroke-width", "2");
-	g.setAttribute("stroke-linecap", "round");
-	g.setAttribute("fill", "none");
-	var rad = 6.5;
-	var inner = rad * 0.7, outer = rad * 1.5;
-	for (var i = 0; i < 8; i++) {
-		var a = i * Math.PI / 4;
-		var line = document.createElementNS(ns, "line");
-		line.setAttribute("x1", String(16 + Math.cos(a) * inner));
-		line.setAttribute("y1", String(16 + Math.sin(a) * inner));
-		line.setAttribute("x2", String(16 + Math.cos(a) * outer));
-		line.setAttribute("y2", String(16 + Math.sin(a) * outer));
-		g.appendChild(line);
-	}
-	svg.appendChild(g);
-	var body = document.createElementNS(ns, "circle");
-	body.setAttribute("cx", "16");
-	body.setAttribute("cy", "16");
-	body.setAttribute("r", String(rad));
-	body.setAttribute("fill", "#fca5a5");
-	svg.appendChild(body);
-	return svg;
 }
 
 // Real-game-like puzzle board. Each cell behaves as it would in a live game:
@@ -3219,10 +3148,8 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	}
 
 	var state = [];
-	var cellEls = [];
 	for (var r = 0; r < R; r++) {
 		state[r] = [];
-		cellEls[r] = [];
 		for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
 	}
 
@@ -3236,56 +3163,41 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			function(rr, cc) { return clueValue[rr][cc]; }
 		);
 	}
-	if (puzzle.simpleBoard) {
-		initialCascade(R - 1, 0);
-	}
+	if (puzzle.simpleBoard) initialCascade(R - 1, 0);
 
-	var board = document.createElement("div");
-	board.className = "learn-board";
-	board.style.gridTemplateColumns = "repeat(" + C + ", 32px)";
+	var view = {
+		rows: R, cols: C,
+		isCovered: function(r, c) { return state[r][c] === COVERED; },
+		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
+		isMine: function(r, c) { return isMine[r][c]; },
+		getClue: function(r, c) { return clueValue[r][c]; },
+		xray: false
+	};
+
+	var boardWrap = document.createElement("div");
+	boardWrap.className = "learn-board";
+	var canvas = document.createElement("canvas");
+	canvas.width = Math.round(C * LEARN_CELL_PX * DPR);
+	canvas.height = Math.round(R * LEARN_CELL_PX * DPR);
+	canvas.style.width = (C * LEARN_CELL_PX) + "px";
+	canvas.style.height = (R * LEARN_CELL_PX) + "px";
+	canvas.style.cursor = "pointer";
+	boardWrap.appendChild(canvas);
+	wrap.appendChild(boardWrap);
+	var ctx = canvas.getContext("2d");
+
+	function renderAll() {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		var sw = canvas.width / C, sh = canvas.height / R;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) drawCell(ctx, r, c, view, sw, sh, null);
+	}
+	renderAll();
 
 	var status = document.createElement("span");
 	status.className = "learn-status";
 
 	var puzzleSolved = false, gameOver = false;
-
-	function renderCell(r, c) {
-		var cell = cellEls[r][c];
-		cell.className = "learn-cell";
-		cell.innerHTML = "";
-		cell.textContent = "";
-		var s = state[r][c];
-		if (s === COVERED) {
-			cell.className += " lc-covered";
-		} else if (s === FLAGGED) {
-			cell.className += " lc-flag";
-			cell.textContent = "🚩";
-		} else {
-			// REVEALED
-			if (isMine[r][c]) {
-				cell.className += " lc-mine-hit";
-				cell.appendChild(createExplodedMineSvg());
-			} else {
-				var v = clueValue[r][c];
-				if (v === 0) {
-					cell.className += " lc-bg";
-				} else {
-					cell.className += " lc-clue lc-n" + v;
-					cell.textContent = String(v);
-				}
-			}
-		}
-	}
-
-	for (var r = 0; r < R; r++) {
-		for (var c = 0; c < C; c++) {
-			var cell = document.createElement("div");
-			cellEls[r][c] = cell;
-			renderCell(r, c);
-			board.appendChild(cell);
-		}
-	}
-	wrap.appendChild(board);
 
 	function setStatus(text, cls) {
 		status.textContent = text;
@@ -3365,9 +3277,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			function(rr, cc) { return state[rr][cc] === COVERED; },
 			function(rr, cc) {
 				state[rr][cc] = REVEALED;
-				renderCell(rr, cc);
 				if (isMine[rr][cc]) {
-					cellEls[rr][cc].classList.add("lc-wrong");
 					gameOver = true;
 					setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
 					return true;
@@ -3376,26 +3286,27 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			},
 			function(rr, cc) { return clueValue[rr][cc]; }
 		);
+		renderAll();
 	}
 
 	function tryChord(r, c) {
 		if (state[r][c] !== REVEALED) return;
 		var v = clueValue[r][c];
 		if (v === 0) return;
-		var ctx = BoardLogic.chordContext(r, c, R, C,
+		var cctx = BoardLogic.chordContext(r, c, R, C,
 			function(rr, cc) { return state[rr][cc] === FLAGGED; },
 			null,
 			function(rr, cc) { return state[rr][cc] === COVERED; }
 		);
-		if (ctx.flagCount !== v) return;
-		for (var i = 0; i < ctx.covered.length; i++) revealCell(ctx.covered[i][0], ctx.covered[i][1]);
+		if (cctx.flagCount !== v) return;
+		for (var i = 0; i < cctx.covered.length; i++) revealCell(cctx.covered[i][0], cctx.covered[i][1]);
 	}
 
 	function toggleFlag(r, c) {
 		if (state[r][c] === COVERED) state[r][c] = FLAGGED;
 		else if (state[r][c] === FLAGGED) state[r][c] = COVERED;
 		else return;
-		renderCell(r, c);
+		renderAll();
 	}
 
 	function onLeftClick(r, c) {
@@ -3416,30 +3327,34 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		checkSolved();
 	}
 
-	for (var r = 0; r < R; r++) {
-		for (var c = 0; c < C; c++) {
-			(function(rr, cc) {
-				var cell = cellEls[rr][cc];
-				cell.style.cursor = "pointer";
-				cell.addEventListener("click", function() { onLeftClick(rr, cc); });
-				cell.addEventListener("contextmenu", function(e) { e.preventDefault(); onRightClick(rr, cc); });
-			})(r, c);
-		}
+	function cellFromEvent(e) {
+		var rect = canvas.getBoundingClientRect();
+		var x = (e.clientX - rect.left) / rect.width * C;
+		var y = (e.clientY - rect.top) / rect.height * R;
+		var c = Math.floor(x), r = Math.floor(y);
+		if (r < 0 || r >= R || c < 0 || c >= C) return null;
+		return { r: r, c: c };
 	}
+	canvas.addEventListener("click", function(e) {
+		var cell = cellFromEvent(e);
+		if (cell) onLeftClick(cell.r, cell.c);
+	});
+	canvas.addEventListener("contextmenu", function(e) {
+		e.preventDefault();
+		var cell = cellFromEvent(e);
+		if (cell) onRightClick(cell.r, cell.c);
+	});
 
 	function resetPuzzle() {
 		for (var r = 0; r < R; r++) {
-			for (var c = 0; c < C; c++) {
-				state[r][c] = initialStateFor(rows[r][c]);
-				cellEls[r][c].classList.remove("lc-wrong");
-			}
+			for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
 		}
 		if (puzzle.simpleBoard) initialCascade(R - 1, 0);
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) renderCell(r, c);
 		gameOver = false;
 		puzzleSolved = false;
 		solvedTick.textContent = "";
 		setStatus("", "");
+		renderAll();
 	}
 
 	var controls = document.createElement("div");
@@ -4438,21 +4353,21 @@ function roundRectPath(ctx, x, y, w, h, r) {
 // ---- one cell ----------------------------------------------------------
 // anim (optional): { type, t } with t already normalised; t may be < 0 (not
 // started yet) or > 1 (finished — caller usually drops it before then).
-function drawCell(ctx, r, c, state, sw, sh, anim) {
-	var st = state[r][c];
+// drawCell paints a single cell into the canvas at logical position (r, c).
+// `view` is the BoardView interface — isCovered/isRevealed/isFlagged/isMine/
+// getClue/xray — so the same draw code works for the live game and Learn.
+function drawCell(ctx, r, c, view, sw, sh, anim) {
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	var w = sw - gap, h = sh - gap;
 	var rad = Math.min(w, h) * 0.2;
 	ctx.save();
 	ctx.translate(c * sw + gap / 2, r * sh + gap / 2);
 
-	if (st === KNOWN) {
+	if (view.isRevealed(r, c)) {
 		var revealing = anim && (anim.type === "reveal" || anim.type === "mine");
 		var t = revealing ? clamp01(anim.t) : 1;
 		drawKnownBase(ctx, w, h, rad);
-		var cellVal = boardCell(r, c);
-		var isMine = cellVal === MINE;
-		if (isMine) {
+		if (view.isMine(r, c)) {
 			if (anim && anim.type === "mine") {
 				// red danger flash that fades as the bomb settles in
 				ctx.globalAlpha = (1 - easeOutCubic(t)) * 0.85;
@@ -4462,8 +4377,9 @@ function drawCell(ctx, r, c, state, sw, sh, anim) {
 				ctx.globalAlpha = 1;
 			}
 			drawMine(ctx, w, h, t);
-		} else if (cellVal > 0) {
-			drawNumber(ctx, cellVal, w, h, t);
+		} else {
+			var clue = view.getClue(r, c);
+			if (clue > 0) drawNumber(ctx, clue, w, h, t);
 		}
 		// the unknown "cover" lifts off as the reveal plays
 		if (revealing && anim.t < 1) {
@@ -4471,12 +4387,14 @@ function drawCell(ctx, r, c, state, sw, sh, anim) {
 			drawUnknown(ctx, w, h, rad);
 			ctx.globalAlpha = 1;
 		}
-	} else if (st === FLAGGED) {
+	} else if (view.isFlagged(r, c)) {
 		drawUnknown(ctx, w, h, rad);
 		var fs = anim && anim.type === "flag" ? easeOutBack(clamp01(anim.t)) : 1;
 		drawFlag(ctx, w, h, fs);
 	} else {
 		drawUnknown(ctx, w, h, rad);
+		// x-ray mode (Learn demos): show the mine on top of the still-covered cell
+		if (view.xray && view.isMine(r, c)) drawMineXray(ctx, w, h);
 	}
 	ctx.restore();
 }
@@ -4556,6 +4474,36 @@ function drawMine(ctx, w, h, t) {
 	ctx.restore();
 }
 
+// drawMineXray: near-black body + four full spike lines + white shine, drawn
+// on top of a still-covered cell. Used by Learn demos to show "this is where
+// the mine is" without exploding it.
+function drawMineXray(ctx, w, h) {
+	ctx.save();
+	ctx.translate(w / 2, h / 2);
+	var rad = Math.min(w, h) * 0.2;
+	ctx.strokeStyle = "#0f172a";
+	ctx.lineWidth = Math.max(1, rad * 0.32);
+	ctx.lineCap = "round";
+	// 4 full diameter spike lines (vertical, horizontal, two diagonals)
+	var len = rad * 1.8;
+	var lines = [[0, -len, 0, len], [-len, 0, len, 0], [-len * 0.8, -len * 0.8, len * 0.8, len * 0.8], [len * 0.8, -len * 0.8, -len * 0.8, len * 0.8]];
+	for (var i = 0; i < lines.length; i++) {
+		ctx.beginPath();
+		ctx.moveTo(lines[i][0], lines[i][1]);
+		ctx.lineTo(lines[i][2], lines[i][3]);
+		ctx.stroke();
+	}
+	ctx.beginPath();
+	ctx.arc(0, 0, rad, 0, Math.PI * 2);
+	ctx.fillStyle = "#0f172a";
+	ctx.fill();
+	ctx.beginPath();
+	ctx.arc(-rad * 0.35, -rad * 0.35, rad * 0.28, 0, Math.PI * 2);
+	ctx.fillStyle = "rgba(255,255,255,0.85)";
+	ctx.fill();
+	ctx.restore();
+}
+
 function drawFlag(ctx, w, h, scale) {
 	ctx.save();
 	ctx.translate(w / 2, h / 2);
@@ -4586,14 +4534,28 @@ function drawFlag(ctx, w, h, scale) {
 	ctx.restore();
 }
 
+// Wrap a live-game state array into the BoardView interface drawCell expects.
+function makeLiveView(state) {
+	return {
+		rows: rows, cols: cols,
+		isCovered: function(r, c) { return state[r][c] === UNKNOWN; },
+		isRevealed: function(r, c) { return state[r][c] === KNOWN; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
+		isMine: function(r, c) { return boardCell(r, c) === MINE; },
+		getClue: function(r, c) { var v = boardCell(r, c); return v > 0 ? v : 0; },
+		xray: false
+	};
+}
+
 // ---- whole boards ------------------------------------------------------
 function drawBoardStatic(state, canvas) {
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	var sw = canvas.width / cols, sh = canvas.height / rows;
+	var view = makeLiveView(state);
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
-			drawCell(ctx, r, c, state, sw, sh, null);
+			drawCell(ctx, r, c, view, sw, sh, null);
 		}
 	}
 }
@@ -4602,6 +4564,7 @@ function renderPlayerBoard() {
 	var ctx = playerCanvas.getContext("2d");
 	ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
 	if (boardDecoder && myState) {
+		var view = makeLiveView(myState);
 		var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
 		var now = performance.now();
 		for (var r = 0; r < rows; r++) {
@@ -4612,7 +4575,7 @@ function renderPlayerBoard() {
 					var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
 					animArg = { type: a.type, t: (now - a.start) / dur };
 				}
-				drawCell(ctx, r, c, myState, sw, sh, animArg);
+				drawCell(ctx, r, c, view, sw, sh, animArg);
 			}
 		}
 	}
