@@ -2405,35 +2405,29 @@ var LEARN_COURSES = [
 		demo: {
 			title: "Worked example",
 			grid: [
-				"? ? ? ? ?",
-				"? * 2 * ?",
-				"? . 2 . ?",
-				"? ? ? ? ?"
+				"1 1 2 1 1",
+				"1 * 2 * 1",
+				". . . . ."
 			],
 			solution: [
-				"? ? ? ? ?",
-				"? * 2 * ?",
-				"? S 2 S ?",
-				"? ? ? ? ?"
+				"1 1 2 1 1",
+				"1 * 2 * 1",
+				"S S S S S"
 			],
-			why: "The 2s see both flags. Their other neighbours must be safe."
+			why: "Both flags satisfy the 2. Its other neighbours must be safe."
 		},
 		puzzles: [
 			{
-				title: "Open every safe cell",
+				title: "Flag the mines, then open every safe cell",
 				grid: [
-					"? ? ? ? ? ? ? ? ?",
-					"1 1 1 1 1 1 1 1 1",
-					". * . . * . . * .",
-					"1 1 1 1 1 1 1 1 1",
-					"? ? ? ? ? ? ? ? ?"
+					"1 1 2 1 1",
+					"1 . 2 . 1",
+					". . . . ."
 				],
 				solution: [
-					"? ? ? ? ? ? ? ? ?",
-					"1 1 1 1 1 1 1 1 1",
-					"S * S S * S S * S",
-					"1 1 1 1 1 1 1 1 1",
-					"? ? ? ? ? ? ? ? ?"
+					"1 1 2 1 1",
+					"1 M 2 M 1",
+					"S S S S S"
 				]
 			}
 		]
