@@ -2865,22 +2865,6 @@ function buildLearnLesson(lesson, idx, total, onLessonComplete) {
 	var card = document.createElement("div");
 	card.className = "section-card learn-lesson learn-lesson-open";
 
-	var heading = document.createElement("div");
-	heading.style.display = "flex";
-	heading.style.alignItems = "baseline";
-	heading.style.gap = "0.6rem";
-	heading.style.marginBottom = "0.4rem";
-	var num = document.createElement("span");
-	num.className = "learn-lesson-num";
-	num.textContent = "Lesson " + (idx + 1) + " / " + total;
-	num.style.fontSize = "0.7rem";
-	num.style.letterSpacing = "0.12em";
-	num.style.color = "var(--muted)";
-	num.style.fontWeight = "700";
-	num.style.textTransform = "uppercase";
-	heading.appendChild(num);
-	card.appendChild(heading);
-
 	var title = document.createElement("h2");
 	title.className = "learn-lesson-title";
 	title.style.fontSize = "1.4rem";
