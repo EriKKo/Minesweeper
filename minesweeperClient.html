@@ -2376,56 +2376,66 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Two cells, two mines",
+				title: "Flag every mine",
 				grid: [
-					"? ? ? ? ? ? ? ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? ? 2 . 2 ?",
-					"? ? ? ? 2 . 2 ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? ? ? ? ? ?"
+					"1 1 1 ? 1 1 1",
+					"1 . 1 ? 1 . 1",
+					"1 1 1 ? 1 1 1",
+					"? ? ? ? ? ? ?",
+					"1 1 1 ? 1 1 1",
+					"1 . 1 ? 1 . 1",
+					"1 1 1 ? 1 1 1"
 				],
 				solution: [
-					"? ? ? ? ? ? ? ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? ? 2 M 2 ?",
-					"? ? ? ? 2 M 2 ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? ? ? ? ? ?"
-				],
-				why: "Each 2 sees just two covered cells and needs two mines — both must be mines."
-			},
-			{
-				title: "An L of mines",
-				grid: [
-					"? ? ? ? ? ? ? ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? 1 3 . 2 ?",
-					"? ? ? 1 . . 2 ?",
-					"? ? ? 1 2 2 1 ?",
-					"? ? ? ? ? ? ? ?"
-				],
-				solution: [
-					"? ? ? ? ? ? ? ?",
-					"? ? ? ? 1 1 1 ?",
-					"? ? ? 1 3 M 2 ?",
-					"? ? ? 1 M M 2 ?",
-					"? ? ? 1 2 2 1 ?",
-					"? ? ? ? ? ? ? ?"
-				],
-				why: "The 3 touches exactly three covered cells. Three mines into three cells — all three are mines."
+					"1 1 1 ? 1 1 1",
+					"1 M 1 ? 1 M 1",
+					"1 1 1 ? 1 1 1",
+					"? ? ? ? ? ? ?",
+					"1 1 1 ? 1 1 1",
+					"1 M 1 ? 1 M 1",
+					"1 1 1 ? 1 1 1"
+				]
 			}
 		]
 	},
 	{
 		title: "Satisfied clear",
 		idea: "When a clue's flags equal its number, the rest of its neighbours are safe.",
-		how: "Find a clue with the right number of flags around it. Open every other cell it touches.",
+		how: "Find a clue whose flags match its value. Open every other cell it touches.",
+		demo: {
+			title: "Worked example",
+			grid: [
+				"? ? ? ? ?",
+				"? * 2 * ?",
+				"? . 2 . ?",
+				"? ? ? ? ?"
+			],
+			solution: [
+				"? ? ? ? ?",
+				"? * 2 * ?",
+				"? S 2 S ?",
+				"? ? ? ? ?"
+			],
+			why: "The 2s see both flags. Their other neighbours must be safe."
+		},
 		puzzles: [
-			{ title: "Clue already satisfied", grid: ["? ? ?", "* 1 .", "? ? ?"], solution: ["? ? ?", "* 1 S", "? ? ?"],
-			  why: "The 1 already sees its one mine (🚩), so the other covered cell is safe." },
-			{ title: "Clear them all", grid: [". . .", "* 1 .", "? ? ?"], solution: ["S S S", "* 1 S", "? ? ?"],
-			  why: "The 1's mine is the flag on its left, so all four other covered cells it touches are safe." }
+			{
+				title: "Open every safe cell",
+				grid: [
+					"? ? ? ? ? ? ? ? ?",
+					"1 1 1 1 1 1 1 1 1",
+					". * . . * . . * .",
+					"1 1 1 1 1 1 1 1 1",
+					"? ? ? ? ? ? ? ? ?"
+				],
+				solution: [
+					"? ? ? ? ? ? ? ? ?",
+					"1 1 1 1 1 1 1 1 1",
+					"S * S S * S S * S",
+					"1 1 1 1 1 1 1 1 1",
+					"? ? ? ? ? ? ? ? ?"
+				]
+			}
 		]
 	}
 	]
