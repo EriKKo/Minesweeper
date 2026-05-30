@@ -3773,6 +3773,8 @@ function showSeriesResultPanel(data) {
 
 		panel.appendChild(actions);
 		presentPanel(panel, won ? "win" : "lose"); // no auto-hide — player decides
+		// Focus "Play another" so Enter re-queues without reaching for the mouse.
+		try { again.focus(); } catch (e) {}
 	} else {
 		presentPanel(panel, won ? "win" : "lose", 5500);
 	}
