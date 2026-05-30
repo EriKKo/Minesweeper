@@ -2242,22 +2242,21 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Flag the only mine",
+				title: "Flag every mine you see",
 				grid: [
-					"? ? ? ? ?",
-					"? 1 1 1 ?",
-					"? 1 . 1 ?",
-					"? 1 1 1 ?",
-					"? ? ? ? ?"
+					"? ? ? ? ? ? ? ? ?",
+					"? 1 1 1 ? 1 2 2 1",
+					"? 1 . 1 ? 1 . . 1",
+					"? 1 1 1 ? 1 2 2 1",
+					"? ? ? ? ? ? ? ? ?"
 				],
 				solution: [
-					"? ? ? ? ?",
-					"? 1 1 1 ?",
-					"? 1 M 1 ?",
-					"? 1 1 1 ?",
-					"? ? ? ? ?"
-				],
-				why: "Every 1 needs one mine, and the only covered cell touching them is the centre. Right-click it to flag."
+					"? ? ? ? ? ? ? ? ?",
+					"? 1 1 1 ? 1 2 2 1",
+					"? 1 M 1 ? 1 M M 1",
+					"? 1 1 1 ? 1 2 2 1",
+					"? ? ? ? ? ? ? ? ?"
+				]
 			}
 		]
 	},
@@ -2292,8 +2291,8 @@ var LEARN_COURSES = [
 					"? ? 1 . . . .",
 					"? ? 1 m . . .",
 					"? ? 1 . . . .",
-					"? ? 1 . . . .",
-					"? ? 1 m . . ."
+					"? 1 2 . . . .",
+					"? 1 m m . . ."
 				],
 				solution: [
 					"? ? 1 m . S S",
@@ -2301,8 +2300,8 @@ var LEARN_COURSES = [
 					"? ? 1 . . S S",
 					"? ? 1 m . S S",
 					"? ? 1 . . S S",
-					"? ? 1 . . S S",
-					"? ? 1 m . S S"
+					"? 1 2 . . S S",
+					"? 1 m m . S S"
 				]
 			}
 		]
