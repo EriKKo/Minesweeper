@@ -2376,24 +2376,25 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Flag every mine",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					"1 1 1 ? 1 1 1",
-					"1 . 1 ? 1 . 1",
-					"1 1 1 ? 1 1 1",
-					"? ? ? ? ? ? ?",
-					"1 1 1 ? 1 1 1",
-					"1 . 1 ? 1 . 1",
-					"1 1 1 ? 1 1 1"
+					". . . . . . .",
+					". m . . . m .",
+					". . . . . . .",
+					". . . . . . .",
+					". . . . . . .",
+					". . m . m . .",
+					". . . . . . ."
 				],
 				solution: [
-					"1 1 1 ? 1 1 1",
-					"1 M 1 ? 1 M 1",
-					"1 1 1 ? 1 1 1",
-					"? ? ? ? ? ? ?",
-					"1 1 1 ? 1 1 1",
-					"1 M 1 ? 1 M 1",
-					"1 1 1 ? 1 1 1"
+					". . . . . . .",
+					". m . . . m .",
+					". . . . . . .",
+					". . . . . . .",
+					". . . . . . .",
+					". . m . m . .",
+					". . . . . . ."
 				]
 			}
 		]
@@ -2418,16 +2419,17 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Flag the mines, then open every safe cell",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					"1 1 2 1 1",
-					"1 . 2 . 1",
+					". . . . .",
+					". m . m .",
 					". . . . ."
 				],
 				solution: [
-					"1 1 2 1 1",
-					"1 M 2 M 1",
-					"S S S S S"
+					". . . . .",
+					". m . m .",
+					". . . . ."
 				]
 			}
 		]
@@ -2459,16 +2461,19 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Open the subset-safe cells",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					"m . . . . m",
-					"1 1 . . 1 1",
-					"? ? ? ? ? ?"
+					"m . . m . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				],
 				solution: [
-					"m . S S . m",
-					"1 1 S S 1 1",
-					"? ? ? ? ? ?"
+					"m . . m . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				]
 			}
 		]
@@ -2493,16 +2498,19 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Flag the subset-forced mines",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					". . .",
-					"1 2 1",
-					"? ? ?"
+					"m . m . . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				],
 				solution: [
-					"M . M",
-					"1 2 1",
-					"? ? ?"
+					"m . m . . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				]
 			}
 		]
@@ -2527,16 +2535,19 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Solve the 1-2-2-1",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					". . . .",
-					"1 2 2 1",
-					"? ? ? ?"
+					". m m . . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				],
 				solution: [
-					"S M M S",
-					"1 2 2 1",
-					"? ? ? ?"
+					". m m . . .",
+					". . . . . .",
+					". . . . . .",
+					". . . . . ."
 				]
 			}
 		]
@@ -2561,16 +2572,19 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Chain through the row",
+				title: "Solve the board",
+				simpleBoard: true,
 				grid: [
-					". . . . . . .",
-					"1 1 2 1 2 1 1",
-					"? ? ? ? ? ? ?"
+					". m . m . m . m",
+					". . . . . . . .",
+					". . . . . . . .",
+					". . . . . . . ."
 				],
 				solution: [
-					"S M S M S M S",
-					"1 1 2 1 2 1 1",
-					"? ? ? ? ? ? ?"
+					". m . m . m . m",
+					". . . . . . . .",
+					". . . . . . . .",
+					". . . . . . . ."
 				]
 			}
 		]
@@ -3248,6 +3262,23 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
 	}
 
+	// simpleBoard mode: treat the grid as just mines (`m`) and safe cells (`.`),
+	// then run a cascade from the bottom-left corner. The student plays the
+	// resulting position like a normal minesweeper game.
+	function initialCascade(r, c) {
+		if (r < 0 || r >= R || c < 0 || c >= C) return;
+		if (state[r][c] === REVEALED || isMine[r][c]) return;
+		state[r][c] = REVEALED;
+		if (clueValue[r][c] !== 0) return;
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (dr === 0 && dc === 0) continue;
+			initialCascade(r + dr, c + dc);
+		}
+	}
+	if (puzzle.simpleBoard) {
+		initialCascade(R - 1, 0);
+	}
+
 	var board = document.createElement("div");
 	board.className = "learn-board";
 	board.style.gridTemplateColumns = "repeat(" + C + ", 32px)";
@@ -3309,6 +3340,17 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 
 	function progressStatus() {
 		if (isGuess) { setStatus("", ""); return; }
+		if (puzzle.simpleBoard) {
+			var total = 0, opened = 0;
+			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+				if (!isMine[r][c]) {
+					total++;
+					if (state[r][c] === REVEALED) opened++;
+				}
+			}
+			setStatus(opened + " / " + total + " safe cells opened", "");
+			return;
+		}
 		var flaggedTarget = 0, flaggedHave = 0, revealTarget = 0, revealHave = 0;
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
 			if (sol[r][c] === "M") {
@@ -3339,9 +3381,15 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			return;
 		}
 		var allOk = true;
-		for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
-			if (sol[r][c] === "M" && state[r][c] !== FLAGGED) allOk = false;
-			if (sol[r][c] === "S" && state[r][c] !== REVEALED) allOk = false;
+		if (puzzle.simpleBoard) {
+			for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
+				if (!isMine[r][c] && state[r][c] !== REVEALED) allOk = false;
+			}
+		} else {
+			for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
+				if (sol[r][c] === "M" && state[r][c] !== FLAGGED) allOk = false;
+				if (sol[r][c] === "S" && state[r][c] !== REVEALED) allOk = false;
+			}
 		}
 		if (allOk) {
 			setStatus("Solved! ✓", "ok");
@@ -3428,10 +3476,11 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		for (var r = 0; r < R; r++) {
 			for (var c = 0; c < C; c++) {
 				state[r][c] = initialStateFor(rows[r][c]);
-				renderCell(r, c);
 				cellEls[r][c].classList.remove("lc-wrong");
 			}
 		}
+		if (puzzle.simpleBoard) initialCascade(R - 1, 0);
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) renderCell(r, c);
 		gameOver = false;
 		puzzleSolved = false;
 		solvedTick.textContent = "";
