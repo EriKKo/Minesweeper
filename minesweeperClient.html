@@ -2330,22 +2330,46 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Chord the satisfied 2",
+				title: "Chord the 1",
+				chordOnly: true,
 				grid: [
-					"? 1 1 1 ?",
-					"? 1 * 1 ?",
-					"? . 2 . ?",
-					"? . * . ?",
-					"? 1 1 1 ?"
+					". * .",
+					". 1 .",
+					". . ."
 				],
 				solution: [
-					"? 1 1 1 ?",
-					"? 1 * 1 ?",
-					"? S 2 S ?",
-					"? S * S ?",
-					"? 1 1 1 ?"
+					"S * S",
+					"S 1 S",
+					"S S S"
+				]
+			},
+			{
+				title: "Chord the 2",
+				chordOnly: true,
+				grid: [
+					"* . .",
+					". 2 .",
+					". . *"
 				],
-				why: "The 2 sees both flags — its other four covered neighbours are all safe. Mark them, or in the live game, just click the 2."
+				solution: [
+					"* S S",
+					"S 2 S",
+					"S S *"
+				]
+			},
+			{
+				title: "Chord the 3",
+				chordOnly: true,
+				grid: [
+					"* . .",
+					"* 3 *",
+					". . ."
+				],
+				solution: [
+					"* S S",
+					"* 3 *",
+					"S S S"
+				]
 			}
 		]
 	}
@@ -3305,15 +3329,19 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 
 	function onLeftClick(r, c) {
 		if (gameOver || puzzleSolved) return;
-		if (state[r][c] === COVERED) revealCell(r, c);
-		else if (state[r][c] === REVEALED) tryChord(r, c);
+		if (state[r][c] === COVERED) {
+			if (puzzle.chordOnly) { setStatus("Chord a satisfied number.", "warn"); return; }
+			revealCell(r, c);
+		} else if (state[r][c] === REVEALED) tryChord(r, c);
 		checkSolved();
 	}
 
 	function onRightClick(r, c) {
 		if (gameOver || puzzleSolved) return;
-		if (state[r][c] === COVERED || state[r][c] === FLAGGED) toggleFlag(r, c);
-		else if (state[r][c] === REVEALED) tryChord(r, c);
+		if (state[r][c] === COVERED || state[r][c] === FLAGGED) {
+			if (puzzle.chordOnly) { setStatus("Chord a satisfied number.", "warn"); return; }
+			toggleFlag(r, c);
+		} else if (state[r][c] === REVEALED) tryChord(r, c);
 		checkSolved();
 	}
 
