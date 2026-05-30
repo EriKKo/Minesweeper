@@ -2443,44 +2443,136 @@ var LEARN_COURSES = [
 		title: "Subset rule — safe cells",
 		idea: "When two clues need the same mines and one's candidates are inside the other's, the extras are safe.",
 		how: "Find clues A ⊆ B with equal numbers. B's extra cells must be safe.",
+		demo: {
+			title: "Worked example",
+			grid: [
+				". . .",
+				"1 1 .",
+				"? ? ?"
+			],
+			solution: [
+				". . S",
+				"1 1 .",
+				"? ? ?"
+			],
+			why: "Both 1s need one mine. The left 1's candidates sit inside the right 1's — the extra right cell is safe."
+		},
 		puzzles: [
-			{ title: "The 1-1 wall", grid: [". . .", "1 1 ?", "? ? ?"], solution: [". . S", "1 1 ?", "? ? ?"],
-			  why: "Left 1: one mine in the two left cells. Right 1: one mine across all three. Same count → the extra right cell is safe." },
-			{ title: "Same idea, mid-board", grid: ["? ? ? ?", "? 1 1 ?", "? . . .", "? ? ? ?"], solution: ["? ? ? ?", "? 1 1 ?", "? . . S", "? ? ? ?"],
-			  why: "An island, but identical logic: both 1s need one mine, the left's cells are inside the right's, so the extra cell is safe." }
+			{
+				title: "Open the subset-safe cells",
+				grid: [
+					"m . . .",
+					"1 1 . .",
+					". . . ."
+				],
+				solution: [
+					"m . S .",
+					"1 1 S .",
+					". . S ."
+				]
+			}
 		]
 	},
 	{
 		title: "Subset rule — mines",
 		idea: "When B needs exactly as many more mines as it has extra cells, those extras are all mines.",
 		how: "Find A ⊆ B where B's number is bigger by exactly the extra cell count. Flag the extras.",
+		demo: {
+			title: "Worked example",
+			grid: [
+				". . .",
+				"1 2 .",
+				"? ? ?"
+			],
+			solution: [
+				". . M",
+				"1 2 .",
+				"? ? ?"
+			],
+			why: "The 2 needs one more mine than the 1, and it has exactly one extra cell. That cell must be the mine."
+		},
 		puzzles: [
-			{ title: "The 1-2 wall", grid: [". . .", "1 2 ?", "? ? ?"], solution: [". . M", "1 2 ?", "? ? ?"],
-			  why: "The 2 needs one more mine than the 1, and has exactly one more cell, so that extra cell is a mine." },
-			{ title: "Same idea, mid-board", grid: ["? ? ? ?", "? 1 2 ?", "? . . .", "? ? ? ?"], solution: ["? ? ? ?", "? 1 2 ?", "? . . M", "? ? ? ?"],
-			  why: "The 2 needs one extra mine over the 1 and has one extra cell → that cell is a mine. The shared pair stays unknown." }
+			{
+				title: "Flag the subset-forced mines",
+				grid: [
+					". . .",
+					"1 2 1",
+					". . ."
+				],
+				solution: [
+					"M . M",
+					"1 2 1",
+					". . ."
+				]
+			}
 		]
 	},
 	{
 		title: "Named patterns",
 		idea: "Two shapes repeat all the time: 1-2-1 and 1-2-2-1 along a covered wall.",
 		how: "1-2-1 → mines on the ends. 1-2-2-1 → mines in the middle two.",
+		demo: {
+			title: "1-2-1: mines on the ends",
+			grid: [
+				". . .",
+				"1 2 1",
+				". . ."
+			],
+			solution: [
+				"M S M",
+				"1 2 1",
+				". . ."
+			],
+			why: "The centre 2 forces both ends to be mines. The cell between them is safe."
+		},
 		puzzles: [
-			{ title: "1-2-1 → ends are mines", grid: [". . . ?", "1 2 1 ?", "? ? ? ?"], solution: ["M S M ?", "1 2 1 ?", "? ? ? ?"],
-			  why: "Subtracting each 1 from the centre 2 forces both ends to be mines; the middle is then safe." },
-			{ title: "1-2-2-1 → middle two are mines", grid: [". . . . ?", "1 2 2 1 ?", "? ? ? ? ?"], solution: ["S M M S ?", "1 2 2 1 ?", "? ? ? ? ?"],
-			  why: "Each 2 over its 1 forces an inner mine; the ends fall out safe. Classic 1-2-2-1." }
+			{
+				title: "Solve the 1-2-2-1",
+				grid: [
+					". . . .",
+					"1 2 2 1",
+					". . . ."
+				],
+				solution: [
+					"S M M S",
+					"1 2 2 1",
+					". . . ."
+				]
+			}
 		]
 	},
 	{
 		title: "Chains",
 		idea: "Solve one cell at a time. Each new clue helps you read the next.",
 		how: "Start with the most constrained clue. Solve it, then re-read its neighbours.",
+		demo: {
+			title: "1-1-2-1 cascade",
+			grid: [
+				". . . . .",
+				"1 1 2 1 1",
+				". . . . ."
+			],
+			solution: [
+				"S M S M S",
+				"1 1 2 1 1",
+				". . . . ."
+			],
+			why: "Subset on the left 1-1 frees the third cell. The 2 then forces both adjacent cells as mines. Satisfied clear opens the rest."
+		},
 		puzzles: [
-			{ title: "1-1-2-1 cascade", grid: [". . . . ?", "1 1 2 1 ?", "? ? ? ? ?"], solution: ["S M S M ?", "1 1 2 1 ?", "? ? ? ? ?"],
-			  why: "The two 1s subtract to a safe cell, the 2 then forces two mines, and the rest follows step by step." },
-			{ title: "Island ringed by 1s", grid: ["? ? ? ? ?", "? 1 1 1 ?", "? . . . ?", "? ? ? ? ?"], solution: ["? ? ? ? ?", "? 1 1 1 ?", "? S M S ?", "? ? ? ? ?"],
-			  why: "The middle 1 overlaps the others; subtracting clears the ends and forces the centre mine." }
+			{
+				title: "Chain through the row",
+				grid: [
+					". . . . . . .",
+					"1 1 2 1 2 1 1",
+					". . . . . . ."
+				],
+				solution: [
+					"S M S M S M S",
+					"1 1 2 1 2 1 1",
+					". . . . . . ."
+				]
+			}
 		]
 	},
 	{
