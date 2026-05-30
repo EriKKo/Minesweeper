@@ -1972,6 +1972,62 @@ body.touch .find-next-arrow { display: inline-flex; }
 	color: var(--muted);
 	font-weight: 700;
 }
+.learn-courses-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 1rem;
+	margin-bottom: 1.4rem;
+}
+.learn-course-card {
+	text-align: left;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 1.1rem 1.15rem;
+	color: var(--text);
+	cursor: pointer;
+	font-family: inherit;
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+	transition: border-color 0.12s, transform 0.12s, background 0.12s;
+}
+.learn-course-card:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+.learn-course-card:disabled, .learn-course-card.locked { opacity: 0.55; cursor: not-allowed; }
+.learn-course-card.done { border-color: rgba(74, 222, 128, 0.4); }
+.learn-course-top { display: flex; justify-content: space-between; align-items: center; }
+.learn-course-num { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.learn-course-badge {
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--success);
+	font-weight: 700;
+	background: rgba(74, 222, 128, 0.12);
+	padding: 0.15rem 0.5rem;
+	border-radius: 6px;
+}
+.learn-course-badge.locked { color: var(--muted); background: rgba(148, 163, 184, 0.12); }
+.learn-course-card-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.learn-course-card-sub { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+.learn-course-bar {
+	height: 5px;
+	background: rgba(148, 163, 184, 0.18);
+	border-radius: 999px;
+	overflow: hidden;
+	margin-top: 0.2rem;
+}
+.learn-course-bar-fill {
+	height: 100%;
+	background: var(--accent);
+	border-radius: 999px;
+	transition: width 0.2s;
+}
+.learn-course-card.done .learn-course-bar-fill { background: var(--success); }
+.learn-course-meta { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.82rem; color: var(--muted); }
+.learn-course-cta { color: var(--accent); font-weight: 600; }
+.learn-course-card.done .learn-course-cta { color: var(--success); }
+.learn-back-btn { margin-bottom: 0.6rem; }
 .learn-demo-tiles {
 	display: flex;
 	flex-wrap: wrap;
