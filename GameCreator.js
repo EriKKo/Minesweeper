@@ -4,13 +4,14 @@ var DEFAULT_MINES = 30;
 var DEFAULT_ROWS = 15;
 var DEFAULT_COLS = 20;
 
+// Used by getAdjacentSquares (the variadic-filter helper still in use here).
 var dr = [0, 1, 0, -1, -1, 1, -1, 1];
 var dc = [-1, 0, 1, 0, -1, -1, 1, 1];
 
-var MINE = -1;
-var FLAGGED = -2;
-var UNKNOWN = -3;
-var KNOWN = -4;
+var MINE = BoardLogic.MINE;
+var FLAGGED = BoardLogic.FLAGGED;
+var UNKNOWN = BoardLogic.UNKNOWN;
+var KNOWN = BoardLogic.KNOWN;
 
 function createGame(mineCount, gameRows, gameCols) {
 	var numMines = mineCount > 0 ? mineCount : DEFAULT_MINES;
@@ -267,14 +268,7 @@ function popcount(x) {
 // uncovered. Used to pick boards that don't force a guess.
 function analyzeSolvability(board, knownCells, numMines) {
 	var rows = board.length, cols = board[0].length;
-	function neighborsOf(r, c) {
-		var ret = [];
-		for (var i = 0; i < 8; i++) {
-			var nr = r + dr[i], nc = c + dc[i];
-			if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) ret.push([nr, nc]);
-		}
-		return ret;
-	}
+	function neighborsOf(r, c) { return BoardLogic.neighbours(r, c, rows, cols); }
 
 	var revealed = [], mineKnown = [];
 	for (var r = 0; r < rows; r++) {
@@ -283,12 +277,11 @@ function analyzeSolvability(board, knownCells, numMines) {
 	}
 
 	function reveal(r, c) {
-		if (revealed[r][c] || mineKnown[r][c]) return;
-		revealed[r][c] = true;
-		if (board[r][c] === 0) {
-			var nb = neighborsOf(r, c);
-			for (var i = 0; i < nb.length; i++) reveal(nb[i][0], nb[i][1]);
-		}
+		BoardLogic.cascadeReveal(r, c, rows, cols,
+			function(rr, cc) { return !revealed[rr][cc] && !mineKnown[rr][cc]; },
+			function(rr, cc) { revealed[rr][cc] = true; return false; },
+			function(rr, cc) { return board[rr][cc]; }
+		);
 	}
 
 	for (var i = 0; i < knownCells.length; i++) reveal(knownCells[i][0], knownCells[i][1]);

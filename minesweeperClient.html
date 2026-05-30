@@ -377,10 +377,10 @@ var MINE_DUR = 460;
 var STAGGER_MS = 13;     // per unit of distance from the reveal origin
 var STAGGER_CAP = 340;   // max ripple delay so big floods stay snappy
 
-var MINE = -1;
-var FLAGGED = -2;
-var UNKNOWN = -3;
-var KNOWN = -4;
+var MINE = BoardLogic.MINE;
+var FLAGGED = BoardLogic.FLAGGED;
+var UNKNOWN = BoardLogic.UNKNOWN;
+var KNOWN = BoardLogic.KNOWN;
 
 var rows = 15;
 var cols = 20;
@@ -468,15 +468,18 @@ var pressedCell = null; // cell currently under the finger — drawn highlighted
 var LONG_PRESS_MS = 420;
 var TOUCH_MOVE_TOLERANCE = 12;
 
-function cellFromClient(clientX, clientY) {
-	var rect = playerCanvas.getBoundingClientRect();
-	var scaleX = playerCanvas.width / rect.width;
-	var scaleY = playerCanvas.height / rect.height;
-	var x = (clientX - rect.left) * scaleX;
-	var y = (clientY - rect.top) * scaleY;
-	var c = getCol(x), r = getRow(y);
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return null;
+// Hit-test a canvas at a client (x, y) point. Used by both the live game and
+// the Learn page — every interactive board on the site flows through here.
+function cellFromCanvas(canvas, R, C, clientX, clientY) {
+	var rect = canvas.getBoundingClientRect();
+	var c = Math.floor((clientX - rect.left) / rect.width * C);
+	var r = Math.floor((clientY - rect.top) / rect.height * R);
+	if (r < 0 || r >= R || c < 0 || c >= C) return null;
 	return { r: r, c: c };
+}
+
+function cellFromClient(clientX, clientY) {
+	return cellFromCanvas(playerCanvas, rows, cols, clientX, clientY);
 }
 
 function clearPressed() {
@@ -3327,14 +3330,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		checkSolved();
 	}
 
-	function cellFromEvent(e) {
-		var rect = canvas.getBoundingClientRect();
-		var x = (e.clientX - rect.left) / rect.width * C;
-		var y = (e.clientY - rect.top) / rect.height * R;
-		var c = Math.floor(x), r = Math.floor(y);
-		if (r < 0 || r >= R || c < 0 || c >= C) return null;
-		return { r: r, c: c };
-	}
+	function cellFromEvent(e) { return cellFromCanvas(canvas, R, C, e.clientX, e.clientY); }
 	canvas.addEventListener("click", function(e) {
 		var cell = cellFromEvent(e);
 		if (cell) onLeftClick(cell.r, cell.c);

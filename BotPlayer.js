@@ -1,9 +1,10 @@
 var gameCreator = require("./GameCreator");
+var BoardLogic = require("./BoardLogic");
 
-var MINE = gameCreator.MINE;
-var FLAGGED = gameCreator.FLAGGED;
-var UNKNOWN = gameCreator.UNKNOWN;
-var KNOWN = gameCreator.KNOWN;
+var MINE = BoardLogic.MINE;
+var FLAGGED = BoardLogic.FLAGGED;
+var UNKNOWN = BoardLogic.UNKNOWN;
+var KNOWN = BoardLogic.KNOWN;
 // Board dimensions are derived per game from game.board (boards can vary in size).
 
 // Per-bot skill bundles both pace and accuracy:
@@ -103,17 +104,7 @@ function pickBotName(taken) {
 }
 
 function neighbors(r, c, rows, cols) {
-	var ret = [];
-	for (var dr = -1; dr <= 1; dr++) {
-		for (var dc = -1; dc <= 1; dc++) {
-			if (dr === 0 && dc === 0) continue;
-			var nr = r + dr;
-			var nc = c + dc;
-			if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-			ret.push([nr, nc]);
-		}
-	}
-	return ret;
+	return BoardLogic.neighbours(r, c, rows, cols);
 }
 
 var LOCAL_RADIUS = 4; // bots work cells within this distance of their focus before jumping

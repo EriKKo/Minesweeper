@@ -3,6 +3,13 @@
 // actual cell-state shape, so the same code works against different schemas.
 (function() {
 	var BoardLogic = {
+		// Cell-state sentinels used by the live game server + client.
+		// MINE is the value of a mined cell in the underlying board array;
+		// FLAGGED/UNKNOWN/KNOWN are the per-player state values.
+		MINE: -1,
+		FLAGGED: -2,
+		UNKNOWN: -3,
+		KNOWN: -4,
 		forEachNeighbour: function(r, c, R, C, fn) {
 			for (var dr = -1; dr <= 1; dr++) {
 				for (var dc = -1; dc <= 1; dc++) {
