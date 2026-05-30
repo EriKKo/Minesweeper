@@ -2191,8 +2191,8 @@ var LEARN_COURSES = [
 	lessons: [
 	{
 		title: "Reading the numbers",
-		idea: "Every number on the board is a count of mines in the 8 cells around it. Read them, and you can pick out safe cells without ever guessing.",
-		how: "Left-click a covered cell to open it. The cell shows the number of mines that touch it — or stays blank if none. Find a covered cell whose surrounding numbers tell you it can't be a mine, and open it.",
+		idea: "Every number counts the mines in the 8 cells touching it.",
+		how: "Left-click a covered cell to open it. Use the numbers around a cell to tell if it's safe.",
 		demo: {
 			title: "What each number means",
 			grid: [
@@ -2204,7 +2204,7 @@ var LEARN_COURSES = [
 				"2 b b b b b b b 2",
 				"1 2 3 3 3 3 3 2 1"
 			],
-			why: "Every number is the count of mines in the 8 cells around it. A 1 has one mine next to it, an 8 has eight — every neighbour."
+			why: "A 1 has one mine next to it. An 8 has eight — every neighbour."
 		},
 		puzzles: [
 			{
@@ -2233,12 +2233,12 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Flagging mines",
-		idea: "Once you've spotted a mine, mark it with a flag so you don't open it by mistake later.",
-		how: "Right-click any covered cell to drop a flag. Right-click again to remove it. Flags don't open cells — they're just your own bookkeeping.",
+		idea: "Mark mines with a flag so you don't open them by mistake.",
+		how: "Right-click a covered cell to flag it. Right-click again to remove.",
 		demo: {
 			title: "Marking a mine",
 			grid: ["1 1 1", "1 * 1", "1 1 1"],
-			why: "Every 1 around this cell points at the same mine. Once you've spotted it, right-click to flag it (🚩)."
+			why: "Every 1 points at the same mine. Right-click to flag it (🚩)."
 		},
 		puzzles: [
 			{
@@ -2262,8 +2262,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Cascades",
-		idea: "Open a cell that touches zero mines and the game auto-opens its neighbours — sometimes clearing huge regions in one click.",
-		how: "Every empty cell (one touching no mines) is safe. When you open one, the game opens its 8 neighbours for free. Any of those that are also empty cascade onward — the wave only stops at clue cells.",
+		idea: "Opening an empty cell auto-opens its neighbours. Empty neighbours cascade onward — one click can clear half the board.",
+		how: "Click somewhere far from any number. Empty cells cascade until they hit a clue.",
 		demo: {
 			title: "One click, big reveal",
 			grid: [
@@ -2280,7 +2280,7 @@ var LEARN_COURSES = [
 				"? ? ? ? ? ? ?",
 				"? ? ? ? ? ? ?"
 			],
-			why: "Clicking that empty cell in the top-left opened the entire left side and the clue ring around the mines — all in a single click."
+			why: "One click on the empty corner opened the whole left side."
 		},
 		puzzles: [
 			{
@@ -2308,8 +2308,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Chord click",
-		idea: "Once a clue's mines are all flagged, click the clue itself to open every remaining covered neighbour in one motion.",
-		how: "Find a number whose flag count already matches its value. Left-click directly on the number — every still-covered neighbour pops open at once. You replace N clicks with 1.",
+		idea: "When a number's mines are all flagged, click the number itself to open the rest in one move.",
+		how: "Click any number whose flag count matches its value. Left- or right-click both chord.",
 		demo: {
 			title: "Worked example",
 			grid: [
@@ -2326,7 +2326,7 @@ var LEARN_COURSES = [
 				"? S * S ?",
 				"? 1 1 1 ?"
 			],
-			why: "The 3 already touches three flagged mines, so its other four neighbours must be safe. One click on the 3 itself opens all four at once."
+			why: "The 3 sees three flags. Clicking it opens the other four cells at once."
 		},
 		puzzles: [
 			{
@@ -2350,13 +2350,12 @@ var LEARN_COURSES = [
 {
 	id: "simple",
 	title: "Simple moves",
-	sub: "Finding forced mines and clearing cells next to a satisfied number.",
+	sub: "Forced mines and satisfied clears.",
 	lessons: [
 	{
 		title: "Forced mines",
-		idea: "When a clue's number matches the still-covered cells it touches, every one of those cells is a mine.",
-		how: "Find a clue, count its still-covered neighbours. If that count equals the number, you've located all of its mines.",
-		mistake: "Only covered cells count as candidates. Numbers, blanks, and existing flags don't.",
+		idea: "When a clue's number matches its covered neighbours, every one of them is a mine.",
+		how: "Find a clue. Count its covered neighbours. If they match the number, flag them all.",
 		demo: {
 			title: "Worked example",
 			grid: [
@@ -2420,9 +2419,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Satisfied clear",
-		idea: "If a clue already touches enough known mines, its other neighbours are safe.",
-		how: "When a number equals the known mines (🚩) around it, it is finished — open every other covered cell it touches.",
-		mistake: "Keep going: a freshly-cleared safe cell often becomes a new clue you can use again.",
+		idea: "When a clue's flags equal its number, the rest of its neighbours are safe.",
+		how: "Find a clue with the right number of flags around it. Open every other cell it touches.",
 		puzzles: [
 			{ title: "Clue already satisfied", grid: ["? ? ?", "* 1 .", "? ? ?"], solution: ["? ? ?", "* 1 S", "? ? ?"],
 			  why: "The 1 already sees its one mine (🚩), so the other covered cell is safe." },
@@ -2435,13 +2433,12 @@ var LEARN_COURSES = [
 {
 	id: "intermediate",
 	title: "Intermediate moves",
-	sub: "Subset rules, named patterns, chains, and case analysis.",
+	sub: "Subset rules, named patterns, and case analysis.",
 	lessons: [
 	{
 		title: "Subset rule — safe cells",
-		idea: "Two clues need the same number of mines, one's cells sit inside the other's → the extra cells are safe.",
-		how: "If clue A's candidates are entirely inside clue B's candidates and both need the same number of mines, the cells in B but not A hold no mine — they're safe.",
-		mistake: "This only works when the two numbers are equal. If they differ, see the next lesson.",
+		idea: "When two clues need the same mines and one's candidates are inside the other's, the extras are safe.",
+		how: "Find clues A ⊆ B with equal numbers. B's extra cells must be safe.",
 		puzzles: [
 			{ title: "The 1-1 wall", grid: [". . .", "1 1 ?", "? ? ?"], solution: [". . S", "1 1 ?", "? ? ?"],
 			  why: "Left 1: one mine in the two left cells. Right 1: one mine across all three. Same count → the extra right cell is safe." },
@@ -2451,9 +2448,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Subset rule — mines",
-		idea: "Same nesting, but the bigger clue needs exactly as many extra mines as it has extra cells → those are mines.",
-		how: "If A's cells sit inside B's, and B's number exceeds A's by exactly the number of extra cells, every extra cell is a mine.",
-		mistake: "The shared cells usually stay unknown — you've pinned the extra cells, not the whole region.",
+		idea: "When B needs exactly as many more mines as it has extra cells, those extras are all mines.",
+		how: "Find A ⊆ B where B's number is bigger by exactly the extra cell count. Flag the extras.",
 		puzzles: [
 			{ title: "The 1-2 wall", grid: [". . .", "1 2 ?", "? ? ?"], solution: [". . M", "1 2 ?", "? ? ?"],
 			  why: "The 2 needs one more mine than the 1, and has exactly one more cell, so that extra cell is a mine." },
@@ -2463,9 +2459,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Named patterns",
-		idea: "Memorise the shapes that recur: 1-2-1 and 1-2-2-1 along a wall.",
-		how: "These are just the subset rule applied at several spots at once. Learn the signature: a 1-2-1 has mines on the ends; a 1-2-2-1 has mines in the two middle cells.",
-		mistake: "The pattern only holds when the covered run lines up exactly with the numbers — check the framing.",
+		idea: "Two shapes repeat all the time: 1-2-1 and 1-2-2-1 along a covered wall.",
+		how: "1-2-1 → mines on the ends. 1-2-2-1 → mines in the middle two.",
 		puzzles: [
 			{ title: "1-2-1 → ends are mines", grid: [". . . ?", "1 2 1 ?", "? ? ? ?"], solution: ["M S M ?", "1 2 1 ?", "? ? ? ?"],
 			  why: "Subtracting each 1 from the centre 2 forces both ends to be mines; the middle is then safe." },
@@ -2475,9 +2470,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Chains",
-		idea: "When no single rule finishes, solve one cell, re-read the neighbours, and let it cascade.",
-		how: "Treat the frontier as a system. Start from the most constrained clue (fewest covered cells), mark what it forces, then re-check the clues next to it.",
-		mistake: "Don't give up because the first clue you look at isn't solvable — start from the tightest one.",
+		idea: "Solve one cell at a time. Each new clue helps you read the next.",
+		how: "Start with the most constrained clue. Solve it, then re-read its neighbours.",
 		puzzles: [
 			{ title: "1-1-2-1 cascade", grid: [". . . . ?", "1 1 2 1 ?", "? ? ? ? ?"], solution: ["S M S M ?", "1 1 2 1 ?", "? ? ? ? ?"],
 			  why: "The two 1s subtract to a safe cell, the 2 then forces two mines, and the rest follows step by step." },
@@ -2487,9 +2481,8 @@ var LEARN_COURSES = [
 	},
 	{
 		title: "Enumeration",
-		idea: "When patterns fail, assume a cell is a mine (or safe) and follow the clues until something breaks.",
-		how: "Pick a pivotal cell. Try 'mine' and propagate; try 'safe' and propagate. If one option always leads to a contradiction, the other is forced.",
-		mistake: "Follow the assumption all the way — a contradiction can be two or three clues downstream.",
+		idea: "Assume a cell is a mine. Follow the clues. If something breaks, the cell is actually safe.",
+		how: "Pick a pivotal cell. Try mine, propagate. Try safe, propagate. One option contradicts — the other is forced.",
 		puzzles: [
 			{ title: "Find the forced cells", grid: [". . . .", "? 1 2 ?", "? ? ? ?"], solution: ["S . . M", "? 1 2 ?", "? ? ? ?"],
 			  why: "If the right cell were safe the 2 would need both shared cells, but then the 1 sees two mines — impossible. So it's a mine; symmetrically the left cell is safe." },
@@ -2506,9 +2499,8 @@ var LEARN_COURSES = [
 	lessons: [
 	{
 		title: "Smart guessing",
-		idea: "When nothing is certain, compare the local groups and guess the lowest per-cell risk.",
-		how: "Each clue group's risk per cell is roughly mines ÷ candidate cells. A 1 over two cells is 1/2 each; a 1 over three is 1/3 each. Click the cell you'd guess.",
-		mistake: "Don't just count cells — a bigger group is only safer when the mine counts match. Always divide mines by cells.",
+		idea: "When forced to guess, pick the group with the lowest per-cell mine probability.",
+		how: "Risk per cell ≈ mines ÷ candidates. A 1 over 3 cells (33%) beats a 1 over 2 cells (50%).",
 		guess: true,
 		puzzles: [
 			{ title: "Two cells vs three", grid: [". . . . .", "1 ? ? 1 ?", "? ? ? ? ?"], solution: ["B B G G G", "1 ? ? 1 ?", "? ? ? ? ?"],
