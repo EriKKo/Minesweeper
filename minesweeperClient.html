@@ -2285,22 +2285,26 @@ var LEARN_COURSES = [
 		},
 		puzzles: [
 			{
-				title: "Open into the empty area",
+				title: "Click an empty corner",
 				grid: [
-					"? ? ? ? ?",
-					"? 1 1 1 ?",
-					"? 1 * 1 ?",
-					"? 1 1 1 ?",
-					"? . . . ?"
+					". . . . . . .",
+					". . . . . . .",
+					". . m . . . .",
+					". . . . . . .",
+					". . . . . m .",
+					". . . . . . .",
+					". m . . . . ."
 				],
 				solution: [
-					"? ? ? ? ?",
-					"? 1 1 1 ?",
-					"? 1 * 1 ?",
-					"? 1 1 1 ?",
-					"? S S S ?"
+					"S . . . . . .",
+					". . . . . . .",
+					". . m . . . .",
+					". . . . . . .",
+					". . . . . m .",
+					". . . . . . .",
+					". m . . . . ."
 				],
-				why: "Every 1 already has its mine flagged, so the row below the ring is safe. Opening any of those cells triggers a cascade that opens the rest."
+				why: "An empty corner can't touch any mine, so it's a value-0 cell. Clicking it cascades through every connected empty cell, stopping only at the clue ring around each mine — one click opens almost the whole board."
 			}
 		]
 	},
