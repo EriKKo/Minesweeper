@@ -2249,6 +2249,92 @@ var LEARN_COURSES = [
 				why: "Every 1 around the flag is already satisfied by it — the remaining covered cell can't be a mine, so it's safe to open."
 			}
 		]
+	},
+	{
+		title: "Cascades",
+		idea: "Open a cell that touches zero mines and the game auto-opens its neighbours — sometimes clearing huge regions in one click.",
+		how: "Every empty cell (one touching no mines) is safe. When you open one, the game opens its 8 neighbours for free. Any of those that are also empty cascade onward — the wave only stops at clue cells.",
+		demo: {
+			title: "One click, big reveal",
+			grid: [
+				". ? ? 2 b b 2",
+				"? ? ? 2 b b 2",
+				"? ? ? 1 2 2 1",
+				"? ? ? ? ? ? ?",
+				"? ? ? ? ? ? ?"
+			],
+			solution: [
+				"S ? ? 2 b b 2",
+				"? ? ? 2 b b 2",
+				"? ? ? 1 2 2 1",
+				"? ? ? ? ? ? ?",
+				"? ? ? ? ? ? ?"
+			],
+			why: "Clicking that empty cell in the top-left opened the entire left side and the clue ring around the mines — all in a single click."
+		},
+		puzzles: [
+			{
+				title: "Open into the empty area",
+				grid: [
+					"? ? ? ? ?",
+					"? 1 1 1 ?",
+					"? 1 * 1 ?",
+					"? 1 1 1 ?",
+					"? . . . ?"
+				],
+				solution: [
+					"? ? ? ? ?",
+					"? 1 1 1 ?",
+					"? 1 * 1 ?",
+					"? 1 1 1 ?",
+					"? S S S ?"
+				],
+				why: "Every 1 already has its mine flagged, so the row below the ring is safe. Opening any of those cells triggers a cascade that opens the rest."
+			}
+		]
+	},
+	{
+		title: "Chord click",
+		idea: "Once a clue's mines are all flagged, click the clue itself to open every remaining covered neighbour in one motion.",
+		how: "Find a number whose flag count already matches its value. Left-click directly on the number — every still-covered neighbour pops open at once. You replace N clicks with 1.",
+		demo: {
+			title: "Worked example",
+			grid: [
+				"1 1 2 1 1",
+				"1 * 2 * 1",
+				"1 . 3 . 1",
+				"? . * . ?",
+				"? 1 1 1 ?"
+			],
+			solution: [
+				"1 1 2 1 1",
+				"1 * 2 * 1",
+				"1 S 3 S 1",
+				"? S * S ?",
+				"? 1 1 1 ?"
+			],
+			why: "The 3 already touches three flagged mines, so its other four neighbours must be safe. One click on the 3 itself opens all four at once."
+		},
+		puzzles: [
+			{
+				title: "Chord the satisfied 2",
+				grid: [
+					"? 1 1 1 ?",
+					"? 1 * 1 ?",
+					"? . 2 . ?",
+					"? . * . ?",
+					"? 1 1 1 ?"
+				],
+				solution: [
+					"? 1 1 1 ?",
+					"? 1 * 1 ?",
+					"? S 2 S ?",
+					"? S * S ?",
+					"? 1 1 1 ?"
+				],
+				why: "The 2 sees both flags — its other four covered neighbours are all safe. Mark them, or in the live game, just click the 2."
+			}
+		]
 	}
 	]
 },
