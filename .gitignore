@@ -3,6 +3,7 @@ npm-debug.log
 .DS_Store
 .env
 *.swp
+.idea/
 ranked.db
 ranked.db-journal
 ranked.db-wal

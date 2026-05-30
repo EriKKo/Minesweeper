@@ -1,3 +1,5 @@
+var BoardLogic = require("./BoardLogic");
+
 var DEFAULT_MINES = 30;
 var DEFAULT_ROWS = 15;
 var DEFAULT_COLS = 20;
@@ -85,19 +87,13 @@ function createGame(mineCount, gameRows, gameCols) {
 	}
 
 	function clearAdjacentIfEnoughFlags(r, c) {
-		var adjacent = getAdjacentSquares(r, c);
-		var knownMines = 0;
-		var adjacentUnknown = [];
-		for (var i = 0; i < adjacent.length; i++) {
-			var ar = adjacent[i][0], ac = adjacent[i][1];
-			if (state[ar][ac] == FLAGGED) knownMines++;
-			else if (state[ar][ac] == KNOWN && board[ar][ac] == MINE) knownMines++;
-			else if (state[ar][ac] == UNKNOWN) adjacentUnknown.push(adjacent[i]);
-		}
-		if (knownMines == board[r][c]) {
-			for (var j = 0; j < adjacentUnknown.length; j++) {
-				dfs(adjacentUnknown[j][0], adjacentUnknown[j][1]);
-			}
+		var ctx = BoardLogic.chordContext(r, c, rows, cols,
+			function(rr, cc) { return state[rr][cc] === FLAGGED; },
+			function(rr, cc) { return state[rr][cc] === KNOWN && board[rr][cc] === MINE; },
+			function(rr, cc) { return state[rr][cc] === UNKNOWN; }
+		);
+		if (ctx.flagCount === board[r][c]) {
+			for (var i = 0; i < ctx.covered.length; i++) dfs(ctx.covered[i][0], ctx.covered[i][1]);
 		}
 	}
 
@@ -187,23 +183,23 @@ function createGame(mineCount, gameRows, gameCols) {
 	}
 
 	function dfs(r, c) {
-		if (state[r][c] == KNOWN) return;
-		state[r][c] = KNOWN;
-		if (firstClick) {
-			handleFirstClick(r, c);
-			firstClick = false;
-		}
-		if (board[r][c] != MINE) {
-			squaresLeft--;
-		} else if (game.mineHit) {
-			game.mineHit();
-		}
-		if (board[r][c] == 0) {
-			var adjacentUnknown = getAdjacentSquares(r, c, UNKNOWN);
-			for (var i = 0; i < adjacentUnknown.length; i++) {
-				dfs(adjacentUnknown[i][0], adjacentUnknown[i][1]);
-			}
-		}
+		BoardLogic.cascadeReveal(r, c, rows, cols,
+			function(rr, cc) { return state[rr][cc] === UNKNOWN; },
+			function(rr, cc) {
+				state[rr][cc] = KNOWN;
+				if (firstClick) {
+					handleFirstClick(rr, cc);
+					firstClick = false;
+				}
+				if (board[rr][cc] !== MINE) {
+					squaresLeft--;
+				} else if (game.mineHit) {
+					game.mineHit();
+				}
+				return false;
+			},
+			function(rr, cc) { return board[rr][cc]; }
+		);
 	}
 
 	function getAdjacentSquares(r, c) {
