@@ -381,6 +381,70 @@ var FLAGGED = -2;
 var UNKNOWN = -3;
 var KNOWN = -4;
 
+// Pure minesweeper algorithms shared by the live game and the Learn page.
+// Pass callbacks for state queries so the same code works against both
+// surfaces' different cell-state shapes.
+var BoardLogic = {
+	forEachNeighbour: function(r, c, R, C, fn) {
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				var nr = r + dr, nc = c + dc;
+				if (nr >= 0 && nr < R && nc >= 0 && nc < C) fn(nr, nc);
+			}
+		}
+	},
+	neighbours: function(r, c, R, C) {
+		var out = [];
+		BoardLogic.forEachNeighbour(r, c, R, C, function(nr, nc) { out.push([nr, nc]); });
+		return out;
+	},
+	// Build the full clue-value grid given an isMine(r, c) predicate.
+	buildClueGrid: function(R, C, isMine) {
+		var grid = [];
+		for (var r = 0; r < R; r++) {
+			grid[r] = [];
+			for (var c = 0; c < C; c++) {
+				var cnt = 0;
+				BoardLogic.forEachNeighbour(r, c, R, C, function(nr, nc) {
+					if (isMine(nr, nc)) cnt++;
+				});
+				grid[r][c] = cnt;
+			}
+		}
+		return grid;
+	},
+	// DFS reveal cascade. Caller-owned callbacks:
+	//   isCovered(r,c) → still hidden and eligible to flip
+	//   reveal(r,c)    → mutate the surface's state; return true if it was a mine
+	//   clueAt(r,c)    → clue value (used to decide whether to keep cascading)
+	// Returns whether the cascade hit any mine.
+	cascadeReveal: function(r, c, R, C, isCovered, reveal, clueAt) {
+		if (r < 0 || r >= R || c < 0 || c >= C) return false;
+		if (!isCovered(r, c)) return false;
+		if (reveal(r, c)) return true;
+		if (clueAt(r, c) !== 0) return false;
+		var anyHit = false;
+		BoardLogic.forEachNeighbour(r, c, R, C, function(nr, nc) {
+			if (BoardLogic.cascadeReveal(nr, nc, R, C, isCovered, reveal, clueAt)) anyHit = true;
+		});
+		return anyHit;
+	},
+	// Chord analysis around a revealed clue cell.
+	//   isFlagged(r,c)   → counts toward the chord trigger
+	//   isKnownMine(r,c) → also counts (live game has revealed mines; pass null otherwise)
+	//   isCovered(r,c)   → eligible to be chord-revealed
+	chordContext: function(r, c, R, C, isFlagged, isKnownMine, isCovered) {
+		var flagCount = 0;
+		var covered = [];
+		BoardLogic.forEachNeighbour(r, c, R, C, function(nr, nc) {
+			if (isFlagged(nr, nc) || (isKnownMine && isKnownMine(nr, nc))) flagCount++;
+			else if (isCovered(nr, nc)) covered.push([nr, nc]);
+		});
+		return { flagCount: flagCount, covered: covered };
+	}
+};
+
 var rows = 15;
 var cols = 20;
 
@@ -487,27 +551,16 @@ function clearPressed() {
 // Mirror the server's dfs reveal: walks from (r,c) marking unknown cells KNOWN,
 // cascading through 0-cells, recording each newly-revealed cell and whether the
 // path hit a mine. Mutates myState in place.
-function localReveal(r, c, revealed, visited) {
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return false;
-	var key = r + "," + c;
-	if (visited[key]) return false;
-	visited[key] = true;
-	if (myState[r][c] !== UNKNOWN) return false;
-	var v = boardCell(r, c);
-	myState[r][c] = KNOWN;
-	revealed.push([r, c]);
-	if (v === MINE) return true;
-	if (v === 0) {
-		var hit = false;
-		for (var dr = -1; dr <= 1; dr++) {
-			for (var dc = -1; dc <= 1; dc++) {
-				if (dr === 0 && dc === 0) continue;
-				if (localReveal(r + dr, c + dc, revealed, visited)) hit = true;
-			}
-		}
-		return hit;
-	}
-	return false;
+function localReveal(r, c, revealed) {
+	return BoardLogic.cascadeReveal(r, c, rows, cols,
+		function(rr, cc) { return myState[rr][cc] === UNKNOWN; },
+		function(rr, cc) {
+			myState[rr][cc] = KNOWN;
+			revealed.push([rr, cc]);
+			return boardCell(rr, cc) === MINE;
+		},
+		function(rr, cc) { return boardCell(rr, cc); }
+	);
 }
 
 // Click on a revealed number-cell with the right flag-count → chord (auto-reveal
@@ -515,28 +568,20 @@ function localReveal(r, c, revealed, visited) {
 function applyLocalLeftClick(r, c) {
 	if (!myState || !boardDecoder) return { revealed: [], hitMine: false, anyChange: false };
 	var revealed = [];
-	var visited = {};
 	var hitMine = false;
 	if (myState[r][c] === UNKNOWN) {
-		hitMine = localReveal(r, c, revealed, visited);
+		hitMine = localReveal(r, c, revealed);
 	} else if (myState[r][c] === KNOWN) {
 		var v = boardCell(r, c);
 		if (v > 0) {
-			var flagCount = 0;
-			var unknowns = [];
-			for (var dr = -1; dr <= 1; dr++) {
-				for (var dc = -1; dc <= 1; dc++) {
-					if (dr === 0 && dc === 0) continue;
-					var nr = r + dr, nc = c + dc;
-					if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-					if (myState[nr][nc] === FLAGGED) flagCount++;
-					else if (myState[nr][nc] === KNOWN && boardCell(nr, nc) === MINE) flagCount++;
-					else if (myState[nr][nc] === UNKNOWN) unknowns.push([nr, nc]);
-				}
-			}
-			if (flagCount === v) {
-				for (var i = 0; i < unknowns.length; i++) {
-					if (localReveal(unknowns[i][0], unknowns[i][1], revealed, visited)) hitMine = true;
+			var ctx = BoardLogic.chordContext(r, c, rows, cols,
+				function(rr, cc) { return myState[rr][cc] === FLAGGED; },
+				function(rr, cc) { return myState[rr][cc] === KNOWN && boardCell(rr, cc) === MINE; },
+				function(rr, cc) { return myState[rr][cc] === UNKNOWN; }
+			);
+			if (ctx.flagCount === v) {
+				for (var i = 0; i < ctx.covered.length; i++) {
+					if (localReveal(ctx.covered[i][0], ctx.covered[i][1], revealed)) hitMine = true;
 				}
 			}
 		}
@@ -3226,27 +3271,9 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		}
 	}
 
-	function neighbours(r, c) {
-		var out = [];
-		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (dr === 0 && dc === 0) continue;
-			var nr = r + dr, nc = c + dc;
-			if (nr >= 0 && nr < R && nc >= 0 && nc < C) out.push([nr, nc]);
-		}
-		return out;
-	}
+	function neighbours(r, c) { return BoardLogic.neighbours(r, c, R, C); }
 
-	// Pre-compute clue values for every cell.
-	var clueValue = [];
-	for (var r = 0; r < R; r++) {
-		clueValue[r] = [];
-		for (var c = 0; c < C; c++) {
-			var ns = neighbours(r, c);
-			var cnt = 0;
-			for (var i = 0; i < ns.length; i++) if (isMine[ns[i][0]][ns[i][1]]) cnt++;
-			clueValue[r][c] = cnt;
-		}
-	}
+	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMine[r][c]; });
 
 	function initialStateFor(t) {
 		if (t === "." || t === "m") return COVERED;
@@ -3266,14 +3293,11 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	// then run a cascade from the bottom-left corner. The student plays the
 	// resulting position like a normal minesweeper game.
 	function initialCascade(r, c) {
-		if (r < 0 || r >= R || c < 0 || c >= C) return;
-		if (state[r][c] === REVEALED || isMine[r][c]) return;
-		state[r][c] = REVEALED;
-		if (clueValue[r][c] !== 0) return;
-		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (dr === 0 && dc === 0) continue;
-			initialCascade(r + dr, c + dc);
-		}
+		BoardLogic.cascadeReveal(r, c, R, C,
+			function(rr, cc) { return state[rr][cc] === COVERED && !isMine[rr][cc]; },
+			function(rr, cc) { state[rr][cc] = REVEALED; return false; },
+			function(rr, cc) { return clueValue[rr][cc]; }
+		);
 	}
 	if (puzzle.simpleBoard) {
 		initialCascade(R - 1, 0);
@@ -3400,40 +3424,34 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	}
 
 	function revealCell(r, c) {
-		if (state[r][c] !== COVERED) return;
-		if (isMine[r][c]) {
-			state[r][c] = REVEALED;
-			renderCell(r, c);
-			cellEls[r][c].classList.add("lc-wrong");
-			gameOver = true;
-			setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
-			return;
-		}
-		state[r][c] = REVEALED;
-		renderCell(r, c);
-		if (clueValue[r][c] === 0) {
-			var ns = neighbours(r, c);
-			for (var i = 0; i < ns.length; i++) {
-				var nr = ns[i][0], nc = ns[i][1];
-				if (state[nr][nc] === COVERED && !isMine[nr][nc]) revealCell(nr, nc);
-			}
-		}
+		BoardLogic.cascadeReveal(r, c, R, C,
+			function(rr, cc) { return state[rr][cc] === COVERED; },
+			function(rr, cc) {
+				state[rr][cc] = REVEALED;
+				renderCell(rr, cc);
+				if (isMine[rr][cc]) {
+					cellEls[rr][cc].classList.add("lc-wrong");
+					gameOver = true;
+					setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
+					return true;
+				}
+				return false;
+			},
+			function(rr, cc) { return clueValue[rr][cc]; }
+		);
 	}
 
 	function tryChord(r, c) {
 		if (state[r][c] !== REVEALED) return;
 		var v = clueValue[r][c];
 		if (v === 0) return;
-		var ns = neighbours(r, c);
-		var flagCount = 0;
-		var covered = [];
-		for (var i = 0; i < ns.length; i++) {
-			var s = state[ns[i][0]][ns[i][1]];
-			if (s === FLAGGED) flagCount++;
-			else if (s === COVERED) covered.push(ns[i]);
-		}
-		if (flagCount !== v) return;
-		for (var i = 0; i < covered.length; i++) revealCell(covered[i][0], covered[i][1]);
+		var ctx = BoardLogic.chordContext(r, c, R, C,
+			function(rr, cc) { return state[rr][cc] === FLAGGED; },
+			null,
+			function(rr, cc) { return state[rr][cc] === COVERED; }
+		);
+		if (ctx.flagCount !== v) return;
+		for (var i = 0; i < ctx.covered.length; i++) revealCell(ctx.covered[i][0], ctx.covered[i][1]);
 	}
 
 	function toggleFlag(r, c) {
