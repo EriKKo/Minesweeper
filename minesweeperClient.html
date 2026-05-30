@@ -3046,6 +3046,51 @@ function buildLearnDemo(demo) {
 	return wrap;
 }
 
+function createExplodedMineSvg() {
+	// Matches the canvas drawMine in the live game: pink spike-pairs around a
+	// pink body, no shine — for cells the player just clicked open.
+	var ns = "http://www.w3.org/2000/svg";
+	var svg = document.createElementNS(ns, "svg");
+	svg.setAttribute("viewBox", "0 0 32 32");
+	svg.setAttribute("width", "26");
+	svg.setAttribute("height", "26");
+	svg.setAttribute("aria-hidden", "true");
+	var g = document.createElementNS(ns, "g");
+	g.setAttribute("stroke", "#fca5a5");
+	g.setAttribute("stroke-width", "2");
+	g.setAttribute("stroke-linecap", "round");
+	g.setAttribute("fill", "none");
+	var rad = 6.5;
+	var inner = rad * 0.7, outer = rad * 1.5;
+	for (var i = 0; i < 8; i++) {
+		var a = i * Math.PI / 4;
+		var line = document.createElementNS(ns, "line");
+		line.setAttribute("x1", String(16 + Math.cos(a) * inner));
+		line.setAttribute("y1", String(16 + Math.sin(a) * inner));
+		line.setAttribute("x2", String(16 + Math.cos(a) * outer));
+		line.setAttribute("y2", String(16 + Math.sin(a) * outer));
+		g.appendChild(line);
+	}
+	svg.appendChild(g);
+	var body = document.createElementNS(ns, "circle");
+	body.setAttribute("cx", "16");
+	body.setAttribute("cy", "16");
+	body.setAttribute("r", String(rad));
+	body.setAttribute("fill", "#fca5a5");
+	svg.appendChild(body);
+	return svg;
+}
+
+// Real-game-like puzzle board. Each cell behaves as it would in a live game:
+//   left-click  COVERED  → reveal (cascade on 0, boom on mine)
+//   left-click  REVEALED → chord (if flag count == clue value)
+//   right-click COVERED/FLAGGED → toggle flag
+//   right-click REVEALED → also chord
+// The puzzle's "objective" is derived from the solution tokens:
+//   M  → that cell must end up FLAGGED
+//   S  → that cell must end up REVEALED (via direct click, cascade, or chord)
+//   G  → guess-mode: revealing any G cell solves the puzzle
+//   B  → guess-mode mine (revealing it explodes)
 function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-puzzle";
@@ -3060,11 +3105,58 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 
 	var rows = puzzle.grid.map(function(r) { return r.trim().split(/\s+/); });
 	var sol = puzzle.solution.map(function(r) { return r.trim().split(/\s+/); });
-	var cols = rows[0].length;
+	var R = rows.length, C = rows[0].length;
+	var COVERED = 0, REVEALED = 1, FLAGGED = 2;
+
+	// Underlying truth: which cells are mines.
+	var isMine = [];
+	for (var r = 0; r < R; r++) {
+		isMine[r] = [];
+		for (var c = 0; c < C; c++) {
+			var t = rows[r][c], st = sol[r][c];
+			isMine[r][c] = (t === "*" || t === "b" || st === "M" || st === "B");
+		}
+	}
+
+	function neighbours(r, c) {
+		var out = [];
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (dr === 0 && dc === 0) continue;
+			var nr = r + dr, nc = c + dc;
+			if (nr >= 0 && nr < R && nc >= 0 && nc < C) out.push([nr, nc]);
+		}
+		return out;
+	}
+
+	// Pre-compute clue values for every cell.
+	var clueValue = [];
+	for (var r = 0; r < R; r++) {
+		clueValue[r] = [];
+		for (var c = 0; c < C; c++) {
+			var ns = neighbours(r, c);
+			var cnt = 0;
+			for (var i = 0; i < ns.length; i++) if (isMine[ns[i][0]][ns[i][1]]) cnt++;
+			clueValue[r][c] = cnt;
+		}
+	}
+
+	function initialStateFor(t) {
+		if (t === ".") return COVERED;
+		if (t === "*") return FLAGGED;
+		return REVEALED; // 0-8, ?, b
+	}
+
+	var state = [];
+	var cellEls = [];
+	for (var r = 0; r < R; r++) {
+		state[r] = [];
+		cellEls[r] = [];
+		for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
+	}
 
 	var board = document.createElement("div");
 	board.className = "learn-board";
-	board.style.gridTemplateColumns = "repeat(" + cols + ", 32px)";
+	board.style.gridTemplateColumns = "repeat(" + C + ", 32px)";
 
 	var status = document.createElement("span");
 	status.className = "learn-status";
@@ -3072,35 +3164,41 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	why.className = "learn-why";
 	why.textContent = puzzle.why;
 
-	var coveredCells = [];   // interactive cells: {el, sol}
-	var needed = 0;          // number of provable cells (M/S)
-	var solvedCount = 0;
-	var mineMode = false;
+	var puzzleSolved = false, gameOver = false;
 
-	for (var r = 0; r < rows.length; r++) {
-		for (var c = 0; c < cols; c++) {
-			var tok = rows[r][c];
-			var stok = sol[r][c];
-			var cell = document.createElement("div");
-			cell.className = "learn-cell";
-			if (/^[1-8]$/.test(tok)) {
-				cell.className += " lc-clue lc-n" + tok;
-				cell.textContent = tok;
-			} else if (tok === "*") {
-				cell.className += " lc-flag";
-				cell.textContent = "🚩";
-			} else if (tok === "b") {
-				cell.className += " lc-mine";
-				cell.appendChild(createLearnMineSvg());
-			} else if (tok === ".") {
-				cell.className += " lc-covered";
-				if (stok === "M" || stok === "S" || stok === "G" || stok === "B") {
-					if (stok === "M" || stok === "S") needed++;
-					coveredCells.push({ el: cell, sol: stok });
-				}
+	function renderCell(r, c) {
+		var cell = cellEls[r][c];
+		cell.className = "learn-cell";
+		cell.innerHTML = "";
+		cell.textContent = "";
+		var s = state[r][c];
+		if (s === COVERED) {
+			cell.className += " lc-covered";
+		} else if (s === FLAGGED) {
+			cell.className += " lc-flag";
+			cell.textContent = "🚩";
+		} else {
+			// REVEALED
+			if (isMine[r][c]) {
+				cell.className += " lc-mine-hit";
+				cell.appendChild(createExplodedMineSvg());
 			} else {
-				cell.className += " lc-bg";
+				var v = clueValue[r][c];
+				if (v === 0) {
+					cell.className += " lc-bg";
+				} else {
+					cell.className += " lc-clue lc-n" + v;
+					cell.textContent = String(v);
+				}
 			}
+		}
+	}
+
+	for (var r = 0; r < R; r++) {
+		for (var c = 0; c < C; c++) {
+			var cell = document.createElement("div");
+			cellEls[r][c] = cell;
+			renderCell(r, c);
 			board.appendChild(cell);
 		}
 	}
@@ -3111,117 +3209,158 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 		status.className = "learn-status" + (cls ? " " + cls : "");
 	}
 
-	var puzzleSolved = false;
 	function notifySolved() {
 		if (puzzleSolved) return;
 		puzzleSolved = true;
 		solvedTick.textContent = "✓";
+		why.classList.add("show");
 		if (typeof onSolved === "function") onSolved();
 	}
 
-	function onLearnMark(item, asMine) {
-		var cellEl = item.el;
-		if (isGuess) {
-			var prev = board.querySelectorAll(".lc-good, .lc-bad");
-			for (var i = 0; i < prev.length; i++) prev[i].classList.remove("lc-good", "lc-bad");
-			if (item.sol === "G") {
-				cellEl.classList.add("lc-good");
-				setStatus("Good guess — lowest risk on the board.", "ok");
-				notifySolved();
-			} else {
-				cellEl.classList.add("lc-bad");
-				setStatus("Risky — the other group has better odds.", "warn");
+	function progressStatus() {
+		if (isGuess) { setStatus("", ""); return; }
+		var flaggedTarget = 0, flaggedHave = 0, revealTarget = 0, revealHave = 0;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (sol[r][c] === "M") {
+				flaggedTarget++;
+				if (state[r][c] === FLAGGED) flaggedHave++;
 			}
-			why.classList.add("show");
+			if (sol[r][c] === "S") {
+				revealTarget++;
+				if (state[r][c] === REVEALED && !isMine[r][c]) revealHave++;
+			}
+		}
+		var parts = [];
+		if (flaggedTarget) parts.push(flaggedHave + " / " + flaggedTarget + " flagged");
+		if (revealTarget) parts.push(revealHave + " / " + revealTarget + " opened");
+		setStatus(parts.join(", "), "");
+	}
+
+	function checkSolved() {
+		if (puzzleSolved || gameOver) return;
+		if (isGuess) {
+			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+				if (sol[r][c] === "G" && state[r][c] === REVEALED) {
+					setStatus("Good guess — lowest risk on the board.", "ok");
+					notifySolved();
+					return;
+				}
+			}
 			return;
 		}
-		if (cellEl.dataset.done) return;
-		var want = asMine ? "M" : "S";
-		if (item.sol === want) {
-			cellEl.dataset.done = "1";
-			cellEl.classList.remove("lc-covered");
-			if (asMine) { cellEl.classList.add("lc-mark-mine"); cellEl.textContent = "🚩"; }
-			else { cellEl.classList.add("lc-mark-safe"); cellEl.textContent = "✓"; }
-			solvedCount++;
-			if (solvedCount >= needed) {
-				setStatus("Solved! ✓", "ok");
-				why.classList.add("show");
-				notifySolved();
-			} else {
-				setStatus(solvedCount + " / " + needed + " found", "");
-			}
+		var allOk = true;
+		for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
+			if (sol[r][c] === "M" && state[r][c] !== FLAGGED) allOk = false;
+			if (sol[r][c] === "S" && state[r][c] !== REVEALED) allOk = false;
+		}
+		if (allOk) {
+			setStatus("Solved! ✓", "ok");
+			notifySolved();
 		} else {
-			cellEl.classList.add("lc-wrong");
-			setTimeout(function() { cellEl.classList.remove("lc-wrong"); }, 420);
-			if (item.sol === ".") setStatus("That cell can't be proven with this technique.", "warn");
-			else setStatus("Not quite — try again.", "warn");
+			progressStatus();
 		}
 	}
 
-	coveredCells.forEach(function(item) {
-		item.el.addEventListener("click", function() { onLearnMark(item, isGuess ? false : mineMode); });
-		if (!isGuess) {
-			item.el.addEventListener("contextmenu", function(e) { e.preventDefault(); onLearnMark(item, true); });
+	function revealCell(r, c) {
+		if (state[r][c] !== COVERED) return;
+		if (isMine[r][c]) {
+			state[r][c] = REVEALED;
+			renderCell(r, c);
+			cellEls[r][c].classList.add("lc-wrong");
+			gameOver = true;
+			setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
+			why.classList.add("show");
+			return;
 		}
-	});
+		state[r][c] = REVEALED;
+		renderCell(r, c);
+		if (clueValue[r][c] === 0) {
+			var ns = neighbours(r, c);
+			for (var i = 0; i < ns.length; i++) {
+				var nr = ns[i][0], nc = ns[i][1];
+				if (state[nr][nc] === COVERED && !isMine[nr][nc]) revealCell(nr, nc);
+			}
+		}
+	}
+
+	function tryChord(r, c) {
+		if (state[r][c] !== REVEALED) return;
+		var v = clueValue[r][c];
+		if (v === 0) return;
+		var ns = neighbours(r, c);
+		var flagCount = 0;
+		var covered = [];
+		for (var i = 0; i < ns.length; i++) {
+			var s = state[ns[i][0]][ns[i][1]];
+			if (s === FLAGGED) flagCount++;
+			else if (s === COVERED) covered.push(ns[i]);
+		}
+		if (flagCount !== v) return;
+		for (var i = 0; i < covered.length; i++) revealCell(covered[i][0], covered[i][1]);
+	}
+
+	function toggleFlag(r, c) {
+		if (state[r][c] === COVERED) state[r][c] = FLAGGED;
+		else if (state[r][c] === FLAGGED) state[r][c] = COVERED;
+		else return;
+		renderCell(r, c);
+	}
+
+	function onLeftClick(r, c) {
+		if (gameOver || puzzleSolved) return;
+		if (state[r][c] === COVERED) revealCell(r, c);
+		else if (state[r][c] === REVEALED) tryChord(r, c);
+		checkSolved();
+	}
+
+	function onRightClick(r, c) {
+		if (gameOver || puzzleSolved) return;
+		if (state[r][c] === COVERED || state[r][c] === FLAGGED) toggleFlag(r, c);
+		else if (state[r][c] === REVEALED) tryChord(r, c);
+		checkSolved();
+	}
+
+	for (var r = 0; r < R; r++) {
+		for (var c = 0; c < C; c++) {
+			(function(rr, cc) {
+				var cell = cellEls[rr][cc];
+				cell.style.cursor = "pointer";
+				cell.addEventListener("click", function() { onLeftClick(rr, cc); });
+				cell.addEventListener("contextmenu", function(e) { e.preventDefault(); onRightClick(rr, cc); });
+			})(r, c);
+		}
+	}
+
+	function resetPuzzle() {
+		for (var r = 0; r < R; r++) {
+			for (var c = 0; c < C; c++) {
+				state[r][c] = initialStateFor(rows[r][c]);
+				renderCell(r, c);
+				cellEls[r][c].classList.remove("lc-wrong");
+			}
+		}
+		gameOver = false;
+		puzzleSolved = false;
+		solvedTick.textContent = "";
+		why.classList.remove("show");
+		setStatus("", "");
+	}
 
 	var controls = document.createElement("div");
 	controls.className = "learn-controls";
 
-	if (!isGuess) {
-		var modeBtn = document.createElement("button");
-		modeBtn.className = "learn-btn";
-		modeBtn.textContent = "Mode: Safe";
-		modeBtn.addEventListener("click", function() {
-			mineMode = !mineMode;
-			modeBtn.textContent = mineMode ? "Mode: Mine 🚩" : "Mode: Safe";
-			modeBtn.classList.toggle("active", mineMode);
-		});
+	var resetBtn = document.createElement("button");
+	resetBtn.className = "learn-btn";
+	resetBtn.textContent = "Reset";
+	resetBtn.addEventListener("click", resetPuzzle);
+	controls.appendChild(resetBtn);
 
-		var answerBtn = document.createElement("button");
-		answerBtn.className = "learn-btn";
-		answerBtn.textContent = "Show answer";
-		answerBtn.addEventListener("click", function() {
-			coveredCells.forEach(function(item) {
-				if (item.el.dataset.done) return;
-				item.el.classList.remove("lc-covered");
-				if (item.sol === "M") { item.el.classList.add("lc-mark-mine"); item.el.textContent = "🚩"; }
-				else if (item.sol === "S") { item.el.classList.add("lc-mark-safe"); item.el.textContent = "✓"; }
-				else { item.el.classList.add("lc-bg"); item.el.textContent = "·"; }
-				item.el.dataset.done = "1";
-			});
-			setStatus("Answer revealed.", "");
-			why.classList.add("show");
-			notifySolved();
-		});
-
-		var resetBtn = document.createElement("button");
-		resetBtn.className = "learn-btn";
-		resetBtn.textContent = "Reset";
-		resetBtn.addEventListener("click", function() {
-			solvedCount = 0;
-			coveredCells.forEach(function(item) {
-				item.el.className = "learn-cell lc-covered";
-				item.el.textContent = "";
-				delete item.el.dataset.done;
-			});
-			setStatus("", "");
-			why.classList.remove("show");
-		});
-
-		controls.appendChild(modeBtn);
-		controls.appendChild(answerBtn);
-		controls.appendChild(resetBtn);
-	} else {
+	if (isGuess) {
 		var reasonBtn = document.createElement("button");
 		reasonBtn.className = "learn-btn";
 		reasonBtn.textContent = "Show reasoning";
 		reasonBtn.addEventListener("click", function() { why.classList.toggle("show"); });
 		controls.appendChild(reasonBtn);
-		var hint = document.createElement("span");
-		hint.className = "learn-status";
-		hint.textContent = "No certain move — click the cell you'd guess.";
-		controls.appendChild(hint);
 	}
 
 	controls.appendChild(status);

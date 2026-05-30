@@ -1893,6 +1893,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 	box-shadow: inset 0 0 0 1px #1e40af, inset 0 2px 0 rgba(255, 255, 255, 0.28);
 }
 .lc-mine svg { display: block; }
+/* Hit mine = the student clicked a mine in an interactive puzzle. Same
+   slate background as a revealed clue, with the pink spike-pair icon to
+   match the live game's `drawMine`. */
+.lc-mine-hit { background: #162033; box-shadow: inset 0 0 0 1px #0b1220; }
+.lc-mine-hit svg { display: block; }
 .lc-mark-safe { background: #10331f; box-shadow: inset 0 0 0 1px #14532d; color: var(--success); }
 .lc-good { box-shadow: inset 0 0 0 2px var(--success); }
 .lc-bad { box-shadow: inset 0 0 0 2px var(--danger); }
