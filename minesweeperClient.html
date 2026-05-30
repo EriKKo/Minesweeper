@@ -4363,26 +4363,27 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 	ctx.save();
 	ctx.translate(c * sw + gap / 2, r * sh + gap / 2);
 
-	if (view.isRevealed(r, c)) {
+	// In x-ray mode every mine (covered OR revealed) gets the same friendly
+	// "this is where the bomb is" look: blue covered background with the
+	// favicon-style icon on top — unless the cell is flagged, in which case
+	// the flag wins.
+	if (view.xray && view.isMine(r, c) && !view.isFlagged(r, c)) {
+		drawUnknown(ctx, w, h, rad);
+		drawMineXray(ctx, w, h);
+	} else if (view.isRevealed(r, c)) {
 		var revealing = anim && (anim.type === "reveal" || anim.type === "mine");
 		var t = revealing ? clamp01(anim.t) : 1;
 		drawKnownBase(ctx, w, h, rad);
 		if (view.isMine(r, c)) {
-			if (view.xray) {
-				// Demo "x-ray mode": revealed mines use the friendly favicon
-				// icon, not the exploded pink-spike + red flash.
-				drawMineXray(ctx, w, h);
-			} else {
-				if (anim && anim.type === "mine") {
-					// red danger flash that fades as the bomb settles in
-					ctx.globalAlpha = (1 - easeOutCubic(t)) * 0.85;
-					ctx.fillStyle = "#dc2626";
-					roundRectPath(ctx, 0, 0, w, h, rad);
-					ctx.fill();
-					ctx.globalAlpha = 1;
-				}
-				drawMine(ctx, w, h, t);
+			if (anim && anim.type === "mine") {
+				// red danger flash that fades as the bomb settles in
+				ctx.globalAlpha = (1 - easeOutCubic(t)) * 0.85;
+				ctx.fillStyle = "#dc2626";
+				roundRectPath(ctx, 0, 0, w, h, rad);
+				ctx.fill();
+				ctx.globalAlpha = 1;
 			}
+			drawMine(ctx, w, h, t);
 		} else {
 			var clue = view.getClue(r, c);
 			if (clue > 0) drawNumber(ctx, clue, w, h, t);
@@ -4399,8 +4400,6 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		drawFlag(ctx, w, h, fs);
 	} else {
 		drawUnknown(ctx, w, h, rad);
-		// x-ray mode (Learn demos): show the mine on top of the still-covered cell
-		if (view.xray && view.isMine(r, c)) drawMineXray(ctx, w, h);
 	}
 	ctx.restore();
 }
