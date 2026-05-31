@@ -651,6 +651,21 @@ main {
 .custom-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 1.4rem; }
 
 .puzzles-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 0.6rem; }
+.puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
+.puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }
+.puzzles-filter-chip {
+	background: var(--surface);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 0.32rem 0.7rem;
+	font-weight: 700;
+	font-size: 0.85rem;
+	cursor: pointer;
+	min-width: 36px;
+}
+.puzzles-filter-chip:hover { border-color: var(--accent); }
+.puzzles-filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .puzzle-lab-status { color: var(--muted); font-size: 0.85rem; margin: 0 0 1.2rem; }
 .puzzles-grid {
 	display: grid;

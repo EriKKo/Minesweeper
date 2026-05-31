@@ -5,6 +5,8 @@
 // puzzle. Useful while we explore what "good" deduction puzzles look like
 // before committing any to a curated database.
 
+var puzzleLabState = { count: 20, diff: null };
+
 function renderPuzzleLab() {
 	var view = document.getElementById("puzzles_view");
 	if (!view) return;
@@ -24,12 +26,40 @@ function renderPuzzleLab() {
 	actions.className = "puzzles-actions";
 	[10, 20, 40].forEach(function(n) {
 		var btn = document.createElement("button");
-		btn.className = "btn " + (n === 20 ? "btn-primary" : "btn-secondary");
+		btn.className = "btn " + (n === puzzleLabState.count ? "btn-primary" : "btn-secondary");
+		btn.dataset.batch = String(n);
 		btn.textContent = "Generate " + n;
-		btn.addEventListener("click", function() { fetchAndRender(n); });
+		btn.addEventListener("click", function() {
+			puzzleLabState.count = n;
+			updateActionButtons();
+			fetchAndRender();
+		});
 		actions.appendChild(btn);
 	});
 	view.appendChild(actions);
+
+	// Filter row: All / 1 / 2 / 3 / 4 / 5 / 6
+	var filter = document.createElement("div");
+	filter.className = "puzzles-filter";
+	var filterLabel = document.createElement("span");
+	filterLabel.className = "puzzles-filter-label";
+	filterLabel.textContent = "Difficulty";
+	filter.appendChild(filterLabel);
+	["all", 1, 2, 3, 4, 5, 6].forEach(function(d) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.diff = String(d);
+		btn.textContent = d === "all" ? "All" : String(d);
+		if ((d === "all" && puzzleLabState.diff == null) || d === puzzleLabState.diff) btn.classList.add("active");
+		if (d !== "all") btn.classList.add("puzzles-filter-chip-diff-" + d);
+		btn.addEventListener("click", function() {
+			puzzleLabState.diff = (d === "all") ? null : d;
+			updateFilterChips();
+			fetchAndRender();
+		});
+		filter.appendChild(btn);
+	});
+	view.appendChild(filter);
 
 	var status = document.createElement("p");
 	status.id = "puzzle_lab_status";
@@ -41,13 +71,31 @@ function renderPuzzleLab() {
 	grid.className = "puzzles-grid";
 	view.appendChild(grid);
 
-	fetchAndRender(20);
+	fetchAndRender();
 }
 
-function fetchAndRender(count) {
+function updateActionButtons() {
+	document.querySelectorAll(".puzzles-actions button").forEach(function(b) {
+		var n = parseInt(b.dataset.batch, 10);
+		b.className = "btn " + (n === puzzleLabState.count ? "btn-primary" : "btn-secondary");
+	});
+}
+
+function updateFilterChips() {
+	document.querySelectorAll(".puzzles-filter-chip").forEach(function(b) {
+		var d = b.dataset.diff;
+		var match = (d === "all" && puzzleLabState.diff == null) || (parseInt(d, 10) === puzzleLabState.diff);
+		b.classList.toggle("active", !!match);
+	});
+}
+
+function fetchAndRender() {
+	var count = puzzleLabState.count;
+	var diff = puzzleLabState.diff;
 	var status = document.getElementById("puzzle_lab_status");
-	if (status) status.textContent = "Generating " + count + " puzzles…";
-	fetch("/api/puzzles?count=" + count).then(function(r) { return r.json(); }).then(function(data) {
+	if (status) status.textContent = "Generating " + count + (diff ? " diff-" + diff : "") + " puzzles…";
+	var url = "/api/puzzles?count=" + count + (diff ? "&diff=" + diff : "");
+	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];
 		var grid = document.getElementById("puzzles_grid");
 		grid.innerHTML = "";
@@ -57,7 +105,8 @@ function fetchAndRender(count) {
 		var byDiff = {};
 		puzzles.forEach(function(p) { byDiff[p.difficulty] = (byDiff[p.difficulty] || 0) + 1; });
 		var diffSummary = Object.keys(byDiff).sort().map(function(d) { return "diff " + d + ": " + byDiff[d]; }).join(" · ");
-		if (status) status.textContent = puzzles.length + " puzzles · " + diffSummary;
+		var short = diff && puzzles.length < count ? " (couldn't find more in budget)" : "";
+		if (status) status.textContent = puzzles.length + " puzzles · " + diffSummary + short;
 		puzzles.forEach(function(p) { grid.appendChild(renderPuzzleCard(p)); });
 	}).catch(function(e) {
 		if (status) status.textContent = "Error: " + e.message;

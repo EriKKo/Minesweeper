@@ -240,7 +240,10 @@ function finishLogin(res, userId) {
 // classified by difficulty (puzzle lab / experimentation).
 function servePuzzles(req, res, url) {
 	var count = Math.max(1, Math.min(60, parseInt(url.searchParams.get("count"), 10) || 20));
-	var puzzles = puzzleGen.generatePuzzles({ count: count });
+	var diff = parseInt(url.searchParams.get("diff"), 10);
+	var opts = { count: count };
+	if (diff >= 1 && diff <= 6) opts.diff = diff;
+	var puzzles = puzzleGen.generatePuzzles(opts);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ puzzles: puzzles }));
 }

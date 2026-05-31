@@ -17,13 +17,20 @@ var MINE = BoardLogic.MINE;
 function generatePuzzles(opts) {
 	opts = opts || {};
 	var batchSize = opts.count || 20;
-	var attemptsPerPuzzle = opts.attempts || 25;
+	var targetDiff = (typeof opts.diff === "number" && opts.diff >= 1 && opts.diff <= 6) ? opts.diff : null;
+	// Rarer difficulties need more attempts per puzzle — diff-5 ≈ 1.5% of
+	// random rolls, diff-4 < 1%. Budget per request capped to keep the API
+	// responsive (~few hundred ms worst case).
+	var attemptsPerPuzzle = opts.attempts || (targetDiff ? 200 : 25);
+	var totalAttemptBudget = batchSize * attemptsPerPuzzle;
 	var puzzles = [];
-	for (var i = 0; i < batchSize; i++) {
-		for (var t = 0; t < attemptsPerPuzzle; t++) {
-			var p = tryGenerate(opts);
-			if (p) { puzzles.push(p); break; }
-		}
+	var attempts = 0;
+	while (puzzles.length < batchSize && attempts < totalAttemptBudget) {
+		attempts++;
+		var p = tryGenerate(opts);
+		if (!p) continue;
+		if (targetDiff != null && p.difficulty !== targetDiff) continue;
+		puzzles.push(p);
 	}
 	return puzzles;
 }
