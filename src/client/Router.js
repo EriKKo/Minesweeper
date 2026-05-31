@@ -68,6 +68,13 @@ function showPuzzleLabView() {
 	renderPuzzleLab();
 }
 
+function showPuzzlesListView() {
+	hideAllViews();
+	document.getElementById("puzzles_list_view").style.display = "";
+	setSiteNavActive("");
+	renderPuzzlesList();
+}
+
 function showLeaderboardView() {
 	hideAllViews();
 	document.getElementById("leaderboard_view").style.display = "";
@@ -125,6 +132,7 @@ function applyRouteFromHash() {
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
 	if (hash === "/custom") return showCustomView();
+	if (hash === "/puzzles/list") return showPuzzlesListView();
 	if (hash === "/puzzles") return showPuzzleLabView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();

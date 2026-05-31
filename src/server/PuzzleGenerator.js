@@ -1,11 +1,14 @@
 // Random small-puzzle generator with difficulty classification.
 //
 // generatePuzzles({ count, rows, cols, ... }) returns up to `count` puzzles
-// that pass the filters below:
-//   - bottom-left corner cascade-reveals at start (so the puzzle has visible
-//     context — players don't stare at an all-covered board).
-//   - 1..5 covered safe cells remain after the cascade (small "active area"
-//     — the puzzle is one deduction or a short chain).
+// that pass the filters below. For each random mine layout, we enumerate
+// every connected zero-region on the board and emit one candidate puzzle
+// per region (since clicking any cell in a zero-region produces the same
+// cascade-reveal). One mine layout therefore yields 0..N puzzles, each with
+// a distinct visible start. Filters:
+//   - cascade reveals at least one cell (no single-cell starts).
+//   - 1..12 covered safe cells remain after the cascade (small "active
+//     area" — the puzzle is one deduction or a short chain).
 //   - 100% solvable with no guessing.
 //
 // Each returned puzzle carries { rows, cols, mines, revealed, coveredSafe,
@@ -19,70 +22,160 @@ function generatePuzzles(opts) {
 	var batchSize = opts.count || 20;
 	var targetDiff = (typeof opts.diff === "number" && opts.diff >= 1 && opts.diff <= 6) ? opts.diff : null;
 	// Rarer difficulties need more attempts per puzzle — diff-5 ≈ 1.5% of
-	// random rolls, diff-4 < 1%. Budget per request capped to keep the API
-	// responsive (~few hundred ms worst case).
-	var attemptsPerPuzzle = opts.attempts || (targetDiff ? 200 : 25);
+	// random rolls, diff-4 < 1%. Density-pinned jobs at the extremes (≥30%)
+	// also reject most candidates because cascade rarely fires, so they get
+	// the same elevated budget.
+	var attemptsPerPuzzle = opts.attempts
+		|| (targetDiff ? 200 : (typeof opts.density === "number" ? 100 : 25));
 	var totalAttemptBudget = batchSize * attemptsPerPuzzle;
 	var puzzles = [];
 	var attempts = 0;
 	while (puzzles.length < batchSize && attempts < totalAttemptBudget) {
 		attempts++;
-		var p = tryGenerate(opts);
-		if (!p) continue;
-		if (targetDiff != null && p.difficulty !== targetDiff) continue;
-		puzzles.push(p);
+		var candidates = tryGenerateLayout(opts);
+		for (var i = 0; i < candidates.length; i++) {
+			var p = candidates[i];
+			if (targetDiff != null && p.difficulty !== targetDiff) continue;
+			puzzles.push(p);
+			if (puzzles.length >= batchSize) break;
+		}
 	}
 	return puzzles;
 }
 
-function tryGenerate(opts) {
+// Generate ONE random mine layout and return every distinct cascade-puzzle
+// it produces. A "distinct cascade" is one starting cell per connected
+// zero-region — clicking any cell within a region produces the identical
+// reveal set, so we only emit one puzzle per region.
+function tryGenerateLayout(opts) {
 	var rows = opts.rows || randInt(4, 7);
 	var cols = opts.cols || randInt(4, 7);
 	// Vary mine density across attempts — sparse boards generate easy diff-1
 	// puzzles; denser boards (more constraints linking each frontier cell)
-	// are where the harder case-analysis puzzles live.
-	var density = opts.density || (0.15 + Math.random() * 0.12); // 0.15 .. 0.27
+	// are where the harder case-analysis puzzles live. A caller-supplied
+	// density gets ±3pp of jitter so consecutive attempts at the same chip
+	// aren't all the same board.
+	var density;
+	if (typeof opts.density === "number") {
+		density = opts.density + (Math.random() - 0.5) * 0.06;
+		if (density < 0.05) density = 0.05;
+		if (density > 0.45) density = 0.45;
+	} else {
+		density = 0.12 + Math.random() * 0.20; // 0.12 .. 0.32
+	}
 	var defaultMines = Math.max(2, Math.round(rows * cols * density));
 	var mineCount = opts.mineCount || defaultMines;
-	var startCell = [rows - 1, 0];
 
-	// Random mine placement that keeps the start cell + its neighbours mine-
-	// free so cascade actually triggers.
-	var avoid = {};
-	avoid[startCell[0] + "," + startCell[1]] = true;
-	BoardLogic.forEachNeighbour(startCell[0], startCell[1], rows, cols, function(r, c) {
-		avoid[r + "," + c] = true;
-	});
 	var positions = [];
-	for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
-		if (!avoid[r + "," + c]) positions.push([r, c]);
-	}
-	if (positions.length < mineCount) return null;
+	for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) positions.push([r, c]);
+	if (positions.length <= mineCount) return [];
 	shuffle(positions);
 	var mines = positions.slice(0, mineCount).sort(comparePos);
-
 	var board = buildBoard(rows, cols, mines);
-	if (board[startCell[0]][startCell[1]] !== 0) return null;
-	var revealed = cascadeFrom(board, startCell);
+
+	var zeroRegions = findZeroRegions(board);
+	if (zeroRegions.length === 0) return [];
 
 	var totalSafe = rows * cols - mines.length;
-	var coveredSafe = totalSafe - revealed.length;
-	if (coveredSafe < 1 || coveredSafe > 12) return null;
+	var out = [];
+	for (var z = 0; z < zeroRegions.length; z++) {
+		var revealed = cascadeFrom(board, zeroRegions[z][0]);
+		var coveredSafe = totalSafe - revealed.length;
+		if (coveredSafe < 1 || coveredSafe > 12) continue;
+		var analysis = analyzeWithTracking(board, revealed, mines.length);
+		if (!analysis.solved) continue;
+		var puzzle = {
+			rows: rows,
+			cols: cols,
+			mines: mines,
+			revealed: revealed.slice().sort(comparePos),
+			coveredSafe: coveredSafe,
+			difficulty: analysis.difficulty,
+			score: analysis.score,
+			passes: analysis.passes,
+			maxEnumSize: analysis.maxEnumSize || 0
+		};
+		puzzle.key = canonicalKey(puzzle);
+		out.push(puzzle);
+	}
+	return out;
+}
 
-	var analysis = analyzeWithTracking(board, revealed, mines.length);
-	if (!analysis.solved) return null;
+function findZeroRegions(board) {
+	var rows = board.length, cols = board[0].length;
+	var seen = {};
+	var regions = [];
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (board[r][c] !== 0 || seen[r + "," + c]) continue;
+			var comp = [];
+			var stack = [[r, c]];
+			while (stack.length) {
+				var p = stack.pop();
+				var key = p[0] + "," + p[1];
+				if (seen[key]) continue;
+				if (board[p[0]][p[1]] !== 0) continue;
+				seen[key] = true;
+				comp.push(p);
+				BoardLogic.forEachNeighbour(p[0], p[1], rows, cols, function(nr, nc) {
+					if (!seen[nr + "," + nc] && board[nr][nc] === 0) stack.push([nr, nc]);
+				});
+			}
+			if (comp.length) regions.push(comp);
+		}
+	}
+	return regions;
+}
 
-	return {
-		rows: rows,
-		cols: cols,
-		mines: mines,
-		revealed: revealed.slice().sort(comparePos),
-		coveredSafe: coveredSafe,
-		difficulty: analysis.difficulty,
-		score: analysis.score,
-		passes: analysis.passes,
-		maxEnumSize: analysis.maxEnumSize || 0
-	};
+// Canonical fingerprint: lex-min over the 8 dihedral symmetries (4 rotations
+// × {identity, mirror}). Each cell is 'M' (mine), 'R' (cascade-revealed), or
+// '.' (covered safe). Two puzzles that differ only by rotation or reflection
+// share a key, so the pool can dedupe them without storing both copies.
+function canonicalKey(puzzle) {
+	var rows = puzzle.rows, cols = puzzle.cols;
+	var grid = [];
+	for (var r = 0; r < rows; r++) {
+		var row = new Array(cols);
+		for (var c = 0; c < cols; c++) row[c] = ".";
+		grid.push(row);
+	}
+	puzzle.mines.forEach(function(m) { grid[m[0]][m[1]] = "M"; });
+	puzzle.revealed.forEach(function(p) { grid[p[0]][p[1]] = "R"; });
+
+	var best = null;
+	var g = grid;
+	for (var rot = 0; rot < 4; rot++) {
+		var s1 = serializeGrid(g);
+		if (best === null || s1 < best) best = s1;
+		var s2 = serializeGrid(mirrorGrid(g));
+		if (s2 < best) best = s2;
+		g = rotateGrid(g);
+	}
+	return best;
+}
+
+function serializeGrid(g) {
+	var rows = g.length, cols = g[0].length;
+	var lines = new Array(rows);
+	for (var r = 0; r < rows; r++) lines[r] = g[r].join("");
+	return rows + "x" + cols + ":" + lines.join("/");
+}
+
+function rotateGrid(g) {
+	var rows = g.length, cols = g[0].length;
+	var out = new Array(cols);
+	for (var c = 0; c < cols; c++) {
+		var row = new Array(rows);
+		for (var r = 0; r < rows; r++) row[r] = g[rows - 1 - r][c];
+		out[c] = row;
+	}
+	return out;
+}
+
+function mirrorGrid(g) {
+	var out = new Array(g.length);
+	for (var r = 0; r < g.length; r++) out[r] = g[r].slice().reverse();
+	return out;
 }
 
 function comparePos(a, b) { return a[0] - b[0] || a[1] - b[1]; }
@@ -368,17 +461,21 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	else if (subsetCount === 1) difficulty = 2;
 	else difficulty = 1;
 
-	// Continuous difficulty score (~1.0 .. ~10.0). Trivial cells contribute
-	// nothing past a tiny baseline — a 7×7 board with 20 trivial cells should
-	// rate the same as a 4×4 with 4. Only the non-trivial *steps* and the
-	// hardest enum component drive the score. Tiers:
-	//   1.0       trivial only
+	// Continuous difficulty score (~1.0 .. ~10.0). Trivial chains contribute a
+	// small bonus capped just below the first subset step (1.8) so a longer
+	// trivial chain rates higher than a single click but never crosses into
+	// "real deduction" territory. The non-trivial steps + hardest enum
+	// component dominate everything past that. Tiers:
+	//   1.0       one trivial step (or zero work)
+	//   1.0 → 1.7 trivial chain, asymptotic
 	//   1.8 / 2.6 / 3.4 …    +0.8 per subset step
 	//   ~3.3      enum on 3 cells
 	//   ~5.5      enum on 5 cells
 	//   ~8.0      enum on 7 cells
 	//   ~10+      enum ≥ 9 cells
+	var trivBonus = Math.min(0.7, 0.1 * Math.max(0, trivCount - 1));
 	var score = 1.0
+		+ trivBonus
 		+ 0.8 * (subsetCount + enumCount)
 		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
 	if (!solved) score = 0;
@@ -394,3 +491,4 @@ function analyzeWithTracking(board, revealedList, numMines) {
 }
 
 exports.generatePuzzles = generatePuzzles;
+exports.canonicalKey = canonicalKey;

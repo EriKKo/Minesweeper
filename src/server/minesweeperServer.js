@@ -103,6 +103,7 @@ function handler (req, res) {
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
+	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res);
 
 	var filePath = resolveStatic(pathname);
 	if (!filePath) { res.writeHead(404); res.end(); return; }
@@ -236,16 +237,113 @@ function finishLogin(res, userId) {
 	res.end();
 }
 
-// /api/puzzles[?count=N] — return a batch of small randomly-generated puzzles
-// classified by difficulty (puzzle lab / experimentation).
+// Puzzle pool: every successfully-generated puzzle is appended to this
+// in-memory array. The Puzzle Lab GETs the current pool; a separate POST
+// endpoint kicks off a generation job that runs in setImmediate chunks
+// so the request returns immediately and the pool fills in the background.
+var puzzlePool = [];
+var puzzlePoolKeys = new Set();
+var puzzleJob = null; // { id, target, diff, density, done, dupes, stalls, startedAt }
+var nextPuzzleJobId = 1;
+
+function startPuzzleJob(target, diff, density) {
+	var job = {
+		id: nextPuzzleJobId++,
+		target: target,
+		diff: diff || null,
+		density: (typeof density === "number") ? density : null,
+		done: 0,
+		dupes: 0,
+		stalls: 0,
+		startedAt: Date.now()
+	};
+	puzzleJob = job;
+	// 5 puzzles per tick so we yield to the event loop between chunks — keeps
+	// the server responsive to socket traffic while the job runs.
+	function tick() {
+		if (puzzleJob !== job) return; // a newer job superseded this one
+		if (job.done >= job.target) { puzzleJob = null; return; }
+		var batch = puzzleGen.generatePuzzles({
+			count: Math.min(5, job.target - job.done),
+			diff: job.diff || undefined,
+			density: (job.density != null) ? job.density : undefined
+		});
+		if (batch.length === 0) {
+			// Generator gave up within its attempt budget. End the job rather
+			// than spin forever on a difficulty that's exhausted random space.
+			puzzleJob = null;
+			return;
+		}
+		var added = 0;
+		for (var i = 0; i < batch.length; i++) {
+			var p = batch[i];
+			if (puzzlePoolKeys.has(p.key)) { job.dupes++; continue; }
+			puzzlePoolKeys.add(p.key);
+			puzzlePool.push(p);
+			added++;
+			job.done++;
+			if (job.done >= job.target) break;
+		}
+		// If a chunk produces only duplicates, the pool is saturated for this
+		// difficulty — bail after a few stalls so we don't loop forever.
+		if (added === 0) {
+			job.stalls++;
+			if (job.stalls >= 5) { puzzleJob = null; return; }
+		} else {
+			job.stalls = 0;
+		}
+		setImmediate(tick);
+	}
+	setImmediate(tick);
+	return job;
+}
+
 function servePuzzles(req, res, url) {
-	var count = Math.max(1, Math.min(60, parseInt(url.searchParams.get("count"), 10) || 20));
+	if (req.method === "POST") {
+		var count = Math.max(1, Math.min(500, parseInt(url.searchParams.get("count"), 10) || 20));
+		var diff = parseInt(url.searchParams.get("diff"), 10);
+		var density = parseFloat(url.searchParams.get("density"));
+		if (puzzleJob) {
+			res.writeHead(409, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ error: "A generation job is already running.", job: puzzleJobStatus() }));
+			return;
+		}
+		var job = startPuzzleJob(
+			count,
+			(diff >= 1 && diff <= 6) ? diff : null,
+			(density >= 0.05 && density <= 0.45) ? density : null
+		);
+		res.writeHead(202, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density } }));
+		return;
+	}
+	// GET — return the pool (optionally filtered by diff).
 	var diff = parseInt(url.searchParams.get("diff"), 10);
-	var opts = { count: count };
-	if (diff >= 1 && diff <= 6) opts.diff = diff;
-	var puzzles = puzzleGen.generatePuzzles(opts);
+	var puzzles = (diff >= 1 && diff <= 6)
+		? puzzlePool.filter(function(p) { return p.difficulty === diff; })
+		: puzzlePool.slice();
 	res.writeHead(200, { "Content-Type": "application/json" });
-	res.end(JSON.stringify({ puzzles: puzzles }));
+	res.end(JSON.stringify({ puzzles: puzzles, pool: puzzlePool.length, job: puzzleJobStatus() }));
+}
+
+function servePuzzlesClear(req, res) {
+	puzzlePool = [];
+	puzzlePoolKeys = new Set();
+	puzzleJob = null;
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ ok: true }));
+}
+
+function puzzleJobStatus() {
+	if (!puzzleJob) return null;
+	return {
+		id: puzzleJob.id,
+		target: puzzleJob.target,
+		diff: puzzleJob.diff,
+		density: puzzleJob.density,
+		done: puzzleJob.done,
+		dupes: puzzleJob.dupes
+	};
 }
 
 var games = {};
