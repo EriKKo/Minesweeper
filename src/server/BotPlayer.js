@@ -1,5 +1,5 @@
 var gameCreator = require("./GameCreator");
-var BoardLogic = require("./BoardLogic");
+var BoardLogic = require("../common/BoardLogic");
 
 var MINE = BoardLogic.MINE;
 var FLAGGED = BoardLogic.FLAGGED;

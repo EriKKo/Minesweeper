@@ -21,18 +21,40 @@ no-guess solver, bot behaviour, Elo) can be checked with short `node -e` scripts
 
 ## Layout
 
-- `minesweeperServer.js` — HTTP + socket.io server: rooms, series, ranked matchmaking,
-  OAuth/dev auth endpoints, bot orchestration.
-- `minesweeperClient.html` — the entire client (markup + inline JS), canvas rendering.
-  The Learn page is an interactive deduction trainer driven by the `LEARN_LESSONS`
-  data array (8 lessons + clickable puzzles); editable source content lives in
-  `../minesweeper-trainer/`. No mine-count deductions, since the game hides the total.
-- `style.css` — all styles.
-- `GameCreator.js` — board/game state, mine placement, and the no-guess generator
-  (`createNoGuessTemplate`) + deduction solver.
+Source is split into three trees under `src/`:
+
+**`src/server/`** — Node + socket.io backend:
+- `minesweeperServer.js` — HTTP + socket.io entry: rooms, series, ranked matchmaking,
+  OAuth/dev auth endpoints, bot orchestration. Also serves static client assets
+  out of `src/client/` and `src/common/`.
+- `GameCreator.js` — board/game state factory + mine placement.
+- `NoGuessGenerator.js` — `createNoGuessTemplate` + the deduction solver
+  (`analyzeSolvability`).
 - `RoomCreator.js` — room and best-of-N series state.
-- `BotPlayer.js` — bot AI (deduction + blunders), difficulty, and `configForElo`.
+- `BotPlayer.js` — bot AI (deduction + blunders), difficulty, `configForElo`.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
+
+**`src/common/`** — modules required by both runtimes (loaded via plain
+`<script>` tag in the browser and `require()` on the server):
+- `BoardLogic.js` — cascade, chord, neighbour iteration, the MINE/FLAGGED/
+  UNKNOWN/KNOWN state sentinels.
+
+**`src/client/`** — browser frontend, each file a single feature:
+- `index.html` — entry page: markup + the inline live-game socket handlers
+  and DOM/state wiring. All other client modules are plain `<script>` tags
+  loaded ahead of it (each becomes a global).
+- `style.css` — all styles.
+- `BoardRender.js` — canvas paint + palette + animation timings + DPR.
+- `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
+- `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors.
+- `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
+  `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
+  `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
+  `MatchPanels.js`, `GameRoom.js`, `Solo.js`, `Learn.js` — one feature each.
+
+The Learn page is an interactive deduction trainer (`LEARN_COURSES` data
+array, ~16 puzzles + ~10 demos). No mine-count deductions — the game
+hides the total.
 
 ## Configuration (`.env`, auto-loaded; gitignored)
 

@@ -4,7 +4,9 @@ var sqlite = require("node:sqlite");
 var crypto = require("node:crypto");
 var path = require("path");
 
-var DB_PATH = process.env.RANKED_DB || path.join(__dirname, "ranked.db");
+// Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
+// set to /data/ranked.db on the fly volume.
+var DB_PATH = process.env.RANKED_DB || path.join(__dirname, "..", "..", "ranked.db");
 var db = new sqlite.DatabaseSync(DB_PATH);
 
 db.exec(

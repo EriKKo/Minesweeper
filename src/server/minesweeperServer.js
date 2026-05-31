@@ -74,6 +74,25 @@ var oauthStates = {}; // state -> expiry ms
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
 
+// Static file roots, tried in order. Client assets (HTML, CSS, .js modules)
+// live in src/client; the one shared module (BoardLogic.js) lives in
+// src/common and is fetched by both runtimes.
+var STATIC_ROOTS = [
+	path.join(__dirname, "..", "client"),
+	path.join(__dirname, "..", "common")
+];
+
+function resolveStatic(pathname) {
+	if (pathname === "/") pathname = "/index.html";
+	for (var i = 0; i < STATIC_ROOTS.length; i++) {
+		var full = path.join(STATIC_ROOTS[i], pathname);
+		// Guard against path traversal — must stay rooted under the static dir.
+		if (full.indexOf(STATIC_ROOTS[i]) !== 0) continue;
+		try { fs.accessSync(full, fs.constants.R_OK); return full; } catch (e) {}
+	}
+	return null;
+}
+
 function handler (req, res) {
 	var url = new URL(req.url, OAUTH_BASE);
 	var pathname = url.pathname;
@@ -83,10 +102,8 @@ function handler (req, res) {
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 
-	var filePath = "." + pathname;
-	if (filePath == "./") {
-		filePath = "./minesweeperClient.html";
-	}
+	var filePath = resolveStatic(pathname);
+	if (!filePath) { res.writeHead(404); res.end(); return; }
 	var extension = path.extname(filePath);
 	var contentType = "text/html";
 	if (extension == ".js") {
@@ -96,21 +113,14 @@ function handler (req, res) {
 	} else if (extension == ".svg") {
 		contentType = "image/svg+xml";
 	}
-	fs.access(filePath, fs.constants.R_OK, function(err) {
+	fs.readFile(filePath, function(err, data) {
 		if (err) {
-			res.writeHead(404);
-			res.end();
-			return;
+			res.writeHead(500);
+			res.end("Error while loading "+filePath);
+		} else {
+			res.writeHead(200, { "Content-Type" : contentType});
+			res.end(data);
 		}
-		fs.readFile(filePath, function(err, data) {
-			if (err) {
-				res.writeHead(500);
-				res.end("Error while loading "+filePath);
-			} else {
-				res.writeHead(200, { "Content-Type" : contentType});
-				res.end(data);
-			}
-		});
 	});
 }
 

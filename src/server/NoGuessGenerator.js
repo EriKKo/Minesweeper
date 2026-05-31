@@ -5,7 +5,7 @@
 // rolls boards from `GameCreator.createTemplate` and returns the first one
 // `analyzeSolvability` proves reachable to 100% safe coverage.
 
-var BoardLogic = require("./BoardLogic");
+var BoardLogic = require("../common/BoardLogic");
 var GameCreator = require("./GameCreator");
 
 var NOGUESS_MAX_TRIES = 100;
