@@ -394,7 +394,6 @@ main {
 	font-variant-numeric: tabular-nums;
 }
 
-.leaderboard-card { margin-bottom: 1.5rem; }
 
 .leaderboard-list {
 	list-style: none;
@@ -648,6 +647,8 @@ main {
 
 .home-card-actions .home-card-action { flex: 1 1 auto; }
 .home-card-actions .btn-secondary { flex: 0 0 auto; }
+
+.custom-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 1.4rem; }
 
 @media (max-width: 900px) {
 	.home-cards { grid-template-columns: 1fr; }

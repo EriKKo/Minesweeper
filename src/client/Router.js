@@ -54,6 +54,13 @@ function showPracticeView() {
 	setSiteNavActive("practice");
 }
 
+function showCustomView() {
+	hideAllViews();
+	document.getElementById("custom_view").style.display = "";
+	setSiteNavActive("home");
+	socket.emit("list_rooms");
+}
+
 function showLeaderboardView() {
 	hideAllViews();
 	document.getElementById("leaderboard_view").style.display = "";
@@ -110,6 +117,7 @@ function applyRouteFromHash() {
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
+	if (hash === "/custom") return showCustomView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();

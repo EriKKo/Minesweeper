@@ -103,11 +103,8 @@
 						<span class="home-card-tag home-card-tag-casual">CASUAL</span>
 					</div>
 					<h2 class="home-card-title">Custom lobby</h2>
-					<p class="home-card-sub">Make your own room and tweak board size, mine density, and series length.</p>
-					<div class="home-card-actions">
-						<button id="create_room_button" class="btn btn-primary home-card-action">Create new room</button>
-						<button id="refresh_button" class="btn btn-secondary">Refresh rooms</button>
-					</div>
+					<p class="home-card-sub">Browse open rooms or make your own — tweak board size, mine density, and series length.</p>
+					<button id="open_custom_button" class="btn btn-primary home-card-action">Open custom lobbies</button>
 				</div>
 			</div>
 
@@ -128,11 +125,15 @@
 				</div>
 			</div>
 
-			<div id="leaderboard_card" class="leaderboard-card">
-				<h2 class="section-title">Ranked leaderboard</h2>
-				<ol id="leaderboard_list" class="leaderboard-list">
-					<li class="room-empty">No ranked players yet.</li>
-				</ol>
+			<p id="lobby_message" class="lobby-message" style="display:none"></p>
+		</section>
+
+		<section id="custom_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Custom lobby</h1>
+			<p class="section-page-sub">Casual rooms — pick the ruleset and play with friends or against bots. No rating change.</p>
+			<div class="custom-actions">
+				<button id="create_room_button" class="btn btn-primary">Create new room</button>
+				<button id="refresh_button" class="btn btn-secondary">Refresh rooms</button>
 			</div>
 
 			<h2 class="section-title">Open rooms</h2>
@@ -144,8 +145,6 @@
 			<ul id="busy_room_list" class="room-list">
 				<li class="room-empty" data-empty-busy>No games in progress.</li>
 			</ul>
-
-			<p id="lobby_message" class="lobby-message" style="display:none"></p>
 		</section>
 
 		<section id="learn_view" class="view section-view" style="display:none">
@@ -693,6 +692,10 @@ volumeSlider.addEventListener("input", function() {
 	sound.setVolume(parseInt(volumeSlider.value, 10) / 100);
 });
 
+document.getElementById("open_custom_button").addEventListener("click", function() {
+	location.hash = "#/custom";
+});
+
 document.getElementById("create_room_button").addEventListener("click", function() {
 	socket.emit("create_room");
 });
@@ -1008,7 +1011,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 
