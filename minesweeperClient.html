@@ -357,14 +357,16 @@
 <script src="/GameRoom.js"></script>
 <script src="/Animations.js"></script>
 <script src="/Input.js"></script>
+<script src="/Sound.js"></script>
+<script src="/Overlay.js"></script>
+<script src="/RoundTimer.js"></script>
+<script src="/BoardDecoder.js"></script>
+<script src="/DangerWarning.js"></script>
 <script src="/Learn.js"></script>
 <script src="/Solo.js"></script>
 <script src="/Profile.js"></script>
 <script src="/Router.js"></script>
 <script>
-// Countdown overlay colours — not part of the board palette (those live in
-// BoardRender.js).
-var COUNT_DOWN_COLORS = ["#facc15", "#fb923c", "#f87171"];
 
 var MINE = BoardLogic.MINE;
 var FLAGGED = BoardLogic.FLAGGED;
@@ -613,90 +615,7 @@ socket.on("solo_board", function(data) {
 
 // Procedural sound effects (WebAudio, no asset files). Short and soft — these
 // fire hundreds of times per game, so everything is brief and low-gain.
-var sound = (function() {
-	var ctx = null, master = null;
-	var muted = localStorage.getItem("ms_muted") === "1";
-	var volume = parseFloat(localStorage.getItem("ms_volume"));
-	if (isNaN(volume)) volume = 0.6;
-
-	function ensure() {
-		if (ctx) return ctx;
-		var AC = window.AudioContext || window.webkitAudioContext;
-		if (!AC) return null;
-		ctx = new AC();
-		master = ctx.createGain();
-		master.gain.value = volume;
-		master.connect(ctx.destination);
-		return ctx;
-	}
-
-	function tone(opts) {
-		if (muted || !ensure()) return;
-		if (ctx.state === "suspended") ctx.resume();
-		var t0 = ctx.currentTime + (opts.delay || 0);
-		var osc = ctx.createOscillator();
-		var g = ctx.createGain();
-		osc.type = opts.type || "sine";
-		osc.frequency.setValueAtTime(opts.freq, t0);
-		if (opts.toFreq) osc.frequency.exponentialRampToValueAtTime(opts.toFreq, t0 + opts.dur);
-		var peak = opts.gain != null ? opts.gain : 0.2;
-		g.gain.setValueAtTime(0.0001, t0);
-		g.gain.exponentialRampToValueAtTime(peak, t0 + 0.005);
-		g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
-		osc.connect(g); g.connect(master);
-		osc.start(t0); osc.stop(t0 + opts.dur + 0.02);
-	}
-
-	function noise(opts) {
-		if (muted || !ensure()) return;
-		if (ctx.state === "suspended") ctx.resume();
-		var t0 = ctx.currentTime;
-		var dur = opts.dur || 0.3;
-		var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
-		var data = buf.getChannelData(0);
-		for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
-		var src = ctx.createBufferSource(); src.buffer = buf;
-		var lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = opts.cutoff || 800;
-		var g = ctx.createGain(); g.gain.value = opts.gain != null ? opts.gain : 0.4;
-		src.connect(lp); lp.connect(g); g.connect(master);
-		src.start(t0);
-	}
-
-	function arp(freqs, step, dur, gain) {
-		for (var i = 0; i < freqs.length; i++) tone({ type: "triangle", freq: freqs[i], dur: dur, gain: gain, delay: i * step });
-	}
-
-	return {
-		cascade: function(n) {
-			var ticks = Math.max(1, Math.min(n, 7));
-			for (var i = 0; i < ticks; i++) tone({ type: "triangle", freq: 560 + i * 70, dur: 0.045, gain: 0.05, delay: i * 0.028 });
-		},
-		opponentDone: function(n) {
-			var base = 720 + Math.min(n, 4) * 70;
-			tone({ type: "triangle", freq: base, dur: 0.09, gain: 0.06 });
-			tone({ type: "triangle", freq: base * 1.34, dur: 0.12, gain: 0.06, delay: 0.085 });
-		},
-		flag: function() { tone({ type: "square", freq: 420, toFreq: 300, dur: 0.06, gain: 0.06 }); },
-		unflag: function() { tone({ type: "square", freq: 300, dur: 0.04, gain: 0.04 }); },
-		mine: function() {
-			noise({ dur: 0.35, cutoff: 500, gain: 0.5 });
-			tone({ type: "sine", freq: 150, toFreq: 50, dur: 0.4, gain: 0.22 });
-		},
-		beep: function(freq) { tone({ type: "sine", freq: freq, dur: 0.12, gain: 0.12 }); },
-		go: function() { tone({ type: "sine", freq: 880, dur: 0.25, gain: 0.16 }); },
-		win: function() { arp([523, 659, 784, 1047], 0.09, 0.28, 0.12); },
-		lose: function() { tone({ type: "sine", freq: 320, toFreq: 200, dur: 0.32, gain: 0.11 }); },
-		seriesWin: function() { arp([523, 659, 784, 1047, 1319], 0.11, 0.34, 0.13); },
-		unlock: function() { if (ensure() && ctx.state === "suspended") ctx.resume(); },
-		setMuted: function(m) { muted = m; localStorage.setItem("ms_muted", m ? "1" : "0"); },
-		isMuted: function() { return muted; },
-		setVolume: function(v) { volume = v; localStorage.setItem("ms_volume", String(v)); if (master) master.gain.value = v; },
-		getVolume: function() { return volume; }
-	};
-})();
-
-document.addEventListener("click", sound.unlock, { once: true });
-document.addEventListener("keydown", sound.unlock, { once: true });
+// sound system + AudioContext unlock listeners moved to Sound.js
 
 var nameView = document.getElementById("name_view");
 var lobbyView = document.getElementById("lobby_view");
@@ -771,9 +690,7 @@ var focusVisible = false;
 // The full board (mines + numbers) arrives once at start_game in obfuscated form
 // and lives inside `boardDecoder` as a closure. Module-level code never holds the
 // decoded 2D board; everything goes through boardCell(r, c) — readable from the
-// JS console with effort, but not as a single dump.
-var boardDecoder = null;
-function boardCell(r, c) { return boardDecoder ? boardDecoder(r, c) : 0; }
+// boardDecoder + boardCell moved to BoardDecoder.js
 var myState = null;
 // Live-board animation queue + render loop moved to Animations.js.
 var lastScores = {};           // playerId -> last rendered score, to flash gains
@@ -1071,23 +988,6 @@ socket.on("start_game", function(data) {
 
 // Decode a XOR-masked board blob from the server. The decoded bytes never leave
 // this closure; outsiders only get the (r,c) accessor via boardCell().
-function installBoardDecoder(dataB64, maskB64, decodeRows, decodeCols) {
-	var data = base64ToBytes(dataB64);
-	var mask = base64ToBytes(maskB64);
-	var width = decodeCols;
-	boardDecoder = function(r, c) {
-		var idx = r * width + c;
-		var v = data[idx] ^ mask[idx % mask.length];
-		return v === 9 ? MINE : v;
-	};
-}
-
-function base64ToBytes(s) {
-	var bin = atob(s);
-	var out = new Uint8Array(bin.length);
-	for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-	return out;
-}
 
 socket.on("game_result", function(data) {
 	roundResultShown = true;
@@ -1204,48 +1104,7 @@ socket.on("draw_board", function(data) {
 	updateDangerWarning();
 });
 
-function setDanger(on) {
-	if (!dangerTarget) dangerTarget = document.getElementById("player_div");
-	if (!dangerTarget) return;
-	if (dangerActive === on) return;
-	dangerActive = on;
-	dangerTarget.classList.toggle("danger", on);
-}
-
-// Subtle red pulse around the player's own board when they're currently below
-// the elimination cut for this tournament round. Activates only after a grace
-// period into the round, with hysteresis so a tight battle doesn't strobe.
-function updateDangerWarning() {
-	if (!currentRoom || currentRoom.rankedMode !== "tournament"
-		|| currentRoom.phase !== "playing"
-		|| iAmEliminated
-		|| (liveProgress[id] && liveProgress[id].finished)) {
-		setDanger(false);
-		return;
-	}
-	// Grace window after GO: no warning yet.
-	if (!roundStartTime || Date.now() - roundStartTime < DANGER_GRACE_MS) {
-		setDanger(false);
-		return;
-	}
-	var schedule = currentRoom.tournamentSchedule || [];
-	var survivors = schedule[currentRoom.gamesPlayed || 0];
-	if (!survivors) { setDanger(false); return; }
-	// Sort players by progress (same ordering as the scoreboard).
-	var sorted = currentRoom.players.slice().sort(function(a, b) {
-		var lpa = liveProgress[a.id] || {}, lpb = liveProgress[b.id] || {};
-		if (lpa.finished !== lpb.finished) return lpa.finished ? -1 : 1;
-		if (lpa.finished && lpb.finished) return (lpa.finishedAt || 0) - (lpb.finishedAt || 0);
-		return (lpb.progress || 0) - (lpa.progress || 0);
-	});
-	var myIdx = -1;
-	for (var i = 0; i < sorted.length; i++) if (sorted[i].id === id) { myIdx = i; break; }
-	if (myIdx === -1) return;
-	// Hysteresis: enter danger when below the cut, exit only after climbing one
-	// full rank into safety. Stops oscillation at the boundary.
-	if (!dangerActive && myIdx >= survivors) setDanger(true);
-	else if (dangerActive && myIdx < survivors - 1) setDanger(false);
-}
+// danger warning moved to DangerWarning.js
 
 var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view"];
 // Routing + view show/hide moved to Router.js.
@@ -1288,88 +1147,8 @@ function resetGameUI() {
 	for (var j = 0; j < slots.length; j++) slots[j].style.display = "none";
 }
 
-function showOverlay(text, kind, autoHideMs) {
-	boardOverlay.style.display = "";
-	boardOverlay.textContent = text;
-	boardOverlay.className = "board-overlay" + (kind ? " board-overlay-" + kind : "");
-	if (autoHideMs) {
-		setTimeout(function() {
-			if (boardOverlay.textContent === text) hideOverlay();
-		}, autoHideMs);
-	}
-}
-
-function hideOverlay() {
-	boardOverlay.style.display = "none";
-	boardOverlay.textContent = "";
-	boardOverlay.className = "board-overlay";
-}
-
-
-function startFreezeTick() {
-	clearFreezeTick();
-	freezeTickHandle = setInterval(updateFreezeOverlay, 100);
-	updateFreezeOverlay();
-}
-
-function clearFreezeTick() {
-	if (freezeTickHandle) {
-		clearInterval(freezeTickHandle);
-		freezeTickHandle = null;
-	}
-}
-
-function clearFreeze() {
-	frozenUntil = 0;
-	clearFreezeTick();
-	if (boardOverlay.className.indexOf("board-overlay-frozen") !== -1) hideOverlay();
-}
-
-function updateFreezeOverlay() {
-	var remaining = Math.max(0, frozenUntil - Date.now());
-	if (remaining <= 0) {
-		clearFreezeTick();
-		if (boardOverlay.className.indexOf("board-overlay-frozen") !== -1) hideOverlay();
-		return;
-	}
-	var s = Math.ceil(remaining / 1000);
-	showOverlay("💥 " + s, "frozen");
-}
-
-function startRoundTimer(deadline) {
-	stopRoundTimer();
-	roundDeadline = deadline;
-	if (!deadline) return;
-	roundTickHandle = setInterval(updateRoundTimer, 500);
-	updateRoundTimer();
-}
-
-function stopRoundTimer() {
-	if (roundTickHandle) { clearInterval(roundTickHandle); roundTickHandle = null; }
-	roundDeadline = null;
-	roundTimer.textContent = "";
-	roundTimer.classList.remove("round-timer-urgent");
-	roundTimer.classList.remove("round-timer-warning");
-}
-
-function updateRoundTimer() {
-	if (!roundDeadline) return;
-	var remaining = Math.max(0, Math.round((roundDeadline - Date.now()) / 1000));
-	roundTimer.textContent = "⏱ " + formatRoundTime(remaining);
-	roundTimer.classList.toggle("round-timer-urgent", remaining <= 10 && remaining > 0);
-	roundTimer.classList.toggle("round-timer-warning", remaining <= 30 && remaining > 10);
-	if (remaining <= 0) { clearInterval(roundTickHandle); roundTickHandle = null; }
-}
-
-function clearCanvas(canvas) {
-	var ctx = canvas.getContext("2d");
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
-
-function hideReadyButton() {
-	readyButton.style.display = "none";
-}
-
+// overlay + countdown moved to Overlay.js
+// round timer + freeze ticker moved to RoundTimer.js
 
 
 // Render the live scoreboard. During a round, sorts by progress (finished
@@ -1379,25 +1158,6 @@ function hideReadyButton() {
 // pattern so it always shows the leaders and the player's neighbourhood.
 
 
-function countDown(time) {
-	countDownStep(time);
-}
-
-function countDownStep(number) {
-	if (number <= 0) {
-		showOverlay("GO", "go");
-		sound.go();
-		roundStartTime = Date.now(); // danger-warning grace period starts here
-		setTimeout(function() {
-			if (boardOverlay.textContent === "GO") hideOverlay();
-		}, 700);
-		return;
-	}
-	showOverlay(String(number), "count");
-	boardOverlay.style.color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
-	sound.beep(392 + (3 - Math.min(number, 3)) * 110);
-	setTimeout(function() { countDownStep(number - 1); }, 1000);
-}
 
 
 // Touch press indicator: brightens the cell under the finger so taps feel
