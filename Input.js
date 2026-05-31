@@ -9,6 +9,17 @@
 // dfs reveal + chord click — they run through BoardLogic so the two surfaces
 // stay in lockstep.
 
+// Hit-test a canvas at a client (x, y) point. Used by both the live game
+// (cellFromClient) and the Learn page — every interactive board on the site
+// flows through here.
+function cellFromCanvas(canvas, R, C, clientX, clientY) {
+	var rect = canvas.getBoundingClientRect();
+	var c = Math.floor((clientX - rect.left) / rect.width * C);
+	var r = Math.floor((clientY - rect.top) / rect.height * R);
+	if (r < 0 || r >= R || c < 0 || c >= C) return null;
+	return { r: r, c: c };
+}
+
 function cellFromClient(clientX, clientY) {
 	return cellFromCanvas(playerCanvas, rows, cols, clientX, clientY);
 }

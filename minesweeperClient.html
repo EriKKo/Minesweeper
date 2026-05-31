@@ -438,17 +438,7 @@ var pressedCell = null; // cell currently under the finger — drawn highlighted
 var LONG_PRESS_MS = 420;
 var TOUCH_MOVE_TOLERANCE = 12;
 
-// Hit-test a canvas at a client (x, y) point. Used by both the live game and
-// the Learn page — every interactive board on the site flows through here.
-function cellFromCanvas(canvas, R, C, clientX, clientY) {
-	var rect = canvas.getBoundingClientRect();
-	var c = Math.floor((clientX - rect.left) / rect.width * C);
-	var r = Math.floor((clientY - rect.top) / rect.height * R);
-	if (r < 0 || r >= R || c < 0 || c >= C) return null;
-	return { r: r, c: c };
-}
-
-// Input dispatch + local reveal/chord/keyboard handlers moved to Input.js.
+// Input dispatch + cellFromCanvas hit-test moved to Input.js.
 
 // Mirror the server's dfs reveal: walks from (r,c) marking unknown cells KNOWN,
 // cascading through 0-cells, recording each newly-revealed cell and whether the
