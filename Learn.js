@@ -22,38 +22,21 @@ var LEARN_COURSES = [
 		how: "Left-click a covered cell to open it. Use the numbers around a cell to tell if it's safe.",
 		demo: {
 			title: "What each number means",
-			grid: [
-				"1 2 3 3 3 2 1 ? ?",
-				"2 b b b b b 2 ? ?",
-				"3 b b 6 6 b 5 2 1",
-				"3 b b b 4 b b b 2",
-				"3 b 7 5 6 b 8 b 3",
-				"2 b b b b b b b 2",
-				"1 2 3 3 3 3 3 2 1"
-			],
+			rows: 7,
+			cols: 9,
+			mines: [[1,1], [1,2], [1,3], [1,4], [1,5], [2,1], [2,2], [2,5], [3,1], [3,2], [3,3], [3,5], [3,6], [3,7], [4,1], [4,5], [4,7], [5,1], [5,2], [5,3], [5,4], [5,5], [5,6], [5,7]],
+			revealAll: true,
+			xray: true,
 			why: "A 1 has one mine next to it. An 8 has eight — every neighbour."
 		},
 		puzzles: [
 			{
 				title: "Open the only safe cell",
-				grid: [
-					"? ? ? ? ? ? ? ? ? ? ? ? ?",
-					"? 1 1 1 ? 1 1 1 ? 1 2 2 1",
-					"? 1 m 1 ? 1 m 1 ? 1 m m 1",
-					"? 1 1 1 ? 1 1 1 ? 1 2 2 1",
-					"? 1 1 2 1 1 ? ? ? ? ? ? ?",
-					"? 1 m . m 1 ? ? ? ? ? ? ?",
-					"? 1 1 2 1 1 ? ? ? ? ? ? ?"
-				],
-				solution: [
-					"? ? ? ? ? ? ? ? ? ? ? ? ?",
-					"? 1 1 1 ? 1 1 1 ? 1 2 2 1",
-					"? 1 m 1 ? 1 m 1 ? 1 m m 1",
-					"? 1 1 1 ? 1 1 1 ? 1 2 2 1",
-					"? 1 1 2 1 1 ? ? ? ? ? ? ?",
-					"? 1 m S m 1 ? ? ? ? ? ? ?",
-					"? 1 1 2 1 1 ? ? ? ? ? ? ?"
-				],
+				rows: 7,
+				cols: 13,
+				mines: [[2,2], [2,6], [2,10], [2,11], [5,2], [5,4]],
+				revealAll: true,
+				covered: [[5,3]],
 				why: "Each ring of 1s circles one mine. The 2s at top-right say two mines sit next to each other. At the bottom, the two 2s above and below the gap mean two mines flank the centre cell — so that centre cell is safe to open. Click it and it reveals a 2."
 			}
 		]
@@ -64,26 +47,22 @@ var LEARN_COURSES = [
 		how: "Right-click a covered cell to flag it. Right-click again to remove.",
 		demo: {
 			title: "Marking a mine",
-			grid: ["1 1 1", "1 * 1", "1 1 1"],
+			rows: 3,
+			cols: 3,
+			mines: [[1,1]],
+			flagged: [[1,1]],
+			revealAll: true,
+			xray: true,
 			why: "Every 1 points at the same mine. Right-click to flag it (🚩)."
 		},
 		puzzles: [
 			{
 				title: "Flag every mine you see",
-				grid: [
-					"? ? ? ? ? ? ? ? ?",
-					"? 1 1 1 ? 1 2 2 1",
-					"? 1 . 1 ? 1 . . 1",
-					"? 1 1 1 ? 1 2 2 1",
-					"? ? ? ? ? ? ? ? ?"
-				],
-				solution: [
-					"? ? ? ? ? ? ? ? ?",
-					"? 1 1 1 ? 1 2 2 1",
-					"? 1 M 1 ? 1 M M 1",
-					"? 1 1 1 ? 1 2 2 1",
-					"? ? ? ? ? ? ? ? ?"
-				]
+				rows: 5,
+				cols: 9,
+				mines: [[2,2], [2,6], [2,7]],
+				revealAll: true,
+				mustFlag: true
 			}
 		]
 	},
@@ -93,43 +72,21 @@ var LEARN_COURSES = [
 		how: "Click somewhere far from any number. Empty cells cascade until they hit a clue.",
 		demo: {
 			title: "One click, big reveal",
-			grid: [
-				". ? ? 2 b b 2",
-				"? ? ? 2 b b 2",
-				"? ? ? 1 2 2 1",
-				"? ? ? ? ? ? ?",
-				"? ? ? ? ? ? ?"
-			],
-			solution: [
-				"S ? ? 2 b b 2",
-				"? ? ? 2 b b 2",
-				"? ? ? 1 2 2 1",
-				"? ? ? ? ? ? ?",
-				"? ? ? ? ? ? ?"
-			],
+			rows: 5,
+			cols: 7,
+			mines: [[0,4], [0,5], [1,4], [1,5]],
+			revealAll: true,
+			covered: [[0,0]],
+			xray: true,
 			why: "One click on the empty corner opened the whole left side."
 		},
 		puzzles: [
 			{
 				title: "Clear every safe cell",
-				grid: [
-					"? ? 1 m . . .",
-					"? ? 1 . . . .",
-					"? ? 1 . . . .",
-					"? ? 1 m . . .",
-					"? ? 1 . . . .",
-					"? 1 1 . . . .",
-					"? 1 m . . . ."
-				],
-				solution: [
-					"? ? 1 m S S S",
-					"? ? 1 S S S S",
-					"? ? 1 S S S S",
-					"? ? 1 m S S S",
-					"? ? 1 S S S S",
-					"? 1 1 S S S S",
-					"? 1 m S S S S"
-				]
+				rows: 7,
+				cols: 7,
+				mines: [[0,3], [3,3], [6,2]],
+				revealStart: [6,0]
 			}
 		]
 	},
@@ -139,36 +96,24 @@ var LEARN_COURSES = [
 		how: "Click any number whose flag count matches its value. Left- or right-click both chord.",
 		demo: {
 			title: "Worked example",
-			grid: [
-				"1 1 2 1 1",
-				"1 * 2 * 1",
-				"1 . 3 . 1",
-				"? . * . ?",
-				"? 1 1 1 ?"
-			],
-			solution: [
-				"1 1 2 1 1",
-				"1 * 2 * 1",
-				"1 S 3 S 1",
-				"? S * S ?",
-				"? 1 1 1 ?"
-			],
+			rows: 5,
+			cols: 5,
+			mines: [[1,1], [1,3], [3,2]],
+			flagged: [[1,1], [1,3], [3,2]],
+			revealAll: true,
+			covered: [[2,1], [2,3], [3,1], [3,3]],
+			xray: true,
 			why: "The 3 sees three flags. Clicking it opens the other four cells at once."
 		},
 		puzzles: [
 			{
 				title: "Chord all three",
-				chordOnly: true,
-				grid: [
-					". * . . * . . * .",
-					". 1 . * 2 . * 3 *",
-					". . . . . . . . ."
-				],
-				solution: [
-					"S * S S * S S * S",
-					"S 1 S * 2 S * 3 *",
-					"S S S S S S S S S"
-				]
+				rows: 3,
+				cols: 9,
+				mines: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
+				flagged: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
+				revealed: [[1,1], [1,4], [1,7]],
+				chordOnly: true
 			}
 		]
 	}
@@ -185,44 +130,20 @@ var LEARN_COURSES = [
 		how: "Find a clue. Count its covered neighbours. If they match the number, flag them all.",
 		demo: {
 			title: "Worked example",
-			grid: [
-				"? ? ? ? ? ? ? ?",
-				"? ? ? ? 1 1 1 ?",
-				"? ? ? ? 1 . 1 ?",
-				"? ? ? ? 1 1 1 ?",
-				"? ? ? ? ? ? ? ?"
-			],
-			solution: [
-				"? ? ? ? ? ? ? ?",
-				"? ? ? ? 1 1 1 ?",
-				"? ? ? ? 1 M 1 ?",
-				"? ? ? ? 1 1 1 ?",
-				"? ? ? ? ? ? ? ?"
-			],
+			rows: 5,
+			cols: 8,
+			mines: [[2,5]],
+			revealStart: [4,0],
+			xray: true,
 			why: "Every 1 around the covered cell needs one mine, and the cell is its only candidate — it must be the mine."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					". . . . . . .",
-					". m . . . m .",
-					". . . . . . .",
-					". . . . . . .",
-					". . . . . . .",
-					". . m . m . .",
-					". . . . . . ."
-				],
-				solution: [
-					". . . . . . .",
-					". m . . . m .",
-					". . . . . . .",
-					". . . . . . .",
-					". . . . . . .",
-					". . m . m . .",
-					". . . . . . ."
-				]
+				rows: 7,
+				cols: 7,
+				mines: [[1,1], [1,5], [5,2], [5,4]],
+				revealStart: [6,0]
 			}
 		]
 	},
@@ -232,32 +153,22 @@ var LEARN_COURSES = [
 		how: "Find a clue whose flags match its value. Open every other cell it touches.",
 		demo: {
 			title: "Worked example",
-			grid: [
-				"1 1 2 1 1",
-				"1 * 2 * 1",
-				". . . . ."
-			],
-			solution: [
-				"1 1 2 1 1",
-				"1 * 2 * 1",
-				"S S S S S"
-			],
+			rows: 3,
+			cols: 5,
+			mines: [[1,1], [1,3]],
+			flagged: [[1,1], [1,3]],
+			revealAll: true,
+			covered: [[2,0], [2,1], [2,2], [2,3], [2,4]],
+			xray: true,
 			why: "Both flags satisfy the 2. Its other neighbours must be safe."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					". . . . .",
-					". m . m .",
-					". . . . ."
-				],
-				solution: [
-					". . . . .",
-					". m . m .",
-					". . . . ."
-				]
+				rows: 3,
+				cols: 5,
+				mines: [[1,1], [1,3]],
+				revealStart: [2,0]
 			}
 		]
 	}
@@ -274,34 +185,20 @@ var LEARN_COURSES = [
 		how: "Find clues A ⊆ B with equal numbers. B's extra cells must be safe.",
 		demo: {
 			title: "Worked example",
-			grid: [
-				". . .",
-				"1 1 .",
-				"? ? ?"
-			],
-			solution: [
-				". . S",
-				"1 1 .",
-				"? ? ?"
-			],
+			rows: 3,
+			cols: 3,
+			revealAll: true,
+			covered: [[0,0], [0,1], [0,2], [1,2]],
+			xray: true,
 			why: "Both 1s need one mine. The left 1's candidates sit inside the right 1's — the extra right cell is safe."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					"m . . m . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				],
-				solution: [
-					"m . . m . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				]
+				rows: 4,
+				cols: 6,
+				mines: [[0,0], [0,3]],
+				revealStart: [3,0]
 			}
 		]
 	},
@@ -311,34 +208,21 @@ var LEARN_COURSES = [
 		how: "Find A ⊆ B where B's number is bigger by exactly the extra cell count. Flag the extras.",
 		demo: {
 			title: "Worked example",
-			grid: [
-				". . .",
-				"1 2 .",
-				"? ? ?"
-			],
-			solution: [
-				". . M",
-				"1 2 .",
-				"? ? ?"
-			],
+			rows: 3,
+			cols: 3,
+			mines: [[0,2]],
+			revealAll: true,
+			covered: [[0,0], [0,1], [1,2]],
+			xray: true,
 			why: "The 2 needs one more mine than the 1, and it has exactly one extra cell. That cell must be the mine."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					"m . m . . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				],
-				solution: [
-					"m . m . . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				]
+				rows: 4,
+				cols: 6,
+				mines: [[0,0], [0,2]],
+				revealStart: [3,0]
 			}
 		]
 	},
@@ -348,34 +232,20 @@ var LEARN_COURSES = [
 		how: "1-2-1 → mines on the ends. 1-2-2-1 → mines in the middle two.",
 		demo: {
 			title: "1-2-1: mines on the ends",
-			grid: [
-				". . .",
-				"1 2 1",
-				". . ."
-			],
-			solution: [
-				"M S M",
-				"1 2 1",
-				". . ."
-			],
+			rows: 3,
+			cols: 3,
+			mines: [[0,0], [0,2]],
+			revealed: [[1,0], [1,1], [1,2]],
+			xray: true,
 			why: "The centre 2 forces both ends to be mines. The cell between them is safe."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					". m m . . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				],
-				solution: [
-					". m m . . .",
-					". . . . . .",
-					". . . . . .",
-					". . . . . ."
-				]
+				rows: 4,
+				cols: 6,
+				mines: [[0,1], [0,2]],
+				revealStart: [3,0]
 			}
 		]
 	},
@@ -385,34 +255,20 @@ var LEARN_COURSES = [
 		how: "Start with the most constrained clue. Solve it, then re-read its neighbours.",
 		demo: {
 			title: "1-1-2-1 cascade",
-			grid: [
-				". . . . .",
-				"1 1 2 1 1",
-				". . . . ."
-			],
-			solution: [
-				"S M S M S",
-				"1 1 2 1 1",
-				". . . . ."
-			],
+			rows: 3,
+			cols: 5,
+			mines: [[0,1], [0,3]],
+			revealed: [[1,0], [1,1], [1,2], [1,3], [1,4]],
+			xray: true,
 			why: "Subset on the left 1-1 frees the third cell. The 2 then forces both adjacent cells as mines. Satisfied clear opens the rest."
 		},
 		puzzles: [
 			{
 				title: "Solve the board",
-				simpleBoard: true,
-				grid: [
-					". m . m . m . m",
-					". . . . . . . .",
-					". . . . . . . .",
-					". . . . . . . ."
-				],
-				solution: [
-					". m . m . m . m",
-					". . . . . . . .",
-					". . . . . . . .",
-					". . . . . . . ."
-				]
+				rows: 4,
+				cols: 8,
+				mines: [[0,1], [0,3], [0,5], [0,7]],
+				revealStart: [3,0]
 			}
 		]
 	},
@@ -421,10 +277,26 @@ var LEARN_COURSES = [
 		idea: "Assume a cell is a mine. Follow the clues. If something breaks, the cell is actually safe.",
 		how: "Pick a pivotal cell. Try mine, propagate. Try safe, propagate. One option contradicts — the other is forced.",
 		puzzles: [
-			{ title: "Find the forced cells", grid: [". . . .", "? 1 2 ?", "? ? ? ?"], solution: ["S . . M", "? 1 2 ?", "? ? ? ?"],
-			  why: "If the right cell were safe the 2 would need both shared cells, but then the 1 sees two mines — impossible. So it's a mine; symmetrically the left cell is safe." },
-			{ title: "The mirror image", grid: [". . . .", "? 2 1 ?", "? ? ? ?"], solution: ["M . . S", "? 2 1 ?", "? ? ? ?"],
-			  why: "Same reasoning flipped: the left cell is forced to a mine and the right cell to safe." }
+			{
+				title: "Find the forced cells",
+				rows: 3,
+				cols: 4,
+				mines: [[0,3]],
+				revealAll: true,
+				covered: [[0,0], [0,1], [0,2]],
+				mustFlag: true,
+				why: "If the right cell were safe the 2 would need both shared cells, but then the 1 sees two mines — impossible. So it's a mine; symmetrically the left cell is safe."
+			},
+			{
+				title: "The mirror image",
+				rows: 3,
+				cols: 4,
+				mines: [[0,0]],
+				revealAll: true,
+				covered: [[0,1], [0,2], [0,3]],
+				mustFlag: true,
+				why: "Same reasoning flipped: the left cell is forced to a mine and the right cell to safe."
+			}
 		]
 	}
 	]
@@ -440,10 +312,28 @@ var LEARN_COURSES = [
 		how: "Risk per cell ≈ mines ÷ candidates. A 1 over 3 cells (33%) beats a 1 over 2 cells (50%).",
 		guess: true,
 		puzzles: [
-			{ title: "Two cells vs three", grid: [". . . . .", "1 ? ? 1 ?", "? ? ? ? ?"], solution: ["B B G G G", "1 ? ? 1 ?", "? ? ? ? ?"],
-			  why: "Left 1 over two cells → 1/2 each. Right 1 over three cells → 1/3 each. Guess in the right group." },
-			{ title: "Watch the number", grid: [". . . . .", "1 ? ? 2 ?", "? ? ? ? ?"], solution: ["G G B B B", "1 ? ? 2 ?", "? ? ? ? ?"],
-			  why: "Left 1 over two cells → 1/2 each. Right 2 over three cells → 2/3 each. This time the left group is safer." }
+			{
+				title: "Two cells vs three",
+				rows: 3,
+				cols: 5,
+				mines: [[0,0], [0,1]],
+				revealAll: true,
+				covered: [[0,2], [0,3], [0,4]],
+				goodGuessCells: [[0,2], [0,3], [0,4]],
+				guess: true,
+				why: "Left 1 over two cells → 1/2 each. Right 1 over three cells → 1/3 each. Guess in the right group."
+			},
+			{
+				title: "Watch the number",
+				rows: 3,
+				cols: 5,
+				mines: [[0,2], [0,3], [0,4]],
+				revealAll: true,
+				covered: [[0,0], [0,1]],
+				goodGuessCells: [[0,0], [0,1]],
+				guess: true,
+				why: "Left 1 over two cells → 1/2 each. Right 2 over three cells → 2/3 each. This time the left group is safer."
+			}
 		]
 	}
 	]
@@ -866,46 +756,92 @@ function buildLearnLesson(lesson, idx, total, onLessonComplete) {
 // x-ray mine (existing demos use that convention). S/G/B are no longer
 // drawn — demos don't decorate cells with checkmarks anymore.
 var LEARN_CELL_PX = 32;
-function renderDemoBoard(grid, solution) {
-	var rows = grid.map(function(r) { return r.trim().split(/\s+/); });
-	var sol = (solution || grid).map(function(r) { return r.trim().split(/\s+/); });
-	var R = rows.length, C = rows[0].length;
+
+// ---- Lesson + demo + puzzle rendering ---------------------------------
+// A "lesson" object: { title, idea, how, demo, puzzles[] }. Each demo and
+// each puzzle uses the same data shape:
+//   rows, cols                 — board dimensions
+//   mines: [[r,c]...]          — mine positions
+//   flagged: [[r,c]...]        — cells pre-flagged at the start
+//   revealStart: [r,c]         — cascade-reveal from this cell
+//   revealAll: true            — reveal every non-mine cell at the start
+//   revealed: [[r,c]...]       — explicit cells to start revealed
+//   covered: [[r,c]...]        — overrides cells back to covered (used with revealAll)
+//   xray: true                 — render mines through the cover (demos)
+//   chordOnly: true            — block left-click on covered (chord lesson)
+//   mustFlag: true             — puzzle solved when every mine is flagged
+//   guess: true + goodGuessCells: [[r,c]...] — smart-guessing puzzles
+//   why: "..."                 — explanation text (demos)
+
+var LEARN_CELL_PX = 32;
+
+function buildBoardState(spec, isMineArr, clueValue) {
+	var R = spec.rows, C = spec.cols;
 	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
-	var state = [], isMineArr = [], clueArr = [];
-	for (var r = 0; r < R; r++) {
-		state[r] = []; isMineArr[r] = []; clueArr[r] = [];
-		for (var c = 0; c < C; c++) {
-			var t = rows[r][c];
-			var st = sol[r] && sol[r][c];
-			if (/^[1-8]$/.test(t)) { state[r][c] = REVEALED; isMineArr[r][c] = false; clueArr[r][c] = parseInt(t, 10); }
-			else if (t === "?") { state[r][c] = REVEALED; isMineArr[r][c] = false; clueArr[r][c] = 0; }
-			else if (t === "*") { state[r][c] = FLAGGED_S; isMineArr[r][c] = true; clueArr[r][c] = 0; }
-			else if (t === "b") { state[r][c] = REVEALED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
-			else if (t === "m") { state[r][c] = COVERED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
-			else if (st === "M" || st === "B") { state[r][c] = COVERED; isMineArr[r][c] = true; clueArr[r][c] = 0; }
-			else { state[r][c] = COVERED; isMineArr[r][c] = false; clueArr[r][c] = 0; }
+	var s = [];
+	for (var r = 0; r < R; r++) s[r] = new Array(C).fill(COVERED);
+	if (spec.revealAll) {
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (!isMineArr[r][c]) s[r][c] = REVEALED;
 		}
 	}
-	var view = {
+	(spec.revealed || []).forEach(function(p) { s[p[0]][p[1]] = REVEALED; });
+	(spec.covered || []).forEach(function(p) { s[p[0]][p[1]] = COVERED; });
+	(spec.flagged || []).forEach(function(p) { s[p[0]][p[1]] = FLAGGED_S; });
+	if (spec.revealStart) {
+		BoardLogic.cascadeReveal(spec.revealStart[0], spec.revealStart[1], R, C,
+			function(rr, cc) { return s[rr][cc] === COVERED && !isMineArr[rr][cc]; },
+			function(rr, cc) { s[rr][cc] = REVEALED; return false; },
+			function(rr, cc) { return clueValue[rr][cc]; }
+		);
+	}
+	return s;
+}
+
+function buildBoardView(spec, isMineArr, clueValue, state) {
+	var R = spec.rows, C = spec.cols;
+	var COVERED = 0, REVEALED = 1, FLAGGED = 2;
+	return {
 		rows: R, cols: C,
 		isCovered: function(r, c) { return state[r][c] === COVERED; },
 		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
 		isMine: function(r, c) { return isMineArr[r][c]; },
-		getClue: function(r, c) { return clueArr[r][c]; },
-		xray: true
+		getClue: function(r, c) { return clueValue[r][c]; },
+		xray: !!spec.xray
 	};
-	var wrap = document.createElement("div");
-	wrap.className = "learn-board";
+}
+
+function buildBoardCanvas(R, C) {
 	var canvas = document.createElement("canvas");
 	canvas.width = Math.round(C * LEARN_CELL_PX * DPR);
 	canvas.height = Math.round(R * LEARN_CELL_PX * DPR);
 	canvas.style.width = (C * LEARN_CELL_PX) + "px";
 	canvas.style.height = (R * LEARN_CELL_PX) + "px";
+	return canvas;
+}
+
+function buildMineGrid(spec) {
+	var R = spec.rows, C = spec.cols;
+	var arr = [];
+	for (var r = 0; r < R; r++) arr[r] = new Array(C).fill(false);
+	(spec.mines || []).forEach(function(m) { arr[m[0]][m[1]] = true; });
+	return arr;
+}
+
+function renderDemoBoard(demo) {
+	var R = demo.rows, C = demo.cols;
+	var isMineArr = buildMineGrid(demo);
+	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
+	var state = buildBoardState(demo, isMineArr, clueValue);
+	var view = buildBoardView(demo, isMineArr, clueValue, state);
+	var wrap = document.createElement("div");
+	wrap.className = "learn-board";
+	var canvas = buildBoardCanvas(R, C);
+	wrap.appendChild(canvas);
 	var ctx = canvas.getContext("2d");
 	var sw = canvas.width / C, sh = canvas.height / R;
-	for (var r2 = 0; r2 < R; r2++) for (var c2 = 0; c2 < C; c2++) drawCell(ctx, r2, c2, view, sw, sh, null);
-	wrap.appendChild(canvas);
+	for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) drawCell(ctx, r, c, view, sw, sh, null);
 	return wrap;
 }
 
@@ -921,13 +857,10 @@ function buildLearnDemo(demo) {
 	if (demo.tiles) {
 		var tilesWrap = document.createElement("div");
 		tilesWrap.className = "learn-demo-tiles";
-		for (var t = 0; t < demo.tiles.length; t++) {
-			var tile = demo.tiles[t];
-			tilesWrap.appendChild(renderDemoBoard(tile.grid, tile.solution || tile.grid));
-		}
+		demo.tiles.forEach(function(tile) { tilesWrap.appendChild(renderDemoBoard(tile)); });
 		wrap.appendChild(tilesWrap);
-	} else if (demo.grid) {
-		wrap.appendChild(renderDemoBoard(demo.grid, demo.solution || demo.grid));
+	} else {
+		wrap.appendChild(renderDemoBoard(demo));
 	}
 
 	if (demo.why) {
@@ -940,16 +873,9 @@ function buildLearnDemo(demo) {
 	return wrap;
 }
 
-// Real-game-like puzzle board. Each cell behaves as it would in a live game:
-//   left-click  COVERED  → reveal (cascade on 0, boom on mine)
-//   left-click  REVEALED → chord (if flag count == clue value)
-//   right-click COVERED/FLAGGED → toggle flag
-//   right-click REVEALED → also chord
-// The puzzle's "objective" is derived from the solution tokens:
-//   M  → that cell must end up FLAGGED
-//   S  → that cell must end up REVEALED (via direct click, cascade, or chord)
-//   G  → guess-mode: revealing any G cell solves the puzzle
-//   B  → guess-mode mine (revealing it explodes)
+// Interactive puzzle. Mouse + right-click on the canvas drive standard
+// minesweeper interactions through cellFromCanvas (defined in Input.js).
+// Objective is "open all safe cells" by default; mustFlag/guess change it.
 function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-puzzle";
@@ -962,71 +888,17 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	title.appendChild(solvedTick);
 	wrap.appendChild(title);
 
-	var rows = puzzle.grid.map(function(r) { return r.trim().split(/\s+/); });
-	var sol = puzzle.solution.map(function(r) { return r.trim().split(/\s+/); });
-	var R = rows.length, C = rows[0].length;
+	var R = puzzle.rows, C = puzzle.cols;
 	var COVERED = 0, REVEALED = 1, FLAGGED = 2;
 
-	// Underlying truth: which cells are mines. Grid tokens that mean "mine":
-	//   *  pre-flagged mine (student sees it as flagged from the start)
-	//   b  pre-revealed bomb (used in demos only)
-	//   m  covered mine with no objective attached (student can't tell it apart
-	//      from a `.` candidate just by looking — they have to read the clues)
-	// Solution tokens M / B also mark a cell as mine for the puzzle logic.
-	var isMine = [];
-	for (var r = 0; r < R; r++) {
-		isMine[r] = [];
-		for (var c = 0; c < C; c++) {
-			var t = rows[r][c], st = sol[r][c];
-			isMine[r][c] = (t === "*" || t === "b" || t === "m" || st === "M" || st === "B");
-		}
-	}
-
-	function neighbours(r, c) { return BoardLogic.neighbours(r, c, R, C); }
-
-	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMine[r][c]; });
-
-	function initialStateFor(t) {
-		if (t === "." || t === "m") return COVERED;
-		if (t === "*") return FLAGGED;
-		return REVEALED; // 0-8, ?, b
-	}
-
-	var state = [];
-	for (var r = 0; r < R; r++) {
-		state[r] = [];
-		for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
-	}
-
-	// simpleBoard mode: treat the grid as just mines (`m`) and safe cells (`.`),
-	// then run a cascade from the bottom-left corner. The student plays the
-	// resulting position like a normal minesweeper game.
-	function initialCascade(r, c) {
-		BoardLogic.cascadeReveal(r, c, R, C,
-			function(rr, cc) { return state[rr][cc] === COVERED && !isMine[rr][cc]; },
-			function(rr, cc) { state[rr][cc] = REVEALED; return false; },
-			function(rr, cc) { return clueValue[rr][cc]; }
-		);
-	}
-	if (puzzle.simpleBoard) initialCascade(R - 1, 0);
-
-	var view = {
-		rows: R, cols: C,
-		isCovered: function(r, c) { return state[r][c] === COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
-		isMine: function(r, c) { return isMine[r][c]; },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: false
-	};
+	var isMineArr = buildMineGrid(puzzle);
+	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
+	var state = buildBoardState(puzzle, isMineArr, clueValue);
+	var view = buildBoardView(puzzle, isMineArr, clueValue, state);
 
 	var boardWrap = document.createElement("div");
 	boardWrap.className = "learn-board";
-	var canvas = document.createElement("canvas");
-	canvas.width = Math.round(C * LEARN_CELL_PX * DPR);
-	canvas.height = Math.round(R * LEARN_CELL_PX * DPR);
-	canvas.style.width = (C * LEARN_CELL_PX) + "px";
-	canvas.style.height = (R * LEARN_CELL_PX) + "px";
+	var canvas = buildBoardCanvas(R, C);
 	canvas.style.cursor = "pointer";
 	boardWrap.appendChild(canvas);
 	wrap.appendChild(boardWrap);
@@ -1058,39 +930,28 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 
 	function progressStatus() {
 		if (isGuess) { setStatus("", ""); return; }
-		if (puzzle.simpleBoard) {
-			var total = 0, opened = 0;
-			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-				if (!isMine[r][c]) {
-					total++;
-					if (state[r][c] === REVEALED) opened++;
-				}
-			}
-			setStatus(opened + " / " + total + " safe cells opened", "");
+		if (puzzle.mustFlag) {
+			var total = (puzzle.mines || []).length, flagged = 0;
+			(puzzle.mines || []).forEach(function(m) { if (state[m[0]][m[1]] === FLAGGED) flagged++; });
+			setStatus(flagged + " / " + total + " mines flagged", "");
 			return;
 		}
-		var flaggedTarget = 0, flaggedHave = 0, revealTarget = 0, revealHave = 0;
+		var total = 0, opened = 0;
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			if (sol[r][c] === "M") {
-				flaggedTarget++;
-				if (state[r][c] === FLAGGED) flaggedHave++;
-			}
-			if (sol[r][c] === "S") {
-				revealTarget++;
-				if (state[r][c] === REVEALED && !isMine[r][c]) revealHave++;
+			if (!isMineArr[r][c]) {
+				total++;
+				if (state[r][c] === REVEALED) opened++;
 			}
 		}
-		var parts = [];
-		if (flaggedTarget) parts.push(flaggedHave + " / " + flaggedTarget + " flagged");
-		if (revealTarget) parts.push(revealHave + " / " + revealTarget + " opened");
-		setStatus(parts.join(", "), "");
+		setStatus(opened + " / " + total + " safe cells opened", "");
 	}
 
 	function checkSolved() {
 		if (puzzleSolved || gameOver) return;
 		if (isGuess) {
-			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-				if (sol[r][c] === "G" && state[r][c] === REVEALED) {
+			var goodList = puzzle.goodGuessCells || [];
+			for (var i = 0; i < goodList.length; i++) {
+				if (state[goodList[i][0]][goodList[i][1]] === REVEALED) {
 					setStatus("Good guess — lowest risk on the board.", "ok");
 					notifySolved();
 					return;
@@ -1099,14 +960,14 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			return;
 		}
 		var allOk = true;
-		if (puzzle.simpleBoard) {
-			for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
-				if (!isMine[r][c] && state[r][c] !== REVEALED) allOk = false;
+		if (puzzle.mustFlag) {
+			for (var i = 0; i < (puzzle.mines || []).length && allOk; i++) {
+				var m = puzzle.mines[i];
+				if (state[m[0]][m[1]] !== FLAGGED) allOk = false;
 			}
 		} else {
 			for (var r = 0; r < R && allOk; r++) for (var c = 0; c < C && allOk; c++) {
-				if (sol[r][c] === "M" && state[r][c] !== FLAGGED) allOk = false;
-				if (sol[r][c] === "S" && state[r][c] !== REVEALED) allOk = false;
+				if (!isMineArr[r][c] && state[r][c] !== REVEALED) allOk = false;
 			}
 		}
 		if (allOk) {
@@ -1122,7 +983,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 			function(rr, cc) { return state[rr][cc] === COVERED; },
 			function(rr, cc) {
 				state[rr][cc] = REVEALED;
-				if (isMine[rr][cc]) {
+				if (isMineArr[rr][cc]) {
 					gameOver = true;
 					setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
 					return true;
@@ -1184,10 +1045,9 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 	});
 
 	function resetPuzzle() {
-		for (var r = 0; r < R; r++) {
-			for (var c = 0; c < C; c++) state[r][c] = initialStateFor(rows[r][c]);
-		}
-		if (puzzle.simpleBoard) initialCascade(R - 1, 0);
+		state = buildBoardState(puzzle, isMineArr, clueValue);
+		// rebuild view's state reference
+		view = buildBoardView(puzzle, isMineArr, clueValue, state);
 		gameOver = false;
 		puzzleSolved = false;
 		solvedTick.textContent = "";
