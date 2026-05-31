@@ -79,6 +79,7 @@ function tryGenerate(opts) {
 		revealed: revealed.slice().sort(comparePos),
 		coveredSafe: coveredSafe,
 		difficulty: analysis.difficulty,
+		score: analysis.score,
 		passes: analysis.passes,
 		maxEnumSize: analysis.maxEnumSize || 0
 	};
@@ -367,9 +368,26 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	else if (subsetCount === 1) difficulty = 2;
 	else difficulty = 1;
 
+	// Continuous difficulty score (~1.0 .. ~10.0). Trivial cells contribute
+	// nothing past a tiny baseline — a 7×7 board with 20 trivial cells should
+	// rate the same as a 4×4 with 4. Only the non-trivial *steps* and the
+	// hardest enum component drive the score. Tiers:
+	//   1.0       trivial only
+	//   1.8 / 2.6 / 3.4 …    +0.8 per subset step
+	//   ~3.3      enum on 3 cells
+	//   ~5.5      enum on 5 cells
+	//   ~8.0      enum on 7 cells
+	//   ~10+      enum ≥ 9 cells
+	var score = 1.0
+		+ 0.8 * (subsetCount + enumCount)
+		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
+	if (!solved) score = 0;
+	score = Math.round(score * 10) / 10;
+
 	return {
 		solved: solved,
 		difficulty: difficulty,
+		score: score,
 		passes: { trivial: trivCount, subset: subsetCount, enum: enumCount },
 		maxEnumSize: maxEnumSize
 	};

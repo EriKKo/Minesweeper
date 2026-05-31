@@ -19,7 +19,7 @@ function renderPuzzleLab() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Randomly generated small puzzles, sorted by difficulty. 1 trivial · 2 one subset · 3 subset chain · 4 case analysis on 2–4 cells · 5 case analysis on 5–6 cells · 6 case analysis on 7+ cells (or chain).";
+	sub.textContent = "Randomly generated small puzzles, sorted by continuous difficulty score. Each subset/enum step adds to it; trivial cell count is ignored so a big easy board doesn't outrank a small hard one. The badge shows score + tier (t1–t6).";
 	view.appendChild(sub);
 
 	var actions = document.createElement("div");
@@ -100,7 +100,7 @@ function fetchAndRender() {
 		var grid = document.getElementById("puzzles_grid");
 		grid.innerHTML = "";
 		puzzles.sort(function(a, b) {
-			return a.difficulty - b.difficulty || a.coveredSafe - b.coveredSafe;
+			return (a.score || 0) - (b.score || 0);
 		});
 		var byDiff = {};
 		puzzles.forEach(function(p) { byDiff[p.difficulty] = (byDiff[p.difficulty] || 0) + 1; });
@@ -121,7 +121,7 @@ function renderPuzzleCard(p) {
 	head.className = "puzzle-card-head";
 	var diffBadge = document.createElement("span");
 	diffBadge.className = "puzzle-diff-badge";
-	diffBadge.textContent = "Difficulty " + p.difficulty;
+	diffBadge.textContent = (p.score != null ? p.score.toFixed(1) : "?") + " · t" + p.difficulty;
 	head.appendChild(diffBadge);
 	var meta = document.createElement("span");
 	meta.className = "puzzle-card-meta";
