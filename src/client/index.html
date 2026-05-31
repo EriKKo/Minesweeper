@@ -825,7 +825,7 @@ socket.on("ranked_rejected", function(data) {
 	showLobbyMessage((data && data.reason) || "Couldn't start ranked search.");
 });
 
-socket.on("left_room", function() {
+socket.on("left_room", function(data) {
 	inRoom = false;
 	currentRoom = null;
 	iAmEliminated = null;
@@ -833,6 +833,16 @@ socket.on("left_room", function() {
 	roundStartTime = 0;
 	setDanger(false);
 	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
+	// Ranked early-leave penalty: server applied an Elo loss as if we came last
+	// in the current series. Update the topbar + show the banner / delta.
+	if (data && typeof data.rating === "number") {
+		updateRatingFromStandings([{
+			id: id,
+			rating: data.rating,
+			ratingDelta: data.ratingDelta,
+			provisional: data.provisional
+		}]);
+	}
 	// Re-route based on the current hash. If the user clicked a top-nav link
 	// while in a game, applyRouteFromHash queued the leave + reload-the-route;
 	// inRoom is now false so the hash takes effect.

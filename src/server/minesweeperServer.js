@@ -1342,10 +1342,62 @@ function addPlayerToRoom(socket, room) {
 	broadcastRoomList();
 }
 
+// Apply a ranked-Elo loss to a player who's bailing on a live match. For 1v1
+// and 6-player we treat them as having come dead-last in a synthetic current-
+// series standings; for tournament we mark them eliminated this round and run
+// the same pairwise Elo math the regular elimination path uses. Returns the
+// eloInfo (delta / newRating / provisional) so the caller can echo it back to
+// the leaver, or null if the room isn't ranked or the player isn't persisted.
+function applyEarlyLeavePenalty(playerID, room) {
+	if (!room.ranked) return null;
+	if (isBot(playerID)) return null;
+	if (!accounts[playerID]) return null;
+	if (room.rankedMode === "tournament") {
+		if (!room.tournamentEliminated) room.tournamentEliminated = {};
+		if (!room.tournamentElo) room.tournamentElo = {};
+		if (room.tournamentEliminated[playerID]) return null;
+		// place = the bottom of the current survivor field. They lose to every
+		// remaining survivor (pinned at rank 1 in tournamentEloParts) and to
+		// everyone already eliminated who placed above them.
+		var place = room.players.length;
+		room.tournamentEliminated[playerID] = { round: (room.gamesPlayed || 0) + 1, place: place };
+		var teloInfo = applyEloForPlayer(playerID, tournamentEloParts(room, playerID, place));
+		if (teloInfo) room.tournamentElo[playerID] = teloInfo;
+		return teloInfo;
+	}
+	// 1v1 / 6-player ranked: build a series standings snapshot with the leaver
+	// pinned at the worst rank, then apply Elo for the leaver only. The other
+	// players' Elo is still computed normally at endSeries.
+	var standings = buildSeriesStandings(room);
+	var lastRank = standings.length + 1;
+	var parts = [buildPlayerParts(playerID, lastRank)];
+	for (var i = 0; i < standings.length; i++) {
+		parts.push(buildPlayerParts(standings[i].id, standings[i].rank));
+	}
+	return applyEloForPlayer(playerID, parts);
+}
+
+function buildPlayerParts(pid, rank) {
+	var bot = isBot(pid);
+	var acc = accounts[pid];
+	var u = !bot && acc ? db.getUserById(acc.userId) : null;
+	return {
+		id: pid,
+		rank: rank,
+		rating: bot ? (botRating[pid] || RANKED_BOT_RATING) : (u ? u.rating : RANKED_BOT_RATING),
+		bot: bot,
+		userId: u ? u.id : null,
+		played: u ? u.played : 0
+	};
+}
+
 function removePlayerFromRoom(playerID) {
 	var room = roomMapping[playerID];
-	if (!room) return;
+	if (!room) return null;
 	var wasPlaying = room.phase === "playing";
+	// Ranked penalty: apply Elo BEFORE deletePlayer so the standings snapshot
+	// inside applyEarlyLeavePenalty still includes the leaver.
+	var leaveEloInfo = wasPlaying ? applyEarlyLeavePenalty(playerID, room) : null;
 	room.deletePlayer(playerID);
 	delete roomMapping[playerID];
 	delete games[playerID];
@@ -1390,6 +1442,7 @@ function removePlayerFromRoom(playerID) {
 		broadcastRoomState(room);
 	}
 	broadcastRoomList();
+	return leaveEloInfo;
 }
 
 io.on("connection", function (socket) {
@@ -1530,10 +1583,14 @@ io.on("connection", function (socket) {
 	socket.on("leave_room", function() {
 		if (!roomMapping[playerID]) return;
 		var socketRef = sockets[playerID];
-		removePlayerFromRoom(playerID);
+		var leaveEloInfo = removePlayerFromRoom(playerID);
 		if (socketRef) {
 			socketRef.join("lobby");
-			socketRef.emit("left_room");
+			socketRef.emit("left_room", leaveEloInfo ? {
+				ratingDelta: leaveEloInfo.delta,
+				rating: leaveEloInfo.newRating,
+				provisional: leaveEloInfo.provisional
+			} : null);
 			socketRef.emit("room_list", { rooms: getRoomList() });
 		}
 	});
