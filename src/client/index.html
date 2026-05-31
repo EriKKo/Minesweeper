@@ -736,6 +736,8 @@ cancelRankedButton.addEventListener("click", function() {
 
 document.getElementById("leave_button").addEventListener("click", function() {
 	if (soloSession) { exitSolo(); return; }
+	if (currentRoom && currentRoom.phase === "playing"
+		&& !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) return;
 	socket.emit("leave_room");
 });
 
