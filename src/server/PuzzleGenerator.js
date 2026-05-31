@@ -7,9 +7,9 @@
 // cascade-reveal). One mine layout therefore yields 0..N puzzles, each with
 // a distinct visible start. Filters:
 //   - cascade reveals at least one cell (no single-cell starts).
-//   - 1..12 covered safe cells remain after the cascade (small "active
-//     area" — the puzzle is one deduction or a short chain).
-//   - 100% solvable with no guessing.
+//   - at least one covered safe cell remains (otherwise it's not a puzzle).
+//   - 100% solvable with no guessing — the solver's ENUM_CAP of 18 cells
+//     per frontier component is the real ceiling on active area.
 //
 // Each returned puzzle carries { rows, cols, mines, revealed, coveredSafe,
 // difficulty, passes } so the caller can sort / bucket / display.
@@ -81,7 +81,7 @@ function tryGenerateLayout(opts) {
 	for (var z = 0; z < zeroRegions.length; z++) {
 		var revealed = cascadeFrom(board, zeroRegions[z][0]);
 		var coveredSafe = totalSafe - revealed.length;
-		if (coveredSafe < 1 || coveredSafe > 12) continue;
+		if (coveredSafe < 1) continue;
 		var analysis = analyzeWithTracking(board, revealed, mines.length);
 		if (!analysis.solved) continue;
 		var puzzle = {
