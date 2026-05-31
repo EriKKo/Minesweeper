@@ -58,7 +58,7 @@ function tryGenerate(opts) {
 
 	var totalSafe = rows * cols - mines.length;
 	var coveredSafe = totalSafe - revealed.length;
-	if (coveredSafe < 1 || coveredSafe > 5) return null;
+	if (coveredSafe < 1 || coveredSafe > 8) return null;
 
 	var analysis = analyzeWithTracking(board, revealed, mines.length);
 	if (!analysis.solved) return null;
@@ -118,11 +118,26 @@ function cascadeFrom(board, start) {
 }
 
 // Per-pass tracking solver. Mirrors NoGuessGenerator.analyzeSolvability but
-// counts how many times each pass made progress so we can classify difficulty:
-//   1 (trivial): only trivialPass needed — forced mines + satisfied clear
-//   2 (medium):  enumPass needed once — single non-trivial deduction (subset,
-//                1-2-1 wall, simple case analysis…)
-//   3+ (chain):  enumPass needed multiple times — chain of harder deductions
+// adds a subset-rule pass between trivial and enum, and counts how many
+// times each pass makes progress so we can pick a finer difficulty level.
+//
+// Pass hierarchy (cheapest → most expensive):
+//   trivialPass — forced mines (board - km == |unk|) and satisfied clear
+//                 (board == km). Pure counting on one clue at a time.
+//   subsetPass  — for each pair of revealed clue cells A, B with A's covered
+//                 candidates ⊆ B's, derive a sub-constraint on B's extras.
+//                 If A's remaining mine count == B's, extras are all safe;
+//                 if (B - A) == |extras|, extras are all mines.
+//   enumPass    — brute-force enumeration over each independent frontier
+//                 component (catches 1-2-1 patterns, multi-clue chains,
+//                 case analysis). Capped at ENUM_CAP variables per component.
+//
+// Difficulty derived from the pass counts:
+//   1 — only trivial.
+//   2 — exactly one subset deduction (and any amount of trivial).
+//   3 — chain of subset deductions (subsetCount ≥ 2).
+//   4 — exactly one enum pass needed.
+//   5 — multiple enum passes (deepest chain).
 var ENUM_CAP = 18;
 
 function analyzeWithTracking(board, revealedList, numMines) {
@@ -170,6 +185,67 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	}
 
 	function popcount(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
+
+	// Collect each revealed clue's open constraint: list of still-covered
+	// neighbour cells and the count of mines that need to live among them.
+	function gatherConstraints() {
+		var list = [];
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (!revealed[r][c] || board[r][c] <= 0) continue;
+				var nb = neighborsOf(r, c);
+				var km = 0;
+				var cov = [];
+				for (var k = 0; k < nb.length; k++) {
+					var nr = nb[k][0], nc = nb[k][1];
+					if (mineKnown[nr][nc]) km++;
+					else if (!revealed[nr][nc]) cov.push(nr * cols + nc);
+				}
+				if (cov.length === 0) continue;
+				list.push({ cov: cov, need: board[r][c] - km });
+			}
+		}
+		return list;
+	}
+
+	function subsetPass() {
+		var cs = gatherConstraints();
+		var prog = false;
+		for (var i = 0; i < cs.length; i++) {
+			for (var j = 0; j < cs.length; j++) {
+				if (i === j) continue;
+				var a = cs[i], b = cs[j];
+				if (a.cov.length >= b.cov.length) continue; // need strict subset
+				var bSet = {};
+				for (var k = 0; k < b.cov.length; k++) bSet[b.cov[k]] = true;
+				var subset = true;
+				for (var k = 0; k < a.cov.length; k++) {
+					if (!bSet[a.cov[k]]) { subset = false; break; }
+				}
+				if (!subset) continue;
+				var aSet = {};
+				for (var k = 0; k < a.cov.length; k++) aSet[a.cov[k]] = true;
+				var extras = [];
+				for (var k = 0; k < b.cov.length; k++) {
+					if (!aSet[b.cov[k]]) extras.push(b.cov[k]);
+				}
+				if (extras.length === 0) continue;
+				var extraMines = b.need - a.need;
+				if (extraMines === 0) {
+					for (var k = 0; k < extras.length; k++) {
+						var er = Math.floor(extras[k] / cols), ec = extras[k] % cols;
+						if (!revealed[er][ec] && !mineKnown[er][ec]) { reveal(er, ec); prog = true; }
+					}
+				} else if (extraMines === extras.length) {
+					for (var k = 0; k < extras.length; k++) {
+						var er = Math.floor(extras[k] / cols), ec = extras[k] % cols;
+						if (!mineKnown[er][ec]) { mineKnown[er][ec] = true; prog = true; }
+					}
+				}
+			}
+		}
+		return prog;
+	}
 
 	function enumPass() {
 		var varId = {}, varList = [], raw = [];
@@ -241,9 +317,10 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		return prog;
 	}
 
-	var trivCount = 0, enumCount = 0;
+	var trivCount = 0, subsetCount = 0, enumCount = 0;
 	while (true) {
 		if (trivialPass()) { trivCount++; continue; }
+		if (subsetPass())  { subsetCount++; continue; }
 		if (enumPass())    { enumCount++; continue; }
 		break;
 	}
@@ -255,11 +332,19 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var totalSafe = rows * cols - numMines;
 	var solved = revealedSafe === totalSafe;
 
-	// Difficulty: 1 if trivial-only; otherwise 1 + enumCount (so an enum pass
-	// followed by more trivial work is "2", multiple enum passes climb from
-	// there). Cap at 5 for display purposes.
-	var difficulty = solved ? (enumCount === 0 ? 1 : Math.min(5, 1 + enumCount)) : 0;
-	return { solved: solved, difficulty: difficulty, passes: { trivial: trivCount, enum: enumCount } };
+	var difficulty;
+	if (!solved) difficulty = 0;
+	else if (enumCount >= 2) difficulty = 5;
+	else if (enumCount === 1) difficulty = 4;
+	else if (subsetCount >= 2) difficulty = 3;
+	else if (subsetCount === 1) difficulty = 2;
+	else difficulty = 1;
+
+	return {
+		solved: solved,
+		difficulty: difficulty,
+		passes: { trivial: trivCount, subset: subsetCount, enum: enumCount }
+	};
 }
 
 exports.generatePuzzles = generatePuzzles;

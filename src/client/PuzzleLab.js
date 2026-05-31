@@ -17,7 +17,7 @@ function renderPuzzleLab() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Randomly generated small puzzles, sorted by difficulty. Difficulty 1 = forced/satisfied only; 2+ = needs at least one non-trivial deduction.";
+	sub.textContent = "Randomly generated small puzzles, sorted by difficulty. 1 = forced/satisfied only · 2 = one subset deduction · 3 = chain of subset · 4 = one case analysis · 5 = chain of case analysis.";
 	view.appendChild(sub);
 
 	var actions = document.createElement("div");
@@ -76,7 +76,11 @@ function renderPuzzleCard(p) {
 	head.appendChild(diffBadge);
 	var meta = document.createElement("span");
 	meta.className = "puzzle-card-meta";
-	meta.textContent = p.rows + "×" + p.cols + " · " + p.mines.length + " mines · " + p.coveredSafe + " to deduce";
+	var passBits = [];
+	if (p.passes.trivial) passBits.push("t×" + p.passes.trivial);
+	if (p.passes.subset) passBits.push("s×" + p.passes.subset);
+	if (p.passes.enum) passBits.push("e×" + p.passes.enum);
+	meta.textContent = p.rows + "×" + p.cols + " · " + p.coveredSafe + " covered · " + passBits.join(" ");
 	head.appendChild(meta);
 	card.appendChild(head);
 

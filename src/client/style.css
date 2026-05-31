@@ -677,10 +677,11 @@ main {
 	background: rgba(99, 102, 241, 0.18);
 	color: var(--accent-hover);
 }
+/* 1 = pure trivial · 2 = one subset · 3 = subset chain · 4 = one enum · 5 = enum chain */
 .puzzle-card.puzzle-diff-1 .puzzle-diff-badge { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
-.puzzle-card.puzzle-diff-2 .puzzle-diff-badge { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
-.puzzle-card.puzzle-diff-3 .puzzle-diff-badge,
-.puzzle-card.puzzle-diff-4 .puzzle-diff-badge,
+.puzzle-card.puzzle-diff-2 .puzzle-diff-badge { background: rgba(34, 211, 238, 0.18); color: #22d3ee; }
+.puzzle-card.puzzle-diff-3 .puzzle-diff-badge { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+.puzzle-card.puzzle-diff-4 .puzzle-diff-badge { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
 .puzzle-card.puzzle-diff-5 .puzzle-diff-badge { background: rgba(248, 113, 113, 0.18); color: #f87171; }
 .puzzle-card-meta { font-size: 0.75rem; color: var(--muted); }
 .puzzle-card .learn-puzzle { padding: 0; }
