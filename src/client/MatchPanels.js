@@ -11,9 +11,13 @@
 
 var matchRevealTickHandle = null;
 
+// Ranked pre-match reveal. Each mode gets its own body layout — 1v1 is a big
+// VS card with both players' rank + name; 6-player is a grid of medium cards;
+// tournament keeps the existing flat list since 16 rows benefits from the
+// compact format.
 function showMatchRevealPanel(delayMs) {
 	var panel = document.createElement("div");
-	panel.className = "result-panel";
+	panel.className = "result-panel pre-match";
 
 	var header = document.createElement("div");
 	header.className = "result-header result-header-series";
@@ -21,27 +25,19 @@ function showMatchRevealPanel(delayMs) {
 	header.textContent = modeLabel + " match found";
 	panel.appendChild(header);
 
-	var sub = document.createElement("div");
-	sub.className = "result-foot";
-	sub.textContent = (currentRoom && currentRoom.players ? currentRoom.players.length : 0) + " players";
-	panel.appendChild(sub);
-
-	var list = document.createElement("ol");
-	list.className = "result-list";
 	var players = (currentRoom && currentRoom.players ? currentRoom.players.slice() : []);
-	players.sort(function(a, b) {
-		var ar = typeof a.rating === "number" ? a.rating : 0;
-		var br = typeof b.rating === "number" ? b.rating : 0;
-		return br - ar;
-	});
-	players.forEach(function(p, idx) {
-		var tier = typeof p.rating === "number" ? tierFor(p.rating, p.provisional) : null;
-		var row = resultRow(String(idx + 1) + ".", p.id === id ? "You" : p.name, "", "",
-			{ me: p.id === id, top: idx === 0, tier: tier });
-		row.style.animationDelay = (idx * 35) + "ms";
-		list.appendChild(row);
-	});
-	panel.appendChild(list);
+	if (currentRankedMode === "duo") {
+		panel.appendChild(buildOneVOneBody(players));
+	} else if (currentRankedMode === "six") {
+		panel.appendChild(buildSixPlayerBody(players));
+	} else {
+		// tournament (or unrecognised) — keep the compact roster list.
+		var sub = document.createElement("div");
+		sub.className = "result-foot";
+		sub.textContent = players.length + " players";
+		panel.appendChild(sub);
+		panel.appendChild(buildRosterList(players));
+	}
 
 	var counter = document.createElement("div");
 	counter.className = "result-foot match-reveal-counter";
@@ -61,6 +57,97 @@ function showMatchRevealPanel(delayMs) {
 	}, 200);
 
 	presentPanel(panel);
+}
+
+function buildRosterList(players) {
+	var list = document.createElement("ol");
+	list.className = "result-list";
+	var sorted = players.slice().sort(function(a, b) {
+		var ar = typeof a.rating === "number" ? a.rating : 0;
+		var br = typeof b.rating === "number" ? b.rating : 0;
+		return br - ar;
+	});
+	sorted.forEach(function(p, idx) {
+		var tier = typeof p.rating === "number" ? tierFor(p.rating, p.provisional) : null;
+		var row = resultRow(String(idx + 1) + ".", p.id === id ? "You" : p.name, "", "",
+			{ me: p.id === id, top: idx === 0, tier: tier });
+		row.style.animationDelay = (idx * 35) + "ms";
+		list.appendChild(row);
+	});
+	return list;
+}
+
+// Big two-card VS layout for ranked 1v1: rank badge + name + tier label per
+// side, with a giant "VS" wedge between them.
+function buildOneVOneBody(players) {
+	var me = null, opp = null;
+	for (var i = 0; i < players.length; i++) {
+		if (players[i].id === id) me = players[i];
+		else if (!opp) opp = players[i];
+	}
+	var wrap = document.createElement("div");
+	wrap.className = "vs-display";
+	if (me) wrap.appendChild(buildVSCard(me, true));
+	var divider = document.createElement("div");
+	divider.className = "vs-divider";
+	divider.textContent = "VS";
+	wrap.appendChild(divider);
+	if (opp) wrap.appendChild(buildVSCard(opp, false));
+	return wrap;
+}
+
+function buildVSCard(player, isMe) {
+	var card = document.createElement("div");
+	card.className = "vs-card" + (isMe ? " vs-card-me" : "");
+	if (typeof player.rating === "number") {
+		card.appendChild(buildRankBadge(player.rating));
+	}
+	var name = document.createElement("div");
+	name.className = "vs-name";
+	name.textContent = isMe ? "You" : (player.name || "Anonymous");
+	card.appendChild(name);
+	if (typeof player.rating === "number") {
+		var t = tierFor(player.rating, player.provisional);
+		var rating = document.createElement("div");
+		rating.className = "vs-rating";
+		rating.style.color = t.color;
+		rating.textContent = t.name + " · " + (player.provisional ? "~" : "") + player.rating;
+		card.appendChild(rating);
+	}
+	return card;
+}
+
+// 6-player grid: 3×2 cards, each with the rank badge + name + tier.
+function buildSixPlayerBody(players) {
+	var sorted = players.slice().sort(function(a, b) {
+		var ar = typeof a.rating === "number" ? a.rating : 0;
+		var br = typeof b.rating === "number" ? b.rating : 0;
+		return br - ar;
+	});
+	var wrap = document.createElement("div");
+	wrap.className = "six-grid";
+	sorted.forEach(function(p, idx) {
+		var card = document.createElement("div");
+		card.className = "six-card" + (p.id === id ? " six-card-me" : "");
+		card.style.animationDelay = (idx * 50) + "ms";
+		if (typeof p.rating === "number") {
+			card.appendChild(buildRankBadge(p.rating));
+		}
+		var name = document.createElement("div");
+		name.className = "six-name";
+		name.textContent = p.id === id ? "You" : (p.name || "Anonymous");
+		card.appendChild(name);
+		if (typeof p.rating === "number") {
+			var t = tierFor(p.rating, p.provisional);
+			var rating = document.createElement("div");
+			rating.className = "six-rating";
+			rating.style.color = t.color;
+			rating.textContent = t.name + " · " + (p.provisional ? "~" : "") + p.rating;
+			card.appendChild(rating);
+		}
+		wrap.appendChild(card);
+	});
+	return wrap;
 }
 
 function showTournamentEliminationPanel(data) {

@@ -1173,6 +1173,96 @@ main {
 	letter-spacing: 0.04em;
 }
 
+/* ---- Ranked 1v1 pre-match: big VS card --------------------------------- */
+.vs-display {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 1.2rem;
+	margin: 1.2rem 0 0.4rem;
+}
+.vs-card {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 1.2rem 0.9rem 1rem;
+	background: rgba(15, 23, 42, 0.55);
+	border: 1px solid rgba(148, 163, 184, 0.18);
+	border-radius: 14px;
+	min-width: 0;
+}
+.vs-card-me { background: rgba(99, 102, 241, 0.18); border-color: rgba(99, 102, 241, 0.5); }
+.vs-card .rank-badge { width: 110px; height: 110px; }
+.vs-card .rank-badge-numeral { font-size: 2rem; }
+.vs-card .rank-badge-tier { font-size: 0.65rem; }
+.vs-card .rank-badge-icon { font-size: 2.1rem; }
+.vs-name {
+	font-size: 1.25rem;
+	font-weight: 800;
+	color: var(--text);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.vs-rating {
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+.vs-divider {
+	font-size: 2.2rem;
+	font-weight: 900;
+	color: var(--accent-hover);
+	letter-spacing: 0.04em;
+	text-shadow: 0 0 14px rgba(99, 102, 241, 0.45);
+	flex: 0 0 auto;
+}
+
+/* ---- Ranked 6-player pre-match: 3×2 cards ------------------------------ */
+.six-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.75rem;
+	margin: 1rem 0 0.3rem;
+}
+.six-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.85rem 0.6rem 0.7rem;
+	background: rgba(15, 23, 42, 0.55);
+	border: 1px solid rgba(148, 163, 184, 0.18);
+	border-radius: 12px;
+	min-width: 0;
+	opacity: 0;
+	animation: result-row-in 0.32s ease-out forwards;
+}
+.six-card-me { background: rgba(99, 102, 241, 0.18); border-color: rgba(99, 102, 241, 0.5); }
+.six-card .rank-badge { width: 72px; height: 72px; }
+.six-card .rank-badge-numeral { font-size: 1.3rem; }
+.six-card .rank-badge-tier { font-size: 0.5rem; }
+.six-card .rank-badge-icon { font-size: 1.5rem; }
+.six-name {
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--text);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.six-rating { font-size: 0.78rem; font-weight: 600; }
+
+@media (max-width: 700px) {
+	.vs-display { flex-direction: column; gap: 0.7rem; }
+	.vs-divider { font-size: 1.6rem; }
+	.six-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 .tournament-place {
 	text-align: center;
 	font-weight: 800;
