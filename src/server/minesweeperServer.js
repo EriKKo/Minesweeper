@@ -270,8 +270,13 @@ var RANKED_MODES = {
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
 // Brief pause between forming a ranked match and starting the first game so
-// players can see who they're playing and at what tier.
-var RANKED_MATCH_REVEAL_MS = 5000;
+// players can see who they're playing and at what tier. Tournament takes a
+// little longer since there's a 16-row roster to read.
+var RANKED_MATCH_REVEAL_MS = {
+	duo: 2500,
+	six: 3000,
+	tournament: 5000
+};
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
 // players trickling in, rather than all appearing at a fixed deadline.
@@ -1309,11 +1314,12 @@ function formRankedMatch(mode) {
 
 	// Pause so the players can read the opponent slates + tiers before the first
 	// countdown starts. The room is in planning phase during this window.
-	io.to("room:" + room.id).emit("match_reveal", { delayMs: RANKED_MATCH_REVEAL_MS });
+	var revealMs = RANKED_MATCH_REVEAL_MS[mode] || 4000;
+	io.to("room:" + room.id).emit("match_reveal", { delayMs: revealMs });
 	setTimeout(function() {
 		if (!rooms[room.id] || room.phase !== "planning") return;
 		startSeries(room);
-	}, RANKED_MATCH_REVEAL_MS);
+	}, revealMs);
 
 	if (rankedQueues[mode].length > 0) {
 		broadcastRankedQueue(mode);

@@ -832,7 +832,6 @@ socket.on("left_room", function(data) {
 	elimPanelDismissed = false;
 	roundStartTime = 0;
 	setDanger(false);
-	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
 	// Ranked early-leave penalty: server applied an Elo loss as if we came last
 	// in the current series. Update the topbar + show the banner / delta.
 	if (data && typeof data.rating === "number") {
@@ -924,7 +923,7 @@ socket.on("series_ended", function(data) {
 // Match-found reveal: server pauses for delayMs after forming a ranked match
 // so the lobby gets a moment to absorb who they're playing against. The panel
 // lists everyone sorted by rating with the player's row highlighted.
-// matchRevealTickHandle + match panel functions live in MatchPanels.js.
+// Match panel functions live in MatchPanels.js.
 
 socket.on("match_reveal", function(data) {
 	showMatchRevealPanel((data && data.delayMs) || 4000);

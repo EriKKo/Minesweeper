@@ -9,8 +9,6 @@
 // globals (account, id, socket, currentRoom, ratingChip, formatGameProgress,
 // presentPanel, ...) defined in the main inline script.
 
-var matchRevealTickHandle = null;
-
 // Ranked pre-match reveal. Each mode gets its own body layout — 1v1 is a big
 // VS card with both players' rank + name; 6-player is a grid of medium cards;
 // tournament keeps the existing flat list since 16 rows benefits from the
@@ -38,23 +36,6 @@ function showMatchRevealPanel(delayMs) {
 		panel.appendChild(sub);
 		panel.appendChild(buildRosterList(players));
 	}
-
-	var counter = document.createElement("div");
-	counter.className = "result-foot match-reveal-counter";
-	counter.textContent = "Starting in " + Math.ceil(delayMs / 1000) + "…";
-	panel.appendChild(counter);
-
-	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
-	var startedAt = Date.now();
-	matchRevealTickHandle = setInterval(function() {
-		var remaining = delayMs - (Date.now() - startedAt);
-		if (remaining <= 0) {
-			clearInterval(matchRevealTickHandle); matchRevealTickHandle = null;
-			counter.textContent = "Starting…";
-			return;
-		}
-		counter.textContent = "Starting in " + Math.ceil(remaining / 1000) + "…";
-	}, 200);
 
 	presentPanel(panel);
 }

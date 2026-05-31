@@ -1079,7 +1079,11 @@ main {
    centered modal so big lobbies (16-player tournament final) can list every
    player without bleeding past the board edges. */
 .board-overlay-panel {
-	position: fixed;
+	/* Positioned within .board-wrap (which is position: relative) so the
+	   panel is centered on the player's board rather than the whole viewport
+	   — keeps it visually aligned with the game area instead of drifting
+	   towards the sidebar. */
+	position: absolute;
 	inset: auto;
 	top: 50%;
 	left: 50%;
