@@ -70,7 +70,8 @@ function tryGenerate(opts) {
 		revealed: revealed.slice().sort(comparePos),
 		coveredSafe: coveredSafe,
 		difficulty: analysis.difficulty,
-		passes: analysis.passes
+		passes: analysis.passes,
+		maxEnumSize: analysis.maxEnumSize || 0
 	};
 }
 
@@ -118,8 +119,8 @@ function cascadeFrom(board, start) {
 }
 
 // Per-pass tracking solver. Mirrors NoGuessGenerator.analyzeSolvability but
-// adds a subset-rule pass between trivial and enum, and counts how many
-// times each pass makes progress so we can pick a finer difficulty level.
+// adds a subset-rule pass between trivial and enum, and tracks how each
+// pass progressed so we can pick a finer difficulty level.
 //
 // Pass hierarchy (cheapest → most expensive):
 //   trivialPass — forced mines (board - km == |unk|) and satisfied clear
@@ -132,12 +133,19 @@ function cascadeFrom(board, start) {
 //                 component (catches 1-2-1 patterns, multi-clue chains,
 //                 case analysis). Capped at ENUM_CAP variables per component.
 //
-// Difficulty derived from the pass counts:
+// Difficulty derived from the trace. Counts per pass + the largest enum
+// component size encountered (`maxEnumSize`):
 //   1 — only trivial.
-//   2 — exactly one subset deduction (and any amount of trivial).
+//   2 — exactly one subset deduction (small non-trivial step).
 //   3 — chain of subset deductions (subsetCount ≥ 2).
-//   4 — exactly one enum pass needed.
-//   5 — multiple enum passes (deepest chain).
+//   4 — enum pass with a small component (≤ 4 variables) — light case
+//       analysis, often a 1-2-1-style local pattern.
+//   5 — enum pass with a larger component (≥ 5 variables) OR multiple enum
+//       passes — multi-branch case analysis.
+//
+// If the puzzle isn't fully solved by these passes, the frontier was too
+// big to enumerate (>ENUM_CAP=18 cells) OR the puzzle genuinely needs a
+// guess. Both cases get rejected upstream — those puzzles are never shown.
 var ENUM_CAP = 18;
 
 function analyzeWithTracking(board, revealedList, numMines) {
@@ -308,16 +316,21 @@ function analyzeWithTracking(board, revealedList, numMines) {
 				for (var b = 0; b < k2; b++) if (a & (1 << b)) orCount[b]++;
 			}
 			if (solCount === 0) continue;
+			var made = false;
 			for (var f = 0; f < k2; f++) {
 				var cell = varList[vars[f]];
-				if (orCount[f] === 0) { reveal(cell[0], cell[1]); prog = true; }
-				else if (orCount[f] === solCount) { mineKnown[cell[0]][cell[1]] = true; prog = true; }
+				if (orCount[f] === 0) { reveal(cell[0], cell[1]); prog = true; made = true; }
+				else if (orCount[f] === solCount) { mineKnown[cell[0]][cell[1]] = true; prog = true; made = true; }
 			}
+			// Remember the biggest component that actually contributed to a
+			// deduction — drives the diff-4 vs diff-5 split below.
+			if (made && k2 > maxEnumSize) maxEnumSize = k2;
 		}
 		return prog;
 	}
 
 	var trivCount = 0, subsetCount = 0, enumCount = 0;
+	var maxEnumSize = 0;
 	while (true) {
 		if (trivialPass()) { trivCount++; continue; }
 		if (subsetPass())  { subsetCount++; continue; }
@@ -334,7 +347,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 
 	var difficulty;
 	if (!solved) difficulty = 0;
-	else if (enumCount >= 2) difficulty = 5;
+	else if (enumCount >= 2 || maxEnumSize >= 5) difficulty = 5;
 	else if (enumCount === 1) difficulty = 4;
 	else if (subsetCount >= 2) difficulty = 3;
 	else if (subsetCount === 1) difficulty = 2;
@@ -343,7 +356,8 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	return {
 		solved: solved,
 		difficulty: difficulty,
-		passes: { trivial: trivCount, subset: subsetCount, enum: enumCount }
+		passes: { trivial: trivCount, subset: subsetCount, enum: enumCount },
+		maxEnumSize: maxEnumSize
 	};
 }
 
