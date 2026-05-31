@@ -17,7 +17,7 @@ function renderPuzzleLab() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Randomly generated small puzzles, sorted by difficulty. 1 = forced/satisfied only · 2 = one subset deduction · 3 = chain of subset · 4 = case analysis on ≤4 cells · 5 = case analysis on ≥5 cells (or chain).";
+	sub.textContent = "Randomly generated small puzzles, sorted by difficulty. 1 trivial · 2 one subset · 3 subset chain · 4 case analysis on 2–4 cells · 5 case analysis on 5–6 cells · 6 case analysis on 7+ cells (or chain).";
 	view.appendChild(sub);
 
 	var actions = document.createElement("div");

@@ -29,11 +29,13 @@ function generatePuzzles(opts) {
 }
 
 function tryGenerate(opts) {
-	var rows = opts.rows || randInt(4, 6);
-	var cols = opts.cols || randInt(4, 6);
-	// Mine density around 18% — enough to make the cascade interesting without
-	// turning the whole board into clues.
-	var defaultMines = Math.max(2, Math.round(rows * cols * 0.18));
+	var rows = opts.rows || randInt(4, 7);
+	var cols = opts.cols || randInt(4, 7);
+	// Vary mine density across attempts — sparse boards generate easy diff-1
+	// puzzles; denser boards (more constraints linking each frontier cell)
+	// are where the harder case-analysis puzzles live.
+	var density = opts.density || (0.15 + Math.random() * 0.12); // 0.15 .. 0.27
+	var defaultMines = Math.max(2, Math.round(rows * cols * density));
 	var mineCount = opts.mineCount || defaultMines;
 	var startCell = [rows - 1, 0];
 
@@ -58,7 +60,7 @@ function tryGenerate(opts) {
 
 	var totalSafe = rows * cols - mines.length;
 	var coveredSafe = totalSafe - revealed.length;
-	if (coveredSafe < 1 || coveredSafe > 8) return null;
+	if (coveredSafe < 1 || coveredSafe > 12) return null;
 
 	var analysis = analyzeWithTracking(board, revealed, mines.length);
 	if (!analysis.solved) return null;
@@ -134,14 +136,18 @@ function cascadeFrom(board, start) {
 //                 case analysis). Capped at ENUM_CAP variables per component.
 //
 // Difficulty derived from the trace. Counts per pass + the largest enum
-// component size encountered (`maxEnumSize`):
+// component size encountered (`maxEnumSize`). The enum component size maps
+// directly to "how many cells did you have to mentally test together" —
+// the backtracking depth that humans perceive as hard.
 //   1 — only trivial.
 //   2 — exactly one subset deduction (small non-trivial step).
 //   3 — chain of subset deductions (subsetCount ≥ 2).
-//   4 — enum pass with a small component (≤ 4 variables) — light case
-//       analysis, often a 1-2-1-style local pattern.
-//   5 — enum pass with a larger component (≥ 5 variables) OR multiple enum
-//       passes — multi-branch case analysis.
+//   4 — case analysis on 2–4 frontier cells (light backtracking — "what if
+//       this one cell is a mine?").
+//   5 — case analysis on 5–6 frontier cells (medium backtracking — chain
+//       reasoning over multiple coupled cells).
+//   6 — case analysis on ≥ 7 frontier cells OR multiple enum passes
+//       (deep backtracking — long inference chains).
 //
 // If the puzzle isn't fully solved by these passes, the frontier was too
 // big to enumerate (>ENUM_CAP=18 cells) OR the puzzle genuinely needs a
@@ -347,7 +353,8 @@ function analyzeWithTracking(board, revealedList, numMines) {
 
 	var difficulty;
 	if (!solved) difficulty = 0;
-	else if (enumCount >= 2 || maxEnumSize >= 5) difficulty = 5;
+	else if (enumCount >= 2 || maxEnumSize >= 7) difficulty = 6;
+	else if (maxEnumSize >= 5) difficulty = 5;
 	else if (enumCount === 1) difficulty = 4;
 	else if (subsetCount >= 2) difficulty = 3;
 	else if (subsetCount === 1) difficulty = 2;
