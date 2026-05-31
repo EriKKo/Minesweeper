@@ -61,6 +61,13 @@ function showCustomView() {
 	socket.emit("list_rooms");
 }
 
+function showPuzzleLabView() {
+	hideAllViews();
+	document.getElementById("puzzles_view").style.display = "";
+	setSiteNavActive("");
+	renderPuzzleLab();
+}
+
 function showLeaderboardView() {
 	hideAllViews();
 	document.getElementById("leaderboard_view").style.display = "";
@@ -118,6 +125,7 @@ function applyRouteFromHash() {
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
 	if (hash === "/custom") return showCustomView();
+	if (hash === "/puzzles") return showPuzzleLabView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();

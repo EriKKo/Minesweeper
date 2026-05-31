@@ -4,6 +4,7 @@ var http = require("http")
   , crypto = require("node:crypto")
   , gameCreator = require("./GameCreator")
   , noGuess = require("./NoGuessGenerator")
+  , puzzleGen = require("./PuzzleGenerator")
   , roomCreator = require("./RoomCreator")
   , botPlayer = require("./BotPlayer")
   , db = require("./db");
@@ -101,6 +102,7 @@ function handler (req, res) {
 	if (pathname === "/auth/google/login") return authGoogleLogin(req, res);
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
+	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
 
 	var filePath = resolveStatic(pathname);
 	if (!filePath) { res.writeHead(404); res.end(); return; }
@@ -232,6 +234,15 @@ function finishLogin(res, userId) {
 	var token = db.createSession(userId);
 	res.writeHead(302, { Location: OAUTH_BASE + "/#token=" + token });
 	res.end();
+}
+
+// /api/puzzles[?count=N] — return a batch of small randomly-generated puzzles
+// classified by difficulty (puzzle lab / experimentation).
+function servePuzzles(req, res, url) {
+	var count = Math.max(1, Math.min(60, parseInt(url.searchParams.get("count"), 10) || 20));
+	var puzzles = puzzleGen.generatePuzzles({ count: count });
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ puzzles: puzzles }));
 }
 
 var games = {};

@@ -223,6 +223,8 @@
 			</div>
 		</section>
 
+		<section id="puzzles_view" class="view section-view" style="display:none"></section>
+
 		<section id="game_view" class="view game-view" style="display:none">
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Back to lobby</button>
@@ -357,6 +359,7 @@
 <script src="/Animations.js"></script>
 <script src="/Input.js"></script>
 <script src="/Sound.js"></script>
+<script src="/PuzzleLab.js"></script>
 <script src="/Overlay.js"></script>
 <script src="/RoundTimer.js"></script>
 <script src="/BoardDecoder.js"></script>
@@ -1011,7 +1014,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "puzzles_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 
