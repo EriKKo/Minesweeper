@@ -362,6 +362,7 @@
 <script src="/RoundTimer.js"></script>
 <script src="/BoardDecoder.js"></script>
 <script src="/DangerWarning.js"></script>
+<script src="/Auth.js"></script>
 <script src="/Learn.js"></script>
 <script src="/Solo.js"></script>
 <script src="/Profile.js"></script>
@@ -535,19 +536,9 @@ findNextArrow.addEventListener("click", function(e) {
 // Respond to rotation / viewport changes so the player board re-sizes correctly.
 
 var id;
-var myName = "";
 var currentRoom = null;
 var inRoom = false;
-var account = null; // { name, rating, ... } when signed in
-
-// A session token arrives back from OAuth/dev login as a URL hash; stash it.
-(function() {
-	var m = /(?:^|[#&])token=([a-f0-9]+)/.exec(location.hash || "");
-	if (m) {
-		localStorage.setItem("ms_session", m[1]);
-		history.replaceState(null, "", location.pathname + location.search);
-	}
-})();
+// myName + account + the auth IIFE live in Auth.js.
 
 var socket = io({ transports: ["websocket"] });
 
@@ -629,18 +620,9 @@ var rankedSearching = document.getElementById("ranked_searching");
 var rankedSearchingText = document.getElementById("ranked_searching_text");
 var cancelRankedButton = document.getElementById("cancel_ranked_button");
 var leaderboardList = document.getElementById("leaderboard_list");
-var nameForm = document.getElementById("name_form");
-var nameInput = document.getElementById("name_input");
-var nameError = document.getElementById("name_error");
-var userBadge = document.getElementById("user_badge");
-var userBadgeName = document.getElementById("user_badge_name");
-var changeNameButton = document.getElementById("change_name_button");
-var signOutButton = document.getElementById("sign_out_button");
-var ratingChip = document.getElementById("rating_chip");
-var signinOptions = document.getElementById("signin_options");
-var githubSigninButton = document.getElementById("github_signin");
-var googleSigninButton = document.getElementById("google_signin");
-var devSigninButton = document.getElementById("dev_signin");
+// nameForm / nameInput / nameError / userBadge / userBadgeName / changeNameButton
+// / signOutButton / ratingChip / signinOptions / githubSigninButton /
+// googleSigninButton / devSigninButton are looked up in Auth.js.
 var boardOverlay = document.getElementById("board_overlay");
 var roundTimer = document.getElementById("round_timer");
 var gameProgressText = document.getElementById("game_progress_text");
@@ -694,15 +676,7 @@ var DANGER_GRACE_MS = 10000;   // don't warn within the first N ms of a round
 var dangerTarget = null;       // lazily resolved .player-board element to flash
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
-nameForm.addEventListener("submit", function(e) {
-	e.preventDefault();
-	var name = (nameInput.value || "").trim();
-	if (!name) {
-		showNameError("Please enter a nickname.");
-		return;
-	}
-	socket.emit("set_name", { name: name });
-});
+// Name form + sign-in/out button bindings live in Auth.js.
 
 function refreshMuteIcon() {
 	muteButton.textContent = sound.isMuted() ? "🔇" : "🔊";
@@ -717,37 +691,6 @@ muteButton.addEventListener("click", function() {
 volumeSlider.addEventListener("input", function() {
 	sound.unlock();
 	sound.setVolume(parseInt(volumeSlider.value, 10) / 100);
-});
-
-changeNameButton.addEventListener("click", function() {
-	if (inRoom) {
-		socket.emit("leave_room");
-	}
-	nameInput.value = myName;
-	showNameView();
-});
-
-githubSigninButton.addEventListener("click", function() {
-	window.location.href = "/auth/github/login";
-});
-
-googleSigninButton.addEventListener("click", function() {
-	window.location.href = "/auth/google/login";
-});
-
-devSigninButton.addEventListener("click", function() {
-	var name = (prompt("Dev sign-in name:", "Dev") || "").trim();
-	if (name) window.location.href = "/auth/dev?name=" + encodeURIComponent(name);
-});
-
-signOutButton.addEventListener("click", function() {
-	socket.emit("sign_out");
-	localStorage.removeItem("ms_session");
-	account = null;
-	if (inRoom) socket.emit("leave_room");
-	myName = "";
-	userBadge.style.display = "none";
-	showNameView();
 });
 
 document.getElementById("create_room_button").addEventListener("click", function() {
@@ -836,41 +779,11 @@ var searchSizeText = document.getElementById("search_size_text");
 // Update board dimensions and re-size canvases when the room's size changes.
 // a best-of-N. Tournament prints "Round N/M · K remaining".
 
-function renderRatingBadge() {
-	renderHomeRankChips();
-	if (!account) return;
-	var t = tierFor(account.rating, account.provisional);
-	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating;
-	ratingChip.style.color = t.color;
-	ratingChip.style.background = t.color + "22";
-	ratingChip.style.display = "";
-}
-
+// renderRatingBadge + auth socket handler bodies live in Auth.js.
 // In-room state rendering moved to GameRoom.js.
 
-
-socket.on("connected", function(data) {
-	id = data.id;
-	var oauth = (data && data.oauth) || {};
-	githubSigninButton.style.display = oauth.github ? "" : "none";
-	googleSigninButton.style.display = oauth.google ? "" : "none";
-	devSigninButton.style.display = oauth.dev ? "" : "none";
-	signinOptions.style.display = (oauth.github || oauth.google || oauth.dev) ? "" : "none";
-	var token = localStorage.getItem("ms_session");
-	if (token) socket.emit("authenticate", { token: token });
-});
-
-socket.on("authenticated", function(data) {
-	account = data;
-	myName = data.name;
-	userBadgeName.textContent = myName;
-	ratingChip.title = "Ranked rating" + (data.provisional ? " (provisional)" : "");
-	renderRatingBadge();
-	changeNameButton.style.display = "none";
-	signOutButton.style.display = "";
-	userBadge.style.display = "";
-	if (!inRoom) applyRouteFromHash();
-});
+socket.on("connected", applyConnected);
+socket.on("authenticated", applyAuthenticated);
 
 var leaderboardProvisional = 10;
 socket.on("leaderboard", function(data) {
@@ -882,24 +795,9 @@ var leaderboardFullList = document.getElementById("leaderboard_full_list");
 
 // renderLeaderboard moved to Leaderboard.js.
 
-socket.on("auth_failed", function() {
-	localStorage.removeItem("ms_session");
-	account = null;
-});
-
-socket.on("name_rejected", function(data) {
-	showNameError((data && data.reason) || "That name was not accepted.");
-});
-
-socket.on("name_accepted", function(data) {
-	myName = data.name;
-	userBadgeName.textContent = myName;
-	ratingChip.style.display = "none";
-	changeNameButton.style.display = "";
-	signOutButton.style.display = "none";
-	userBadge.style.display = "";
-	if (!inRoom) applyRouteFromHash();
-});
+socket.on("auth_failed", applyAuthFailed);
+socket.on("name_rejected", applyNameRejected);
+socket.on("name_accepted", applyNameAccepted);
 
 socket.on("room_list", function(data) {
 	renderRoomList(data.rooms || []);
