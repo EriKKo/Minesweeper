@@ -24,6 +24,11 @@ var COLOR_FLAG_CLOTH = "#ef4444";
 var COLOR_FLAG_POLE = "#e2e8f0";
 var NUMBER_FONT = "Inter, system-ui, sans-serif";
 
+// Device pixel ratio — every canvas on the site renders at this multiple so
+// it's crisp on HiDPI displays. Used by sizeBoardCanvas/sizePlayerCanvas in
+// the live game and the Learn page's canvas factory.
+var DPR = window.devicePixelRatio || 1;
+
 // ---- animation timing -------------------------------------------------
 var REVEAL_DUR = 230;
 var FLAG_DUR = 260;
