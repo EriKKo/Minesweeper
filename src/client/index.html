@@ -831,7 +831,10 @@ socket.on("left_room", function() {
 	roundStartTime = 0;
 	setDanger(false);
 	if (matchRevealTickHandle) { clearInterval(matchRevealTickHandle); matchRevealTickHandle = null; }
-	showLobbyView();
+	// Re-route based on the current hash. If the user clicked a top-nav link
+	// while in a game, applyRouteFromHash queued the leave + reload-the-route;
+	// inRoom is now false so the hash takes effect.
+	applyRouteFromHash();
 });
 
 socket.on("join_failed", function(data) {

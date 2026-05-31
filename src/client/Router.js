@@ -75,11 +75,25 @@ function setSiteNavActive(route) {
 	}
 }
 
-// Hash router. Only takes effect when the player is NOT in a room — in-room
-// always means the game view, regardless of hash.
+// Hash router. If the user is mid-game when they navigate away, we leave
+// the room (multiplayer) or tear down the solo session first, then route.
+// For multiplayer the leave is async — the server's "left_room" handler
+// calls applyRouteFromHash again once it's confirmed, at which point inRoom
+// is false and the hash still points at the user's intended destination.
 function applyRouteFromHash() {
-	if (inRoom || soloSession) return;
 	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
+	if (inRoom) {
+		socket.emit("leave_room");
+		return;
+	}
+	if (soloSession) {
+		soloSession = null;
+		stopSoloTimer();
+		hideOverlay();
+		myState = null;
+		prevPlayerState = null;
+		boardDecoder = null;
+	}
 	var hash = (location.hash || "#/").replace(/^#/, "");
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
