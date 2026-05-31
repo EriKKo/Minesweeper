@@ -77,12 +77,23 @@ function setSiteNavActive(route) {
 
 // Hash router. If the user is mid-game when they navigate away, we leave
 // the room (multiplayer) or tear down the solo session first, then route.
-// For multiplayer the leave is async — the server's "left_room" handler
-// calls applyRouteFromHash again once it's confirmed, at which point inRoom
-// is false and the hash still points at the user's intended destination.
+// For an active (phase === "playing") multiplayer match, we first confirm —
+// leaving counts as a loss server-side. If they cancel, restore the prior
+// hash so the URL stays in sync with the still-current view.
+var lastAppliedHash = "";
+var suppressNextRoute = false;
+
 function applyRouteFromHash() {
+	if (suppressNextRoute) { suppressNextRoute = false; return; }
 	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
 	if (inRoom) {
+		var inPlay = currentRoom && currentRoom.phase === "playing";
+		if (inPlay && !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) {
+			// Roll the hash back to whatever was showing the game view.
+			suppressNextRoute = true;
+			location.hash = lastAppliedHash || "#/";
+			return;
+		}
 		socket.emit("leave_room");
 		return;
 	}
@@ -95,6 +106,7 @@ function applyRouteFromHash() {
 		boardDecoder = null;
 	}
 	var hash = (location.hash || "#/").replace(/^#/, "");
+	lastAppliedHash = location.hash || "#/";
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
