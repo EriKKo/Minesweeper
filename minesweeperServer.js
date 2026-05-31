@@ -3,6 +3,7 @@ var http = require("http")
   , path = require("path")
   , crypto = require("node:crypto")
   , gameCreator = require("./GameCreator")
+  , noGuess = require("./NoGuessGenerator")
   , roomCreator = require("./RoomCreator")
   , botPlayer = require("./BotPlayer")
   , db = require("./db");
@@ -1029,7 +1030,7 @@ function startGame(room) {
 	var mines = Math.round(room.mineDensity * room.rows * room.cols);
 	var centerR = Math.floor(room.rows / 2);
 	var centerC = Math.floor(room.cols / 2);
-	var template = gameCreator.createNoGuessTemplate(centerR, centerC, mines, undefined, room.rows, room.cols);
+	var template = noGuess.createNoGuessTemplate(centerR, centerC, mines, undefined, room.rows, room.cols);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
@@ -1473,7 +1474,7 @@ io.on("connection", function (socket) {
 		var mines = Math.round(density * rows * cols);
 		var centerR = Math.floor(rows / 2);
 		var centerC = Math.floor(cols / 2);
-		var template = gameCreator.createNoGuessTemplate(centerR, centerC, mines, undefined, rows, cols);
+		var template = noGuess.createNoGuessTemplate(centerR, centerC, mines, undefined, rows, cols);
 		if (!template) { socket.emit("solo_rejected", { reason: "Couldn't generate a no-guess board, try again." }); return; }
 		var obf = obfuscateBoard(template.board, rows, cols);
 		socket.emit("solo_board", {
