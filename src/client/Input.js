@@ -82,7 +82,21 @@ function performAction(r, c, asFlag) {
 	focusedR = r;
 	focusedC = c;
 	if (asFlag) {
-		placeFlag(r, c);
+		// Right-click on a covered cell toggles a flag. Right-click on a
+		// revealed number with the matching flag count chords the same way
+		// left-click does — both go through revealAt so the local cascade
+		// (and any mine-hit detection) is identical regardless of which
+		// button triggered it.
+		if (myState && myState[r][c] === KNOWN) {
+			var chordResult = revealAt(r, c);
+			if (mode === "multiplayer" && chordResult.hitMine && currentRoom.deathPenalty) {
+				frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
+				startFreezeTick();
+			}
+			if (mode === "solo") soloOnAfterReveal(chordResult);
+		} else {
+			placeFlag(r, c);
+		}
 	} else {
 		var result = revealAt(r, c);
 		if (mode === "multiplayer" && result.hitMine && currentRoom.deathPenalty) {
@@ -194,7 +208,10 @@ function jumpToNextUnknown(forward) {
 	return false;
 }
 document.addEventListener("keydown", function(e) {
-	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
+	// Reuse the same gate as click handling — keep the modes-list defined
+	// once so adding a new mode (puzzle, future Streak/Storm, …) doesn't
+	// have to update both call sites independently.
+	if (!currentActionMode()) return;
 	var tag = (e.target && e.target.tagName) || "";
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 	if (e.ctrlKey || e.metaKey || e.altKey) return;
