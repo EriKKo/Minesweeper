@@ -1030,6 +1030,13 @@ socket.on("start_game", function(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
+	// Clear myState too — not just prev (which resetBoardAnimations handles).
+	// The draw_board handler merges optimistic state into incoming server
+	// state to survive stale broadcasts (bot tick races); if we leave the
+	// previous game's myState in place, the next round's first draw_board
+	// gets game-1's KNOWN cells merged onto game-2's fresh board, which
+	// then re-renders revealed and (if mines now sit there) explodes.
+	myState = null;
 	resetBoardAnimations();
 	lastFinished = {};
 	roundStartTime = 0;
