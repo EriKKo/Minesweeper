@@ -294,18 +294,18 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 	});
 }
 
-// Point the player at a cell to REVEAL — never a cell to flag. If no
-// safe-reveal deduction is currently available (only forced-mine
-// deductions), we auto-flag the forced mines in a scratch copy of the
-// state, then re-search for safe reveals. The hint always lands on a
-// cell whose deduction leads to opening another square.
+// Find the deduction the player should look at next. Preference order:
+//   1. Safe-reveal directly (trivial or subset)
+//   2. Safe-reveal that opens up after chaining through forced mines
+//      (single-clue or subset extras-are-mines)
+//   3. The first forced-mine deduction we encountered along the chain
+//      — if the chain dead-ends with no safe-reveal, the player will
+//      need to flag this anyway, so we show it with the relevant clues
+//   4. Smallest covered frontier (case-analysis puzzles)
 function findHintPointer(game) {
 	var rows = game.rows, cols = game.cols;
 	var board = game.board;
-	var MINE = BoardLogic.MINE, KNOWN = BoardLogic.KNOWN;
-	var FLAGGED = BoardLogic.FLAGGED, UNKNOWN = BoardLogic.UNKNOWN;
-	// Scratch copy of state — we may auto-flag forced mines to unlock
-	// downstream safe-reveals. The game state on the server is not modified.
+	var KNOWN = BoardLogic.KNOWN, FLAGGED = BoardLogic.FLAGGED, UNKNOWN = BoardLogic.UNKNOWN;
 	var state = new Array(rows);
 	for (var r = 0; r < rows; r++) state[r] = game.state[r].slice();
 
@@ -333,81 +333,117 @@ function findHintPointer(game) {
 		return null;
 	}
 
-	// Auto-flag any clues whose covered count exactly matches the remaining
-	// mine count — those covered cells must all be mines, so we apply the
-	// flags silently and re-look for safe reveals. Loops until no more
-	// forced-mine deductions exist.
-	function propagateForcedMines() {
-		var any = true;
-		while (any) {
-			any = false;
-			for (var r = 0; r < rows; r++) {
-				for (var c = 0; c < cols; c++) {
-					if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-					var ctx = constraintAt(r, c);
-					if (!ctx.covered.length) continue;
-					if (ctx.need === ctx.covered.length) {
-						for (var k = 0; k < ctx.covered.length; k++) {
-							var fr = ctx.covered[k][0], fc = ctx.covered[k][1];
-							if (state[fr][fc] !== FLAGGED) { state[fr][fc] = FLAGGED; any = true; }
-						}
-					}
+	function gatherConstraints() {
+		var out = [];
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+				var ctx = constraintAt(r, c);
+				if (!ctx.covered.length) continue;
+				out.push({ r: r, c: c, cells: ctx.covered, need: ctx.need });
+			}
+		}
+		return out;
+	}
+
+	// Subset pass: returns the first deduction matching `wantMines` —
+	// either extras-are-safe (need diff = 0) or extras-are-mines
+	// (need diff = extras.length).
+	function findSubsetDeduction(wantMines) {
+		var cs = gatherConstraints();
+		for (var i = 0; i < cs.length; i++) {
+			for (var j = 0; j < cs.length; j++) {
+				if (i === j) continue;
+				var a = cs[i], b = cs[j];
+				if (a.cells.length >= b.cells.length) continue;
+				var bSet = {};
+				for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = true;
+				var isSubset = true;
+				for (var k = 0; k < a.cells.length; k++) {
+					if (!bSet[a.cells[k][0] + "," + a.cells[k][1]]) { isSubset = false; break; }
+				}
+				if (!isSubset) continue;
+				var aSet = {};
+				for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = true;
+				var extras = [];
+				for (var k = 0; k < b.cells.length; k++) {
+					if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
+				}
+				if (!extras.length) continue;
+				var diff = b.need - a.need;
+				if (wantMines ? diff === extras.length : diff === 0) {
+					return { clueCells: [[a.r, a.c], [b.r, b.c]], coveredCells: extras };
 				}
 			}
 		}
+		return null;
 	}
 
-	// 1. Safe-reveal directly available.
-	var hit = findTrivialSafe();
-	if (hit) return hit;
-
-	// 2. Auto-flag forced mines, try again — the hint then points at a
-	//    clue that's been "satisfied" by those forced flags.
-	propagateForcedMines();
-	hit = findTrivialSafe();
-	if (hit) return hit;
-
-	// 3. Subset rule, restricted to deductions that produce safe-reveals
-	//    (extras-are-all-safe). Skip the extras-are-all-mines case — that's
-	//    a flag move, not what we want.
-	var constraints = [];
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			var ctx2 = constraintAt(r, c);
-			if (!ctx2.covered.length) continue;
-			constraints.push({ r: r, c: c, cells: ctx2.covered, need: ctx2.need });
+	// Look for any forced-mine deduction (single-clue first, then subset)
+	// and return it. Doesn't apply the flags — that's applyMines's job.
+	function findForcedMines() {
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+				var ctx = constraintAt(r, c);
+				if (!ctx.covered.length) continue;
+				if (ctx.need === ctx.covered.length) {
+					return { clueCells: [[r, c]], coveredCells: ctx.covered, kind: "trivial-mine" };
+				}
+			}
 		}
+		var sub = findSubsetDeduction(true);
+		if (sub) { sub.kind = "subset-mine"; return sub; }
+		return null;
 	}
-	for (var i = 0; i < constraints.length; i++) {
-		for (var j = 0; j < constraints.length; j++) {
-			if (i === j) continue;
-			var a = constraints[i], b = constraints[j];
-			if (a.cells.length >= b.cells.length) continue;
-			var bSet = {};
-			for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = true;
-			var isSubset = true;
-			for (var k = 0; k < a.cells.length; k++) {
-				if (!bSet[a.cells[k][0] + "," + a.cells[k][1]]) { isSubset = false; break; }
-			}
-			if (!isSubset) continue;
-			var aSet = {};
-			for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = true;
-			var extras = [];
-			for (var k = 0; k < b.cells.length; k++) {
-				if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
-			}
-			if (!extras.length) continue;
-			if (b.need - a.need === 0) {
-				// Extras are all safe — exactly the reveal-hint we want.
-				return { clueCells: [[a.r, a.c], [b.r, b.c]], coveredCells: extras, type: "subset" };
-			}
+
+	function applyMines(deduction) {
+		for (var k = 0; k < deduction.coveredCells.length; k++) {
+			var rc = deduction.coveredCells[k];
+			if (state[rc[0]][rc[1]] !== FLAGGED) state[rc[0]][rc[1]] = FLAGGED;
 		}
 	}
 
-	// 4. Fallback — smallest covered frontier. Best signal for case-analysis
-	//    puzzles where the deduction isn't trivial/subset. Player still has
-	//    to do the work but at least knows where to look.
+	function mergeCells(a, b) {
+		var seen = {}, out = [];
+		for (var i = 0; i < a.length; i++) {
+			var k = a[i][0] + "," + a[i][1];
+			if (!seen[k]) { seen[k] = true; out.push(a[i]); }
+		}
+		for (var i = 0; i < b.length; i++) {
+			var k = b[i][0] + "," + b[i][1];
+			if (!seen[k]) { seen[k] = true; out.push(b[i]); }
+		}
+		return out;
+	}
+
+	// Main chain: walk through deductions, preferring safe-reveals. We
+	// accumulate the clue cells from every forced-mine step we have to
+	// take to reach a safe-reveal, then merge them into the final hint's
+	// clueCells. The player sees the entire deduction (e.g. both clues
+	// of a 1-2 pair) instead of just the last clue in the chain.
+	var firstFlagHint = null;
+	var chainClues = [];
+	while (true) {
+		var safe = findTrivialSafe();
+		if (safe) { safe.clueCells = mergeCells(safe.clueCells, chainClues); return safe; }
+		var subSafe = findSubsetDeduction(false);
+		if (subSafe) { subSafe.type = "subset"; subSafe.clueCells = mergeCells(subSafe.clueCells, chainClues); return subSafe; }
+		var mine = findForcedMines();
+		if (!mine) break;
+		if (!firstFlagHint) {
+			firstFlagHint = {
+				clueCells: mine.clueCells.slice(),
+				coveredCells: mine.coveredCells,
+				type: mine.kind === "trivial-mine" ? "trivial-flag" : "subset-flag"
+			};
+		}
+		chainClues = mergeCells(chainClues, mine.clueCells);
+		applyMines(mine);
+	}
+	if (firstFlagHint) return firstFlagHint;
+
+	// Case-analysis fallback — smallest covered frontier.
 	var bestClue = null, bestSize = Infinity;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
