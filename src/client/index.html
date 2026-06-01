@@ -599,6 +599,9 @@ socket.on("puzzle_board", function(data) {
 		startedAt: Date.now(),
 		finished: false
 	};
+	// Reset BEFORE seeding state — resetBoardAnimations nulls prevPlayerState
+	// and cellAnims, so doing it after would discard the cascade we just set up.
+	resetBoardAnimations();
 	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
 	myState = new Array(rows);
 	for (var r = 0; r < rows; r++) {
@@ -607,7 +610,6 @@ socket.on("puzzle_board", function(data) {
 	}
 	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
 	prevPlayerState = cloneState(myState);
-	resetBoardAnimations();
 	frozenUntil = 0;
 	roundResultShown = false;
 	focusedR = Math.floor(rows / 2);
@@ -666,8 +668,10 @@ socket.on("solo_board", function(data) {
 		finishTime: null,
 		finished: false
 	};
+	// Reset BEFORE seeding state — resetBoardAnimations nulls prevPlayerState
+	// and cellAnims, so doing it after would discard the cascade we just set up.
+	resetBoardAnimations();
 	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
-	// Build myState from the no-guess template's pre-revealed cells.
 	myState = new Array(rows);
 	for (var r = 0; r < rows; r++) {
 		myState[r] = new Array(cols);
@@ -675,7 +679,6 @@ socket.on("solo_board", function(data) {
 	}
 	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
 	prevPlayerState = cloneState(myState);
-	resetBoardAnimations();
 	frozenUntil = 0;
 	roundResultShown = false;
 	focusedR = Math.floor(rows / 2);
@@ -856,6 +859,7 @@ cancelRankedButton.addEventListener("click", function() {
 
 document.getElementById("leave_button").addEventListener("click", function() {
 	if (soloSession) { exitSolo(); return; }
+	if (puzzleSession) { location.hash = "#/"; return; }
 	if (currentRoom && currentRoom.phase === "playing"
 		&& !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) return;
 	socket.emit("leave_room");
@@ -1085,10 +1089,33 @@ socket.on("draw_board", function(data) {
 		};
 	}
 
-	// Slot 0 = player's own board (always).
+	// Slot 0 = player's own board (always). Merge in our optimistic local
+	// state for the cells the server hasn't echoed yet — a bot's tick on
+	// another socket can trigger an updateDraw broadcast that fires before
+	// our own click handler runs server-side, so the broadcast briefly
+	// carries our pre-click state. Without this, the first click visibly
+	// "reverts" until our click handler catches up.
 	var me = games[0];
 	if (me) {
 		document.getElementById("player_name0").textContent = me.playerName;
+		if (myState) {
+			for (var rr = 0; rr < rows; rr++) {
+				for (var cc = 0; cc < cols; cc++) {
+					// Reveal is monotonic — the server can never un-reveal a cell,
+					// so keep any locally-revealed cell revealed.
+					if (myState[rr][cc] === KNOWN && me.state[rr][cc] !== KNOWN) {
+						me.state[rr][cc] = KNOWN;
+					}
+					// Trust our most recent flag intent over a stale broadcast.
+					else if (myState[rr][cc] === FLAGGED && me.state[rr][cc] === UNKNOWN) {
+						me.state[rr][cc] = FLAGGED;
+					}
+					else if (myState[rr][cc] === UNKNOWN && me.state[rr][cc] === FLAGGED) {
+						me.state[rr][cc] = UNKNOWN;
+					}
+				}
+			}
+		}
 		queueRevealAnimations(me.state);
 		myState = me.state;
 		prevPlayerState = cloneState(me.state);
