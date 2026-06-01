@@ -91,6 +91,43 @@ function renderPlayerBoard() {
 	}
 	drawPressedHighlight();
 	drawFocusHighlight();
+	drawPuzzleHintHighlights();
+}
+
+// Hint highlights: yellow glow on the clue cell(s) the player should read,
+// softer dotted outline on the covered cells whose status those clues
+// determine. Persists until the player makes any move (the next click /
+// flag clears the highlight via clearPuzzleHints).
+function drawPuzzleHintHighlights() {
+	if (typeof puzzleHintClues === "undefined") return;
+	if (!puzzleHintClues.length && !puzzleHintCovered.length) return;
+	var ctx = playerCanvas.getContext("2d");
+	var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	ctx.save();
+	// Covered cells first — softer outline so the clue's glow reads on top.
+	ctx.strokeStyle = "rgba(251, 191, 36, 0.55)";
+	ctx.lineWidth = 2;
+	ctx.setLineDash([6, 4]);
+	for (var i = 0; i < puzzleHintCovered.length; i++) {
+		var rc = puzzleHintCovered[i];
+		var x = rc[1] * sw, y = rc[0] * sh;
+		roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
+		ctx.stroke();
+	}
+	ctx.setLineDash([]);
+	// Clue cells — bright glow.
+	ctx.strokeStyle = "#fbbf24";
+	ctx.lineWidth = 3;
+	ctx.shadowBlur = 14;
+	ctx.shadowColor = "rgba(251, 191, 36, 0.9)";
+	for (var j = 0; j < puzzleHintClues.length; j++) {
+		var rc2 = puzzleHintClues[j];
+		var x2 = rc2[1] * sw, y2 = rc2[0] * sh;
+		roundRectPath(ctx, x2 + gap / 2, y2 + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
+		ctx.stroke();
+	}
+	ctx.restore();
 }
 
 // ---- reveal/flag animation bookkeeping ---------------------------------

@@ -79,6 +79,7 @@ function performAction(r, c, asFlag) {
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	if (mode === "solo") soloOnBeforeAction();
+	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
 	focusedR = r;
 	focusedC = c;
 	if (asFlag) {

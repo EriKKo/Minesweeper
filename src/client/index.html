@@ -607,6 +607,8 @@ socket.on("puzzle_board", function(data) {
 		startedAt: Date.now(),
 		finished: false
 	};
+	puzzleHintClues = [];
+	puzzleHintCovered = [];
 	// Reset BEFORE seeding state — resetBoardAnimations nulls prevPlayerState
 	// and cellAnims, so doing it after would discard the cascade we just set up.
 	resetBoardAnimations();
@@ -658,19 +660,15 @@ socket.on("puzzle_result", function(data) {
 	showPuzzleOutcome(data);
 });
 
-// Hint reveal: server picked a covered safe cell + already revealed it
-// server-side. We mirror the same reveal locally so the cascade animates.
-socket.on("puzzle_hint_cell", function(data) {
+// Hint pointer: server tells us which cell(s) to look at — clue cells and
+// the covered cells whose status they determine. We highlight both on the
+// board (drawn from Animations.js); nothing is revealed.
+socket.on("puzzle_hint_pointer", function(data) {
 	if (!puzzleSession || data.alreadyUsed) return;
 	puzzleSession.hintUsed = true;
 	updatePuzzleHintButton();
-	if (typeof data.r !== "number" || typeof data.c !== "number") return;
-	lastActionCell = { r: data.r, c: data.c };
-	var result = applyLocalLeftClick(data.r, data.c);
-	if (result.anyChange) {
-		queueRevealAnimations(myState);
-		prevPlayerState = cloneState(myState);
-	}
+	puzzleHintClues = data.clueCells || [];
+	puzzleHintCovered = data.coveredCells || [];
 	redrawOwnBoardWithFocus();
 });
 

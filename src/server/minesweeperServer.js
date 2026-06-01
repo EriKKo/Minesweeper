@@ -294,6 +294,94 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 	});
 }
 
+// Return the cell(s) the player should look at to make progress, without
+// revealing anything. Returns { clueCells, coveredCells, type } where
+// clueCells is the revealed number(s) driving the deduction and
+// coveredCells are the unknowns whose status it determines. Null if no
+// deduction is currently possible from the on-screen state.
+function findHintPointer(game) {
+	var rows = game.rows, cols = game.cols;
+	var board = game.board, state = game.state;
+	var MINE = BoardLogic.MINE, KNOWN = BoardLogic.KNOWN;
+	var FLAGGED = BoardLogic.FLAGGED, UNKNOWN = BoardLogic.UNKNOWN;
+
+	function constraintAt(r, c) {
+		var clue = board[r][c];
+		var flagged = 0, covered = [];
+		BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+			if (state[nr][nc] === FLAGGED) flagged++;
+			else if (state[nr][nc] === UNKNOWN) covered.push([nr, nc]);
+		});
+		return { clue: clue, flagged: flagged, covered: covered, need: clue - flagged };
+	}
+
+	// Pass 1 — trivial: a single clue's neighbourhood is fully determined.
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var ctx = constraintAt(r, c);
+			if (!ctx.covered.length) continue;
+			if (ctx.clue === ctx.flagged || ctx.need === ctx.covered.length) {
+				return { clueCells: [[r, c]], coveredCells: ctx.covered, type: "trivial" };
+			}
+		}
+	}
+
+	// Pass 2 — subset rule: two clues whose covered sets nest.
+	var constraints = [];
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var ctx2 = constraintAt(r, c);
+			if (!ctx2.covered.length) continue;
+			constraints.push({ r: r, c: c, cells: ctx2.covered, need: ctx2.need });
+		}
+	}
+	for (var i = 0; i < constraints.length; i++) {
+		for (var j = 0; j < constraints.length; j++) {
+			if (i === j) continue;
+			var a = constraints[i], b = constraints[j];
+			if (a.cells.length >= b.cells.length) continue;
+			var bSet = {};
+			for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = true;
+			var isSubset = true;
+			for (var k = 0; k < a.cells.length; k++) {
+				if (!bSet[a.cells[k][0] + "," + a.cells[k][1]]) { isSubset = false; break; }
+			}
+			if (!isSubset) continue;
+			var aSet = {};
+			for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = true;
+			var extras = [];
+			for (var k = 0; k < b.cells.length; k++) {
+				if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
+			}
+			if (!extras.length) continue;
+			var extraMines = b.need - a.need;
+			if (extraMines === 0 || extraMines === extras.length) {
+				return { clueCells: [[a.r, a.c], [b.r, b.c]], coveredCells: extras, type: "subset" };
+			}
+		}
+	}
+
+	// Fallback — point to the smallest open frontier so the player at least
+	// knows where the active area is. Doesn't directly hint a deduction but
+	// it's better than nothing on case-analysis puzzles.
+	var bestClue = null, bestSize = Infinity;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var ctx3 = constraintAt(r, c);
+			if (!ctx3.covered.length) continue;
+			if (ctx3.covered.length < bestSize) {
+				bestSize = ctx3.covered.length;
+				bestClue = { r: r, c: c, covered: ctx3.covered };
+			}
+		}
+	}
+	if (bestClue) return { clueCells: [[bestClue.r, bestClue.c]], coveredCells: bestClue.covered, type: "frontier" };
+	return null;
+}
+
 function finalizePuzzle(socket, playerID, solved) {
 	var pp = puzzlePlay[playerID];
 	if (!pp) return;
@@ -1751,28 +1839,19 @@ io.on("connection", function (socket) {
 		startPuzzlePlay(socket, playerID, u, puzzle);
 	});
 
-	// Hint reveals one covered safe cell — server runs handleLeftClick so any
-	// cascade fires naturally. Only the first hint per puzzle counts; pp.hintUsed
-	// is read in finalizePuzzle to halve the Elo gain on solve.
+	// Hint points to the cell(s) where the next deduction lives — it does NOT
+	// reveal anything. The player still has to read the clue and make the
+	// move. Tries trivial deduction first (a clue whose value == flagged or
+	// flagged + covered == value), falls back to the subset rule, then any
+	// clue with covered neighbours. pp.hintUsed → half-Elo on solve.
 	socket.on("puzzle_hint", function() {
 		var pp = puzzlePlay[playerID];
 		if (!pp || !pp.game.playing) return;
-		if (pp.hintUsed) { socket.emit("puzzle_hint_cell", { alreadyUsed: true }); return; }
-		var game = pp.game;
-		var candidates = [];
-		var MINE = BoardLogic.MINE, UNKNOWN = BoardLogic.UNKNOWN;
-		for (var r = 0; r < game.rows; r++) {
-			for (var c = 0; c < game.cols; c++) {
-				if (game.state[r][c] === UNKNOWN && game.board[r][c] !== MINE) {
-					candidates.push([r, c]);
-				}
-			}
-		}
-		if (!candidates.length) return;
-		var pick = candidates[Math.floor(Math.random() * candidates.length)];
+		if (pp.hintUsed) { socket.emit("puzzle_hint_pointer", { alreadyUsed: true }); return; }
+		var hint = findHintPointer(pp.game);
+		if (!hint) return;
 		pp.hintUsed = true;
-		game.handleLeftClick(pick[0], pick[1]);
-		socket.emit("puzzle_hint_cell", { r: pick[0], c: pick[1] });
+		socket.emit("puzzle_hint_pointer", hint);
 	});
 
 	// Solo-mode primitive: generate a fresh no-guess board on demand and ship

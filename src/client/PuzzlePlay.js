@@ -8,6 +8,8 @@
 
 var puzzleSession = null;  // { puzzleId, totalSafe, totalMines, playerRating, startedAt, finished, result, hintUsed }
 var puzzleStreak = 0;       // solved-in-a-row across the session; resets on miss / fresh login
+var puzzleHintClues = [];   // [[r,c], …] — clue cells highlighted by the active hint
+var puzzleHintCovered = []; // [[r,c], …] — covered cells whose status the clues determine
 
 // Show the puzzle play view: trigger a server-side pick. The server responds
 // with `puzzle_board`, which routes us into the game view in puzzle chrome.
@@ -88,6 +90,11 @@ function renderPuzzleStreak() {
 	} else {
 		chip.style.display = "none";
 	}
+}
+
+function clearPuzzleHints() {
+	puzzleHintClues = [];
+	puzzleHintCovered = [];
 }
 
 function updatePuzzleHintButton() {
