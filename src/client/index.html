@@ -264,6 +264,19 @@
 								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
 							</button>
 						</div>
+						<div id="puzzle_inline_rank" class="puzzle-rank puzzle-rank-inline" style="display:none">
+							<div class="puzzle-rank-row">
+								<span id="puzzle_rank_tier" class="puzzle-rank-tier">—</span>
+								<span id="puzzle_rank_rating" class="puzzle-rank-rating">—</span>
+							</div>
+							<div class="puzzle-rank-bar">
+								<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
+							</div>
+							<div class="puzzle-rank-foot">
+								<span id="puzzle_rank_progress">0 / 0</span>
+								<span id="puzzle_rank_next">→ —</span>
+							</div>
+						</div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
 							<button id="flag_mode_button" class="flag-mode-button" type="button" aria-pressed="false">
@@ -358,33 +371,6 @@
 							<button class="btn btn-secondary solo-size-btn" data-size="large" type="button">Large</button>
 						</div>
 						<button id="solo_restart" class="btn btn-primary" type="button">New board</button>
-					</div>
-					<div id="puzzle_card" class="side-card" style="display:none">
-						<h3 class="side-title">Rated puzzle</h3>
-						<div class="puzzle-rank">
-							<div class="puzzle-rank-row">
-								<span id="puzzle_rank_tier" class="puzzle-rank-tier">—</span>
-								<span id="puzzle_rank_rating" class="puzzle-rank-rating">—</span>
-							</div>
-							<div class="puzzle-rank-bar">
-								<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
-							</div>
-							<div class="puzzle-rank-foot">
-								<span id="puzzle_rank_progress">0 / 50</span>
-								<span id="puzzle_rank_next">→ —</span>
-							</div>
-						</div>
-						<div class="solo-stats puzzle-stats-secondary">
-							<div class="solo-stat">
-								<span class="solo-stat-label">Safe</span>
-								<span id="puzzle_hud_solved" class="solo-stat-value">0 / 0</span>
-							</div>
-							<div class="solo-stat">
-								<span class="solo-stat-label">Mines</span>
-								<span id="puzzle_hud_mines" class="solo-stat-value">0 / 0</span>
-							</div>
-						</div>
-						<button id="puzzle_back" class="btn btn-secondary" type="button">Back to lobby</button>
 					</div>
 				</aside>
 			</div>
@@ -823,9 +809,6 @@ document.getElementById("open_puzzles_button").addEventListener("click", functio
 	location.hash = "#/puzzles/play";
 });
 
-document.getElementById("puzzle_back").addEventListener("click", function() {
-	location.hash = "#/";
-});
 
 document.getElementById("create_room_button").addEventListener("click", function() {
 	socket.emit("create_room");

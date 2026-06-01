@@ -50,13 +50,16 @@ function exitPuzzle() {
 }
 
 function togglePuzzleChrome(on) {
-	var card = document.getElementById("puzzle_card");
-	if (card) card.style.display = on ? "" : "none";
-	if (allOpponentsDiv) allOpponentsDiv.style.display = on ? "none" : "";
-	var scoreboardCard = document.getElementById("scoreboard_card");
-	if (scoreboardCard) scoreboardCard.style.display = on ? "none" : "";
-	if (seriesCard) seriesCard.style.display = on ? "none" : "";
-	if (botsCard) botsCard.style.display = on ? "none" : "";
+	// Puzzles: just the board + the rank bar below it. Everything else in
+	// the game-view chrome (side panels, ready button, hotkey hint, ranked
+	// tag) is multiplayer-only — hide them for the entire puzzle session.
+	var inlineRank = document.getElementById("puzzle_inline_rank");
+	if (inlineRank) inlineRank.style.display = on ? "" : "none";
+	var gameSide = document.querySelector(".game-side");
+	if (gameSide) gameSide.style.display = on ? "none" : "";
+	if (readyButton) readyButton.style.display = on ? "none" : "";
+	var hotkeyHint = document.querySelector(".game-view .hotkey-hint");
+	if (hotkeyHint) hotkeyHint.style.display = on ? "none" : "";
 	var rankedTagEl = document.getElementById("ranked_tag");
 	if (rankedTagEl) rankedTagEl.style.display = "none";
 	var soloCard = document.getElementById("solo_card");
@@ -65,24 +68,7 @@ function togglePuzzleChrome(on) {
 
 function updatePuzzleHud() {
 	if (!puzzleSession) return;
-	var solvedEl = document.getElementById("puzzle_hud_solved");
-	var minesEl = document.getElementById("puzzle_hud_mines");
 	renderPuzzleRank(puzzleSession.playerRating);
-	if (solvedEl) {
-		var total = puzzleSession.totalSafe;
-		var revealed = 0;
-		if (myState) for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
-			if (myState[r][c] === KNOWN) revealed++;
-		}
-		solvedEl.textContent = revealed + " / " + total;
-	}
-	if (minesEl) {
-		var flagged = 0;
-		if (myState) for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
-			if (myState[r2][c2] === FLAGGED) flagged++;
-		}
-		minesEl.textContent = flagged + " / " + puzzleSession.totalMines;
-	}
 }
 
 // Puzzle-specific tier ladder. Wider bands than the ranked ladder so the
