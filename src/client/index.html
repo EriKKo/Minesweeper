@@ -106,6 +106,20 @@
 					<p class="home-card-sub">Browse open rooms or make your own — tweak board size, mine density, and series length.</p>
 					<button id="open_custom_button" class="btn btn-primary home-card-action">Open custom lobbies</button>
 				</div>
+
+				<div class="home-card home-card-puzzles">
+					<div class="home-card-head">
+						<span class="home-card-tag home-card-tag-puzzles">PUZZLES · SINGLE-PLAYER</span>
+					</div>
+					<h2 class="home-card-title">Puzzles</h2>
+					<p class="home-card-sub">Solve handcrafted boards near your rating. Win to climb, miss to drop — like a chess puzzle ladder.</p>
+					<div class="home-card-rank" id="rank_chip_puzzles">
+						<span class="home-card-rank-label">Your rating</span>
+						<span class="home-card-rank-tier" id="puzzle_rating_value">—</span>
+						<span class="home-card-rank-rating" id="puzzle_solved_count"></span>
+					</div>
+					<button id="open_puzzles_button" class="btn btn-primary home-card-action">Play puzzles</button>
+				</div>
 			</div>
 
 			<div id="ranked_searching" class="ranked-searching" style="display:none">
@@ -225,6 +239,7 @@
 
 		<section id="puzzles_view" class="view section-view" style="display:none"></section>
 		<section id="puzzles_list_view" class="view section-view" style="display:none"></section>
+		<section id="puzzle_play_view" class="view section-view" style="display:none"></section>
 
 		<section id="game_view" class="view game-view" style="display:none">
 			<div class="game-header">
@@ -362,6 +377,7 @@
 <script src="/Sound.js"></script>
 <script src="/PuzzleLab.js"></script>
 <script src="/Puzzles.js"></script>
+<script src="/PuzzlePlay.js"></script>
 <script src="/Overlay.js"></script>
 <script src="/RoundTimer.js"></script>
 <script src="/BoardDecoder.js"></script>
@@ -701,6 +717,10 @@ document.getElementById("open_custom_button").addEventListener("click", function
 	location.hash = "#/custom";
 });
 
+document.getElementById("open_puzzles_button").addEventListener("click", function() {
+	location.hash = "#/puzzles/play";
+});
+
 document.getElementById("create_room_button").addEventListener("click", function() {
 	socket.emit("create_room");
 });
@@ -808,6 +828,8 @@ var leaderboardFullList = document.getElementById("leaderboard_full_list");
 socket.on("auth_failed", applyAuthFailed);
 socket.on("name_rejected", applyNameRejected);
 socket.on("name_accepted", applyNameAccepted);
+
+bindPuzzlePlaySocket();
 
 socket.on("room_list", function(data) {
 	renderRoomList(data.rooms || []);
@@ -1016,7 +1038,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "puzzles_view", "puzzles_list_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "puzzles_view", "puzzles_list_view", "puzzle_play_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

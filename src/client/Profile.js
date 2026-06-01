@@ -77,4 +77,15 @@ function renderHomeRankChips() {
 	applyTo(rankTierDuo, rankRatingDuo);
 	applyTo(rankTierSix, rankRatingSix);
 	applyTo(rankTierTournament, rankRatingTournament);
+
+	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
+	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");
+	if (puzzleRatingEl) {
+		puzzleRatingEl.textContent = account ? (account.puzzleRating || 800) : "—";
+	}
+	if (puzzleSolvedEl) {
+		puzzleSolvedEl.textContent = account
+			? (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)
+			: "";
+	}
 }

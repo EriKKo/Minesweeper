@@ -563,6 +563,16 @@ main {
 	border-color: rgba(148, 163, 184, 0.35);
 }
 
+.home-card-puzzles {
+	background: linear-gradient(160deg, rgba(192, 132, 252, 0.18), rgba(192, 132, 252, 0.04) 70%);
+	border-color: rgba(192, 132, 252, 0.45);
+}
+.home-card-tag-puzzles {
+	background: rgba(192, 132, 252, 0.22);
+	color: #c084fc;
+	border-color: rgba(192, 132, 252, 0.5);
+}
+
 .home-card-head { display: flex; align-items: center; gap: 0.5rem; }
 
 .home-card-tag {
@@ -667,6 +677,39 @@ main {
 .puzzles-list-footer a { color: var(--accent); text-decoration: none; }
 .puzzles-list-footer a:hover { text-decoration: underline; }
 .puzzles-list-empty { color: var(--muted); font-style: italic; margin: 1rem 0; }
+
+.puzzle-play-header {
+	display: flex; gap: 1.2rem; align-items: center; margin: 0.6rem 0 1rem;
+	font-size: 0.95rem;
+}
+.puzzle-play-rating { font-weight: 700; color: var(--text); }
+.puzzle-play-streak {
+	background: rgba(74, 222, 128, 0.18); color: #4ade80;
+	padding: 0.2rem 0.6rem; border-radius: 999px; font-weight: 700;
+	font-size: 0.85rem;
+}
+.puzzle-play-board {
+	display: flex; justify-content: center; align-items: center;
+	min-height: 240px; padding: 1.2rem; background: var(--surface);
+	border: 1px solid var(--border); border-radius: 10px;
+}
+.puzzle-play-loading, .puzzle-play-empty {
+	color: var(--muted); font-style: italic; margin: 0;
+}
+.puzzle-play-result {
+	margin-top: 1.2rem; padding: 1rem 1.2rem;
+	background: var(--surface); border: 1px solid var(--border);
+	border-radius: 10px;
+}
+.puzzle-play-result.puzzle-play-result-ok { border-color: rgba(74, 222, 128, 0.6); }
+.puzzle-play-result.puzzle-play-result-fail { border-color: rgba(248, 113, 113, 0.6); }
+.puzzle-play-result-headline {
+	font-size: 1.4rem; font-weight: 800; margin-bottom: 0.3rem;
+}
+.puzzle-play-result-ok .puzzle-play-result-headline { color: #4ade80; }
+.puzzle-play-result-fail .puzzle-play-result-headline { color: #f87171; }
+.puzzle-play-result-detail { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.9rem; }
+.puzzle-play-result-actions { display: flex; gap: 0.6rem; }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
 .puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }
 .puzzles-filter-chip {

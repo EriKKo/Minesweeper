@@ -1637,6 +1637,65 @@ io.on("connection", function (socket) {
 		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
 	});
 
+	// Rated puzzle play: server picks the next puzzle near the user's rating
+	// (avoiding recent repeats), the client plays it locally, then submits
+	// the outcome and gets the Elo delta back. Auth required — guests can
+	// still browse the Lab but Rated mode needs an account to track rating.
+	socket.on("puzzle_next", function() {
+		var acc = accounts[playerID];
+		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
+		var u = db.getUserById(acc.userId);
+		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
+		var recent = db.recentlyAttemptedPuzzleIds(u.id);
+		var puzzle = db.pickPuzzleNearRating(u.puzzle_rating, recent);
+		if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
+		// Don't leak rating/score/passes to the client during the solve —
+		// reveal them in the result. Keep id + the board data + dimensions.
+		socket.emit("puzzle_next", {
+			puzzle: {
+				id: puzzle.id,
+				rows: puzzle.rows,
+				cols: puzzle.cols,
+				mines: puzzle.mines,
+				revealed: puzzle.revealed
+			},
+			playerRating: u.puzzle_rating,
+			solved: u.puzzles_solved,
+			attempted: u.puzzles_attempted
+		});
+	});
+
+	socket.on("puzzle_attempt", function(data) {
+		var acc = accounts[playerID];
+		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
+		var u = db.getUserById(acc.userId);
+		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
+		var puzzleId = data && data.puzzleId;
+		var solved = !!(data && data.solved);
+		var puzzle = puzzleId ? db.getPuzzleById(puzzleId) : null;
+		if (!puzzle) { socket.emit("puzzle_error", { reason: "not_found" }); return; }
+		var playerBefore = u.puzzle_rating;
+		var puzzleBefore = puzzle.rating;
+		var playerAfter = db.eloUpdate(playerBefore, puzzleBefore, 20, solved ? 1 : 0);
+		var puzzleAfter = db.eloUpdate(puzzleBefore, playerBefore, 10, solved ? 0 : 1);
+		db.updateUserPuzzleRating(u.id, playerAfter, solved);
+		db.updatePuzzleRating(puzzle.id, puzzleAfter, solved);
+		db.recordAttempt({
+			userId: u.id, puzzleId: puzzle.id, solved: solved,
+			playerBefore: playerBefore, playerAfter: playerAfter,
+			puzzleBefore: puzzleBefore, puzzleAfter: puzzleAfter
+		});
+		socket.emit("puzzle_result", {
+			puzzleId: puzzle.id,
+			solved: solved,
+			playerBefore: playerBefore,
+			playerAfter: playerAfter,
+			playerDelta: playerAfter - playerBefore,
+			puzzleBefore: puzzleBefore,
+			puzzleAfter: puzzleAfter
+		});
+	});
+
 	// Solo-mode primitive: generate a fresh no-guess board on demand and ship
 	// the obfuscated blob back to this socket. No room, no opponents, no Elo
 	// — the client owns the play loop. Underpins Free play, drills, and the

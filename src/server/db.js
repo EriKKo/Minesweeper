@@ -48,7 +48,20 @@ db.exec(
 	"  created_at INTEGER NOT NULL" +
 	");" +
 	"CREATE INDEX IF NOT EXISTS idx_puzzles_difficulty ON puzzles(difficulty);" +
-	"CREATE INDEX IF NOT EXISTS idx_puzzles_rating ON puzzles(rating);"
+	"CREATE INDEX IF NOT EXISTS idx_puzzles_rating ON puzzles(rating);" +
+	"CREATE TABLE IF NOT EXISTS puzzle_attempts (" +
+	"  id INTEGER PRIMARY KEY," +
+	"  user_id INTEGER NOT NULL," +
+	"  puzzle_id INTEGER NOT NULL," +
+	"  solved INTEGER NOT NULL," +
+	"  player_rating_before INTEGER NOT NULL," +
+	"  player_rating_after INTEGER NOT NULL," +
+	"  puzzle_rating_before INTEGER NOT NULL," +
+	"  puzzle_rating_after INTEGER NOT NULL," +
+	"  created_at INTEGER NOT NULL" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_attempts_user ON puzzle_attempts(user_id, created_at);" +
+	"CREATE INDEX IF NOT EXISTS idx_attempts_puzzle ON puzzle_attempts(puzzle_id);"
 );
 
 // Schema migration: add per-user puzzle-rating columns if missing. Each
@@ -200,6 +213,68 @@ function updateUserPuzzleRating(userId, newRating, solved) {
 	).run(newRating, solved ? 1 : 0, userId);
 }
 
+// Standard Elo: expected score against an opponent of `opponentRating`,
+// then new = old + K * (actual - expected). Caller picks K — we use 20
+// for player ratings (snappy enough to converge in ~50 attempts) and 10
+// for per-puzzle ratings (puzzles move slower since they get many plays).
+function eloUpdate(playerRating, opponentRating, K, actual) {
+	var expected = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
+	return Math.round(playerRating + K * (actual - expected));
+}
+
+function recordAttempt(row) {
+	db.prepare(
+		"INSERT INTO puzzle_attempts " +
+		"(user_id, puzzle_id, solved, player_rating_before, player_rating_after, puzzle_rating_before, puzzle_rating_after, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	).run(
+		row.userId, row.puzzleId, row.solved ? 1 : 0,
+		row.playerBefore, row.playerAfter,
+		row.puzzleBefore, row.puzzleAfter,
+		Date.now()
+	);
+}
+
+// Puzzles attempted by this user in the last `windowMs` — used to avoid
+// handing back a puzzle they just played. Default window: 1 hour.
+function recentlyAttemptedPuzzleIds(userId, windowMs) {
+	var cutoff = Date.now() - (windowMs || (60 * 60 * 1000));
+	var rows = db.prepare(
+		"SELECT DISTINCT puzzle_id FROM puzzle_attempts WHERE user_id = ? AND created_at >= ?"
+	).all(userId, cutoff);
+	return rows.map(function(r) { return r.puzzle_id; });
+}
+
+// Find a puzzle near `targetRating` (±window) that the user hasn't recently
+// played. Widens the window in steps if no candidates exist at the initial
+// range. Returns null only if the table is empty for this user.
+function pickPuzzleNearRating(targetRating, excludeIds, windows) {
+	windows = windows || [200, 400, 800, 2000];
+	var excludeClause = "";
+	var params = [];
+	if (excludeIds && excludeIds.length) {
+		excludeClause = " AND id NOT IN (" + excludeIds.map(function() { return "?"; }).join(",") + ")";
+		params = excludeIds.slice();
+	}
+	for (var i = 0; i < windows.length; i++) {
+		var w = windows[i];
+		var sql = "SELECT * FROM puzzles WHERE rating BETWEEN ? AND ?" + excludeClause +
+			" ORDER BY RANDOM() LIMIT 1";
+		var p = [targetRating - w, targetRating + w].concat(params);
+		var stmt = db.prepare(sql);
+		var row = stmt.get.apply(stmt, p);
+		if (row) return deserializePuzzle(row);
+	}
+	// Last resort: any puzzle they haven't recently played.
+	if (excludeIds && excludeIds.length) {
+		var sql2 = "SELECT * FROM puzzles WHERE 1=1" + excludeClause + " ORDER BY RANDOM() LIMIT 1";
+		var stmt2 = db.prepare(sql2);
+		var row2 = stmt2.get.apply(stmt2, params);
+		if (row2) return deserializePuzzle(row2);
+	}
+	return null;
+}
+
 module.exports = {
 	upsertUser: upsertUser,
 	createSession: createSession,
@@ -216,5 +291,9 @@ module.exports = {
 	clearPuzzles: clearPuzzles,
 	getPuzzleById: getPuzzleById,
 	updatePuzzleRating: updatePuzzleRating,
-	updateUserPuzzleRating: updateUserPuzzleRating
+	updateUserPuzzleRating: updateUserPuzzleRating,
+	eloUpdate: eloUpdate,
+	recordAttempt: recordAttempt,
+	recentlyAttemptedPuzzleIds: recentlyAttemptedPuzzleIds,
+	pickPuzzleNearRating: pickPuzzleNearRating
 };

@@ -876,7 +876,7 @@ function buildLearnDemo(demo) {
 // Interactive puzzle. Mouse + right-click on the canvas drive standard
 // minesweeper interactions through cellFromCanvas (defined in Input.js).
 // Objective is "open all safe cells" by default; mustFlag/guess change it.
-function buildLearnPuzzle(puzzle, isGuess, onSolved) {
+function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-puzzle";
 	var title = document.createElement("span");
@@ -986,6 +986,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved) {
 				if (isMineArr[rr][cc]) {
 					gameOver = true;
 					setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
+					if (typeof onFailed === "function") onFailed();
 					return true;
 				}
 				return false;
