@@ -8,7 +8,8 @@ var http = require("http")
   , roomCreator = require("./RoomCreator")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
-  , BoardLogic = require("../common/BoardLogic");
+  , BoardLogic = require("../common/BoardLogic")
+  , puzzleSolver = require("./PuzzleSolver");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -294,165 +295,51 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 	});
 }
 
-// Find the deduction the player should look at next. Preference order:
-//   1. Safe-reveal directly (trivial or subset)
-//   2. Safe-reveal that opens up after chaining through forced mines
-//      (single-clue or subset extras-are-mines)
-//   3. The first forced-mine deduction we encountered along the chain
-//      — if the chain dead-ends with no safe-reveal, the player will
-//      need to flag this anyway, so we show it with the relevant clues
-//   4. Smallest covered frontier (case-analysis puzzles)
+// Find the deduction the player should look at next. Delegates to the
+// shared PuzzleSolver so trivial / subset / *enum* logic is the same as
+// what the puzzle generator's analyzer uses to classify difficulty —
+// previously the hint had its own copy that lacked the enum pass.
 function findHintPointer(game) {
+	var safe = puzzleSolver.findFirstSafeStep(game.board, game.state);
+	if (safe && safe.safeCells && safe.safeCells.length) {
+		return {
+			type: safe.kind,
+			clueCells: safe.clueCells,
+			coveredCells: safe.safeCells
+		};
+	}
+	if (safe && safe.mineCells && safe.mineCells.length) {
+		// Chain dead-ended at a forced-mine deduction (no downstream safe
+		// reveal in the deducible chain). Still useful — the player has
+		// to flag this before they can make progress.
+		return {
+			type: safe.kind,
+			clueCells: safe.clueCells,
+			coveredCells: safe.mineCells
+		};
+	}
+	// Solver couldn't make progress (puzzle requires guessing or frontier
+	// larger than ENUM_CAP). Fall back to pointing at the smallest covered
+	// frontier so the player at least knows where the active area is.
+	return findFrontierFallback(game);
+}
+
+// Last-resort hint when the solver can't make any deductive progress
+// (frontier larger than ENUM_CAP, or the puzzle truly needs a guess).
+// Points at the smallest covered frontier so the player at least knows
+// where the active area is.
+function findFrontierFallback(game) {
 	var rows = game.rows, cols = game.cols;
-	var board = game.board;
-	var KNOWN = BoardLogic.KNOWN, FLAGGED = BoardLogic.FLAGGED, UNKNOWN = BoardLogic.UNKNOWN;
-	var state = new Array(rows);
-	for (var r = 0; r < rows; r++) state[r] = game.state[r].slice();
-
-	function constraintAt(r, c) {
-		var clue = board[r][c];
-		var flagged = 0, covered = [];
-		BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
-			if (state[nr][nc] === FLAGGED) flagged++;
-			else if (state[nr][nc] === UNKNOWN) covered.push([nr, nc]);
-		});
-		return { clue: clue, flagged: flagged, covered: covered, need: clue - flagged };
-	}
-
-	function findTrivialSafe() {
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-				var ctx = constraintAt(r, c);
-				if (!ctx.covered.length) continue;
-				if (ctx.clue === ctx.flagged) {
-					return { clueCells: [[r, c]], coveredCells: ctx.covered, type: "trivial" };
-				}
-			}
-		}
-		return null;
-	}
-
-	function gatherConstraints() {
-		var out = [];
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-				var ctx = constraintAt(r, c);
-				if (!ctx.covered.length) continue;
-				out.push({ r: r, c: c, cells: ctx.covered, need: ctx.need });
-			}
-		}
-		return out;
-	}
-
-	// Subset pass: returns the first deduction matching `wantMines` —
-	// either extras-are-safe (need diff = 0) or extras-are-mines
-	// (need diff = extras.length).
-	function findSubsetDeduction(wantMines) {
-		var cs = gatherConstraints();
-		for (var i = 0; i < cs.length; i++) {
-			for (var j = 0; j < cs.length; j++) {
-				if (i === j) continue;
-				var a = cs[i], b = cs[j];
-				if (a.cells.length >= b.cells.length) continue;
-				var bSet = {};
-				for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = true;
-				var isSubset = true;
-				for (var k = 0; k < a.cells.length; k++) {
-					if (!bSet[a.cells[k][0] + "," + a.cells[k][1]]) { isSubset = false; break; }
-				}
-				if (!isSubset) continue;
-				var aSet = {};
-				for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = true;
-				var extras = [];
-				for (var k = 0; k < b.cells.length; k++) {
-					if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
-				}
-				if (!extras.length) continue;
-				var diff = b.need - a.need;
-				if (wantMines ? diff === extras.length : diff === 0) {
-					return { clueCells: [[a.r, a.c], [b.r, b.c]], coveredCells: extras };
-				}
-			}
-		}
-		return null;
-	}
-
-	// Look for any forced-mine deduction (single-clue first, then subset)
-	// and return it. Doesn't apply the flags — that's applyMines's job.
-	function findForcedMines() {
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-				var ctx = constraintAt(r, c);
-				if (!ctx.covered.length) continue;
-				if (ctx.need === ctx.covered.length) {
-					return { clueCells: [[r, c]], coveredCells: ctx.covered, kind: "trivial-mine" };
-				}
-			}
-		}
-		var sub = findSubsetDeduction(true);
-		if (sub) { sub.kind = "subset-mine"; return sub; }
-		return null;
-	}
-
-	function applyMines(deduction) {
-		for (var k = 0; k < deduction.coveredCells.length; k++) {
-			var rc = deduction.coveredCells[k];
-			if (state[rc[0]][rc[1]] !== FLAGGED) state[rc[0]][rc[1]] = FLAGGED;
-		}
-	}
-
-	function mergeCells(a, b) {
-		var seen = {}, out = [];
-		for (var i = 0; i < a.length; i++) {
-			var k = a[i][0] + "," + a[i][1];
-			if (!seen[k]) { seen[k] = true; out.push(a[i]); }
-		}
-		for (var i = 0; i < b.length; i++) {
-			var k = b[i][0] + "," + b[i][1];
-			if (!seen[k]) { seen[k] = true; out.push(b[i]); }
-		}
-		return out;
-	}
-
-	// Main chain: walk through deductions, preferring safe-reveals. We
-	// accumulate the clue cells from every forced-mine step we have to
-	// take to reach a safe-reveal, then merge them into the final hint's
-	// clueCells. The player sees the entire deduction (e.g. both clues
-	// of a 1-2 pair) instead of just the last clue in the chain.
-	var firstFlagHint = null;
-	var chainClues = [];
-	while (true) {
-		var safe = findTrivialSafe();
-		if (safe) { safe.clueCells = mergeCells(safe.clueCells, chainClues); return safe; }
-		var subSafe = findSubsetDeduction(false);
-		if (subSafe) { subSafe.type = "subset"; subSafe.clueCells = mergeCells(subSafe.clueCells, chainClues); return subSafe; }
-		var mine = findForcedMines();
-		if (!mine) break;
-		if (!firstFlagHint) {
-			firstFlagHint = {
-				clueCells: mine.clueCells.slice(),
-				coveredCells: mine.coveredCells,
-				type: mine.kind === "trivial-mine" ? "trivial-flag" : "subset-flag"
-			};
-		}
-		chainClues = mergeCells(chainClues, mine.clueCells);
-		applyMines(mine);
-	}
-	if (firstFlagHint) return firstFlagHint;
-
-	// Case-analysis fallback — smallest covered frontier.
+	var board = game.board, state = game.state;
 	var bestClue = null, bestSize = Infinity;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			var ctx3 = constraintAt(r, c);
-			if (!ctx3.covered.length) continue;
-			if (ctx3.covered.length < bestSize) {
-				bestSize = ctx3.covered.length;
-				bestClue = { r: r, c: c, covered: ctx3.covered };
+			if (state[r][c] !== BoardLogic.KNOWN || board[r][c] <= 0) continue;
+			var ctx = puzzleSolver.constraintAt(board, state, r, c);
+			if (!ctx.covered.length) continue;
+			if (ctx.covered.length < bestSize) {
+				bestSize = ctx.covered.length;
+				bestClue = { r: r, c: c, covered: ctx.covered };
 			}
 		}
 	}
