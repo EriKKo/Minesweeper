@@ -67,51 +67,76 @@ function applyLocalLeftClick(r, c) {
 	return { revealed: revealed, hitMine: hitMine, anyChange: revealed.length > 0 };
 }
 
+// One click pipeline for every mode. The board logic is identical — only
+// the mode-specific bookkeeping differs (server echo, freeze-on-mine for
+// multiplayer; timer start, local win/lose detection, outcome panel for
+// solo; rating HUD for puzzles). Splitting this earlier had the rendering
+// bug masked by the multiplayer server echo, which silently kicked the
+// animation loop; in solo and puzzles there's no echo so the bug shows up.
 function performAction(r, c, asFlag) {
-	if (soloSession) return performSoloAction(r, c, asFlag);
-	var inMultiplayer = inRoom && currentRoom && currentRoom.phase === "playing";
-	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession && !puzzleSession.finished;
-	if (!inMultiplayer && !inPuzzle) return;
+	var mode = currentActionMode();
+	if (!mode) return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	if (mode === "solo") soloOnBeforeAction();
 	focusedR = r;
 	focusedC = c;
 	if (asFlag) {
-		// Optimistic flag toggle. prevPlayerState is updated too so the server's
-		// matching broadcast doesn't re-trigger the animation. Kick the RAF
-		// loop so the flag's scale-in animation actually ticks — without it
-		// the single redrawOwnBoardWithFocus below draws the flag at t=0
-		// (invisible) and nothing else paints until the next click.
-		if (myState) {
-			if (myState[r][c] === UNKNOWN) {
-				myState[r][c] = FLAGGED;
-				if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
-				cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
-				startAnimLoop();
-			} else if (myState[r][c] === FLAGGED) {
-				myState[r][c] = UNKNOWN;
-				if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
-				delete cellAnims[r + "," + c];
-			}
-		}
-		socket.emit("right_click", { r: r, c: c, id: id });
+		placeFlag(r, c);
 	} else {
-		// Optimistic reveal + cascade. On a mine hit, apply the local freeze
-		// straight away; the server's echo will match.
-		lastActionCell = { r: r, c: c };
-		var result = applyLocalLeftClick(r, c);
-		if (result.anyChange) {
-			queueRevealAnimations(myState);
-			prevPlayerState = cloneState(myState);
-		}
-		if (result.hitMine && inMultiplayer && currentRoom.deathPenalty) {
+		var result = revealAt(r, c);
+		if (mode === "multiplayer" && result.hitMine && currentRoom.deathPenalty) {
 			frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
 			startFreezeTick();
 		}
-		socket.emit("left_click", { r: r, c: c, id: id });
+		if (mode === "solo") soloOnAfterReveal(result);
 	}
-	if (inPuzzle) updatePuzzleHud();
+	if (mode === "multiplayer" || mode === "puzzle") {
+		socket.emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });
+	}
+	if (mode === "solo") updateSoloHud();
+	else if (mode === "puzzle") updatePuzzleHud();
 	redrawOwnBoardWithFocus();
+}
+
+function currentActionMode() {
+	if (soloSession && !soloSession.finished) return "solo";
+	if ((typeof puzzleSession !== "undefined") && puzzleSession && !puzzleSession.finished) return "puzzle";
+	if (inRoom && currentRoom && currentRoom.phase === "playing") return "multiplayer";
+	return null;
+}
+
+// Optimistic flag toggle. prevPlayerState is updated too so the server's
+// matching broadcast doesn't re-trigger the animation. startAnimLoop is
+// required — without it the cellAnim entry sits at t=0 (invisible flag)
+// until the next render frame kicks in for another reason.
+function placeFlag(r, c) {
+	if (!myState) return;
+	var key = r + "," + c;
+	if (myState[r][c] === UNKNOWN) {
+		myState[r][c] = FLAGGED;
+		if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
+		cellAnims[key] = { type: "flag", start: performance.now() };
+		startAnimLoop();
+		sound.flag && sound.flag();
+	} else if (myState[r][c] === FLAGGED) {
+		myState[r][c] = UNKNOWN;
+		if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
+		delete cellAnims[key];
+		sound.unflag && sound.unflag();
+	}
+}
+
+// Optimistic reveal + cascade. queueRevealAnimations starts the RAF loop
+// and plays cascade/mine sounds based on the state diff vs. prevPlayerState.
+function revealAt(r, c) {
+	lastActionCell = { r: r, c: c };
+	var result = applyLocalLeftClick(r, c);
+	if (result.anyChange) {
+		queueRevealAnimations(myState);
+		prevPlayerState = cloneState(myState);
+	}
+	return result;
 }
 
 function emitBoardActionAt(clientX, clientY, asFlag) {

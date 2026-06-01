@@ -11,58 +11,33 @@ var soloSession = null;        // { size, totalSafe, totalMines, startTime, fini
 var soloTimerHandle = null;
 var soloSelectedSize = "medium";
 
-// ---- Solo (single-player Free play) ------------------------------------
-function performSoloAction(r, c, asFlag) {
+// Solo mode hooks. performAction (in Input.js) drives the board for every
+// mode; these hooks plug in the solo-specific bits — start the timer on
+// first click, detect win/lose locally since there's no server-authoritative
+// game.win / game.mineHit callback.
+function soloOnBeforeAction() {
 	if (!soloSession || soloSession.finished) return;
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	if (!soloSession.startTime) {
 		soloSession.startTime = Date.now();
 		startSoloTimer();
 	}
-	focusedR = r;
-	focusedC = c;
-	if (asFlag) {
-		if (myState[r][c] === UNKNOWN) {
-			myState[r][c] = FLAGGED;
-			if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
-			cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
-			startAnimLoop();
-			sound.flag && sound.flag();
-		} else if (myState[r][c] === FLAGGED) {
-			myState[r][c] = UNKNOWN;
-			if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
-			delete cellAnims[r + "," + c];
-			sound.unflag && sound.unflag();
-		}
-		updateSoloHud();
-		redrawOwnBoardWithFocus();
-		return;
-	}
-	lastActionCell = { r: r, c: c };
-	var result = applyLocalLeftClick(r, c);
-	if (result.anyChange) {
-		queueRevealAnimations(myState);
-		prevPlayerState = cloneState(myState);
-	}
+}
+
+function soloOnAfterReveal(result) {
+	if (!soloSession || soloSession.finished) return;
 	if (result.hitMine) {
 		soloSession.finished = true;
 		soloSession.finishTime = Date.now();
 		stopSoloTimer();
 		triggerShake && triggerShake();
-		sound.mine && sound.mine();
-		updateSoloHud();
 		showSoloOutcome(false);
-		redrawOwnBoardWithFocus();
 		return;
 	}
-	updateSoloHud();
-	redrawOwnBoardWithFocus();
 	if (countSoloSafeRevealed() >= soloSession.totalSafe) {
 		soloSession.finished = true;
 		soloSession.finishTime = Date.now();
 		stopSoloTimer();
 		sound.win && sound.win();
-		updateSoloHud();
 		showSoloOutcome(true);
 	}
 }
