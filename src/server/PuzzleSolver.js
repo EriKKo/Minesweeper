@@ -222,50 +222,55 @@ function findFirstSafeStep(board, originalState) {
 
 	var chainClues = [];
 	var firstFlagStep = null;
-	while (true) {
-		// Look for any safe-reveal step. Trivial first (cheapest), then
-		// subset, then enum.
-		var passes = [
-			{ kind: "trivial", steps: findTrivialSteps(board, state) },
-			{ kind: "subset",  steps: findSubsetSteps(board, state) },
-			{ kind: "enum",    steps: findEnumSteps(board, state) }
-		];
-		for (var p = 0; p < passes.length; p++) {
-			var safeStep = null;
-			for (var s = 0; s < passes[p].steps.length; s++) {
-				if (passes[p].steps[s].safeCells.length) { safeStep = passes[p].steps[s]; break; }
-			}
-			if (safeStep) {
-				return {
-					kind: passes[p].kind,
-					clueCells: mergeCells(safeStep.clueCells, chainClues),
-					safeCells: safeStep.safeCells,
-					componentSize: safeStep.componentSize
+
+	function firstSafe(steps) {
+		for (var i = 0; i < steps.length; i++) if (steps[i].safeCells.length) return steps[i];
+		return null;
+	}
+	function firstMine(steps) {
+		for (var i = 0; i < steps.length; i++) if (steps[i].mineCells.length) return steps[i];
+		return null;
+	}
+	function tryLevel(steps, kind) {
+		var safe = firstSafe(steps);
+		if (safe) return { resolved: true, hint: {
+			kind: kind,
+			clueCells: mergeCells(safe.clueCells, chainClues),
+			safeCells: safe.safeCells,
+			componentSize: safe.componentSize
+		} };
+		var mine = firstMine(steps);
+		if (mine) {
+			if (!firstFlagStep) {
+				firstFlagStep = {
+					kind: kind + "-flag",
+					clueCells: mine.clueCells.slice(),
+					mineCells: mine.mineCells
 				};
 			}
+			chainClues = mergeCells(chainClues, mine.clueCells);
+			applyStep(state, mine);
+			return { resolved: false, advanced: true };
 		}
-		// No safe-reveal yet — pick the first forced-mine step and chain.
-		var mineStep = null, mineKind = null;
-		for (var p2 = 0; p2 < passes.length; p2++) {
-			for (var s2 = 0; s2 < passes[p2].steps.length; s2++) {
-				if (passes[p2].steps[s2].mineCells.length) {
-					mineStep = passes[p2].steps[s2];
-					mineKind = passes[p2].kind;
-					break;
-				}
-			}
-			if (mineStep) break;
-		}
-		if (!mineStep) break;
-		if (!firstFlagStep) {
-			firstFlagStep = {
-				kind: mineKind + "-flag",
-				clueCells: mineStep.clueCells.slice(),
-				mineCells: mineStep.mineCells
-			};
-		}
-		chainClues = mergeCells(chainClues, mineStep.clueCells);
-		applyStep(state, mineStep);
+		return { resolved: false, advanced: false };
+	}
+
+	// Prefer the simplest deduction at every chain step: exhaust trivial
+	// (safe or forced-mine) before considering subset; exhaust subset before
+	// considering enum. This way a trivial-flag-then-trivial-safe chain
+	// resolves at the trivial tier rather than escalating to enum just
+	// because enum happens to also see a safe cell.
+	while (true) {
+		var r1 = tryLevel(findTrivialSteps(board, state), "trivial");
+		if (r1.resolved) return r1.hint;
+		if (r1.advanced) continue;
+		var r2 = tryLevel(findSubsetSteps(board, state), "subset");
+		if (r2.resolved) return r2.hint;
+		if (r2.advanced) continue;
+		var r3 = tryLevel(findEnumSteps(board, state), "enum");
+		if (r3.resolved) return r3.hint;
+		if (r3.advanced) continue;
+		break;
 	}
 	if (firstFlagStep) return firstFlagStep;
 	return null;
