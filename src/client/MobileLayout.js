@@ -75,7 +75,7 @@ function findNearestFrontierCell() {
 }
 function updateMobileFindNextHint() {
 	if (!mobileLayout || !findNextArrow) return;
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing" || !myState) {
+	if (!currentActionMode() || !myState) {
 		findNextArrow.classList.remove("visible");
 		arrowTargetCell = null;
 		return;

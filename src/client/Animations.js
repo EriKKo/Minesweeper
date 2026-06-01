@@ -11,7 +11,7 @@ var lastActionCell = null;     // where the local player last revealed, for ripp
 
 function drawPressedHighlight() {
 	if (!pressedCell || !myState) return;
-	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
+	if (!currentActionMode()) return;
 	var r = pressedCell.r, c = pressedCell.c;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
@@ -27,7 +27,7 @@ function drawPressedHighlight() {
 
 function drawFocusHighlight() {
 	if (!focusVisible) return;
-	if (!soloSession && (!inRoom || !currentRoom || currentRoom.phase !== "playing")) return;
+	if (!currentActionMode()) return;
 	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
 	var x = focusedC * playerCanvasSquareWidth;
