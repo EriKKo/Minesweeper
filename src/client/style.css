@@ -800,18 +800,60 @@ main {
 	display: block;
 	width: 480px;
 }
-.puzzle-rank-inline {
-	margin: 0.9rem 0 0;
-	width: 480px;
-}
 @media (max-width: 600px) {
 	.game-view.puzzle .board-scroll,
-	.game-view.puzzle .board-wrap,
-	.puzzle-rank-inline {
+	.game-view.puzzle .board-wrap {
 		width: 320px;
 	}
 	.game-view.puzzle .board-scroll { height: 320px; }
 }
+
+/* Puzzle side card — chess.com-style: title at top, big rating + streak
+   chip, tier name, progress bar, hint button anchored at the bottom. */
+.puzzle-side-card {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+}
+.puzzle-side-head { display: flex; align-items: center; gap: 0.8rem; }
+.puzzle-side-back {
+	cursor: pointer; user-select: none;
+	font-size: 1.4rem; color: var(--muted);
+	width: 1.8rem; text-align: center;
+}
+.puzzle-side-back:hover { color: var(--text); }
+.puzzle-side-title { font-size: 1.1rem; font-weight: 700; }
+.puzzle-side-rating-row {
+	display: flex; align-items: baseline; gap: 0.7rem;
+	position: relative;
+}
+.puzzle-side-rating-wrap { position: relative; display: inline-flex; align-items: baseline; }
+.puzzle-side-rating { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.puzzle-streak-chip {
+	background: rgba(251, 146, 60, 0.18); color: #fb923c;
+	font-weight: 700; font-size: 0.9rem;
+	padding: 0.2rem 0.55rem; border-radius: 999px;
+	border: 1px solid rgba(251, 146, 60, 0.45);
+}
+.puzzle-side-tier {
+	font-weight: 700; font-size: 0.95rem;
+	letter-spacing: 0.04em; text-transform: uppercase;
+	color: var(--muted);
+	margin-top: -0.3rem;
+}
+.puzzle-side-card .puzzle-rank-bar { margin-top: 0.1rem; }
+.puzzle-hint-btn {
+	margin-top: auto;
+	display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+	padding: 0.8rem 1rem;
+	font-size: 1rem; font-weight: 700;
+}
+.puzzle-hint-btn:disabled,
+.puzzle-hint-btn.used {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.puzzle-hint-icon { font-size: 1.2rem; line-height: 1; }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
 .puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }
 .puzzles-filter-chip {

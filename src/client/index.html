@@ -264,22 +264,6 @@
 								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
 							</button>
 						</div>
-						<div id="puzzle_inline_rank" class="puzzle-rank puzzle-rank-inline" style="display:none">
-							<div class="puzzle-rank-row">
-								<span id="puzzle_rank_tier" class="puzzle-rank-tier">—</span>
-								<span class="puzzle-rank-rating-wrap">
-									<span id="puzzle_rank_rating" class="puzzle-rank-rating">—</span>
-									<span id="puzzle_rank_delta" class="puzzle-rank-delta"></span>
-								</span>
-							</div>
-							<div class="puzzle-rank-bar">
-								<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
-							</div>
-							<div class="puzzle-rank-foot">
-								<span id="puzzle_rank_progress">0 / 0</span>
-								<span id="puzzle_rank_next">→ —</span>
-							</div>
-						</div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
 							<button id="flag_mode_button" class="flag-mode-button" type="button" aria-pressed="false">
@@ -355,6 +339,31 @@
 							<button id="remove_bot_button" class="btn btn-ghost" type="button">Remove bot</button>
 						</div>
 						<p id="bot_status" class="series-status"></p>
+					</div>
+					<div id="puzzle_card" class="side-card puzzle-side-card" style="display:none">
+						<div class="puzzle-side-head">
+							<span class="puzzle-side-back" id="puzzle_side_back" title="Back to lobby">←</span>
+							<span class="puzzle-side-title">Rated puzzles</span>
+						</div>
+						<div class="puzzle-side-rating-row">
+							<span class="puzzle-side-rating-wrap">
+								<span id="puzzle_rank_rating" class="puzzle-side-rating">—</span>
+								<span id="puzzle_rank_delta" class="puzzle-rank-delta"></span>
+							</span>
+							<span id="puzzle_streak_chip" class="puzzle-streak-chip" style="display:none">🔥 <span id="puzzle_streak_count">0</span></span>
+						</div>
+						<div id="puzzle_rank_tier" class="puzzle-side-tier">—</div>
+						<div class="puzzle-rank-bar">
+							<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
+						</div>
+						<div class="puzzle-rank-foot">
+							<span id="puzzle_rank_progress">0 / 0</span>
+							<span id="puzzle_rank_next">→ —</span>
+						</div>
+						<button id="puzzle_hint_btn" class="btn btn-secondary puzzle-hint-btn" type="button">
+							<span class="puzzle-hint-icon">💡</span>
+							<span>Hint</span>
+						</button>
 					</div>
 					<div id="solo_card" class="side-card" style="display:none">
 						<h3 class="side-title">Free play</h3>
@@ -637,6 +646,8 @@ socket.on("puzzle_result", function(data) {
 	puzzleSession.finished = true;
 	puzzleSession.result = data;
 	puzzleSession.playerRating = data.playerAfter;
+	if (data.solved) puzzleStreak++;
+	else puzzleStreak = 0;
 	if (account) {
 		account.puzzleRating = data.playerAfter;
 		account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
@@ -645,6 +656,22 @@ socket.on("puzzle_result", function(data) {
 	}
 	updatePuzzleHud();
 	showPuzzleOutcome(data);
+});
+
+// Hint reveal: server picked a covered safe cell + already revealed it
+// server-side. We mirror the same reveal locally so the cascade animates.
+socket.on("puzzle_hint_cell", function(data) {
+	if (!puzzleSession || data.alreadyUsed) return;
+	puzzleSession.hintUsed = true;
+	updatePuzzleHintButton();
+	if (typeof data.r !== "number" || typeof data.c !== "number") return;
+	lastActionCell = { r: data.r, c: data.c };
+	var result = applyLocalLeftClick(data.r, data.c);
+	if (result.anyChange) {
+		queueRevealAnimations(myState);
+		prevPlayerState = cloneState(myState);
+	}
+	redrawOwnBoardWithFocus();
 });
 
 socket.on("puzzle_error", function(data) {
@@ -810,6 +837,15 @@ document.getElementById("open_custom_button").addEventListener("click", function
 
 document.getElementById("open_puzzles_button").addEventListener("click", function() {
 	location.hash = "#/puzzles/play";
+});
+
+document.getElementById("puzzle_hint_btn").addEventListener("click", function() {
+	if (!puzzleSession || puzzleSession.hintUsed || puzzleSession.finished) return;
+	socket.emit("puzzle_hint");
+});
+
+document.getElementById("puzzle_side_back").addEventListener("click", function() {
+	location.hash = "#/";
 });
 
 

@@ -7,7 +7,8 @@ var http = require("http")
   , puzzleGen = require("./PuzzleGenerator")
   , roomCreator = require("./RoomCreator")
   , botPlayer = require("./BotPlayer")
-  , db = require("./db");
+  , db = require("./db")
+  , BoardLogic = require("../common/BoardLogic");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -273,6 +274,7 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 		game: game,
 		playerBefore: user.puzzle_rating,
 		puzzleBefore: puzzle.rating,
+		hintUsed: false,
 		startedAt: Date.now()
 	};
 
@@ -297,8 +299,15 @@ function finalizePuzzle(socket, playerID, solved) {
 	if (!pp) return;
 	delete puzzlePlay[playerID];
 	pp.game.playing = false;
-	var playerAfter = db.eloUpdate(pp.playerBefore, pp.puzzleBefore, 20, solved ? 1 : 0);
-	var puzzleAfter = db.eloUpdate(pp.puzzleBefore, pp.playerBefore, 10, solved ? 0 : 1);
+	// Hinted solves earn half the rating exchange — same Elo math with the
+	// actual score set to 0.5 (a "draw" against the puzzle) instead of 1.
+	// A hinted failure is still a full loss; hint affects only the win.
+	var playerActual;
+	if (solved) playerActual = pp.hintUsed ? 0.5 : 1;
+	else playerActual = 0;
+	var puzzleActual = 1 - playerActual;
+	var playerAfter = db.eloUpdate(pp.playerBefore, pp.puzzleBefore, 20, playerActual);
+	var puzzleAfter = db.eloUpdate(pp.puzzleBefore, pp.playerBefore, 10, puzzleActual);
 	db.updateUserPuzzleRating(pp.userId, playerAfter, solved);
 	db.updatePuzzleRating(pp.puzzleId, puzzleAfter, solved);
 	db.setCurrentPuzzle(pp.userId, null);
@@ -310,6 +319,7 @@ function finalizePuzzle(socket, playerID, solved) {
 	socket.emit("puzzle_result", {
 		puzzleId: pp.puzzleId,
 		solved: solved,
+		hintUsed: pp.hintUsed,
 		playerBefore: pp.playerBefore,
 		playerAfter: playerAfter,
 		playerDelta: playerAfter - pp.playerBefore,
@@ -1739,6 +1749,30 @@ io.on("connection", function (socket) {
 			db.setCurrentPuzzle(u.id, puzzle.id);
 		}
 		startPuzzlePlay(socket, playerID, u, puzzle);
+	});
+
+	// Hint reveals one covered safe cell — server runs handleLeftClick so any
+	// cascade fires naturally. Only the first hint per puzzle counts; pp.hintUsed
+	// is read in finalizePuzzle to halve the Elo gain on solve.
+	socket.on("puzzle_hint", function() {
+		var pp = puzzlePlay[playerID];
+		if (!pp || !pp.game.playing) return;
+		if (pp.hintUsed) { socket.emit("puzzle_hint_cell", { alreadyUsed: true }); return; }
+		var game = pp.game;
+		var candidates = [];
+		var MINE = BoardLogic.MINE, UNKNOWN = BoardLogic.UNKNOWN;
+		for (var r = 0; r < game.rows; r++) {
+			for (var c = 0; c < game.cols; c++) {
+				if (game.state[r][c] === UNKNOWN && game.board[r][c] !== MINE) {
+					candidates.push([r, c]);
+				}
+			}
+		}
+		if (!candidates.length) return;
+		var pick = candidates[Math.floor(Math.random() * candidates.length)];
+		pp.hintUsed = true;
+		game.handleLeftClick(pick[0], pick[1]);
+		socket.emit("puzzle_hint_cell", { r: pick[0], c: pick[1] });
 	});
 
 	// Solo-mode primitive: generate a fresh no-guess board on demand and ship

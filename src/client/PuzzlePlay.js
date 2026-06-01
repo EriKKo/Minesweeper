@@ -6,7 +6,8 @@
 // right_click) — server validates against the real game state and decides
 // outcome via game.win / game.mineHit. No client-trusted "I solved it".
 
-var puzzleSession = null;  // { puzzleId, totalSafe, totalMines, playerRating, startedAt, finished, result }
+var puzzleSession = null;  // { puzzleId, totalSafe, totalMines, playerRating, startedAt, finished, result, hintUsed }
+var puzzleStreak = 0;       // solved-in-a-row across the session; resets on miss / fresh login
 
 // Show the puzzle play view: trigger a server-side pick. The server responds
 // with `puzzle_board`, which routes us into the game view in puzzle chrome.
@@ -50,13 +51,17 @@ function exitPuzzle() {
 }
 
 function togglePuzzleChrome(on) {
-	// Puzzles: just the board + the rank bar below it. Everything else in
-	// the game-view chrome (side panels, ready button, hotkey hint, ranked
-	// tag) is multiplayer-only — hide them for the entire puzzle session.
-	var inlineRank = document.getElementById("puzzle_inline_rank");
-	if (inlineRank) inlineRank.style.display = on ? "" : "none";
-	var gameSide = document.querySelector(".game-side");
-	if (gameSide) gameSide.style.display = on ? "none" : "";
+	// Puzzles: fixed-width board on the left, puzzle side card on the right
+	// (rating, streak, progress bar, hint button). The multiplayer side
+	// cards (scoreboard, opponents, series) hide while we're playing; the
+	// Ready button + hotkey hint are not applicable.
+	var card = document.getElementById("puzzle_card");
+	if (card) card.style.display = on ? "" : "none";
+	var scoreboardCard = document.getElementById("scoreboard_card");
+	if (scoreboardCard) scoreboardCard.style.display = on ? "none" : "";
+	if (allOpponentsDiv) allOpponentsDiv.style.display = on ? "none" : "";
+	if (seriesCard) seriesCard.style.display = on ? "none" : "";
+	if (botsCard) botsCard.style.display = on ? "none" : "";
 	if (readyButton) readyButton.style.display = on ? "none" : "";
 	var hotkeyHint = document.querySelector(".game-view .hotkey-hint");
 	if (hotkeyHint) hotkeyHint.style.display = on ? "none" : "";
@@ -69,6 +74,28 @@ function togglePuzzleChrome(on) {
 function updatePuzzleHud() {
 	if (!puzzleSession) return;
 	renderPuzzleRank(puzzleSession.playerRating);
+	renderPuzzleStreak();
+	updatePuzzleHintButton();
+}
+
+function renderPuzzleStreak() {
+	var chip = document.getElementById("puzzle_streak_chip");
+	var countEl = document.getElementById("puzzle_streak_count");
+	if (!chip || !countEl) return;
+	if (puzzleStreak >= 2) {
+		chip.style.display = "";
+		countEl.textContent = String(puzzleStreak);
+	} else {
+		chip.style.display = "none";
+	}
+}
+
+function updatePuzzleHintButton() {
+	var btn = document.getElementById("puzzle_hint_btn");
+	if (!btn) return;
+	var hintUsed = puzzleSession && puzzleSession.hintUsed;
+	btn.disabled = !!hintUsed || !puzzleSession || puzzleSession.finished;
+	btn.classList.toggle("used", !!hintUsed);
 }
 
 // Puzzle-specific tier ladder. Wider bands than the ranked ladder so the
