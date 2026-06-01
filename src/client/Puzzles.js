@@ -19,7 +19,7 @@ function renderPuzzlesList() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Browse the current puzzle pool. Sort by difficulty rating, filter by tier.";
+	sub.textContent = "Browse all puzzles in the pool. Sort by rating, filter by tier. Each puzzle's rating is calibrated from the solver and will move with human play once Rated mode is live.";
 	view.appendChild(sub);
 
 	var toolbar = document.createElement("div");
@@ -105,7 +105,7 @@ function refreshPuzzleList() {
 	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];
 		var dir = (puzzleListState.sort === "score-desc") ? -1 : 1;
-		puzzles.sort(function(a, b) { return dir * ((a.score || 0) - (b.score || 0)); });
+		puzzles.sort(function(a, b) { return dir * ((a.rating || 0) - (b.rating || 0)); });
 
 		var status = document.getElementById("puzzles_list_status");
 		if (status) {
@@ -139,7 +139,7 @@ function renderPuzzleListCard(p) {
 	head.className = "puzzle-card-head";
 	var diffBadge = document.createElement("span");
 	diffBadge.className = "puzzle-diff-badge";
-	diffBadge.textContent = (p.score != null ? p.score.toFixed(1) : "?") + " · t" + p.difficulty;
+	diffBadge.textContent = (p.rating != null ? p.rating : "?") + " · t" + p.difficulty;
 	head.appendChild(diffBadge);
 	var meta = document.createElement("span");
 	meta.className = "puzzle-card-meta";

@@ -31,7 +31,7 @@ function renderPuzzleLab() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Server-side puzzle pool. Trigger a generation job, then browse the pool sorted by continuous difficulty score (subset/enum steps drive it; longer trivial chains add a small bonus capped below the first subset step). Badge shows score + tier (t1–t6).";
+	sub.textContent = "Server-side puzzle pool, persisted in SQLite. Each puzzle has a chess-style rating calibrated from the solver score (rating ≈ 400 + 350·score^0.6). Badge shows rating + tier; meta line shows board size, density, raw score, and solver pass counts.";
 	view.appendChild(sub);
 
 	var browseLink = document.createElement("p");
@@ -222,7 +222,7 @@ function renderPuzzleCard(p) {
 	head.className = "puzzle-card-head";
 	var diffBadge = document.createElement("span");
 	diffBadge.className = "puzzle-diff-badge";
-	diffBadge.textContent = (p.score != null ? p.score.toFixed(1) : "?") + " · t" + p.difficulty;
+	diffBadge.textContent = (p.rating != null ? p.rating : "?") + " · t" + p.difficulty;
 	head.appendChild(diffBadge);
 	var meta = document.createElement("span");
 	meta.className = "puzzle-card-meta";
@@ -231,7 +231,7 @@ function renderPuzzleCard(p) {
 	if (p.passes.subset) passBits.push("s×" + p.passes.subset);
 	if (p.passes.enum) passBits.push("e×" + p.passes.enum + (p.maxEnumSize ? "(" + p.maxEnumSize + ")" : ""));
 	var density = Math.round((p.mines.length / (p.rows * p.cols)) * 100);
-	meta.textContent = p.rows + "×" + p.cols + " · " + p.coveredSafe + " covered · " + density + "% · " + passBits.join(" ");
+	meta.textContent = p.rows + "×" + p.cols + " · " + p.coveredSafe + " covered · " + density + "% · score " + p.score.toFixed(1) + " · " + passBits.join(" ");
 	head.appendChild(meta);
 	card.appendChild(head);
 

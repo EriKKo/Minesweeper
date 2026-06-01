@@ -27,8 +27,40 @@ db.exec(
 	"  token TEXT PRIMARY KEY," +
 	"  user_id INTEGER NOT NULL," +
 	"  created_at INTEGER NOT NULL" +
-	");"
+	");" +
+	"CREATE TABLE IF NOT EXISTS puzzles (" +
+	"  id INTEGER PRIMARY KEY," +
+	"  canonical_key TEXT NOT NULL UNIQUE," +
+	"  rows INTEGER NOT NULL," +
+	"  cols INTEGER NOT NULL," +
+	"  mines TEXT NOT NULL," +
+	"  revealed TEXT NOT NULL," +
+	"  covered_safe INTEGER NOT NULL," +
+	"  difficulty INTEGER NOT NULL," +
+	"  score REAL NOT NULL," +
+	"  rating INTEGER NOT NULL," +
+	"  trivial_passes INTEGER NOT NULL DEFAULT 0," +
+	"  subset_passes INTEGER NOT NULL DEFAULT 0," +
+	"  enum_passes INTEGER NOT NULL DEFAULT 0," +
+	"  max_enum_size INTEGER NOT NULL DEFAULT 0," +
+	"  attempts INTEGER NOT NULL DEFAULT 0," +
+	"  solves INTEGER NOT NULL DEFAULT 0," +
+	"  created_at INTEGER NOT NULL" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_puzzles_difficulty ON puzzles(difficulty);" +
+	"CREATE INDEX IF NOT EXISTS idx_puzzles_rating ON puzzles(rating);"
 );
+
+// Schema migration: add per-user puzzle-rating columns if missing. Each
+// ALTER TABLE will throw "duplicate column" the second time around — that's
+// expected, swallow it.
+function addColumnIfMissing(table, column, definition) {
+	try { db.exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition); }
+	catch (e) { if (!/duplicate column/i.test(e.message)) throw e; }
+}
+addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 800");
+addColumnIfMissing("users", "puzzles_solved", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "puzzles_attempted", "INTEGER NOT NULL DEFAULT 0");
 
 function upsertUser(provider, providerId, name, avatarUrl) {
 	providerId = String(providerId);
@@ -73,6 +105,101 @@ function topPlayers(limit) {
 	return db.prepare("SELECT name, rating, wins, played FROM users ORDER BY rating DESC LIMIT ?").all(limit || 20);
 }
 
+// Map our continuous solver score (1.0 .. ~30) to a chess-style puzzle
+// rating. Power curve gives diminishing rating gain at high score (going
+// from 20 → 21 should feel like a small bump; going from 1 → 2 is a real
+// step up). The constants put a default player (rating 800) just above the
+// "single trivial click" puzzle (~750) so a fresh account is matched to
+// easy puzzles, and the curve climbs through ~1300 (subset), ~1800 (light
+// enum), to ~3000+ (deep case analysis).
+function scoreToRating(score) {
+	if (!score || score <= 0) return 500;
+	return Math.round(400 + 350 * Math.pow(score, 0.6));
+}
+
+function insertPuzzle(p) {
+	var info = db.prepare(
+		"INSERT OR IGNORE INTO puzzles " +
+		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
+		" trivial_passes, subset_passes, enum_passes, max_enum_size, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	).run(
+		p.key, p.rows, p.cols,
+		JSON.stringify(p.mines), JSON.stringify(p.revealed),
+		p.coveredSafe, p.difficulty, p.score, scoreToRating(p.score),
+		(p.passes && p.passes.trivial) || 0,
+		(p.passes && p.passes.subset) || 0,
+		(p.passes && p.passes.enum) || 0,
+		p.maxEnumSize || 0,
+		Date.now()
+	);
+	return info.changes > 0;
+}
+
+function deserializePuzzle(row) {
+	return {
+		id: row.id,
+		key: row.canonical_key,
+		rows: row.rows,
+		cols: row.cols,
+		mines: JSON.parse(row.mines),
+		revealed: JSON.parse(row.revealed),
+		coveredSafe: row.covered_safe,
+		difficulty: row.difficulty,
+		score: row.score,
+		rating: row.rating,
+		passes: {
+			trivial: row.trivial_passes,
+			subset: row.subset_passes,
+			enum: row.enum_passes
+		},
+		maxEnumSize: row.max_enum_size,
+		attempts: row.attempts,
+		solves: row.solves
+	};
+}
+
+function listPuzzles(opts) {
+	opts = opts || {};
+	var clauses = [];
+	var params = [];
+	if (opts.difficulty >= 1 && opts.difficulty <= 6) {
+		clauses.push("difficulty = ?");
+		params.push(opts.difficulty);
+	}
+	var sql = "SELECT * FROM puzzles";
+	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	sql += " ORDER BY score ASC LIMIT ?";
+	params.push(opts.limit || 1000);
+	var stmt = db.prepare(sql);
+	return stmt.all.apply(stmt, params).map(deserializePuzzle);
+}
+
+function puzzleCount() {
+	return db.prepare("SELECT COUNT(*) AS n FROM puzzles").get().n;
+}
+
+function clearPuzzles() {
+	db.exec("DELETE FROM puzzles");
+}
+
+function getPuzzleById(id) {
+	var row = db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id);
+	return row ? deserializePuzzle(row) : null;
+}
+
+function updatePuzzleRating(puzzleId, newRating, solved) {
+	db.prepare(
+		"UPDATE puzzles SET rating = ?, attempts = attempts + 1, solves = solves + ? WHERE id = ?"
+	).run(newRating, solved ? 1 : 0, puzzleId);
+}
+
+function updateUserPuzzleRating(userId, newRating, solved) {
+	db.prepare(
+		"UPDATE users SET puzzle_rating = ?, puzzles_attempted = puzzles_attempted + 1, puzzles_solved = puzzles_solved + ? WHERE id = ?"
+	).run(newRating, solved ? 1 : 0, userId);
+}
+
 module.exports = {
 	upsertUser: upsertUser,
 	createSession: createSession,
@@ -80,5 +207,14 @@ module.exports = {
 	getUserById: getUserById,
 	updateRating: updateRating,
 	deleteSession: deleteSession,
-	topPlayers: topPlayers
+	topPlayers: topPlayers,
+	// Puzzles
+	scoreToRating: scoreToRating,
+	insertPuzzle: insertPuzzle,
+	listPuzzles: listPuzzles,
+	puzzleCount: puzzleCount,
+	clearPuzzles: clearPuzzles,
+	getPuzzleById: getPuzzleById,
+	updatePuzzleRating: updatePuzzleRating,
+	updateUserPuzzleRating: updateUserPuzzleRating
 };

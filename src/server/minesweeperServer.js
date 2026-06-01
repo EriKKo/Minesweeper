@@ -237,12 +237,11 @@ function finishLogin(res, userId) {
 	res.end();
 }
 
-// Puzzle pool: every successfully-generated puzzle is appended to this
-// in-memory array. The Puzzle Lab GETs the current pool; a separate POST
-// endpoint kicks off a generation job that runs in setImmediate chunks
-// so the request returns immediately and the pool fills in the background.
-var puzzlePool = [];
-var puzzlePoolKeys = new Set();
+// Puzzles live in SQLite (see db.js). The Lab GETs them via /api/puzzles;
+// POST /api/puzzles kicks off a background generation job that inserts new
+// puzzles into the DB in setImmediate chunks. The job runs against the
+// canonical-key UNIQUE constraint so duplicates are silently dropped at
+// the DB layer.
 var puzzleJob = null; // { id, target, diff, density, done, dupes, stalls, startedAt }
 var nextPuzzleJobId = 1;
 
@@ -277,9 +276,7 @@ function startPuzzleJob(target, diff, density) {
 		var added = 0;
 		for (var i = 0; i < batch.length; i++) {
 			var p = batch[i];
-			if (puzzlePoolKeys.has(p.key)) { job.dupes++; continue; }
-			puzzlePoolKeys.add(p.key);
-			puzzlePool.push(p);
+			if (!db.insertPuzzle(p)) { job.dupes++; continue; }
 			added++;
 			job.done++;
 			if (job.done >= job.target) break;
@@ -317,18 +314,15 @@ function servePuzzles(req, res, url) {
 		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density } }));
 		return;
 	}
-	// GET — return the pool (optionally filtered by diff).
+	// GET — return DB-backed puzzles (optionally filtered by diff).
 	var diff = parseInt(url.searchParams.get("diff"), 10);
-	var puzzles = (diff >= 1 && diff <= 6)
-		? puzzlePool.filter(function(p) { return p.difficulty === diff; })
-		: puzzlePool.slice();
+	var puzzles = db.listPuzzles({ difficulty: (diff >= 1 && diff <= 6) ? diff : null });
 	res.writeHead(200, { "Content-Type": "application/json" });
-	res.end(JSON.stringify({ puzzles: puzzles, pool: puzzlePool.length, job: puzzleJobStatus() }));
+	res.end(JSON.stringify({ puzzles: puzzles, pool: db.puzzleCount(), job: puzzleJobStatus() }));
 }
 
 function servePuzzlesClear(req, res) {
-	puzzlePool = [];
-	puzzlePoolKeys = new Set();
+	db.clearPuzzles();
 	puzzleJob = null;
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ ok: true }));
@@ -1586,7 +1580,10 @@ io.on("connection", function (socket) {
 			avatarUrl: user.avatar_url,
 			wins: user.wins,
 			played: user.played,
-			provisional: user.played < PROVISIONAL_GAMES
+			provisional: user.played < PROVISIONAL_GAMES,
+			puzzleRating: user.puzzle_rating,
+			puzzlesSolved: user.puzzles_solved,
+			puzzlesAttempted: user.puzzles_attempted
 		});
 		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
 		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
