@@ -358,6 +358,24 @@
 						</div>
 						<button id="solo_restart" class="btn btn-primary" type="button">New board</button>
 					</div>
+					<div id="puzzle_card" class="side-card" style="display:none">
+						<h3 class="side-title">Rated puzzle</h3>
+						<div class="solo-stats">
+							<div class="solo-stat">
+								<span class="solo-stat-label">Rating</span>
+								<span id="puzzle_hud_rating" class="solo-stat-value">—</span>
+							</div>
+							<div class="solo-stat">
+								<span class="solo-stat-label">Safe</span>
+								<span id="puzzle_hud_solved" class="solo-stat-value">0 / 0</span>
+							</div>
+							<div class="solo-stat">
+								<span class="solo-stat-label">Mines</span>
+								<span id="puzzle_hud_mines" class="solo-stat-value">0 / 0</span>
+							</div>
+						</div>
+						<button id="puzzle_back" class="btn btn-secondary" type="button">Back to lobby</button>
+					</div>
 				</aside>
 			</div>
 		</section>
@@ -567,6 +585,76 @@ socket.on("solo_rejected", function(data) {
 	exitSolo();
 });
 
+// Rated puzzle board — same shape as solo_board, just driven by the server's
+// puzzle picker. Mounts into the game view with puzzle-mode chrome (rating
+// header instead of timer + mine count).
+socket.on("puzzle_board", function(data) {
+	rows = data.rows;
+	cols = data.cols;
+	puzzleSession = {
+		puzzleId: data.puzzleId,
+		totalSafe: data.totalSafe,
+		totalMines: data.mines,
+		playerRating: data.playerRating,
+		startedAt: Date.now(),
+		finished: false
+	};
+	installBoardDecoder(data.boardData, data.boardMask, rows, cols);
+	myState = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		myState[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
+	}
+	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
+	prevPlayerState = cloneState(myState);
+	resetBoardAnimations();
+	frozenUntil = 0;
+	roundResultShown = false;
+	focusedR = Math.floor(rows / 2);
+	focusedC = Math.floor(cols / 2);
+	focusVisible = false;
+	lastFinished = {};
+	cellAnims = {};
+	hideOverlay();
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+	hideAllViews();
+	gameView.style.display = "";
+	gameView.classList.add("puzzle");
+	togglePuzzleChrome(true);
+	updatePuzzleHud();
+	renderPlayerBoard();
+	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+});
+
+socket.on("puzzle_result", function(data) {
+	if (!puzzleSession) return;
+	puzzleSession.finished = true;
+	puzzleSession.result = data;
+	if (account) {
+		account.puzzleRating = data.playerAfter;
+		account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
+		if (data.solved) account.puzzlesSolved = (account.puzzlesSolved || 0) + 1;
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	}
+	updatePuzzleHud();
+	showPuzzleOutcome(data);
+});
+
+socket.on("puzzle_error", function(data) {
+	var reason = (data && data.reason) || "unknown";
+	showLobbyMessage(
+		reason === "auth_required" ? "Sign in to play rated puzzles." :
+		reason === "no_puzzles" ? "No puzzles available yet — head to the Lab to generate some." :
+		"Couldn't load a puzzle: " + reason
+	);
+	exitPuzzle();
+});
+
 socket.on("solo_board", function(data) {
 	rows = data.rows;
 	cols = data.cols;
@@ -721,6 +809,10 @@ document.getElementById("open_puzzles_button").addEventListener("click", functio
 	location.hash = "#/puzzles/play";
 });
 
+document.getElementById("puzzle_back").addEventListener("click", function() {
+	location.hash = "#/";
+});
+
 document.getElementById("create_room_button").addEventListener("click", function() {
 	socket.emit("create_room");
 });
@@ -828,8 +920,6 @@ var leaderboardFullList = document.getElementById("leaderboard_full_list");
 socket.on("auth_failed", applyAuthFailed);
 socket.on("name_rejected", applyNameRejected);
 socket.on("name_accepted", applyNameAccepted);
-
-bindPuzzlePlaySocket();
 
 socket.on("room_list", function(data) {
 	renderRoomList(data.rooms || []);

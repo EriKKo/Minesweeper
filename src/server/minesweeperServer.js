@@ -245,6 +245,78 @@ function finishLogin(res, userId) {
 var puzzleJob = null; // { id, target, diff, density, done, dupes, stalls, startedAt }
 var nextPuzzleJobId = 1;
 
+// Active Rated-mode puzzle plays. Keyed by playerID — one in-flight puzzle
+// per socket. Each entry holds the puzzle row, the gameCreator-built game
+// (the authoritative state), and the user's pre-attempt rating so the Elo
+// update at the end is symmetric (player vs. puzzle as it was at start).
+var puzzlePlay = {};
+
+function startPuzzlePlay(socket, playerID, user, puzzle) {
+	// Build the full board: -1 (MINE sentinel) where the puzzle's mine list
+	// says, otherwise a clue count.
+	var board = puzzleGen.buildBoard(puzzle.rows, puzzle.cols, puzzle.mines);
+	var template = {
+		board: board,
+		numMines: puzzle.mines.length,
+		knownCells: puzzle.revealed.slice()
+	};
+	var game = gameCreator.createGame(puzzle.mines.length, puzzle.rows, puzzle.cols);
+	game.playerName = user.name;
+	game.init(template);
+	game.playing = true;
+	game.win = function() { finalizePuzzle(socket, playerID, true); };
+	game.mineHit = function() { finalizePuzzle(socket, playerID, false); };
+
+	puzzlePlay[playerID] = {
+		puzzleId: puzzle.id,
+		userId: user.id,
+		game: game,
+		playerBefore: user.puzzle_rating,
+		puzzleBefore: puzzle.rating,
+		startedAt: Date.now()
+	};
+
+	var obf = obfuscateBoard(board, puzzle.rows, puzzle.cols);
+	socket.emit("puzzle_board", {
+		puzzleId: puzzle.id,
+		rows: puzzle.rows,
+		cols: puzzle.cols,
+		mines: puzzle.mines.length,
+		totalSafe: puzzle.rows * puzzle.cols - puzzle.mines.length,
+		knownCells: puzzle.revealed,
+		boardData: obf.data,
+		boardMask: obf.mask,
+		playerRating: user.puzzle_rating,
+		solved: user.puzzles_solved,
+		attempted: user.puzzles_attempted
+	});
+}
+
+function finalizePuzzle(socket, playerID, solved) {
+	var pp = puzzlePlay[playerID];
+	if (!pp) return;
+	delete puzzlePlay[playerID];
+	pp.game.playing = false;
+	var playerAfter = db.eloUpdate(pp.playerBefore, pp.puzzleBefore, 20, solved ? 1 : 0);
+	var puzzleAfter = db.eloUpdate(pp.puzzleBefore, pp.playerBefore, 10, solved ? 0 : 1);
+	db.updateUserPuzzleRating(pp.userId, playerAfter, solved);
+	db.updatePuzzleRating(pp.puzzleId, puzzleAfter, solved);
+	db.recordAttempt({
+		userId: pp.userId, puzzleId: pp.puzzleId, solved: solved,
+		playerBefore: pp.playerBefore, playerAfter: playerAfter,
+		puzzleBefore: pp.puzzleBefore, puzzleAfter: puzzleAfter
+	});
+	socket.emit("puzzle_result", {
+		puzzleId: pp.puzzleId,
+		solved: solved,
+		playerBefore: pp.playerBefore,
+		playerAfter: playerAfter,
+		playerDelta: playerAfter - pp.playerBefore,
+		puzzleBefore: pp.puzzleBefore,
+		puzzleAfter: puzzleAfter
+	});
+}
+
 function startPuzzleJob(target, diff, density) {
 	var job = {
 		id: nextPuzzleJobId++,
@@ -1637,10 +1709,13 @@ io.on("connection", function (socket) {
 		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
 	});
 
-	// Rated puzzle play: server picks the next puzzle near the user's rating
-	// (avoiding recent repeats), the client plays it locally, then submits
-	// the outcome and gets the Elo delta back. Auth required — guests can
-	// still browse the Lab but Rated mode needs an account to track rating.
+	// Rated puzzle play. Architecturally identical to the multiplayer / solo
+	// flow: server constructs a real gameCreator game with the puzzle's
+	// mine layout, ships the obfuscated board, and validates every click
+	// via the shared left_click / right_click handlers (which branch below
+	// to route to puzzlePlay[playerID] when present). The outcome is
+	// decided by game.win / game.mineHit firing server-side — clients can't
+	// fake a solve. Auth required.
 	socket.on("puzzle_next", function() {
 		var acc = accounts[playerID];
 		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
@@ -1649,51 +1724,14 @@ io.on("connection", function (socket) {
 		var recent = db.recentlyAttemptedPuzzleIds(u.id);
 		var puzzle = db.pickPuzzleNearRating(u.puzzle_rating, recent);
 		if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
-		// Don't leak rating/score/passes to the client during the solve —
-		// reveal them in the result. Keep id + the board data + dimensions.
-		socket.emit("puzzle_next", {
-			puzzle: {
-				id: puzzle.id,
-				rows: puzzle.rows,
-				cols: puzzle.cols,
-				mines: puzzle.mines,
-				revealed: puzzle.revealed
-			},
-			playerRating: u.puzzle_rating,
-			solved: u.puzzles_solved,
-			attempted: u.puzzles_attempted
-		});
+		// If a stale puzzle is still active for this socket, finalize it as a
+		// loss before serving the new one.
+		if (puzzlePlay[playerID]) finalizePuzzle(socket, playerID, false);
+		startPuzzlePlay(socket, playerID, u, puzzle);
 	});
 
-	socket.on("puzzle_attempt", function(data) {
-		var acc = accounts[playerID];
-		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
-		var u = db.getUserById(acc.userId);
-		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
-		var puzzleId = data && data.puzzleId;
-		var solved = !!(data && data.solved);
-		var puzzle = puzzleId ? db.getPuzzleById(puzzleId) : null;
-		if (!puzzle) { socket.emit("puzzle_error", { reason: "not_found" }); return; }
-		var playerBefore = u.puzzle_rating;
-		var puzzleBefore = puzzle.rating;
-		var playerAfter = db.eloUpdate(playerBefore, puzzleBefore, 20, solved ? 1 : 0);
-		var puzzleAfter = db.eloUpdate(puzzleBefore, playerBefore, 10, solved ? 0 : 1);
-		db.updateUserPuzzleRating(u.id, playerAfter, solved);
-		db.updatePuzzleRating(puzzle.id, puzzleAfter, solved);
-		db.recordAttempt({
-			userId: u.id, puzzleId: puzzle.id, solved: solved,
-			playerBefore: playerBefore, playerAfter: playerAfter,
-			puzzleBefore: puzzleBefore, puzzleAfter: puzzleAfter
-		});
-		socket.emit("puzzle_result", {
-			puzzleId: puzzle.id,
-			solved: solved,
-			playerBefore: playerBefore,
-			playerAfter: playerAfter,
-			playerDelta: playerAfter - playerBefore,
-			puzzleBefore: puzzleBefore,
-			puzzleAfter: puzzleAfter
-		});
+	socket.on("puzzle_abandon", function() {
+		if (puzzlePlay[playerID]) finalizePuzzle(socket, playerID, false);
 	});
 
 	// Solo-mode primitive: generate a fresh no-guess board on demand and ship
@@ -1874,6 +1912,12 @@ io.on("connection", function (socket) {
 	});
 
 	socket.on("right_click", function (data) {
+		var pp = puzzlePlay[playerID];
+		if (pp) {
+			if (!pp.game.playing) return;
+			pp.game.handleRightClick(data.r, data.c);
+			return;
+		}
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
 		var game = games[playerID];
@@ -1883,6 +1927,12 @@ io.on("connection", function (socket) {
 	});
 
 	socket.on("left_click", function(data) {
+		var pp = puzzlePlay[playerID];
+		if (pp) {
+			if (!pp.game.playing) return;
+			pp.game.handleLeftClick(data.r, data.c);
+			return;
+		}
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
 		var game = games[playerID];
@@ -1895,6 +1945,11 @@ io.on("connection", function (socket) {
 		dequeueRanked(playerID);
 		if (roomMapping[playerID]) {
 			removePlayerFromRoom(playerID);
+		}
+		if (puzzlePlay[playerID]) {
+			// Mid-puzzle disconnect counts as a fail — same as bailing on a
+			// ranked match.
+			finalizePuzzle(socket, playerID, false);
 		}
 		delete sockets[playerID];
 		delete names[playerID];

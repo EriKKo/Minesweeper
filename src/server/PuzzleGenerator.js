@@ -492,3 +492,4 @@ function analyzeWithTracking(board, revealedList, numMines) {
 
 exports.generatePuzzles = generatePuzzles;
 exports.canonicalKey = canonicalKey;
+exports.buildBoard = buildBoard;

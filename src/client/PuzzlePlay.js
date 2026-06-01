@@ -1,31 +1,23 @@
 // Rated puzzle play view.
 //
-// Loop: ask server for next puzzle near our rating → render via the Learn
-// puzzle widget → on solve/fail emit `puzzle_attempt`, server replies with
-// the Elo delta → show result panel with "Next" button. Server picks the
-// puzzle and computes ratings — the client just renders and submits.
+// Architecturally identical to Solo: ask the server for a puzzle, receive
+// the obfuscated board, render it in the standard game view via the same
+// canvas + Input.js stack. Every click goes to the server (left_click /
+// right_click) — server validates against the real game state and decides
+// outcome via game.win / game.mineHit. No client-trusted "I solved it".
 
-var puzzlePlayState = {
-	current: null,        // server-returned puzzle data { id, rows, cols, mines, revealed }
-	playerRating: null,
-	streak: 0,
-	waiting: false        // gate between submit and server reply so we don't double-submit
-};
+var puzzleSession = null;  // { puzzleId, totalSafe, totalMines, playerRating, startedAt, finished, result }
 
+// Show the puzzle play view: trigger a server-side pick. The server responds
+// with `puzzle_board`, which routes us into the game view in puzzle chrome.
 function renderPuzzlePlay() {
 	var view = document.getElementById("puzzle_play_view");
 	if (!view) return;
 	view.innerHTML = "";
-
 	var title = document.createElement("h1");
 	title.className = "section-page-title";
 	title.textContent = "Rated puzzles";
 	view.appendChild(title);
-
-	var sub = document.createElement("p");
-	sub.className = "section-page-sub";
-	sub.textContent = "Solve puzzles near your rating. Solve to gain rating, miss to lose some — the puzzle's rating moves too. The puzzle's rating is hidden until you finish.";
-	view.appendChild(sub);
 
 	if (!account) {
 		var msg = document.createElement("p");
@@ -34,153 +26,104 @@ function renderPuzzlePlay() {
 		view.appendChild(msg);
 		return;
 	}
-
-	var header = document.createElement("div");
-	header.className = "puzzle-play-header";
-	header.id = "puzzle_play_header";
-	view.appendChild(header);
-
-	var board = document.createElement("div");
-	board.id = "puzzle_play_board";
-	board.className = "puzzle-play-board";
-	view.appendChild(board);
-
-	var result = document.createElement("div");
-	result.id = "puzzle_play_result";
-	result.className = "puzzle-play-result";
-	result.style.display = "none";
-	view.appendChild(result);
-
-	renderPlayHeader();
-	requestNextPuzzle();
-}
-
-function renderPlayHeader() {
-	var header = document.getElementById("puzzle_play_header");
-	if (!header) return;
-	header.innerHTML = "";
-	var rating = document.createElement("span");
-	rating.className = "puzzle-play-rating";
-	rating.textContent = "Your rating: " + (puzzlePlayState.playerRating != null ? puzzlePlayState.playerRating : "—");
-	header.appendChild(rating);
-	if (puzzlePlayState.streak > 0) {
-		var streak = document.createElement("span");
-		streak.className = "puzzle-play-streak";
-		streak.textContent = "Streak: " + puzzlePlayState.streak;
-		header.appendChild(streak);
-	}
-}
-
-function requestNextPuzzle() {
-	var result = document.getElementById("puzzle_play_result");
-	if (result) result.style.display = "none";
-	var board = document.getElementById("puzzle_play_board");
-	if (board) {
-		board.innerHTML = "";
-		var loading = document.createElement("p");
-		loading.className = "puzzle-play-loading";
-		loading.textContent = "Finding a puzzle near your rating…";
-		board.appendChild(loading);
-	}
+	var loading = document.createElement("p");
+	loading.className = "puzzle-play-empty";
+	loading.textContent = "Finding a puzzle near your rating…";
+	view.appendChild(loading);
 	socket.emit("puzzle_next");
 }
 
-function showPuzzlePlayBoard(puzzle) {
-	puzzlePlayState.current = puzzle;
-	puzzlePlayState.waiting = false;
-	var board = document.getElementById("puzzle_play_board");
-	if (!board) return;
-	board.innerHTML = "";
-	var pseudo = {
-		title: "",
-		rows: puzzle.rows,
-		cols: puzzle.cols,
-		mines: puzzle.mines,
-		revealed: puzzle.revealed
-	};
-	board.appendChild(buildLearnPuzzle(pseudo, false,
-		function() { submitPuzzleAttempt(true); },
-		function() { submitPuzzleAttempt(false); }
-	));
-}
-
-function submitPuzzleAttempt(solved) {
-	if (puzzlePlayState.waiting || !puzzlePlayState.current) return;
-	puzzlePlayState.waiting = true;
-	socket.emit("puzzle_attempt", {
-		puzzleId: puzzlePlayState.current.id,
-		solved: solved
-	});
-}
-
-function showPuzzleResult(result) {
-	puzzlePlayState.waiting = false;
-	puzzlePlayState.streak = result.solved ? puzzlePlayState.streak + 1 : 0;
-	puzzlePlayState.playerRating = result.playerAfter;
-	renderPlayHeader();
-
-	if (account) {
-		account.puzzleRating = result.playerAfter;
-		account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
-		if (result.solved) account.puzzlesSolved = (account.puzzlesSolved || 0) + 1;
-		renderHomePuzzleCard();
+function exitPuzzle() {
+	puzzleSession = null;
+	togglePuzzleChrome(false);
+	if (gameView) {
+		gameView.classList.remove("puzzle");
 	}
+	hideOverlay();
+	myState = null;
+	prevPlayerState = null;
+	boardDecoder = null;
+	location.hash = "#/";
+}
 
-	var box = document.getElementById("puzzle_play_result");
-	if (!box) return;
-	box.style.display = "";
-	box.innerHTML = "";
-	box.classList.toggle("puzzle-play-result-ok", result.solved);
-	box.classList.toggle("puzzle-play-result-fail", !result.solved);
+function togglePuzzleChrome(on) {
+	var card = document.getElementById("puzzle_card");
+	if (card) card.style.display = on ? "" : "none";
+	if (allOpponentsDiv) allOpponentsDiv.style.display = on ? "none" : "";
+	var scoreboardCard = document.getElementById("scoreboard_card");
+	if (scoreboardCard) scoreboardCard.style.display = on ? "none" : "";
+	if (seriesCard) seriesCard.style.display = on ? "none" : "";
+	if (botsCard) botsCard.style.display = on ? "none" : "";
+	var rankedTagEl = document.getElementById("ranked_tag");
+	if (rankedTagEl) rankedTagEl.style.display = "none";
+	var soloCard = document.getElementById("solo_card");
+	if (soloCard) soloCard.style.display = "none";
+}
 
-	var headline = document.createElement("div");
-	headline.className = "puzzle-play-result-headline";
+function updatePuzzleHud() {
+	if (!puzzleSession) return;
+	var ratingEl = document.getElementById("puzzle_hud_rating");
+	var solvedEl = document.getElementById("puzzle_hud_solved");
+	var minesEl = document.getElementById("puzzle_hud_mines");
+	if (ratingEl) ratingEl.textContent = puzzleSession.playerRating;
+	if (solvedEl) {
+		var total = puzzleSession.totalSafe;
+		var revealed = 0;
+		if (myState) for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+			if (myState[r][c] === KNOWN) revealed++;
+		}
+		solvedEl.textContent = revealed + " / " + total;
+	}
+	if (minesEl) {
+		var flagged = 0;
+		if (myState) for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
+			if (myState[r2][c2] === FLAGGED) flagged++;
+		}
+		minesEl.textContent = flagged + " / " + puzzleSession.totalMines;
+	}
+}
+
+function showPuzzleOutcome(result) {
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	header.textContent = result.solved ? "Solved!" : "Mine hit";
+	panel.appendChild(header);
+
 	var delta = result.playerDelta;
-	var deltaText = (delta > 0 ? "+" : "") + delta;
-	headline.textContent = (result.solved ? "Solved · " : "Missed · ") + deltaText;
-	box.appendChild(headline);
+	var deltaLine = document.createElement("div");
+	deltaLine.className = "tournament-place";
+	deltaLine.style.color = result.solved ? "#4ade80" : "#f87171";
+	deltaLine.textContent = (delta > 0 ? "+" : "") + delta + " rating";
+	panel.appendChild(deltaLine);
 
-	var detail = document.createElement("p");
-	detail.className = "puzzle-play-result-detail";
+	var detail = document.createElement("div");
+	detail.className = "result-foot";
 	detail.textContent =
-		"Your rating: " + result.playerBefore + " → " + result.playerAfter +
-		" · Puzzle rating: " + result.puzzleBefore + " → " + result.puzzleAfter;
-	box.appendChild(detail);
+		"You: " + result.playerBefore + " → " + result.playerAfter +
+		" · Puzzle: " + result.puzzleBefore + " → " + result.puzzleAfter;
+	panel.appendChild(detail);
 
 	var actions = document.createElement("div");
-	actions.className = "puzzle-play-result-actions";
+	actions.className = "result-actions";
+
 	var next = document.createElement("button");
 	next.className = "btn btn-primary";
 	next.textContent = "Next puzzle";
-	next.addEventListener("click", requestNextPuzzle);
+	next.addEventListener("click", function() {
+		hideOverlay();
+		socket.emit("puzzle_next");
+	});
 	actions.appendChild(next);
-	box.appendChild(actions);
-}
 
-function bindPuzzlePlaySocket() {
-	socket.on("puzzle_next", function(data) {
-		puzzlePlayState.playerRating = data.playerRating;
-		renderPlayHeader();
-		showPuzzlePlayBoard(data.puzzle);
-	});
-	socket.on("puzzle_result", function(data) {
-		showPuzzleResult(data);
-	});
-	socket.on("puzzle_error", function(data) {
-		puzzlePlayState.waiting = false;
-		var board = document.getElementById("puzzle_play_board");
-		if (!board) return;
-		board.innerHTML = "";
-		var p = document.createElement("p");
-		p.className = "puzzle-play-empty";
-		var reason = data && data.reason;
-		if (reason === "auth_required") p.textContent = "Sign in to play rated puzzles.";
-		else if (reason === "no_puzzles") p.textContent = "No puzzles available yet — head to the Lab to generate some.";
-		else p.textContent = "Couldn't load a puzzle: " + reason;
-		board.appendChild(p);
-	});
-}
+	var back = document.createElement("button");
+	back.className = "btn btn-secondary";
+	back.textContent = "Back home";
+	back.addEventListener("click", exitPuzzle);
+	actions.appendChild(back);
 
-function renderHomePuzzleCard() {
-	if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	panel.appendChild(actions);
+	presentPanel(panel, result.solved ? "win" : "lose");
 }

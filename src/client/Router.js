@@ -125,6 +125,31 @@ function applyRouteFromHash() {
 		socket.emit("leave_room");
 		return;
 	}
+	if (puzzleSession && !puzzleSession.finished) {
+		if (!confirm("Leaving now counts as a loss. Are you sure you want to leave?")) {
+			suppressNextRoute = true;
+			location.hash = lastAppliedHash || "#/";
+			return;
+		}
+		// Tell the server we're abandoning; it will finalize as a loss.
+		socket.emit("puzzle_abandon");
+		togglePuzzleChrome(false);
+		if (gameView) gameView.classList.remove("puzzle");
+		puzzleSession = null;
+		hideOverlay();
+		myState = null;
+		prevPlayerState = null;
+		boardDecoder = null;
+	} else if (puzzleSession && puzzleSession.finished) {
+		// Already-finalized puzzle (e.g. game-over overlay showing) — silent cleanup.
+		togglePuzzleChrome(false);
+		if (gameView) gameView.classList.remove("puzzle");
+		puzzleSession = null;
+		hideOverlay();
+		myState = null;
+		prevPlayerState = null;
+		boardDecoder = null;
+	}
 	if (soloSession) {
 		soloSession = null;
 		stopSoloTimer();

@@ -69,7 +69,9 @@ function applyLocalLeftClick(r, c) {
 
 function performAction(r, c, asFlag) {
 	if (soloSession) return performSoloAction(r, c, asFlag);
-	if (!inRoom || !currentRoom || currentRoom.phase !== "playing") return;
+	var inMultiplayer = inRoom && currentRoom && currentRoom.phase === "playing";
+	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession && !puzzleSession.finished;
+	if (!inMultiplayer && !inPuzzle) return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	focusedR = r;
@@ -98,12 +100,13 @@ function performAction(r, c, asFlag) {
 			queueRevealAnimations(myState);
 			prevPlayerState = cloneState(myState);
 		}
-		if (result.hitMine && currentRoom && currentRoom.deathPenalty) {
+		if (result.hitMine && inMultiplayer && currentRoom.deathPenalty) {
 			frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
 			startFreezeTick();
 		}
 		socket.emit("left_click", { r: r, c: c, id: id });
 	}
+	if (inPuzzle) updatePuzzleHud();
 	redrawOwnBoardWithFocus();
 }
 
