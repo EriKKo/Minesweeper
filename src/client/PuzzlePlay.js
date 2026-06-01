@@ -35,6 +35,9 @@ function renderPuzzlePlay() {
 
 function exitPuzzle() {
 	puzzleSession = null;
+	if (puzzleFlashTimer) { clearTimeout(puzzleFlashTimer); puzzleFlashTimer = null; }
+	var flash = document.getElementById("puzzle_flash");
+	if (flash) { flash.style.display = "none"; flash.classList.remove("playing"); }
 	togglePuzzleChrome(false);
 	if (gameView) {
 		gameView.classList.remove("puzzle");
@@ -62,10 +65,9 @@ function togglePuzzleChrome(on) {
 
 function updatePuzzleHud() {
 	if (!puzzleSession) return;
-	var ratingEl = document.getElementById("puzzle_hud_rating");
 	var solvedEl = document.getElementById("puzzle_hud_solved");
 	var minesEl = document.getElementById("puzzle_hud_mines");
-	if (ratingEl) ratingEl.textContent = puzzleSession.playerRating;
+	renderPuzzleRank(puzzleSession.playerRating);
 	if (solvedEl) {
 		var total = puzzleSession.totalSafe;
 		var revealed = 0;
@@ -83,47 +85,111 @@ function updatePuzzleHud() {
 	}
 }
 
+// Puzzle-specific tier ladder. Wider bands than the ranked ladder so the
+// progression feels meaningful at the rate puzzle ratings change (K=20 means
+// ~10 points per solve at parity, so a 250-point band fills in ~25 puzzles).
+// Ratings start at 800, the top of generated puzzle ratings is ~3000, so the
+// ladder spans roughly that range.
+var PUZZLE_TIERS = [
+	{ name: "Novice",      start: 0,    color: "#94a3b8" },
+	{ name: "Apprentice",  start: 800,  color: "#d08b5b" },
+	{ name: "Skilled",     start: 1100, color: "#cbd5e1" },
+	{ name: "Advanced",    start: 1400, color: "#fbbf24" },
+	{ name: "Expert",      start: 1700, color: "#5eead4" },
+	{ name: "Master",      start: 2000, color: "#60a5fa" },
+	{ name: "Grandmaster", start: 2400, color: "#c084fc" }
+];
+
+function puzzleTierFor(rating) {
+	for (var i = PUZZLE_TIERS.length - 1; i >= 0; i--) {
+		if (rating >= PUZZLE_TIERS[i].start) {
+			var next = PUZZLE_TIERS[i + 1] || null;
+			return {
+				name: PUZZLE_TIERS[i].name,
+				color: PUZZLE_TIERS[i].color,
+				start: PUZZLE_TIERS[i].start,
+				end: next ? next.start : null,
+				next: next
+			};
+		}
+	}
+	return { name: PUZZLE_TIERS[0].name, color: PUZZLE_TIERS[0].color, start: 0, end: PUZZLE_TIERS[1].start, next: PUZZLE_TIERS[1] };
+}
+
+function renderPuzzleRank(rating) {
+	var tierEl = document.getElementById("puzzle_rank_tier");
+	var ratingEl = document.getElementById("puzzle_rank_rating");
+	var fillEl = document.getElementById("puzzle_rank_fill");
+	var progEl = document.getElementById("puzzle_rank_progress");
+	var nextEl = document.getElementById("puzzle_rank_next");
+	if (!tierEl || rating == null) return;
+
+	var info = puzzleTierFor(rating);
+	tierEl.textContent = info.name;
+	tierEl.style.color = info.color;
+	ratingEl.textContent = String(rating);
+
+	if (info.end == null) {
+		// Top tier — bar is full, no "next" label.
+		fillEl.style.width = "100%";
+		fillEl.style.background = info.color;
+		progEl.textContent = "Maxed";
+		nextEl.textContent = "";
+	} else {
+		var bandWidth = info.end - info.start;
+		var within = Math.max(0, Math.min(bandWidth, rating - info.start));
+		fillEl.style.width = (within / bandWidth * 100) + "%";
+		fillEl.style.background = info.color;
+		progEl.textContent = within + " / " + bandWidth;
+		nextEl.textContent = "→ " + info.next.name;
+	}
+}
+
+var puzzleFlashTimer = null;
+
+// Brief floating overlay over the board after solve/fail. Auto-fades and
+// auto-advances to the next puzzle — no modal, no blocking action.
+function flashPuzzleResult(result) {
+	var flash = document.getElementById("puzzle_flash");
+	if (!flash) return;
+	flash.className = "puzzle-flash " + (result.solved ? "puzzle-flash-solved" : "puzzle-flash-fail");
+	flash.style.display = "";
+	flash.innerHTML = "";
+
+	var icon = document.createElement("div");
+	icon.className = "puzzle-flash-icon";
+	icon.textContent = result.solved ? "✓" : "✗";
+	flash.appendChild(icon);
+
+	var label = document.createElement("div");
+	label.className = "puzzle-flash-label";
+	label.textContent = result.solved ? "Solved" : "Mine hit";
+	flash.appendChild(label);
+
+	var delta = document.createElement("div");
+	delta.className = "puzzle-flash-delta";
+	delta.textContent = (result.playerDelta > 0 ? "+" : "") + result.playerDelta;
+	flash.appendChild(delta);
+
+	// Trigger CSS animation by re-adding the class — toggle ensures the
+	// keyframes restart even if we flash twice in a row.
+	flash.classList.remove("playing");
+	void flash.offsetWidth; // force reflow
+	flash.classList.add("playing");
+
+	if (puzzleFlashTimer) clearTimeout(puzzleFlashTimer);
+	var holdMs = result.solved ? 1200 : 1600;
+	puzzleFlashTimer = setTimeout(function() {
+		flash.style.display = "none";
+		flash.classList.remove("playing");
+		// Auto-advance only if the user hasn't navigated away during the flash.
+		if (puzzleSession && puzzleSession.finished) {
+			socket.emit("puzzle_next");
+		}
+	}, holdMs);
+}
+
 function showPuzzleOutcome(result) {
-	var panel = document.createElement("div");
-	panel.className = "result-panel";
-
-	var header = document.createElement("div");
-	header.className = "result-header";
-	header.textContent = result.solved ? "Solved!" : "Mine hit";
-	panel.appendChild(header);
-
-	var delta = result.playerDelta;
-	var deltaLine = document.createElement("div");
-	deltaLine.className = "tournament-place";
-	deltaLine.style.color = result.solved ? "#4ade80" : "#f87171";
-	deltaLine.textContent = (delta > 0 ? "+" : "") + delta + " rating";
-	panel.appendChild(deltaLine);
-
-	var detail = document.createElement("div");
-	detail.className = "result-foot";
-	detail.textContent =
-		"You: " + result.playerBefore + " → " + result.playerAfter +
-		" · Puzzle: " + result.puzzleBefore + " → " + result.puzzleAfter;
-	panel.appendChild(detail);
-
-	var actions = document.createElement("div");
-	actions.className = "result-actions";
-
-	var next = document.createElement("button");
-	next.className = "btn btn-primary";
-	next.textContent = "Next puzzle";
-	next.addEventListener("click", function() {
-		hideOverlay();
-		socket.emit("puzzle_next");
-	});
-	actions.appendChild(next);
-
-	var back = document.createElement("button");
-	back.className = "btn btn-secondary";
-	back.textContent = "Back home";
-	back.addEventListener("click", exitPuzzle);
-	actions.appendChild(back);
-
-	panel.appendChild(actions);
-	presentPanel(panel, result.solved ? "win" : "lose");
+	// Replaces the old modal panel with the inline flash + auto-advance.
+	flashPuzzleResult(result);
 }

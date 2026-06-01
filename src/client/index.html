@@ -259,6 +259,7 @@
 								<canvas id="game0" width="500" height="350"></canvas>
 							</div>
 							<div id="board_overlay" class="board-overlay" style="display:none"></div>
+							<div id="puzzle_flash" class="puzzle-flash" style="display:none"></div>
 							<button id="find_next_arrow" class="find-next-arrow" type="button" aria-label="Pan to next unrevealed area">
 								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
 							</button>
@@ -360,11 +361,20 @@
 					</div>
 					<div id="puzzle_card" class="side-card" style="display:none">
 						<h3 class="side-title">Rated puzzle</h3>
-						<div class="solo-stats">
-							<div class="solo-stat">
-								<span class="solo-stat-label">Rating</span>
-								<span id="puzzle_hud_rating" class="solo-stat-value">—</span>
+						<div class="puzzle-rank">
+							<div class="puzzle-rank-row">
+								<span id="puzzle_rank_tier" class="puzzle-rank-tier">—</span>
+								<span id="puzzle_rank_rating" class="puzzle-rank-rating">—</span>
 							</div>
+							<div class="puzzle-rank-bar">
+								<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
+							</div>
+							<div class="puzzle-rank-foot">
+								<span id="puzzle_rank_progress">0 / 50</span>
+								<span id="puzzle_rank_next">→ —</span>
+							</div>
+						</div>
+						<div class="solo-stats puzzle-stats-secondary">
 							<div class="solo-stat">
 								<span class="solo-stat-label">Safe</span>
 								<span id="puzzle_hud_solved" class="solo-stat-value">0 / 0</span>
@@ -637,6 +647,7 @@ socket.on("puzzle_result", function(data) {
 	if (!puzzleSession) return;
 	puzzleSession.finished = true;
 	puzzleSession.result = data;
+	puzzleSession.playerRating = data.playerAfter;
 	if (account) {
 		account.puzzleRating = data.playerAfter;
 		account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;

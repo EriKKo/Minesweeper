@@ -710,6 +710,62 @@ main {
 .puzzle-play-result-fail .puzzle-play-result-headline { color: #f87171; }
 .puzzle-play-result-detail { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.9rem; }
 .puzzle-play-result-actions { display: flex; gap: 0.6rem; }
+
+/* Floating overlay shown briefly after a puzzle resolves. Positioned inside
+   .board-wrap so it sits centered over the board. */
+.puzzle-flash {
+	position: absolute;
+	top: 50%; left: 50%;
+	transform: translate(-50%, -50%);
+	padding: 1rem 1.6rem;
+	border-radius: 14px;
+	background: rgba(15, 23, 42, 0.92);
+	border: 2px solid var(--border);
+	text-align: center;
+	pointer-events: none;
+	z-index: 50;
+	opacity: 0;
+}
+.puzzle-flash.playing { animation: puzzleFlashPop 1.4s ease-out forwards; }
+.puzzle-flash-solved { border-color: rgba(74, 222, 128, 0.7); }
+.puzzle-flash-fail   { border-color: rgba(248, 113, 113, 0.7); }
+.puzzle-flash-icon   { font-size: 2.4rem; line-height: 1; margin-bottom: 0.3rem; }
+.puzzle-flash-solved .puzzle-flash-icon { color: #4ade80; }
+.puzzle-flash-fail   .puzzle-flash-icon { color: #f87171; }
+.puzzle-flash-label  { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.puzzle-flash-solved .puzzle-flash-label { color: #4ade80; }
+.puzzle-flash-fail   .puzzle-flash-label { color: #f87171; }
+.puzzle-flash-delta  { font-size: 1.8rem; font-weight: 800; margin-top: 0.3rem; }
+.puzzle-flash-solved .puzzle-flash-delta { color: #86efac; }
+.puzzle-flash-fail   .puzzle-flash-delta { color: #fca5a5; }
+@keyframes puzzleFlashPop {
+	0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+	14%  { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+	28%  { transform: translate(-50%, -50%) scale(1.00); opacity: 1; }
+	72%  { transform: translate(-50%, -50%) scale(1.00); opacity: 1; }
+	100% { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
+}
+
+/* Tier progress bar in the side card. */
+.puzzle-rank { margin-bottom: 1rem; }
+.puzzle-rank-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
+.puzzle-rank-tier { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.03em; }
+.puzzle-rank-rating { font-weight: 800; font-size: 1.4rem; color: var(--text); }
+.puzzle-rank-bar {
+	height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.18);
+	overflow: hidden; position: relative;
+}
+.puzzle-rank-fill {
+	height: 100%; width: 0%; border-radius: 999px;
+	background: var(--accent);
+	transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.puzzle-rank-foot {
+	display: flex; justify-content: space-between;
+	margin-top: 0.3rem;
+	font-size: 0.78rem; color: var(--muted);
+}
+.puzzle-stats-secondary { margin-top: 0.4rem; }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
 .puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }
 .puzzles-filter-chip {
