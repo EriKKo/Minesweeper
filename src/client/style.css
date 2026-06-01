@@ -735,9 +735,6 @@ main {
 .puzzle-flash-label  { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .puzzle-flash-solved .puzzle-flash-label { color: #4ade80; }
 .puzzle-flash-fail   .puzzle-flash-label { color: #f87171; }
-.puzzle-flash-delta  { font-size: 1.8rem; font-weight: 800; margin-top: 0.3rem; }
-.puzzle-flash-solved .puzzle-flash-delta { color: #86efac; }
-.puzzle-flash-fail   .puzzle-flash-delta { color: #fca5a5; }
 @keyframes puzzleFlashPop {
 	0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
 	14%  { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
@@ -751,6 +748,26 @@ main {
 .puzzle-rank-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
 .puzzle-rank-tier { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.03em; }
 .puzzle-rank-rating { font-weight: 800; font-size: 1.4rem; color: var(--text); }
+.puzzle-rank-rating-wrap { position: relative; display: inline-flex; align-items: baseline; gap: 0.4rem; }
+.puzzle-rank-delta {
+	position: absolute;
+	left: 100%; top: 50%;
+	transform: translate(0.5rem, -50%);
+	font-weight: 800; font-size: 1rem;
+	opacity: 0;
+	pointer-events: none;
+	white-space: nowrap;
+}
+.puzzle-rank-delta.gain { color: #4ade80; }
+.puzzle-rank-delta.loss { color: #f87171; }
+.puzzle-rank-delta.flat { color: var(--muted); }
+.puzzle-rank-delta.playing { animation: puzzleRankDelta 1.4s ease-out forwards; }
+@keyframes puzzleRankDelta {
+	0%   { opacity: 0; transform: translate(0.5rem, -10%); }
+	15%  { opacity: 1; transform: translate(0.5rem, -50%); }
+	75%  { opacity: 1; transform: translate(0.5rem, -90%); }
+	100% { opacity: 0; transform: translate(0.5rem, -130%); }
+}
 .puzzle-rank-bar {
 	height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.18);
 	overflow: hidden; position: relative;

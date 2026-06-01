@@ -15,16 +15,21 @@ function sizeBoardCanvas(canvas, cellPx) {
 // Fixed board area for the rated-puzzle view so the page layout doesn't
 // jump as different-sized puzzles load. Cells scale to fit the larger
 // dimension, smaller dimension is centered in the box via flex on
-// .board-scroll (see style.css).
+// .board-scroll (see style.css). Cell size is capped — at the unbounded
+// 480/max(rows,cols), a 4×4 would render at 120-px cells, ~3.5× the
+// multiplayer cell, which looks oversized against itself.
 var PUZZLE_BOARD_PX = 480;
 var PUZZLE_BOARD_PX_MOBILE = 320;
+var PUZZLE_CELL_MAX = 75;
+var PUZZLE_CELL_MAX_MOBILE = 56;
 
 function sizePlayerCanvas() {
 	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession;
 	var cellPx;
 	if (inPuzzle) {
 		var target = mobileLayout ? PUZZLE_BOARD_PX_MOBILE : PUZZLE_BOARD_PX;
-		cellPx = Math.floor(target / Math.max(rows, cols));
+		var cap = mobileLayout ? PUZZLE_CELL_MAX_MOBILE : PUZZLE_CELL_MAX;
+		cellPx = Math.min(cap, Math.floor(target / Math.max(rows, cols)));
 	} else {
 		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : PLAYER_CELL;
 	}

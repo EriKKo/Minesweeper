@@ -134,7 +134,9 @@ function renderPuzzleRank(rating) {
 var puzzleFlashTimer = null;
 
 // Brief floating overlay over the board after solve/fail. Auto-fades and
-// auto-advances to the next puzzle — no modal, no blocking action.
+// auto-advances to the next puzzle — no modal, no blocking action. The
+// rating delta lives on the progress bar (floats up next to the rating),
+// not in the flash, so the eye is already drawn to the bar as it animates.
 function flashPuzzleResult(result) {
 	var flash = document.getElementById("puzzle_flash");
 	if (!flash) return;
@@ -152,27 +154,34 @@ function flashPuzzleResult(result) {
 	label.textContent = result.solved ? "Solved" : "Mine hit";
 	flash.appendChild(label);
 
-	var delta = document.createElement("div");
-	delta.className = "puzzle-flash-delta";
-	delta.textContent = (result.playerDelta > 0 ? "+" : "") + result.playerDelta;
-	flash.appendChild(delta);
-
-	// Trigger CSS animation by re-adding the class — toggle ensures the
-	// keyframes restart even if we flash twice in a row.
+	// Re-trigger the CSS keyframes by toggling the class.
 	flash.classList.remove("playing");
-	void flash.offsetWidth; // force reflow
+	void flash.offsetWidth;
 	flash.classList.add("playing");
+
+	flashPuzzleDelta(result.playerDelta);
 
 	if (puzzleFlashTimer) clearTimeout(puzzleFlashTimer);
 	var holdMs = result.solved ? 1200 : 1600;
 	puzzleFlashTimer = setTimeout(function() {
 		flash.style.display = "none";
 		flash.classList.remove("playing");
-		// Auto-advance only if the user hasn't navigated away during the flash.
 		if (puzzleSession && puzzleSession.finished) {
 			socket.emit("puzzle_next");
 		}
 	}, holdMs);
+}
+
+// Float a "+13" / "-6" badge next to the rating; pairs visually with the
+// bar fill sliding to its new width.
+function flashPuzzleDelta(delta) {
+	var el = document.getElementById("puzzle_rank_delta");
+	if (!el) return;
+	el.textContent = (delta > 0 ? "+" : "") + delta;
+	el.className = "puzzle-rank-delta " + (delta > 0 ? "gain" : delta < 0 ? "loss" : "flat");
+	el.classList.remove("playing");
+	void el.offsetWidth;
+	el.classList.add("playing");
 }
 
 function showPuzzleOutcome(result) {
