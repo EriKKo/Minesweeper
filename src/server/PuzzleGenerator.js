@@ -15,7 +15,11 @@
 // difficulty, passes } so the caller can sort / bucket / display.
 
 var BoardLogic = require("../common/BoardLogic");
+var puzzleSolver = require("./PuzzleSolver");
 var MINE = BoardLogic.MINE;
+var KNOWN = BoardLogic.KNOWN;
+var UNKNOWN = BoardLogic.UNKNOWN;
+var FLAGGED = BoardLogic.FLAGGED;
 
 function generatePuzzles(opts) {
 	opts = opts || {};
@@ -253,201 +257,45 @@ function cascadeFrom(board, start) {
 // If the puzzle isn't fully solved by these passes, the frontier was too
 // big to enumerate (>ENUM_CAP=18 cells) OR the puzzle genuinely needs a
 // guess. Both cases get rejected upstream — those puzzles are never shown.
-var ENUM_CAP = 18;
 
 function analyzeWithTracking(board, revealedList, numMines) {
 	var rows = board.length, cols = board[0].length;
-	var revealed = [], mineKnown = [];
+	// Build the standard state grid the shared solver operates on.
+	var state = new Array(rows);
 	for (var r = 0; r < rows; r++) {
-		revealed.push(new Array(cols).fill(false));
-		mineKnown.push(new Array(cols).fill(false));
+		state[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) state[r][c] = UNKNOWN;
 	}
-	revealedList.forEach(function(p) { revealed[p[0]][p[1]] = true; });
+	revealedList.forEach(function(p) { state[p[0]][p[1]] = KNOWN; });
 
-	function neighborsOf(r, c) { return BoardLogic.neighbours(r, c, rows, cols); }
-
-	function reveal(r, c) {
+	// Cascade-reveal helper passed into each apply* pass: when a safe cell
+	// is determined, open it and its zero-neighbours just like the player's
+	// click would. Stops at flagged cells (mineKnown equivalent).
+	function cascadeReveal(r, c) {
 		BoardLogic.cascadeReveal(r, c, rows, cols,
-			function(rr, cc) { return !revealed[rr][cc] && !mineKnown[rr][cc]; },
-			function(rr, cc) { revealed[rr][cc] = true; return false; },
+			function(rr, cc) { return state[rr][cc] === UNKNOWN; },
+			function(rr, cc) { state[rr][cc] = KNOWN; return false; },
 			function(rr, cc) { return board[rr][cc]; }
 		);
-	}
-
-	function trivialPass() {
-		var prog = false;
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (!revealed[r][c] || board[r][c] <= 0) continue;
-				var nb = neighborsOf(r, c);
-				var km = 0, unk = [];
-				for (var k = 0; k < nb.length; k++) {
-					var nr = nb[k][0], nc = nb[k][1];
-					if (mineKnown[nr][nc]) km++;
-					else if (!revealed[nr][nc]) unk.push(nb[k]);
-				}
-				if (unk.length === 0) continue;
-				if (board[r][c] === km) {
-					for (var u = 0; u < unk.length; u++) reveal(unk[u][0], unk[u][1]);
-					prog = true;
-				} else if (board[r][c] - km === unk.length) {
-					for (var u2 = 0; u2 < unk.length; u2++) mineKnown[unk[u2][0]][unk[u2][1]] = true;
-					prog = true;
-				}
-			}
-		}
-		return prog;
-	}
-
-	function popcount(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
-
-	// Collect each revealed clue's open constraint: list of still-covered
-	// neighbour cells and the count of mines that need to live among them.
-	function gatherConstraints() {
-		var list = [];
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (!revealed[r][c] || board[r][c] <= 0) continue;
-				var nb = neighborsOf(r, c);
-				var km = 0;
-				var cov = [];
-				for (var k = 0; k < nb.length; k++) {
-					var nr = nb[k][0], nc = nb[k][1];
-					if (mineKnown[nr][nc]) km++;
-					else if (!revealed[nr][nc]) cov.push(nr * cols + nc);
-				}
-				if (cov.length === 0) continue;
-				list.push({ cov: cov, need: board[r][c] - km });
-			}
-		}
-		return list;
-	}
-
-	function subsetPass() {
-		var cs = gatherConstraints();
-		var prog = false;
-		for (var i = 0; i < cs.length; i++) {
-			for (var j = 0; j < cs.length; j++) {
-				if (i === j) continue;
-				var a = cs[i], b = cs[j];
-				if (a.cov.length >= b.cov.length) continue; // need strict subset
-				var bSet = {};
-				for (var k = 0; k < b.cov.length; k++) bSet[b.cov[k]] = true;
-				var subset = true;
-				for (var k = 0; k < a.cov.length; k++) {
-					if (!bSet[a.cov[k]]) { subset = false; break; }
-				}
-				if (!subset) continue;
-				var aSet = {};
-				for (var k = 0; k < a.cov.length; k++) aSet[a.cov[k]] = true;
-				var extras = [];
-				for (var k = 0; k < b.cov.length; k++) {
-					if (!aSet[b.cov[k]]) extras.push(b.cov[k]);
-				}
-				if (extras.length === 0) continue;
-				var extraMines = b.need - a.need;
-				if (extraMines === 0) {
-					for (var k = 0; k < extras.length; k++) {
-						var er = Math.floor(extras[k] / cols), ec = extras[k] % cols;
-						if (!revealed[er][ec] && !mineKnown[er][ec]) { reveal(er, ec); prog = true; }
-					}
-				} else if (extraMines === extras.length) {
-					for (var k = 0; k < extras.length; k++) {
-						var er = Math.floor(extras[k] / cols), ec = extras[k] % cols;
-						if (!mineKnown[er][ec]) { mineKnown[er][ec] = true; prog = true; }
-					}
-				}
-			}
-		}
-		return prog;
-	}
-
-	function enumPass() {
-		var varId = {}, varList = [], raw = [];
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (!revealed[r][c] || board[r][c] <= 0) continue;
-				var nb = neighborsOf(r, c);
-				var km = 0, ids = [];
-				for (var k = 0; k < nb.length; k++) {
-					var nr = nb[k][0], nc = nb[k][1];
-					if (mineKnown[nr][nc]) km++;
-					else if (!revealed[nr][nc]) {
-						var key = nr + "," + nc;
-						if (varId[key] === undefined) { varId[key] = varList.length; varList.push([nr, nc]); }
-						ids.push(varId[key]);
-					}
-				}
-				if (ids.length) raw.push({ ids: ids, need: board[r][c] - km });
-			}
-		}
-		if (varList.length === 0) return false;
-
-		var parent = [];
-		for (var v = 0; v < varList.length; v++) parent.push(v);
-		function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
-		for (var ci = 0; ci < raw.length; ci++) {
-			var idsC = raw[ci].ids;
-			for (var t = 1; t < idsC.length; t++) parent[find(idsC[t])] = find(idsC[0]);
-		}
-
-		var comps = {};
-		for (var w = 0; w < varList.length; w++) {
-			var root = find(w);
-			(comps[root] || (comps[root] = [])).push(w);
-		}
-
-		var prog = false;
-		for (var rootKey in comps) {
-			var vars = comps[rootKey];
-			var k2 = vars.length;
-			if (k2 > ENUM_CAP) continue;
-			var local = {};
-			for (var li = 0; li < k2; li++) local[vars[li]] = li;
-			var cons = [];
-			for (var rc2 = 0; rc2 < raw.length; rc2++) {
-				if (find(raw[rc2].ids[0]) !== parseInt(rootKey, 10)) continue;
-				var mask = 0;
-				for (var m = 0; m < raw[rc2].ids.length; m++) mask |= (1 << local[raw[rc2].ids[m]]);
-				cons.push({ mask: mask, need: raw[rc2].need });
-			}
-			var orCount = new Array(k2).fill(0), solCount = 0;
-			var total = 1 << k2;
-			for (var a = 0; a < total; a++) {
-				var ok = true;
-				for (var cc = 0; cc < cons.length; cc++) {
-					if (popcount(a & cons[cc].mask) !== cons[cc].need) { ok = false; break; }
-				}
-				if (!ok) continue;
-				solCount++;
-				for (var b = 0; b < k2; b++) if (a & (1 << b)) orCount[b]++;
-			}
-			if (solCount === 0) continue;
-			var made = false;
-			for (var f = 0; f < k2; f++) {
-				var cell = varList[vars[f]];
-				if (orCount[f] === 0) { reveal(cell[0], cell[1]); prog = true; made = true; }
-				else if (orCount[f] === solCount) { mineKnown[cell[0]][cell[1]] = true; prog = true; made = true; }
-			}
-			// Remember the biggest component that actually contributed to a
-			// deduction — drives the diff-4 vs diff-5 split below.
-			if (made && k2 > maxEnumSize) maxEnumSize = k2;
-		}
-		return prog;
 	}
 
 	var trivCount = 0, subsetCount = 0, enumCount = 0;
 	var maxEnumSize = 0;
 	while (true) {
-		if (trivialPass()) { trivCount++; continue; }
-		if (subsetPass())  { subsetCount++; continue; }
-		if (enumPass())    { enumCount++; continue; }
+		if (puzzleSolver.applyTrivialPass(board, state, cascadeReveal)) { trivCount++; continue; }
+		if (puzzleSolver.applySubsetPass(board, state, cascadeReveal))  { subsetCount++; continue; }
+		var enumResult = puzzleSolver.applyEnumPass(board, state, cascadeReveal);
+		if (enumResult.progress) {
+			enumCount++;
+			if (enumResult.maxComponentSize > maxEnumSize) maxEnumSize = enumResult.maxComponentSize;
+			continue;
+		}
 		break;
 	}
 
 	var revealedSafe = 0;
 	for (var rr = 0; rr < rows; rr++) {
-		for (var cc2 = 0; cc2 < cols; cc2++) if (revealed[rr][cc2]) revealedSafe++;
+		for (var cc2 = 0; cc2 < cols; cc2++) if (state[rr][cc2] === KNOWN) revealedSafe++;
 	}
 	var totalSafe = rows * cols - numMines;
 	var solved = revealedSafe === totalSafe;

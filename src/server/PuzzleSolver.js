@@ -276,11 +276,111 @@ function findFirstSafeStep(board, originalState) {
 	return null;
 }
 
+// --- Pass-runner helpers used by the puzzle generator's analyzer -----------
+// These mirror the per-sweep "find a deduction and apply it inline" shape
+// that analyzeWithTracking originally used: one row-major sweep through the
+// board, mutating state as deductions are found so subsequent cells in
+// the same sweep benefit from prior reveals. Each returns whether the
+// sweep made any progress.
+//
+// `revealCell(r, c)` is supplied by the caller — it cascades through the
+// state (zeros open their neighbours, etc.). Flagging never cascades, so
+// it's done inline.
+
+function applyTrivialPass(board, state, revealCell) {
+	var rows = board.length, cols = board[0].length;
+	var prog = false;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var ctx = constraintAt(board, state, r, c);
+			if (!ctx.covered.length) continue;
+			if (ctx.clue === ctx.flagged) {
+				for (var i = 0; i < ctx.covered.length; i++) {
+					revealCell(ctx.covered[i][0], ctx.covered[i][1]);
+				}
+				prog = true;
+			} else if (ctx.need === ctx.covered.length) {
+				for (var j = 0; j < ctx.covered.length; j++) {
+					var rc = ctx.covered[j];
+					if (state[rc[0]][rc[1]] !== FLAGGED) state[rc[0]][rc[1]] = FLAGGED;
+				}
+				prog = true;
+			}
+		}
+	}
+	return prog;
+}
+
+function applySubsetPass(board, state, revealCell) {
+	var cs = gatherSubsetConstraints(board, state);
+	var prog = false;
+	for (var i = 0; i < cs.length; i++) {
+		for (var j = 0; j < cs.length; j++) {
+			if (i === j) continue;
+			var a = cs[i], b = cs[j];
+			if (a.cells.length >= b.cells.length) continue;
+			var bSet = {};
+			for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = true;
+			var isSubset = true;
+			for (var k = 0; k < a.cells.length; k++) {
+				if (!bSet[a.cells[k][0] + "," + a.cells[k][1]]) { isSubset = false; break; }
+			}
+			if (!isSubset) continue;
+			var aSet = {};
+			for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = true;
+			var extras = [];
+			for (var k = 0; k < b.cells.length; k++) {
+				if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
+			}
+			if (!extras.length) continue;
+			var diff = b.need - a.need;
+			if (diff === 0) {
+				for (var k = 0; k < extras.length; k++) {
+					var er = extras[k][0], ec = extras[k][1];
+					if (state[er][ec] === UNKNOWN) { revealCell(er, ec); prog = true; }
+				}
+			} else if (diff === extras.length) {
+				for (var k = 0; k < extras.length; k++) {
+					var er2 = extras[k][0], ec2 = extras[k][1];
+					if (state[er2][ec2] !== FLAGGED) { state[er2][ec2] = FLAGGED; prog = true; }
+				}
+			}
+		}
+	}
+	return prog;
+}
+
+// Returns { progress, maxComponentSize } so the analyzer can track which
+// frontier component drove the deduction (used for diff-4/5/6 split).
+function applyEnumPass(board, state, revealCell, opts) {
+	opts = opts || {};
+	var cap = opts.cap || ENUM_CAP;
+	var steps = findEnumSteps(board, state, { cap: cap });
+	var prog = false, maxComp = 0;
+	for (var s = 0; s < steps.length; s++) {
+		var step = steps[s];
+		if (step.componentSize && step.componentSize > maxComp) maxComp = step.componentSize;
+		for (var i = 0; i < step.safeCells.length; i++) {
+			var sc = step.safeCells[i];
+			if (state[sc[0]][sc[1]] === UNKNOWN) { revealCell(sc[0], sc[1]); prog = true; }
+		}
+		for (var j = 0; j < step.mineCells.length; j++) {
+			var mc = step.mineCells[j];
+			if (state[mc[0]][mc[1]] !== FLAGGED) { state[mc[0]][mc[1]] = FLAGGED; prog = true; }
+		}
+	}
+	return { progress: prog, maxComponentSize: maxComp };
+}
+
 module.exports = {
 	ENUM_CAP: ENUM_CAP,
 	constraintAt: constraintAt,
 	findTrivialSteps: findTrivialSteps,
 	findSubsetSteps: findSubsetSteps,
 	findEnumSteps: findEnumSteps,
-	findFirstSafeStep: findFirstSafeStep
+	findFirstSafeStep: findFirstSafeStep,
+	applyTrivialPass: applyTrivialPass,
+	applySubsetPass: applySubsetPass,
+	applyEnumPass: applyEnumPass
 };
