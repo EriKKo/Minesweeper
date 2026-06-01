@@ -767,10 +767,33 @@ main {
 }
 .puzzle-stats-secondary { margin-top: 0.4rem; }
 
-/* Progress bar sits directly under the board, matched to its width. */
+/* Puzzle view: fixed-size board area so the page layout doesn't shift as
+   small (4×4) and large (7×7) puzzles cycle through. The canvas itself
+   still scales — sizePlayerCanvas picks a cellPx that fits the larger
+   dim — and the smaller dim is centered in the box. */
+.game-view.puzzle .board-scroll {
+	width: 480px;
+	height: 480px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+.game-view.puzzle .board-wrap {
+	display: block;
+	width: 480px;
+}
 .puzzle-rank-inline {
 	margin: 0.9rem 0 0;
-	max-width: 600px;
+	width: 480px;
+}
+@media (max-width: 600px) {
+	.game-view.puzzle .board-scroll,
+	.game-view.puzzle .board-wrap,
+	.puzzle-rank-inline {
+		width: 320px;
+	}
+	.game-view.puzzle .board-scroll { height: 320px; }
 }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
 .puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }

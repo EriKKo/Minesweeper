@@ -12,8 +12,22 @@ function sizeBoardCanvas(canvas, cellPx) {
 	canvas.style.maxWidth = "100%";
 	canvas.style.height = "auto";
 }
+// Fixed board area for the rated-puzzle view so the page layout doesn't
+// jump as different-sized puzzles load. Cells scale to fit the larger
+// dimension, smaller dimension is centered in the box via flex on
+// .board-scroll (see style.css).
+var PUZZLE_BOARD_PX = 480;
+var PUZZLE_BOARD_PX_MOBILE = 320;
+
 function sizePlayerCanvas() {
-	var cellPx = mobileLayout ? MOBILE_PLAYER_CELL : PLAYER_CELL;
+	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession;
+	var cellPx;
+	if (inPuzzle) {
+		var target = mobileLayout ? PUZZLE_BOARD_PX_MOBILE : PUZZLE_BOARD_PX;
+		cellPx = Math.floor(target / Math.max(rows, cols));
+	} else {
+		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : PLAYER_CELL;
+	}
 	playerCanvas.width = Math.round(cols * cellPx * DPR);
 	playerCanvas.height = Math.round(rows * cellPx * DPR);
 	playerCanvas.style.width = (cols * cellPx) + "px";
