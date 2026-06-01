@@ -100,8 +100,11 @@ function clearPuzzleHints() {
 function updatePuzzleHintButton() {
 	var btn = document.getElementById("puzzle_hint_btn");
 	if (!btn) return;
+	// Re-usable per puzzle — only disabled when the puzzle isn't active.
+	// The `used` class still toggles to indicate the Elo penalty is in
+	// effect even though the button is still clickable.
 	var hintUsed = puzzleSession && puzzleSession.hintUsed;
-	btn.disabled = !!hintUsed || !puzzleSession || puzzleSession.finished;
+	btn.disabled = !puzzleSession || puzzleSession.finished;
 	btn.classList.toggle("used", !!hintUsed);
 }
 

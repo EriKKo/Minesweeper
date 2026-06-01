@@ -848,10 +848,13 @@ main {
 	padding: 0.8rem 1rem;
 	font-size: 1rem; font-weight: 700;
 }
-.puzzle-hint-btn:disabled,
-.puzzle-hint-btn.used {
+.puzzle-hint-btn:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
+}
+.puzzle-hint-btn.used {
+	/* Still clickable, but visually marked so the Elo penalty is obvious. */
+	opacity: 0.75;
 }
 .puzzle-hint-icon { font-size: 1.2rem; line-height: 1; }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }

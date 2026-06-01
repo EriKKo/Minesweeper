@@ -838,7 +838,7 @@ document.getElementById("open_puzzles_button").addEventListener("click", functio
 });
 
 document.getElementById("puzzle_hint_btn").addEventListener("click", function() {
-	if (!puzzleSession || puzzleSession.hintUsed || puzzleSession.finished) return;
+	if (!puzzleSession || puzzleSession.finished) return;
 	socket.emit("puzzle_hint");
 });
 

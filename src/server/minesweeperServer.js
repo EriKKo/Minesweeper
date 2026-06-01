@@ -294,16 +294,20 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 	});
 }
 
-// Return the cell(s) the player should look at to make progress, without
-// revealing anything. Returns { clueCells, coveredCells, type } where
-// clueCells is the revealed number(s) driving the deduction and
-// coveredCells are the unknowns whose status it determines. Null if no
-// deduction is currently possible from the on-screen state.
+// Point the player at a cell to REVEAL — never a cell to flag. If no
+// safe-reveal deduction is currently available (only forced-mine
+// deductions), we auto-flag the forced mines in a scratch copy of the
+// state, then re-search for safe reveals. The hint always lands on a
+// cell whose deduction leads to opening another square.
 function findHintPointer(game) {
 	var rows = game.rows, cols = game.cols;
-	var board = game.board, state = game.state;
+	var board = game.board;
 	var MINE = BoardLogic.MINE, KNOWN = BoardLogic.KNOWN;
 	var FLAGGED = BoardLogic.FLAGGED, UNKNOWN = BoardLogic.UNKNOWN;
+	// Scratch copy of state — we may auto-flag forced mines to unlock
+	// downstream safe-reveals. The game state on the server is not modified.
+	var state = new Array(rows);
+	for (var r = 0; r < rows; r++) state[r] = game.state[r].slice();
 
 	function constraintAt(r, c) {
 		var clue = board[r][c];
@@ -315,19 +319,57 @@ function findHintPointer(game) {
 		return { clue: clue, flagged: flagged, covered: covered, need: clue - flagged };
 	}
 
-	// Pass 1 — trivial: a single clue's neighbourhood is fully determined.
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			var ctx = constraintAt(r, c);
-			if (!ctx.covered.length) continue;
-			if (ctx.clue === ctx.flagged || ctx.need === ctx.covered.length) {
-				return { clueCells: [[r, c]], coveredCells: ctx.covered, type: "trivial" };
+	function findTrivialSafe() {
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+				var ctx = constraintAt(r, c);
+				if (!ctx.covered.length) continue;
+				if (ctx.clue === ctx.flagged) {
+					return { clueCells: [[r, c]], coveredCells: ctx.covered, type: "trivial" };
+				}
+			}
+		}
+		return null;
+	}
+
+	// Auto-flag any clues whose covered count exactly matches the remaining
+	// mine count — those covered cells must all be mines, so we apply the
+	// flags silently and re-look for safe reveals. Loops until no more
+	// forced-mine deductions exist.
+	function propagateForcedMines() {
+		var any = true;
+		while (any) {
+			any = false;
+			for (var r = 0; r < rows; r++) {
+				for (var c = 0; c < cols; c++) {
+					if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+					var ctx = constraintAt(r, c);
+					if (!ctx.covered.length) continue;
+					if (ctx.need === ctx.covered.length) {
+						for (var k = 0; k < ctx.covered.length; k++) {
+							var fr = ctx.covered[k][0], fc = ctx.covered[k][1];
+							if (state[fr][fc] !== FLAGGED) { state[fr][fc] = FLAGGED; any = true; }
+						}
+					}
+				}
 			}
 		}
 	}
 
-	// Pass 2 — subset rule: two clues whose covered sets nest.
+	// 1. Safe-reveal directly available.
+	var hit = findTrivialSafe();
+	if (hit) return hit;
+
+	// 2. Auto-flag forced mines, try again — the hint then points at a
+	//    clue that's been "satisfied" by those forced flags.
+	propagateForcedMines();
+	hit = findTrivialSafe();
+	if (hit) return hit;
+
+	// 3. Subset rule, restricted to deductions that produce safe-reveals
+	//    (extras-are-all-safe). Skip the extras-are-all-mines case — that's
+	//    a flag move, not what we want.
 	var constraints = [];
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
@@ -356,16 +398,16 @@ function findHintPointer(game) {
 				if (!aSet[b.cells[k][0] + "," + b.cells[k][1]]) extras.push(b.cells[k]);
 			}
 			if (!extras.length) continue;
-			var extraMines = b.need - a.need;
-			if (extraMines === 0 || extraMines === extras.length) {
+			if (b.need - a.need === 0) {
+				// Extras are all safe — exactly the reveal-hint we want.
 				return { clueCells: [[a.r, a.c], [b.r, b.c]], coveredCells: extras, type: "subset" };
 			}
 		}
 	}
 
-	// Fallback — point to the smallest open frontier so the player at least
-	// knows where the active area is. Doesn't directly hint a deduction but
-	// it's better than nothing on case-analysis puzzles.
+	// 4. Fallback — smallest covered frontier. Best signal for case-analysis
+	//    puzzles where the deduction isn't trivial/subset. Player still has
+	//    to do the work but at least knows where to look.
 	var bestClue = null, bestSize = Infinity;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
@@ -1839,15 +1881,16 @@ io.on("connection", function (socket) {
 		startPuzzlePlay(socket, playerID, u, puzzle);
 	});
 
-	// Hint points to the cell(s) where the next deduction lives — it does NOT
-	// reveal anything. The player still has to read the clue and make the
-	// move. Tries trivial deduction first (a clue whose value == flagged or
-	// flagged + covered == value), falls back to the subset rule, then any
-	// clue with covered neighbours. pp.hintUsed → half-Elo on solve.
+	// Hint points to the cell(s) where the next safe-reveal lives — it does
+	// NOT reveal anything. The player still has to read the clue and make
+	// the move. Re-usable: every press fetches a fresh hint from the current
+	// state, so as the puzzle progresses, hints follow the new frontier.
+	// The first hint per puzzle sets pp.hintUsed, which is read at
+	// finalizePuzzle to halve the Elo gain on solve. Subsequent hints are
+	// free — the penalty is already in effect.
 	socket.on("puzzle_hint", function() {
 		var pp = puzzlePlay[playerID];
 		if (!pp || !pp.game.playing) return;
-		if (pp.hintUsed) { socket.emit("puzzle_hint_pointer", { alreadyUsed: true }); return; }
 		var hint = findHintPointer(pp.game);
 		if (!hint) return;
 		pp.hintUsed = true;
