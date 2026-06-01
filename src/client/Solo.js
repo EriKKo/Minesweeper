@@ -26,6 +26,7 @@ function performSoloAction(r, c, asFlag) {
 			myState[r][c] = FLAGGED;
 			if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
 			cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
+			startAnimLoop();
 			sound.flag && sound.flag();
 		} else if (myState[r][c] === FLAGGED) {
 			myState[r][c] = UNKNOWN;

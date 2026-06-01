@@ -74,6 +74,7 @@ function addColumnIfMissing(table, column, definition) {
 addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 800");
 addColumnIfMissing("users", "puzzles_solved", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "puzzles_attempted", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "current_puzzle_id", "INTEGER");
 
 function upsertUser(provider, providerId, name, avatarUrl) {
 	providerId = String(providerId);
@@ -213,6 +214,10 @@ function updateUserPuzzleRating(userId, newRating, solved) {
 	).run(newRating, solved ? 1 : 0, userId);
 }
 
+function setCurrentPuzzle(userId, puzzleId) {
+	db.prepare("UPDATE users SET current_puzzle_id = ? WHERE id = ?").run(puzzleId, userId);
+}
+
 // Standard Elo: expected score against an opponent of `opponentRating`,
 // then new = old + K * (actual - expected). Caller picks K — we use 20
 // for player ratings (snappy enough to converge in ~50 attempts) and 10
@@ -292,6 +297,7 @@ module.exports = {
 	getPuzzleById: getPuzzleById,
 	updatePuzzleRating: updatePuzzleRating,
 	updateUserPuzzleRating: updateUserPuzzleRating,
+	setCurrentPuzzle: setCurrentPuzzle,
 	eloUpdate: eloUpdate,
 	recordAttempt: recordAttempt,
 	recentlyAttemptedPuzzleIds: recentlyAttemptedPuzzleIds,

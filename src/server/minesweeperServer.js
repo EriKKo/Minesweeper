@@ -301,6 +301,7 @@ function finalizePuzzle(socket, playerID, solved) {
 	var puzzleAfter = db.eloUpdate(pp.puzzleBefore, pp.playerBefore, 10, solved ? 0 : 1);
 	db.updateUserPuzzleRating(pp.userId, playerAfter, solved);
 	db.updatePuzzleRating(pp.puzzleId, puzzleAfter, solved);
+	db.setCurrentPuzzle(pp.userId, null);
 	db.recordAttempt({
 		userId: pp.userId, puzzleId: pp.puzzleId, solved: solved,
 		playerBefore: pp.playerBefore, playerAfter: playerAfter,
@@ -1721,17 +1722,23 @@ io.on("connection", function (socket) {
 		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
 		var u = db.getUserById(acc.userId);
 		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return; }
-		var recent = db.recentlyAttemptedPuzzleIds(u.id);
-		var puzzle = db.pickPuzzleNearRating(u.puzzle_rating, recent);
-		if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
-		// If a stale puzzle is still active for this socket, finalize it as a
-		// loss before serving the new one.
-		if (puzzlePlay[playerID]) finalizePuzzle(socket, playerID, false);
+		// Drop any in-memory game state from a prior connection — we'll
+		// rebuild from the DB so resumption survives disconnects too.
+		delete puzzlePlay[playerID];
+		// Resume the user's in-progress puzzle if any. Leaving a puzzle (nav
+		// away, disconnect, etc.) doesn't count as a loss — they get the same
+		// board next time. Only a real solve or mine-hit completes it.
+		var puzzle = null;
+		if (u.current_puzzle_id) {
+			puzzle = db.getPuzzleById(u.current_puzzle_id);
+		}
+		if (!puzzle) {
+			var recent = db.recentlyAttemptedPuzzleIds(u.id);
+			puzzle = db.pickPuzzleNearRating(u.puzzle_rating, recent);
+			if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
+			db.setCurrentPuzzle(u.id, puzzle.id);
+		}
 		startPuzzlePlay(socket, playerID, u, puzzle);
-	});
-
-	socket.on("puzzle_abandon", function() {
-		if (puzzlePlay[playerID]) finalizePuzzle(socket, playerID, false);
 	});
 
 	// Solo-mode primitive: generate a fresh no-guess board on demand and ship
@@ -1946,11 +1953,10 @@ io.on("connection", function (socket) {
 		if (roomMapping[playerID]) {
 			removePlayerFromRoom(playerID);
 		}
-		if (puzzlePlay[playerID]) {
-			// Mid-puzzle disconnect counts as a fail — same as bailing on a
-			// ranked match.
-			finalizePuzzle(socket, playerID, false);
-		}
+		// Mid-puzzle disconnect is fine — current_puzzle_id stays set in the
+		// DB so the same puzzle is served on reconnect. We just drop the
+		// in-memory game state.
+		delete puzzlePlay[playerID];
 		delete sockets[playerID];
 		delete names[playerID];
 		delete accounts[playerID]; // session stays valid in the DB for reconnect

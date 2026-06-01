@@ -78,12 +78,16 @@ function performAction(r, c, asFlag) {
 	focusedC = c;
 	if (asFlag) {
 		// Optimistic flag toggle. prevPlayerState is updated too so the server's
-		// matching broadcast doesn't re-trigger the animation.
+		// matching broadcast doesn't re-trigger the animation. Kick the RAF
+		// loop so the flag's scale-in animation actually ticks — without it
+		// the single redrawOwnBoardWithFocus below draws the flag at t=0
+		// (invisible) and nothing else paints until the next click.
 		if (myState) {
 			if (myState[r][c] === UNKNOWN) {
 				myState[r][c] = FLAGGED;
 				if (prevPlayerState) prevPlayerState[r][c] = FLAGGED;
 				cellAnims[r + "," + c] = { type: "flag", start: performance.now() };
+				startAnimLoop();
 			} else if (myState[r][c] === FLAGGED) {
 				myState[r][c] = UNKNOWN;
 				if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
