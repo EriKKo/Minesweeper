@@ -353,15 +353,23 @@ function openAnalyzeModal(p) {
 	document.addEventListener("keydown", onAnalyzeModalKey);
 
 	// Apply moves 0..upTo, then highlight the focused move's cells.
+	// Enum moves carry separate reveal/flag lists since one component can
+	// pin both safe and mine cells at once.
 	function applyMovesAndHighlight(moves, upTo, focusIndex) {
 		controller.reset();
 		for (var i = 0; i <= upTo && i < moves.length; i++) {
 			var mv = moves[i];
-			var cells = mv.changed && mv.changed.length ? mv.changed : mv.cells;
-			if (mv.action === "flag") {
-				for (var j = 0; j < cells.length; j++) controller.flagCell(cells[j][0], cells[j][1]);
+			if (mv.action === "enum") {
+				var rv = mv.revealed || [], fl = mv.flagged || [];
+				for (var rj = 0; rj < rv.length; rj++) controller.revealCell(rv[rj][0], rv[rj][1]);
+				for (var fj = 0; fj < fl.length; fj++) controller.flagCell(fl[fj][0], fl[fj][1]);
 			} else {
-				for (var k = 0; k < cells.length; k++) controller.revealCell(cells[k][0], cells[k][1]);
+				var cells = mv.changed && mv.changed.length ? mv.changed : mv.cells;
+				if (mv.action === "flag") {
+					for (var j = 0; j < cells.length; j++) controller.flagCell(cells[j][0], cells[j][1]);
+				} else {
+					for (var k = 0; k < cells.length; k++) controller.revealCell(cells[k][0], cells[k][1]);
+				}
 			}
 		}
 		if (focusIndex != null && moves[focusIndex]) {
@@ -378,8 +386,9 @@ function openAnalyzeModal(p) {
 			return;
 		}
 		var moves = data.moves || [];
-		traceStatus.textContent = "max complexity " + data.maxComplexity + " · total " + data.totalComplexity
-			+ (data.solved ? " · solved" : " · " + data.safeCovered + " safe cells uncovered (enum needed)");
+		function fmt(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+		traceStatus.textContent = "max complexity " + fmt(data.maxComplexity) + " · total " + fmt(data.totalComplexity)
+			+ (data.solved ? " · solved" : " · " + data.safeCovered + " safe cells uncovered");
 
 		var liRefs = [];
 		moves.forEach(function(mv, i) {
@@ -391,15 +400,17 @@ function openAnalyzeModal(p) {
 			li.appendChild(ix);
 			var act = document.createElement("span");
 			act.className = "analyze-trace-action";
-			act.textContent = mv.action === "flag" ? "flag" : "reveal";
+			act.textContent = mv.action === "enum" ? "enum·" + mv.componentSize
+				: mv.action === "flag" ? "flag" : "reveal";
 			li.appendChild(act);
 			var cells = document.createElement("span");
 			cells.className = "analyze-trace-cells";
-			cells.textContent = (mv.changed || mv.cells).map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ");
+			var cellList = mv.changed || mv.cells || [];
+			cells.textContent = cellList.map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ");
 			li.appendChild(cells);
 			var compl = document.createElement("span");
 			compl.className = "analyze-trace-compl";
-			compl.textContent = "c=" + mv.complexity;
+			compl.textContent = "c=" + (Math.round(mv.complexity * 10) / 10);
 			li.appendChild(compl);
 			li.addEventListener("click", function() {
 				liRefs.forEach(function(other) { other.classList.remove("active"); });

@@ -28,6 +28,7 @@
 // comparison.
 
 var BoardLogic = require("../common/BoardLogic");
+var puzzleSolver = require("./PuzzleSolver");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic.FLAGGED;
 var MINE = BoardLogic.MINE;
 
@@ -206,6 +207,27 @@ function findBestTrivialClue(initialClues, opts) {
 	return null;
 }
 
+// Enum fallback. When the CSP search can't reach a trivial clue, we hand
+// off to the brute-force enum pass, but pick the **smallest yielding
+// component** — that way the move's complexity reflects only the case
+// analysis the player actually had to do, not the biggest component on
+// the board. Component size k → complexity 2 + 0.6·(k−1)^1.3, matching
+// the shape of the existing generator's enum-size bonus.
+function enumComplexity(componentSize) {
+	if (componentSize <= 1) return 2;
+	return 2 + 0.6 * Math.pow(componentSize - 1, 1.3);
+}
+
+function findSmallestEnumStep(board, state) {
+	var steps = puzzleSolver.findEnumSteps(board, state);
+	if (!steps.length) return null;
+	var best = steps[0];
+	for (var i = 1; i < steps.length; i++) {
+		if (steps[i].componentSize < best.componentSize) best = steps[i];
+	}
+	return best;
+}
+
 // Apply a trivial clue's effect to the state. Returns false if the clue
 // wasn't trivial (caller error) or didn't change anything.
 function applyTrivialClue(board, state, clue, revealCell) {
@@ -251,21 +273,52 @@ function analyzeBoard(board, state, opts) {
 			}
 		}
 		var best = directTrivial || findBestTrivialClue(initial, opts);
-		if (!best) break;
-		// Snapshot the cells the move actually changed (reveal or flag)
-		// before applying, so the UI can highlight them on the board.
-		var changed = [];
-		for (var ci = 0; ci < best.cells.length; ci++) {
-			var rc = best.cells[ci];
-			if (state[rc[0]][rc[1]] === UNKNOWN) changed.push(rc);
+		if (best) {
+			// Snapshot the cells the move actually changed (reveal or flag)
+			// before applying, so the UI can highlight them on the board.
+			var changed = [];
+			for (var ci = 0; ci < best.cells.length; ci++) {
+				var rc = best.cells[ci];
+				if (state[rc[0]][rc[1]] === UNKNOWN) changed.push(rc);
+			}
+			applyTrivialClue(board, state, best, opts.revealCell);
+			moves.push({
+				complexity: best.complexity,
+				action: best.mines === 0 ? "reveal" : "flag",
+				cells: best.cells,
+				changed: changed,
+				mines: best.mines
+			});
+			continue;
 		}
-		applyTrivialClue(board, state, best, opts.revealCell);
+		// CSP search exhausted — try enum on the smallest yielding component.
+		var enumStep = findSmallestEnumStep(board, state);
+		if (!enumStep) break;
+		var revealed = [], flagged = [];
+		for (var si = 0; si < enumStep.safeCells.length; si++) {
+			var sr = enumStep.safeCells[si];
+			if (state[sr[0]][sr[1]] === UNKNOWN) {
+				revealed.push(sr);
+				if (opts.revealCell) opts.revealCell(sr[0], sr[1]);
+				else state[sr[0]][sr[1]] = KNOWN;
+			}
+		}
+		for (var mi = 0; mi < enumStep.mineCells.length; mi++) {
+			var mr = enumStep.mineCells[mi];
+			if (state[mr[0]][mr[1]] !== FLAGGED) {
+				flagged.push(mr);
+				state[mr[0]][mr[1]] = FLAGGED;
+			}
+		}
+		if (!revealed.length && !flagged.length) break; // shouldn't happen, defensive
 		moves.push({
-			complexity: best.complexity,
-			action: best.mines === 0 ? "reveal" : "flag",
-			cells: best.cells,
-			changed: changed,
-			mines: best.mines
+			complexity: enumComplexity(enumStep.componentSize),
+			action: "enum",
+			componentSize: enumStep.componentSize,
+			cells: revealed.concat(flagged),
+			changed: revealed.concat(flagged),
+			revealed: revealed,
+			flagged: flagged
 		});
 	}
 	// Solved = every safe cell is KNOWN. Mines may sit either FLAGGED or
