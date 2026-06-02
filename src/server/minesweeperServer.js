@@ -608,11 +608,26 @@ function servePuzzles(req, res, url) {
 		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density } }));
 		return;
 	}
-	// GET — return DB-backed puzzles (optionally filtered by diff).
+	// GET — return DB-backed puzzles. Paginated: `page` (0-indexed) +
+	// `pageSize` (default 50, max 200), optionally filtered by `diff`,
+	// sorted by rating asc/desc. Response carries total count for the
+	// active filter so the client can size its page nav.
 	var diff = parseInt(url.searchParams.get("diff"), 10);
-	var puzzles = db.listPuzzles({ difficulty: (diff >= 1 && diff <= 6) ? diff : null });
+	var page = parseInt(url.searchParams.get("page"), 10) || 0;
+	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
+	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
+	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
+	var puzzles = db.listPuzzles({ difficulty: diffFilter, page: page, pageSize: pageSize, sort: sort });
+	var total = db.puzzleCount(diffFilter);
 	res.writeHead(200, { "Content-Type": "application/json" });
-	res.end(JSON.stringify({ puzzles: puzzles, pool: db.puzzleCount(), job: puzzleJobStatus() }));
+	res.end(JSON.stringify({
+		puzzles: puzzles,
+		pool: db.puzzleCount(),
+		total: total,
+		page: page,
+		pageSize: pageSize,
+		job: puzzleJobStatus()
+	}));
 }
 
 function servePuzzlesClear(req, res, url) {

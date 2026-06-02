@@ -5,7 +5,7 @@
 // the puzzle DB exists this page is the natural place to swap the fetch over
 // to it; the rest of the UI stays unchanged.
 
-var puzzleListState = { sort: "score-asc", diff: null };
+var puzzleListState = { sort: "score-asc", diff: null, page: 0, pageSize: 50 };
 
 function renderPuzzlesList() {
 	var view = document.getElementById("puzzles_list_view");
@@ -45,6 +45,7 @@ function renderPuzzlesList() {
 	});
 	sortSelect.addEventListener("change", function() {
 		puzzleListState.sort = sortSelect.value;
+		puzzleListState.page = 0;
 		refreshPuzzleList();
 	});
 	sortWrap.appendChild(sortSelect);
@@ -65,6 +66,7 @@ function renderPuzzlesList() {
 		if (d !== "all") btn.classList.add("puzzles-filter-chip-diff-" + d);
 		btn.addEventListener("click", function() {
 			puzzleListState.diff = (d === "all") ? null : d;
+			puzzleListState.page = 0;
 			updatePuzzleListFilterChips();
 			refreshPuzzleList();
 		});
@@ -82,6 +84,11 @@ function renderPuzzlesList() {
 	grid.id = "puzzles_list_grid";
 	grid.className = "puzzles-grid";
 	view.appendChild(grid);
+
+	var pager = document.createElement("div");
+	pager.id = "puzzles_list_pager";
+	pager.className = "puzzles-pager";
+	view.appendChild(pager);
 
 	var labLink = document.createElement("p");
 	labLink.className = "puzzles-list-footer";
@@ -101,16 +108,23 @@ function updatePuzzleListFilterChips() {
 
 function refreshPuzzleList() {
 	var diff = puzzleListState.diff;
-	var url = "/api/puzzles" + (diff ? "?diff=" + diff : "");
+	var sort = puzzleListState.sort === "score-desc" ? "desc" : "asc";
+	var page = puzzleListState.page || 0;
+	var pageSize = puzzleListState.pageSize || 50;
+	var qs = "page=" + page + "&pageSize=" + pageSize + "&sort=" + sort + (diff ? "&diff=" + diff : "");
+	var url = "/api/puzzles?" + qs;
 	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];
-		var dir = (puzzleListState.sort === "score-desc") ? -1 : 1;
-		puzzles.sort(function(a, b) { return dir * ((a.rating || 0) - (b.rating || 0)); });
+		var total = data && typeof data.total === "number" ? data.total : puzzles.length;
+		var pool = data && data.pool != null ? data.pool : total;
 
 		var status = document.getElementById("puzzles_list_status");
 		if (status) {
-			var bits = ["Pool: " + (data.pool != null ? data.pool : puzzles.length) + " puzzles"];
-			if (diff) bits.push("showing diff " + diff + " · " + puzzles.length);
+			var bits = ["Pool: " + pool + " puzzles"];
+			if (diff) bits.push("diff " + diff + " · " + total);
+			var fromN = total ? (page * pageSize + 1) : 0;
+			var toN = Math.min(total, (page + 1) * pageSize);
+			bits.push("showing " + fromN + "–" + toN);
 			status.textContent = bits.join(" · ");
 		}
 
@@ -120,15 +134,69 @@ function refreshPuzzleList() {
 		if (puzzles.length === 0) {
 			var empty = document.createElement("p");
 			empty.className = "puzzles-list-empty";
-			empty.textContent = "No puzzles to show — head to the Lab to generate some.";
+			empty.textContent = page > 0
+				? "No puzzles on this page — try going back."
+				: "No puzzles to show — head to the Lab to generate some.";
 			grid.appendChild(empty);
-			return;
+		} else {
+			puzzles.forEach(function(p) { grid.appendChild(renderPuzzleListCard(p)); });
 		}
-		puzzles.forEach(function(p) { grid.appendChild(renderPuzzleListCard(p)); });
+		renderPuzzleListPager(total, page, pageSize);
 	}).catch(function(e) {
 		var status = document.getElementById("puzzles_list_status");
 		if (status) status.textContent = "Error: " + e.message;
 	});
+}
+
+function renderPuzzleListPager(total, page, pageSize) {
+	var pager = document.getElementById("puzzles_list_pager");
+	if (!pager) return;
+	pager.innerHTML = "";
+	var totalPages = Math.max(1, Math.ceil(total / pageSize));
+	if (totalPages <= 1) return;
+
+	function addBtn(label, target, opts) {
+		opts = opts || {};
+		var b = document.createElement("button");
+		b.className = "puzzles-pager-btn" + (opts.current ? " current" : "");
+		b.textContent = label;
+		b.disabled = !!opts.disabled || target === page;
+		b.addEventListener("click", function() {
+			if (target === page) return;
+			puzzleListState.page = Math.max(0, Math.min(totalPages - 1, target));
+			refreshPuzzleList();
+		});
+		pager.appendChild(b);
+	}
+
+	addBtn("← Prev", page - 1, { disabled: page <= 0 });
+
+	// Compact numeric range around the current page.
+	var windowSize = 5;
+	var start = Math.max(0, page - Math.floor(windowSize / 2));
+	var end = Math.min(totalPages - 1, start + windowSize - 1);
+	start = Math.max(0, end - windowSize + 1);
+	if (start > 0) {
+		addBtn("1", 0);
+		if (start > 1) {
+			var dots = document.createElement("span");
+			dots.className = "puzzles-pager-dots";
+			dots.textContent = "…";
+			pager.appendChild(dots);
+		}
+	}
+	for (var i = start; i <= end; i++) addBtn(String(i + 1), i, { current: i === page });
+	if (end < totalPages - 1) {
+		if (end < totalPages - 2) {
+			var dots2 = document.createElement("span");
+			dots2.className = "puzzles-pager-dots";
+			dots2.textContent = "…";
+			pager.appendChild(dots2);
+		}
+		addBtn(String(totalPages), totalPages - 1);
+	}
+
+	addBtn("Next →", page + 1, { disabled: page >= totalPages - 1 });
 }
 
 function renderPuzzleListCard(p) {

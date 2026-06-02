@@ -741,6 +741,29 @@ main {
 .puzzles-list-footer a:hover { text-decoration: underline; }
 .puzzles-list-empty { color: var(--muted); font-style: italic; margin: 1rem 0; }
 
+.puzzles-pager {
+	display: flex; gap: 0.4rem; align-items: center; justify-content: center;
+	flex-wrap: wrap;
+	margin: 1.2rem 0;
+}
+.puzzles-pager-btn {
+	background: var(--surface);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 0.32rem 0.7rem;
+	font-weight: 600;
+	font-size: 0.85rem;
+	cursor: pointer;
+	min-width: 2.2rem;
+}
+.puzzles-pager-btn:hover:not(:disabled) { border-color: var(--accent); }
+.puzzles-pager-btn.current {
+	background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.puzzles-pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.puzzles-pager-dots { color: var(--muted); padding: 0 0.3rem; }
+
 .admin-cards {
 	display: grid; gap: 1.2rem; margin-top: 1.2rem;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

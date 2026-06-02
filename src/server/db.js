@@ -274,15 +274,21 @@ function listPuzzles(opts) {
 		clauses.push("difficulty = ?");
 		params.push(opts.difficulty);
 	}
+	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
+	var pageSize = Math.max(1, Math.min(200, opts.pageSize || 50));
+	var page = Math.max(0, opts.page || 0);
 	var sql = "SELECT * FROM puzzles";
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
-	sql += " ORDER BY score ASC LIMIT ?";
-	params.push(opts.limit || 1000);
+	sql += " ORDER BY rating " + sortDir + " LIMIT ? OFFSET ?";
+	params.push(pageSize, page * pageSize);
 	var stmt = db.prepare(sql);
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
 }
 
-function puzzleCount() {
+function puzzleCount(difficulty) {
+	if (difficulty >= 1 && difficulty <= 6) {
+		return db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE difficulty = ?").get(difficulty).n;
+	}
 	return db.prepare("SELECT COUNT(*) AS n FROM puzzles").get().n;
 }
 
