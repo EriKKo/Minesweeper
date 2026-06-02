@@ -2582,3 +2582,19 @@ body.touch .find-next-arrow { display: inline-flex; }
 .analyze-trace-flag   .analyze-trace-action { color: var(--danger); }
 .analyze-trace-cells { flex: 1; color: var(--text); font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.78rem; }
 .analyze-trace-compl { color: var(--accent); font-variant-numeric: tabular-nums; }
+.analyze-trace-head-row {
+	display: flex; align-items: baseline; justify-content: space-between;
+	margin-bottom: 0.4rem;
+}
+.analyze-trace-playall {
+	padding: 0.25rem 0.7rem;
+	font-size: 0.8rem;
+	background: var(--accent); color: white;
+	border: none; border-radius: 0.4rem;
+	cursor: pointer;
+}
+.analyze-trace-playall:hover:not(:disabled) { background: var(--accent-hover); }
+.analyze-trace-playall:disabled { opacity: 0.4; cursor: default; }
+.analyze-trace-move { cursor: pointer; }
+.analyze-trace-move:hover { background: rgba(99, 102, 241, 0.08); }
+.analyze-trace-move.active { background: rgba(250, 204, 21, 0.12); }

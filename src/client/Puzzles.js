@@ -320,14 +320,23 @@ function openAnalyzeModal(p) {
 		revealed: p.revealed
 	}, false, function() {});
 	boardCol.appendChild(playable);
+	var controller = playable._controller;
 	body.appendChild(boardCol);
 
 	var traceCol = document.createElement("div");
 	traceCol.className = "analyze-modal-trace";
+	var traceHeadRow = document.createElement("div");
+	traceHeadRow.className = "analyze-trace-head-row";
 	var traceHead = document.createElement("div");
 	traceHead.className = "analyze-trace-head";
 	traceHead.textContent = "Solver moves";
-	traceCol.appendChild(traceHead);
+	traceHeadRow.appendChild(traceHead);
+	var playAllBtn = document.createElement("button");
+	playAllBtn.className = "analyze-trace-playall";
+	playAllBtn.textContent = "Play all";
+	playAllBtn.disabled = true;
+	traceHeadRow.appendChild(playAllBtn);
+	traceCol.appendChild(traceHeadRow);
 	var traceStatus = document.createElement("div");
 	traceStatus.className = "analyze-trace-status";
 	traceStatus.textContent = "Analyzing…";
@@ -343,15 +352,37 @@ function openAnalyzeModal(p) {
 
 	document.addEventListener("keydown", onAnalyzeModalKey);
 
+	// Apply moves 0..upTo, then highlight the focused move's cells.
+	function applyMovesAndHighlight(moves, upTo, focusIndex) {
+		controller.reset();
+		for (var i = 0; i <= upTo && i < moves.length; i++) {
+			var mv = moves[i];
+			var cells = mv.changed && mv.changed.length ? mv.changed : mv.cells;
+			if (mv.action === "flag") {
+				for (var j = 0; j < cells.length; j++) controller.flagCell(cells[j][0], cells[j][1]);
+			} else {
+				for (var k = 0; k < cells.length; k++) controller.revealCell(cells[k][0], cells[k][1]);
+			}
+		}
+		if (focusIndex != null && moves[focusIndex]) {
+			controller.highlight(moves[focusIndex].changed || moves[focusIndex].cells);
+		} else {
+			controller.highlight(null);
+		}
+	}
+
 	fetch("/api/puzzles/" + p.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
-		if (!document.getElementById("analyze_modal")) return; // closed before response
+		if (!document.getElementById("analyze_modal")) return;
 		if (data && data.error) {
 			traceStatus.textContent = "Error: " + data.error;
 			return;
 		}
+		var moves = data.moves || [];
 		traceStatus.textContent = "max complexity " + data.maxComplexity + " · total " + data.totalComplexity
 			+ (data.solved ? " · solved" : " · " + data.safeCovered + " safe cells uncovered (enum needed)");
-		(data.moves || []).forEach(function(mv, i) {
+
+		var liRefs = [];
+		moves.forEach(function(mv, i) {
 			var li = document.createElement("li");
 			li.className = "analyze-trace-move analyze-trace-" + mv.action;
 			var ix = document.createElement("span");
@@ -370,7 +401,35 @@ function openAnalyzeModal(p) {
 			compl.className = "analyze-trace-compl";
 			compl.textContent = "c=" + mv.complexity;
 			li.appendChild(compl);
+			li.addEventListener("click", function() {
+				liRefs.forEach(function(other) { other.classList.remove("active"); });
+				li.classList.add("active");
+				applyMovesAndHighlight(moves, i, i);
+			});
 			traceList.appendChild(li);
+			liRefs.push(li);
+		});
+
+		playAllBtn.disabled = moves.length === 0;
+		var playToken = 0;
+		playAllBtn.addEventListener("click", function() {
+			var myToken = ++playToken;
+			controller.reset();
+			liRefs.forEach(function(li) { li.classList.remove("active"); });
+			var i = 0;
+			function step() {
+				if (myToken !== playToken) return;
+				if (i >= moves.length) { controller.highlight(null); return; }
+				applyMovesAndHighlight(moves, i, i);
+				if (liRefs[i]) {
+					liRefs.forEach(function(li) { li.classList.remove("active"); });
+					liRefs[i].classList.add("active");
+					liRefs[i].scrollIntoView({ block: "nearest" });
+				}
+				i++;
+				setTimeout(step, 500);
+			}
+			step();
 		});
 	}).catch(function(e) {
 		traceStatus.textContent = "Error: " + e.message;
