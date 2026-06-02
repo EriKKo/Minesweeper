@@ -96,6 +96,13 @@ function showPuzzleStormView() {
 	renderPuzzlePlay("storm");
 }
 
+function showPuzzleDailyView() {
+	hideAllViews();
+	document.getElementById("puzzle_play_view").style.display = "";
+	setSiteNavActive("");
+	renderPuzzlePlay("daily");
+}
+
 function showLeaderboardView() {
 	hideAllViews();
 	document.getElementById("leaderboard_view").style.display = "";
@@ -175,6 +182,7 @@ function applyRouteFromHash() {
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
 	if (hash === "/puzzles/streak") return showPuzzleStreakView();
 	if (hash === "/puzzles/storm") return showPuzzleStormView();
+	if (hash === "/puzzles/daily") return showPuzzleDailyView();
 	if (hash === "/puzzles") return showPuzzleLabView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();

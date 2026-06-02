@@ -146,6 +146,20 @@
 					</div>
 					<button id="open_storm_button" class="btn btn-primary home-card-action">Start storm</button>
 				</div>
+
+				<div class="home-card home-card-daily">
+					<div class="home-card-head">
+						<span class="home-card-tag home-card-tag-daily">PUZZLES · DAILY</span>
+					</div>
+					<h2 class="home-card-title">Daily puzzle</h2>
+					<p class="home-card-sub">One puzzle a day, same for everyone. Solve every day to keep your streak alive.</p>
+					<div class="home-card-rank" id="rank_chip_daily">
+						<span class="home-card-rank-label">Streak</span>
+						<span class="home-card-rank-tier" id="puzzle_daily_streak">—</span>
+						<span class="home-card-rank-rating" id="puzzle_daily_status">—</span>
+					</div>
+					<button id="open_daily_button" class="btn btn-primary home-card-action">Play today's puzzle</button>
+				</div>
 			</div>
 
 			<div id="ranked_searching" class="ranked-searching" style="display:none">
@@ -399,7 +413,7 @@
 						<div id="puzzle_run_panel" class="puzzle-mode-panel" style="display:none">
 							<div class="puzzle-run-row">
 								<div class="puzzle-run-stat">
-									<span class="puzzle-run-stat-label">Solved</span>
+									<span id="puzzle_run_primary_label" class="puzzle-run-stat-label">Solved</span>
 									<span id="puzzle_run_solves" class="puzzle-run-stat-value">0</span>
 								</div>
 								<div class="puzzle-run-stat" id="puzzle_run_secondary">
@@ -408,7 +422,7 @@
 								</div>
 							</div>
 							<div class="puzzle-run-foot">
-								<span class="puzzle-run-foot-label">Best</span>
+								<span class="puzzle-run-foot-label" id="puzzle_run_foot_label">Best</span>
 								<span id="puzzle_run_best" class="puzzle-run-foot-value">0</span>
 							</div>
 						</div>
@@ -718,6 +732,42 @@ socket.on("puzzle_result", function(data) {
 	showPuzzleOutcome(data);
 });
 
+socket.on("puzzle_daily_status", function(data) {
+	// Two cases: arriving on the /puzzles/daily route, OR home-card prefetch.
+	if (account) {
+		account.dailyStreak = data.streak || 0;
+		account.dailyAttempt = data.attempt || null;
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	}
+	// If we're actively on the daily route, decide whether to play or show result.
+	if (location.hash === "#/puzzles/daily") {
+		if (data.attempt) {
+			// Already attempted today — show the result panel without starting a new game.
+			showDailyAlreadyDone(data);
+		} else {
+			socket.emit("puzzle_daily_start");
+		}
+	}
+});
+
+socket.on("puzzle_daily_result", function(data) {
+	if (!puzzleSession) return;
+	puzzleSession.finished = true;
+	puzzleSession.run = puzzleSession.run || {};
+	puzzleSession.run.streak = data.streak;
+	puzzleSession.run.lastSolved = data.solved;
+	stopStormTicker();
+	if (account) {
+		account.dailyStreak = data.streak;
+		account.dailyAttempt = { solved: data.solved, at: Date.now() };
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	}
+	withPendingRunFlash(function() {
+		updatePuzzleHud();
+		showDailyOutcome(data);
+	});
+});
+
 socket.on("puzzle_run_end", function(data) {
 	withPendingRunFlash(function() {
 		if (!puzzleSession) return;
@@ -915,6 +965,10 @@ document.getElementById("open_streak_button").addEventListener("click", function
 
 document.getElementById("open_storm_button").addEventListener("click", function() {
 	location.hash = "#/puzzles/storm";
+});
+
+document.getElementById("open_daily_button").addEventListener("click", function() {
+	location.hash = "#/puzzles/daily";
 });
 
 document.getElementById("puzzle_hint_btn").addEventListener("click", function() {

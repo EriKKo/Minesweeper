@@ -367,12 +367,12 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run) {
 		playerRating: user.puzzle_rating,
 		solved: user.puzzles_solved,
 		attempted: user.puzzles_attempted,
-		run: run ? {
+		run: run ? Object.assign({
 			mode: run.mode,
-			targetRating: run.targetRating,
-			solves: run.solves,
+			targetRating: run.targetRating || null,
+			solves: run.solves || 0,
 			endsAt: run.endsAt || null
-		} : null
+		}, run.date ? { date: run.date } : {}, typeof run.streak === "number" ? { streak: run.streak } : {}) : null
 	});
 }
 
@@ -432,6 +432,22 @@ function finalizePuzzle(socket, playerID, solved) {
 	var pp = puzzlePlay[playerID];
 	if (!pp) return;
 	pp.game.playing = false;
+
+	// Daily mode: one attempt per UTC day, no Elo, streak counter is the
+	// reward — record + emit a daily-specific result and stop.
+	if (pp.mode === "daily") {
+		delete puzzlePlay[playerID];
+		var date = db.todayUtc();
+		db.recordDailyAttempt(pp.userId, date, solved);
+		var streak = db.dailyStreakForUser(pp.userId);
+		socket.emit("puzzle_daily_result", {
+			date: date,
+			solved: solved,
+			streak: streak,
+			puzzleId: pp.puzzleId
+		});
+		return;
+	}
 
 	// Run modes (streak / storm): no Elo, advance the run instead.
 	if (pp.mode === "streak" || pp.mode === "storm") {
@@ -1819,6 +1835,8 @@ io.on("connection", function (socket) {
 			games[playerID].playerName = user.name;
 			updateDraw(roomMapping[playerID]);
 		}
+		var today = db.todayUtc();
+		var dailyAttempt = db.getDailyAttempt(user.id, today);
 		socket.emit("authenticated", {
 			name: user.name,
 			rating: user.rating,
@@ -1830,7 +1848,9 @@ io.on("connection", function (socket) {
 			puzzlesSolved: user.puzzles_solved,
 			puzzlesAttempted: user.puzzles_attempted,
 			streakBest: user.streak_best,
-			stormBest: user.storm_best
+			stormBest: user.storm_best,
+			dailyStreak: db.dailyStreakForUser(user.id),
+			dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null
 		});
 		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
 		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
@@ -1943,6 +1963,35 @@ io.on("connection", function (socket) {
 
 	socket.on("puzzle_run_abandon", function() {
 		if (puzzleRun[playerID]) endPuzzleRun(socket, playerID, "abandon");
+	});
+
+	socket.on("puzzle_daily_status", function() {
+		var u = authedUserForPuzzle(); if (!u) return;
+		var date = db.todayUtc();
+		var puzzle = db.getOrPickDailyPuzzle(date);
+		var attempt = db.getDailyAttempt(u.id, date);
+		socket.emit("puzzle_daily_status", {
+			date: date,
+			puzzleId: puzzle ? puzzle.id : null,
+			attempt: attempt ? { solved: !!attempt.solved, at: attempt.attempted_at } : null,
+			streak: db.dailyStreakForUser(u.id)
+		});
+	});
+
+	socket.on("puzzle_daily_start", function() {
+		var u = authedUserForPuzzle(); if (!u) return;
+		var date = db.todayUtc();
+		var attempt = db.getDailyAttempt(u.id, date);
+		if (attempt) { socket.emit("puzzle_error", { reason: "daily_already_done" }); return; }
+		var puzzle = db.getOrPickDailyPuzzle(date);
+		if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
+		delete puzzlePlay[playerID];
+		if (puzzleRun[playerID]) { clearStormTimer(playerID); delete puzzleRun[playerID]; }
+		startPuzzlePlay(socket, playerID, u, puzzle, {
+			mode: "daily",
+			date: date,
+			streak: db.dailyStreakForUser(u.id)
+		});
 	});
 
 	// Hint points to the cell(s) where the next safe-reveal lives — it does
@@ -2185,6 +2234,43 @@ io.on("connection", function (socket) {
 	});
 });
 
+// Background pool top-up — if PUZZLE_POOL_TARGET is set and the DB has
+// fewer puzzles than that, kick off a self-restarting generation job at
+// startup. Keeps the pool healthy in prod without needing to babysit
+// the Lab. PUZZLE_POOL_TOPUP_DISABLED=1 turns it off.
+function ensurePuzzlePoolTopUp() {
+	if (process.env.PUZZLE_POOL_TOPUP_DISABLED === "1") return;
+	var target = parseInt(process.env.PUZZLE_POOL_TARGET, 10);
+	if (!target || target <= 0) return;
+	var have = db.puzzleCount();
+	if (have >= target) {
+		console.log("puzzle pool: " + have + " / " + target + " (full)");
+		return;
+	}
+	var toGenerate = target - have;
+	console.log("puzzle pool: " + have + " / " + target + " — generating " + toGenerate + " in background");
+	function tick() {
+		if (puzzleJob) {
+			// User-triggered job in flight; wait it out and retry later.
+			setTimeout(tick, 30 * 1000);
+			return;
+		}
+		var current = db.puzzleCount();
+		if (current >= target) {
+			console.log("puzzle pool top-up complete (" + current + " / " + target + ")");
+			return;
+		}
+		var batch = Math.min(200, target - current);
+		startPuzzleJob(batch, null, null);
+		// Poll until the job clears, then loop.
+		var watchdog = setInterval(function() {
+			if (!puzzleJob) { clearInterval(watchdog); tick(); }
+		}, 1000);
+	}
+	setTimeout(tick, 2000);
+}
+
 app.listen(PORT, "0.0.0.0", function() {
 	console.log("listening on " + PORT);
+	ensurePuzzlePoolTopUp();
 });

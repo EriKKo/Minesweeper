@@ -77,6 +77,23 @@ addColumnIfMissing("users", "puzzles_attempted", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "current_puzzle_id", "INTEGER");
 addColumnIfMissing("users", "streak_best", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "storm_best", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "daily_last_solved", "TEXT");
+
+db.exec(
+	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
+	"  date TEXT PRIMARY KEY," +
+	"  puzzle_id INTEGER NOT NULL," +
+	"  picked_at INTEGER NOT NULL" +
+	");" +
+	"CREATE TABLE IF NOT EXISTS daily_attempts (" +
+	"  user_id INTEGER NOT NULL," +
+	"  date TEXT NOT NULL," +
+	"  solved INTEGER NOT NULL," +
+	"  attempted_at INTEGER NOT NULL," +
+	"  PRIMARY KEY (user_id, date)" +
+	");"
+);
 
 function upsertUser(provider, providerId, name, avatarUrl) {
 	providerId = String(providerId);
@@ -220,6 +237,68 @@ function setCurrentPuzzle(userId, puzzleId) {
 	db.prepare("UPDATE users SET current_puzzle_id = ? WHERE id = ?").run(puzzleId, userId);
 }
 
+// ISO YYYY-MM-DD for "today" in UTC. Single global clock so everyone
+// sees the same puzzle at the same time regardless of timezone.
+function todayUtc() {
+	return new Date().toISOString().slice(0, 10);
+}
+
+function yesterdayOf(date) {
+	var d = new Date(date + "T00:00:00Z");
+	d.setUTCDate(d.getUTCDate() - 1);
+	return d.toISOString().slice(0, 10);
+}
+
+// Stable per-day assignment: pick the first time anyone asks, remember
+// it forever. Aim for the Advanced rating band (1400–1700) — challenging
+// but accessible. Falls back to a wider band if nothing's in range.
+function getOrPickDailyPuzzle(date) {
+	var existing = db.prepare("SELECT puzzle_id FROM daily_puzzles WHERE date = ?").get(date);
+	if (existing) {
+		var p = getPuzzleById(existing.puzzle_id);
+		if (p) return p;
+		// The assigned puzzle was deleted (lab cleared?) — re-pick.
+	}
+	var picked = pickDailyCandidate();
+	if (!picked) return null;
+	db.prepare("INSERT OR REPLACE INTO daily_puzzles (date, puzzle_id, picked_at) VALUES (?, ?, ?)").run(date, picked.id, Date.now());
+	return picked;
+}
+
+function pickDailyCandidate() {
+	var row = db.prepare("SELECT * FROM puzzles WHERE rating BETWEEN 1400 AND 1700 ORDER BY RANDOM() LIMIT 1").get();
+	if (row) return deserializePuzzle(row);
+	row = db.prepare("SELECT * FROM puzzles WHERE rating BETWEEN 1100 AND 2000 ORDER BY RANDOM() LIMIT 1").get();
+	if (row) return deserializePuzzle(row);
+	row = db.prepare("SELECT * FROM puzzles ORDER BY RANDOM() LIMIT 1").get();
+	return row ? deserializePuzzle(row) : null;
+}
+
+function getDailyAttempt(userId, date) {
+	return db.prepare("SELECT * FROM daily_attempts WHERE user_id = ? AND date = ?").get(userId, date) || null;
+}
+
+function recordDailyAttempt(userId, date, solved) {
+	db.prepare(
+		"INSERT OR REPLACE INTO daily_attempts (user_id, date, solved, attempted_at) VALUES (?, ?, ?, ?)"
+	).run(userId, date, solved ? 1 : 0, Date.now());
+	if (solved) {
+		var u = getUserById(userId);
+		var streak = (u && u.daily_last_solved === yesterdayOf(date)) ? (u.daily_streak || 0) + 1 : 1;
+		db.prepare("UPDATE users SET daily_streak = ?, daily_last_solved = ? WHERE id = ?").run(streak, date, userId);
+	}
+}
+
+function dailyStreakForUser(userId) {
+	var u = getUserById(userId);
+	if (!u) return 0;
+	// If they missed yesterday, the streak is broken — show 0.
+	var today = todayUtc();
+	if (u.daily_last_solved === today) return u.daily_streak;
+	if (u.daily_last_solved === yesterdayOf(today)) return u.daily_streak;
+	return 0;
+}
+
 function getRunBest(userId, mode) {
 	var col = mode === "streak" ? "streak_best" : "storm_best";
 	var row = db.prepare("SELECT " + col + " AS v FROM users WHERE id = ?").get(userId);
@@ -316,5 +395,10 @@ module.exports = {
 	recentlyAttemptedPuzzleIds: recentlyAttemptedPuzzleIds,
 	pickPuzzleNearRating: pickPuzzleNearRating,
 	getRunBest: getRunBest,
-	setRunBest: setRunBest
+	setRunBest: setRunBest,
+	todayUtc: todayUtc,
+	getOrPickDailyPuzzle: getOrPickDailyPuzzle,
+	getDailyAttempt: getDailyAttempt,
+	recordDailyAttempt: recordDailyAttempt,
+	dailyStreakForUser: dailyStreakForUser
 };

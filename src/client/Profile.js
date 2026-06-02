@@ -92,4 +92,13 @@ function renderHomeRankChips() {
 	var stormBestEl = document.getElementById("puzzle_storm_best");
 	if (streakBestEl) streakBestEl.textContent = account ? (account.streakBest || 0) : "—";
 	if (stormBestEl) stormBestEl.textContent = account ? (account.stormBest || 0) : "—";
+	var dailyStreakEl = document.getElementById("puzzle_daily_streak");
+	var dailyStatusEl = document.getElementById("puzzle_daily_status");
+	if (dailyStreakEl) dailyStreakEl.textContent = account ? (account.dailyStreak || 0) : "—";
+	if (dailyStatusEl) {
+		if (!account) { dailyStatusEl.textContent = ""; }
+		else if (!account.dailyAttempt) { dailyStatusEl.textContent = "Not played"; }
+		else if (account.dailyAttempt.solved) { dailyStatusEl.textContent = "Solved today"; }
+		else { dailyStatusEl.textContent = "Missed today"; }
+	}
 }

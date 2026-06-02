@@ -49,7 +49,7 @@ function notePuzzleReveal(result) {
 // game view with puzzle chrome.
 function renderPuzzlePlay(mode) {
 	mode = mode || "rated";
-	puzzleRunMode = (mode === "streak" || mode === "storm") ? mode : null;
+	puzzleRunMode = (mode === "streak" || mode === "storm" || mode === "daily") ? mode : null;
 	var view = document.getElementById("puzzle_play_view");
 	if (!view) return;
 	view.innerHTML = "";
@@ -57,6 +57,7 @@ function renderPuzzlePlay(mode) {
 	title.className = "section-page-title";
 	title.textContent = mode === "streak" ? "Streak"
 		: mode === "storm" ? "Storm"
+		: mode === "daily" ? "Daily puzzle"
 		: "Rated puzzles";
 	view.appendChild(title);
 
@@ -67,12 +68,22 @@ function renderPuzzlePlay(mode) {
 		view.appendChild(msg);
 		return;
 	}
-	var loading = document.createElement("p");
-	loading.className = "puzzle-play-empty";
-	loading.textContent = mode === "streak" ? "Starting streak run…"
+	if (mode === "daily") {
+		// Check first — if already attempted today, show the result without
+		// starting a fresh play.
+		var loading = document.createElement("p");
+		loading.className = "puzzle-play-empty";
+		loading.textContent = "Checking today's puzzle…";
+		view.appendChild(loading);
+		socket.emit("puzzle_daily_status");
+		return;
+	}
+	var loading2 = document.createElement("p");
+	loading2.className = "puzzle-play-empty";
+	loading2.textContent = mode === "streak" ? "Starting streak run…"
 		: mode === "storm" ? "Starting storm run…"
 		: "Finding a puzzle near your rating…";
-	view.appendChild(loading);
+	view.appendChild(loading2);
 	if (mode === "streak") socket.emit("puzzle_streak_start");
 	else if (mode === "storm") socket.emit("puzzle_storm_start");
 	else socket.emit("puzzle_next");
@@ -121,12 +132,26 @@ function togglePuzzleChrome(on, mode) {
 	var ratedPanel = document.getElementById("puzzle_rated_panel");
 	var runPanel = document.getElementById("puzzle_run_panel");
 	var titleEl = document.getElementById("puzzle_side_title");
-	if (mode === "streak" || mode === "storm") {
+	var primaryLabel = document.getElementById("puzzle_run_primary_label");
+	var secondaryLabel = document.getElementById("puzzle_run_secondary_label");
+	var footLabel = document.getElementById("puzzle_run_foot_label");
+	if (mode === "streak" || mode === "storm" || mode === "daily") {
 		if (ratedPanel) ratedPanel.style.display = "none";
 		if (runPanel) runPanel.style.display = "";
-		if (titleEl) titleEl.textContent = mode === "streak" ? "Streak" : "Storm";
-		var secondaryLabel = document.getElementById("puzzle_run_secondary_label");
-		if (secondaryLabel) secondaryLabel.textContent = mode === "streak" ? "Level" : "Time";
+		if (titleEl) {
+			titleEl.textContent = mode === "streak" ? "Streak"
+				: mode === "storm" ? "Storm"
+				: "Daily puzzle";
+		}
+		if (primaryLabel) {
+			primaryLabel.textContent = mode === "daily" ? "Streak" : "Solved";
+		}
+		if (secondaryLabel) {
+			secondaryLabel.textContent = mode === "streak" ? "Level"
+				: mode === "storm" ? "Time"
+				: "Today";
+		}
+		if (footLabel) footLabel.textContent = "Best";
 	} else {
 		if (ratedPanel) ratedPanel.style.display = "";
 		if (runPanel) runPanel.style.display = "none";
@@ -150,12 +175,13 @@ function renderPuzzleRunHud() {
 	if (!run) return;
 	var solvesEl = document.getElementById("puzzle_run_solves");
 	if (solvesEl) {
-		var newSolves = run.solves || 0;
-		var prevSolves = parseInt(solvesEl.textContent, 10);
-		if (isNaN(prevSolves)) prevSolves = newSolves;
-		solvesEl.textContent = String(newSolves);
-		if (newSolves > prevSolves) {
-			// Re-trigger the keyframe by toggling the class.
+		// Daily uses the streak number as the primary counter; streak/storm
+		// use the in-run solve count.
+		var newPrimary = run.mode === "daily" ? (run.streak || 0) : (run.solves || 0);
+		var prevPrimary = parseInt(solvesEl.textContent, 10);
+		if (isNaN(prevPrimary)) prevPrimary = newPrimary;
+		solvesEl.textContent = String(newPrimary);
+		if (newPrimary > prevPrimary) {
 			solvesEl.classList.remove("bump");
 			void solvesEl.offsetWidth;
 			solvesEl.classList.add("bump");
@@ -165,18 +191,34 @@ function renderPuzzleRunHud() {
 	if (secondary) {
 		if (run.mode === "streak") {
 			secondary.textContent = String(run.targetRating || 0);
-		} else {
+		} else if (run.mode === "storm") {
 			var remaining = Math.max(0, (run.endsAt || 0) - Date.now());
 			var sec = Math.ceil(remaining / 1000);
 			var m = Math.floor(sec / 60), s = sec % 60;
 			secondary.textContent = m + ":" + (s < 10 ? "0" : "") + s;
+		} else if (run.mode === "daily") {
+			// Trim YYYY-MM-DD → "MMM D" for a friendlier label.
+			secondary.textContent = formatDailyDate(run.date || "");
 		}
 	}
 	var bestEl = document.getElementById("puzzle_run_best");
 	if (bestEl && account) {
-		var best = run.mode === "streak" ? (account.streakBest || 0) : (account.stormBest || 0);
-		bestEl.textContent = String(best);
+		if (run.mode === "streak") bestEl.textContent = String(account.streakBest || 0);
+		else if (run.mode === "storm") bestEl.textContent = String(account.stormBest || 0);
+		else if (run.mode === "daily") {
+			// Foot reads "Best · solved (Y/N today)" — keep it short.
+			bestEl.textContent = puzzleSession && puzzleSession.finished
+				? (puzzleSession.run.lastSolved ? "Solved" : "Missed")
+				: "—";
+		}
 	}
+}
+
+function formatDailyDate(iso) {
+	if (!iso || iso.length < 10) return iso;
+	var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+	var y = iso.slice(0, 4), m = parseInt(iso.slice(5, 7), 10), d = parseInt(iso.slice(8, 10), 10);
+	return months[m - 1] + " " + d;
 }
 
 function startStormTicker() {
@@ -332,6 +374,60 @@ function flashPuzzleDelta(delta) {
 function showPuzzleOutcome(result) {
 	// Replaces the old modal panel with the inline flash + auto-advance.
 	flashPuzzleResult(result);
+}
+
+// Daily puzzle result panel — shown after the one allowed attempt, or
+// when revisiting the daily page after the day's play is done.
+function showDailyOutcome(data) {
+	stopStormTicker();
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	header.textContent = data.solved ? "Daily cleared!" : "Daily missed";
+	panel.appendChild(header);
+
+	var line = document.createElement("div");
+	line.className = "tournament-place";
+	line.style.color = data.solved ? "#4ade80" : "#f87171";
+	line.textContent = "Streak · " + data.streak;
+	panel.appendChild(line);
+
+	var foot = document.createElement("div");
+	foot.className = "result-foot";
+	foot.textContent = "Come back tomorrow for a new puzzle.";
+	panel.appendChild(foot);
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+	var back = document.createElement("button");
+	back.className = "btn btn-primary";
+	back.textContent = "Back to lobby";
+	back.addEventListener("click", exitPuzzle);
+	actions.appendChild(back);
+	panel.appendChild(actions);
+
+	presentPanel(panel, data.solved ? "win" : "lose");
+}
+
+// Player visited /puzzles/daily but already played today — show the
+// outcome panel without starting a fresh play.
+function showDailyAlreadyDone(data) {
+	puzzleSession = {
+		mode: "daily",
+		finished: true,
+		run: { mode: "daily", date: data.date, streak: data.streak, lastSolved: data.attempt.solved }
+	};
+	// Show the side card chrome so the result panel reads naturally.
+	hideAllViews();
+	if (gameView) {
+		gameView.style.display = "";
+		gameView.classList.add("puzzle");
+	}
+	togglePuzzleChrome(true, "daily");
+	updatePuzzleHud();
+	showDailyOutcome({ date: data.date, solved: data.attempt.solved, streak: data.streak });
 }
 
 // Run-end panel (Streak / Storm). Modal-style since the run is done and

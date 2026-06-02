@@ -590,6 +590,15 @@ main {
 	color: #f87171;
 	border-color: rgba(248, 113, 113, 0.5);
 }
+.home-card-daily {
+	background: linear-gradient(160deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.04) 70%);
+	border-color: rgba(250, 204, 21, 0.45);
+}
+.home-card-tag-daily {
+	background: rgba(250, 204, 21, 0.22);
+	color: #facc15;
+	border-color: rgba(250, 204, 21, 0.5);
+}
 
 .puzzle-run-row { display: flex; gap: 1.4rem; margin: 0.4rem 0; }
 .puzzle-run-stat { display: flex; flex-direction: column; gap: 0.2rem; }
