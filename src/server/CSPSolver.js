@@ -252,8 +252,21 @@ function analyzeBoard(board, state, opts) {
 		}
 		var best = directTrivial || findBestTrivialClue(initial, opts);
 		if (!best) break;
+		// Snapshot the cells the move actually changed (reveal or flag)
+		// before applying, so the UI can highlight them on the board.
+		var changed = [];
+		for (var ci = 0; ci < best.cells.length; ci++) {
+			var rc = best.cells[ci];
+			if (state[rc[0]][rc[1]] === UNKNOWN) changed.push(rc);
+		}
 		applyTrivialClue(board, state, best, opts.revealCell);
-		moves.push({ complexity: best.complexity, cells: best.cells.length, mines: best.mines });
+		moves.push({
+			complexity: best.complexity,
+			action: best.mines === 0 ? "reveal" : "flag",
+			cells: best.cells,
+			changed: changed,
+			mines: best.mines
+		});
 	}
 	// Solved = every safe cell is KNOWN. Mines may sit either FLAGGED or
 	// UNKNOWN (they don't all need to be flagged for the player to win),

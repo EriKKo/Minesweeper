@@ -255,6 +255,11 @@ function renderPuzzleListCard(p) {
 	var density = Math.round((p.mines.length / (p.rows * p.cols)) * 100);
 	meta.textContent = p.rows + "×" + p.cols + " · " + p.coveredSafe + " covered · " + density + "%";
 	head.appendChild(meta);
+	var analyzeBtn = document.createElement("button");
+	analyzeBtn.className = "puzzle-card-analyze";
+	analyzeBtn.textContent = "Analyze";
+	analyzeBtn.addEventListener("click", function(e) { e.stopPropagation(); openAnalyzeModal(p); });
+	head.appendChild(analyzeBtn);
 	card.appendChild(head);
 
 	var pseudoPuzzle = {
@@ -267,4 +272,117 @@ function renderPuzzleListCard(p) {
 	card.appendChild(buildLearnPuzzle(pseudoPuzzle, false, function() {}));
 
 	return card;
+}
+
+// Floating modal that lets the user play the puzzle interactively while
+// the CSP solver's move trace is fetched and displayed alongside. Each
+// move row shows the action (reveal/flag), affected cells, and the
+// complexity the solver assigned to the deduction.
+function openAnalyzeModal(p) {
+	var prev = document.getElementById("analyze_modal");
+	if (prev) prev.remove();
+
+	var backdrop = document.createElement("div");
+	backdrop.id = "analyze_modal";
+	backdrop.className = "analyze-modal-backdrop";
+	backdrop.addEventListener("click", function(e) { if (e.target === backdrop) closeAnalyzeModal(); });
+
+	var panel = document.createElement("div");
+	panel.className = "analyze-modal";
+
+	var head = document.createElement("div");
+	head.className = "analyze-modal-head";
+	var title = document.createElement("h2");
+	title.textContent = "Analyze · puzzle " + p.id;
+	head.appendChild(title);
+	var sub = document.createElement("span");
+	sub.className = "analyze-modal-sub";
+	var density = Math.round((p.mines.length / (p.rows * p.cols)) * 100);
+	sub.textContent = p.rows + "×" + p.cols + " · " + density + "% · rating " + p.rating + " · t" + p.difficulty;
+	head.appendChild(sub);
+	var closeBtn = document.createElement("button");
+	closeBtn.className = "analyze-modal-close";
+	closeBtn.textContent = "Close";
+	closeBtn.addEventListener("click", closeAnalyzeModal);
+	head.appendChild(closeBtn);
+	panel.appendChild(head);
+
+	var body = document.createElement("div");
+	body.className = "analyze-modal-body";
+
+	var boardCol = document.createElement("div");
+	boardCol.className = "analyze-modal-board";
+	var playable = buildLearnPuzzle({
+		title: "",
+		rows: p.rows,
+		cols: p.cols,
+		mines: p.mines,
+		revealed: p.revealed
+	}, false, function() {});
+	boardCol.appendChild(playable);
+	body.appendChild(boardCol);
+
+	var traceCol = document.createElement("div");
+	traceCol.className = "analyze-modal-trace";
+	var traceHead = document.createElement("div");
+	traceHead.className = "analyze-trace-head";
+	traceHead.textContent = "Solver moves";
+	traceCol.appendChild(traceHead);
+	var traceStatus = document.createElement("div");
+	traceStatus.className = "analyze-trace-status";
+	traceStatus.textContent = "Analyzing…";
+	traceCol.appendChild(traceStatus);
+	var traceList = document.createElement("ol");
+	traceList.className = "analyze-trace-list";
+	traceCol.appendChild(traceList);
+	body.appendChild(traceCol);
+
+	panel.appendChild(body);
+	backdrop.appendChild(panel);
+	document.body.appendChild(backdrop);
+
+	document.addEventListener("keydown", onAnalyzeModalKey);
+
+	fetch("/api/puzzles/" + p.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
+		if (!document.getElementById("analyze_modal")) return; // closed before response
+		if (data && data.error) {
+			traceStatus.textContent = "Error: " + data.error;
+			return;
+		}
+		traceStatus.textContent = "max complexity " + data.maxComplexity + " · total " + data.totalComplexity
+			+ (data.solved ? " · solved" : " · " + data.safeCovered + " safe cells uncovered (enum needed)");
+		(data.moves || []).forEach(function(mv, i) {
+			var li = document.createElement("li");
+			li.className = "analyze-trace-move analyze-trace-" + mv.action;
+			var ix = document.createElement("span");
+			ix.className = "analyze-trace-index";
+			ix.textContent = "#" + (i + 1);
+			li.appendChild(ix);
+			var act = document.createElement("span");
+			act.className = "analyze-trace-action";
+			act.textContent = mv.action === "flag" ? "flag" : "reveal";
+			li.appendChild(act);
+			var cells = document.createElement("span");
+			cells.className = "analyze-trace-cells";
+			cells.textContent = (mv.changed || mv.cells).map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ");
+			li.appendChild(cells);
+			var compl = document.createElement("span");
+			compl.className = "analyze-trace-compl";
+			compl.textContent = "c=" + mv.complexity;
+			li.appendChild(compl);
+			traceList.appendChild(li);
+		});
+	}).catch(function(e) {
+		traceStatus.textContent = "Error: " + e.message;
+	});
+}
+
+function closeAnalyzeModal() {
+	var el = document.getElementById("analyze_modal");
+	if (el) el.remove();
+	document.removeEventListener("keydown", onAnalyzeModalKey);
+}
+
+function onAnalyzeModalKey(e) {
+	if (e.key === "Escape") closeAnalyzeModal();
 }

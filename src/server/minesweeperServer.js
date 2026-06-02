@@ -9,7 +9,8 @@ var http = require("http")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
   , BoardLogic = require("../common/BoardLogic")
-  , puzzleSolver = require("./PuzzleSolver");
+  , puzzleSolver = require("./PuzzleSolver")
+  , cspSolver = require("./CSPSolver");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -106,6 +107,8 @@ function handler (req, res) {
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
+	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
+	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
 	var filePath = resolveStatic(pathname);
 	if (!filePath) { res.writeHead(404); res.end(); return; }
@@ -642,6 +645,42 @@ function servePuzzlesClear(req, res, url) {
 	puzzleJob = null;
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ ok: true }));
+}
+
+// CSP solver trace for a single puzzle. Used by the Analyze modal in
+// the admin All-Puzzles view to compare the new solver's complexity
+// scoring against the existing pass-based tier on a per-board basis.
+function servePuzzleAnalyze(req, res, puzzleId) {
+	var puzzle = db.getPuzzleById(puzzleId);
+	if (!puzzle) {
+		res.writeHead(404, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Puzzle not found" }));
+		return;
+	}
+	var board = puzzleGen.buildBoard(puzzle.rows, puzzle.cols, puzzle.mines);
+	var state = [];
+	for (var r = 0; r < puzzle.rows; r++) {
+		state.push([]);
+		for (var c = 0; c < puzzle.cols; c++) state[r].push(BoardLogic.UNKNOWN);
+	}
+	puzzle.revealed.forEach(function(rc) { state[rc[0]][rc[1]] = BoardLogic.KNOWN; });
+	function cascade(rr, cc) {
+		BoardLogic.cascadeReveal(rr, cc, puzzle.rows, puzzle.cols,
+			function(r2, c2) { return state[r2][c2] === BoardLogic.UNKNOWN; },
+			function(r2, c2) { state[r2][c2] = BoardLogic.KNOWN; return false; },
+			function(r2, c2) { return board[r2][c2]; }
+		);
+	}
+	var result = cspSolver.analyzeBoard(board, state, { revealCell: cascade });
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({
+		puzzleId: puzzleId,
+		solved: result.solved,
+		maxComplexity: result.maxComplexity,
+		totalComplexity: result.totalComplexity,
+		safeCovered: result.safeCovered,
+		moves: result.moves
+	}));
 }
 
 function puzzleJobStatus() {
