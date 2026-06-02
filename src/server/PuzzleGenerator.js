@@ -27,10 +27,15 @@ function generatePuzzles(opts) {
 	var targetDiff = (typeof opts.diff === "number" && opts.diff >= 1 && opts.diff <= 6) ? opts.diff : null;
 	// Rarer difficulties need more attempts per puzzle — diff-5 ≈ 1.5% of
 	// random rolls, diff-4 < 1%. Density-pinned jobs at the extremes (≥30%)
-	// also reject most candidates because cascade rarely fires, so they get
-	// the same elevated budget.
+	// also reject most candidates because cascade rarely fires; ≥40% is
+	// essentially edge-of-solvable so it gets an even bigger budget so the
+	// rare success can be found within a single batch.
+	var density = typeof opts.density === "number" ? opts.density : null;
 	var attemptsPerPuzzle = opts.attempts
-		|| (targetDiff ? 200 : (typeof opts.density === "number" ? 100 : 25));
+		|| (targetDiff ? 200
+			: density != null && density >= 0.40 ? 500
+			: density != null ? 100
+			: 25);
 	var totalAttemptBudget = batchSize * attemptsPerPuzzle;
 	var puzzles = [];
 	var attempts = 0;
@@ -52,8 +57,8 @@ function generatePuzzles(opts) {
 // zero-region — clicking any cell within a region produces the identical
 // reveal set, so we only emit one puzzle per region.
 function tryGenerateLayout(opts) {
-	var rows = opts.rows || randInt(4, 7);
-	var cols = opts.cols || randInt(4, 7);
+	var rows = opts.rows || randInt(4, 8);
+	var cols = opts.cols || randInt(4, 8);
 	// Vary mine density across attempts — sparse boards generate easy diff-1
 	// puzzles; denser boards (more constraints linking each frontier cell)
 	// are where the harder case-analysis puzzles live. A caller-supplied
@@ -63,9 +68,9 @@ function tryGenerateLayout(opts) {
 	if (typeof opts.density === "number") {
 		density = opts.density + (Math.random() - 0.5) * 0.06;
 		if (density < 0.05) density = 0.05;
-		if (density > 0.45) density = 0.45;
+		if (density > 0.50) density = 0.50;
 	} else {
-		density = 0.12 + Math.random() * 0.20; // 0.12 .. 0.32
+		density = 0.12 + Math.random() * 0.28; // 0.12 .. 0.40
 	}
 	var defaultMines = Math.max(2, Math.round(rows * cols * density));
 	var mineCount = opts.mineCount || defaultMines;

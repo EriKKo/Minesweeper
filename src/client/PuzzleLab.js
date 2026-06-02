@@ -93,7 +93,9 @@ var DENSITY_OPTIONS = [
 	{ label: "20%", value: 0.20 },
 	{ label: "25%", value: 0.25 },
 	{ label: "30%", value: 0.30 },
-	{ label: "35%", value: 0.35 }
+	{ label: "35%", value: 0.35 },
+	{ label: "40%", value: 0.40 },
+	{ label: "45%", value: 0.45 }
 ];
 
 function renderPuzzleLab() {

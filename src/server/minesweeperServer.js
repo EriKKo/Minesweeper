@@ -602,7 +602,7 @@ function servePuzzles(req, res, url) {
 		var job = startPuzzleJob(
 			count,
 			(diff >= 1 && diff <= 6) ? diff : null,
-			(density >= 0.05 && density <= 0.45) ? density : null
+			(density >= 0.05 && density <= 0.50) ? density : null
 		);
 		res.writeHead(202, { "Content-Type": "application/json" });
 		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density } }));
@@ -616,9 +616,11 @@ function servePuzzles(req, res, url) {
 	var page = parseInt(url.searchParams.get("page"), 10) || 0;
 	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
 	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
+	var methodRaw = url.searchParams.get("method");
+	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "enum") ? methodRaw : null;
 	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
-	var puzzles = db.listPuzzles({ difficulty: diffFilter, page: page, pageSize: pageSize, sort: sort });
-	var total = db.puzzleCount(diffFilter);
+	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, page: page, pageSize: pageSize, sort: sort });
+	var total = db.puzzleCount(diffFilter, method);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({
 		puzzles: puzzles,

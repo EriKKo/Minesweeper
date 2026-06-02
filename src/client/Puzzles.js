@@ -5,7 +5,7 @@
 // the puzzle DB exists this page is the natural place to swap the fetch over
 // to it; the rest of the UI stays unchanged.
 
-var puzzleListState = { sort: "score-asc", diff: null, page: 0, pageSize: 50 };
+var puzzleListState = { sort: "score-asc", diff: null, method: null, page: 0, pageSize: 50 };
 
 function renderPuzzlesList() {
 	var view = document.getElementById("puzzles_list_view");
@@ -73,6 +73,34 @@ function renderPuzzlesList() {
 		filter.appendChild(btn);
 	});
 	toolbar.appendChild(filter);
+
+	var methodRow = document.createElement("div");
+	methodRow.className = "puzzles-filter";
+	var methodLabel = document.createElement("span");
+	methodLabel.className = "puzzles-filter-label";
+	methodLabel.textContent = "Method";
+	methodRow.appendChild(methodLabel);
+	[
+		{ key: null, label: "Any" },
+		{ key: "trivial", label: "Trivial only" },
+		{ key: "subset", label: "Subset" },
+		{ key: "enum", label: "Enum required" }
+	].forEach(function(opt) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.method = opt.key == null ? "any" : opt.key;
+		btn.textContent = opt.label;
+		if (opt.key === puzzleListState.method) btn.classList.add("active");
+		btn.addEventListener("click", function() {
+			puzzleListState.method = opt.key;
+			puzzleListState.page = 0;
+			updatePuzzleListMethodChips();
+			refreshPuzzleList();
+		});
+		methodRow.appendChild(btn);
+	});
+	toolbar.appendChild(methodRow);
+
 	view.appendChild(toolbar);
 
 	var status = document.createElement("p");
@@ -99,9 +127,17 @@ function renderPuzzlesList() {
 }
 
 function updatePuzzleListFilterChips() {
-	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip").forEach(function(b) {
+	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip[data-diff]").forEach(function(b) {
 		var d = b.dataset.diff;
 		var match = (d === "all" && puzzleListState.diff == null) || (parseInt(d, 10) === puzzleListState.diff);
+		b.classList.toggle("active", !!match);
+	});
+}
+
+function updatePuzzleListMethodChips() {
+	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip[data-method]").forEach(function(b) {
+		var m = b.dataset.method;
+		var match = (m === "any" && puzzleListState.method == null) || (m === puzzleListState.method);
 		b.classList.toggle("active", !!match);
 	});
 }
@@ -111,7 +147,10 @@ function refreshPuzzleList() {
 	var sort = puzzleListState.sort === "score-desc" ? "desc" : "asc";
 	var page = puzzleListState.page || 0;
 	var pageSize = puzzleListState.pageSize || 50;
-	var qs = "page=" + page + "&pageSize=" + pageSize + "&sort=" + sort + (diff ? "&diff=" + diff : "");
+	var method = puzzleListState.method;
+	var qs = "page=" + page + "&pageSize=" + pageSize + "&sort=" + sort
+		+ (diff ? "&diff=" + diff : "")
+		+ (method ? "&method=" + method : "");
 	var url = "/api/puzzles?" + qs;
 	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];

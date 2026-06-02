@@ -266,6 +266,16 @@ function deserializePuzzle(row) {
 	};
 }
 
+function methodClause(method) {
+	// "trivial" — only trivial pass used
+	// "subset"  — uses subset, no enum
+	// "enum"    — enum pass involved
+	if (method === "trivial") return "subset_passes = 0 AND enum_passes = 0";
+	if (method === "subset")  return "subset_passes > 0 AND enum_passes = 0";
+	if (method === "enum")    return "enum_passes > 0";
+	return null;
+}
+
 function listPuzzles(opts) {
 	opts = opts || {};
 	var clauses = [];
@@ -274,6 +284,8 @@ function listPuzzles(opts) {
 		clauses.push("difficulty = ?");
 		params.push(opts.difficulty);
 	}
+	var method = methodClause(opts.method);
+	if (method) clauses.push(method);
 	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
 	var pageSize = Math.max(1, Math.min(200, opts.pageSize || 50));
 	var page = Math.max(0, opts.page || 0);
@@ -285,11 +297,19 @@ function listPuzzles(opts) {
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
 }
 
-function puzzleCount(difficulty) {
+function puzzleCount(difficulty, method) {
+	var clauses = [];
+	var params = [];
 	if (difficulty >= 1 && difficulty <= 6) {
-		return db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE difficulty = ?").get(difficulty).n;
+		clauses.push("difficulty = ?");
+		params.push(difficulty);
 	}
-	return db.prepare("SELECT COUNT(*) AS n FROM puzzles").get().n;
+	var m = methodClause(method);
+	if (m) clauses.push(m);
+	var sql = "SELECT COUNT(*) AS n FROM puzzles";
+	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	var stmt = db.prepare(sql);
+	return stmt.get.apply(stmt, params).n;
 }
 
 function clearPuzzles() {
