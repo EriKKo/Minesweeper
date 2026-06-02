@@ -299,6 +299,7 @@ function renderPuzzleCard(p) {
 	if (p.passes.trivial) passBits.push("t×" + p.passes.trivial);
 	if (p.passes.subset) passBits.push("s×" + p.passes.subset);
 	if (p.passes.overlap) passBits.push("o×" + p.passes.overlap);
+	if (p.passes.chain) passBits.push("c×" + p.passes.chain);
 	if (p.passes.enum) passBits.push("e×" + p.passes.enum + (p.maxEnumSize ? "(" + p.maxEnumSize + ")" : ""));
 	var density = Math.round((p.mines.length / (p.rows * p.cols)) * 100);
 	meta.textContent = p.rows + "×" + p.cols + " · " + p.coveredSafe + " covered · " + density + "% · score " + p.score.toFixed(1) + " · " + passBits.join(" ");

@@ -150,6 +150,81 @@ function findOverlapSteps(board, state) {
 
 function popcount(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
 
+// Chain deduction: combine two or more clues whose covered sets are
+// disjoint subsets of a single "super-clue", then compare their summed
+// need to the super-clue's need. The leftover cells in the super-clue
+// inherit the residual count, which often collapses to all-safe or
+// all-mine. The canonical example is the 1-2-1 corner — two 1-clues whose
+// covered sets sit inside a 2-clue's covered set; if the 1-needs add to
+// 2, every other cell the 2-clue can see is safe.
+//
+// Each super-clue is checked against up to CHAIN_SUB_CAP candidate sub-
+// clues to bound the 2^k subset enumeration; in practice 8–10 is plenty.
+var CHAIN_SUB_CAP = 10;
+function findChainSteps(board, state) {
+	var cs = gatherSubsetConstraints(board, state);
+	var steps = [];
+	for (var i = 0; i < cs.length; i++) {
+		var C = cs[i];
+		if (C.cells.length < 3) continue; // chains only help when the super has ≥3 covered cells
+		// Index each of C's covered cells so we can describe subsets as bitmasks.
+		var cIdx = {};
+		for (var k = 0; k < C.cells.length; k++) cIdx[C.cells[k][0] + "," + C.cells[k][1]] = k;
+		var subs = [];
+		for (var j = 0; j < cs.length; j++) {
+			if (j === i) continue;
+			var T = cs[j];
+			if (T.cells.length === 0 || T.cells.length >= C.cells.length) continue;
+			var mask = 0;
+			var allIn = true;
+			for (var m = 0; m < T.cells.length; m++) {
+				var idx = cIdx[T.cells[m][0] + "," + T.cells[m][1]];
+				if (idx === undefined) { allIn = false; break; }
+				mask |= (1 << idx);
+			}
+			if (!allIn) continue;
+			subs.push({ mask: mask, need: T.need, r: T.r, c: T.c });
+		}
+		if (subs.length < 2) continue; // single-sub case is plain subset — handled elsewhere
+		if (subs.length > CHAIN_SUB_CAP) subs.length = CHAIN_SUB_CAP;
+		var fullMask = (1 << C.cells.length) - 1;
+		var nSubs = subs.length;
+		var totalCombos = 1 << nSubs;
+		var found = null;
+		for (var bits = 1; bits < totalCombos && !found; bits++) {
+			// Require ≥2 sub-clues — singletons collapse to the subset pass.
+			var bc = 0; for (var x = bits; x; x &= x - 1) bc++;
+			if (bc < 2) continue;
+			var combined = 0;
+			var needSum = 0;
+			var ok = true;
+			var chainClues = [[C.r, C.c]];
+			for (var b = 0; b < nSubs; b++) {
+				if (!(bits & (1 << b))) continue;
+				if (combined & subs[b].mask) { ok = false; break; } // sub-clues must be pairwise disjoint
+				combined |= subs[b].mask;
+				needSum += subs[b].need;
+				chainClues.push([subs[b].r, subs[b].c]);
+			}
+			if (!ok) continue;
+			if (combined === fullMask) continue; // sub-clues cover all of C — nothing to deduce in the remainder
+			var remMask = fullMask & ~combined;
+			var remCount = 0; for (var y = remMask; y; y &= y - 1) remCount++;
+			var remNeed = C.need - needSum;
+			if (remNeed < 0 || remNeed > remCount) continue; // infeasible combination, skip
+			if (remNeed !== 0 && remNeed !== remCount) continue;
+			var remCells = [];
+			for (var rb = 0; rb < C.cells.length; rb++) {
+				if (remMask & (1 << rb)) remCells.push(C.cells[rb]);
+			}
+			if (remNeed === 0) found = { clueCells: chainClues, safeCells: remCells, mineCells: [] };
+			else found = { clueCells: chainClues, safeCells: [], mineCells: remCells };
+		}
+		if (found) steps.push(found);
+	}
+	return steps;
+}
+
 // Brute-force enumeration over each independent frontier component (cells
 // linked by sharing a constraint clue). Catches 1-2-1 patterns, multi-clue
 // chains, and other case-analysis puzzles. Capped at ENUM_CAP=18 cells
@@ -324,6 +399,9 @@ function findFirstSafeStep(board, originalState) {
 		var r2o = tryLevel(findOverlapSteps(board, state), "overlap");
 		if (r2o.resolved) return r2o.hint;
 		if (r2o.advanced) continue;
+		var r2c = tryLevel(findChainSteps(board, state), "chain");
+		if (r2c.resolved) return r2c.hint;
+		if (r2c.advanced) continue;
 		var r3 = tryLevel(findEnumSteps(board, state), "enum");
 		if (r3.resolved) return r3.hint;
 		if (r3.advanced) continue;
@@ -408,6 +486,23 @@ function applySubsetPass(board, state, revealCell) {
 	return prog;
 }
 
+function applyChainPass(board, state, revealCell) {
+	var steps = findChainSteps(board, state);
+	var prog = false;
+	for (var s = 0; s < steps.length; s++) {
+		var step = steps[s];
+		for (var i = 0; i < step.safeCells.length; i++) {
+			var sc = step.safeCells[i];
+			if (state[sc[0]][sc[1]] === UNKNOWN) { revealCell(sc[0], sc[1]); prog = true; }
+		}
+		for (var j = 0; j < step.mineCells.length; j++) {
+			var mc = step.mineCells[j];
+			if (state[mc[0]][mc[1]] !== FLAGGED) { state[mc[0]][mc[1]] = FLAGGED; prog = true; }
+		}
+	}
+	return prog;
+}
+
 function applyOverlapPass(board, state, revealCell) {
 	var steps = findOverlapSteps(board, state);
 	var prog = false;
@@ -453,10 +548,12 @@ module.exports = {
 	findTrivialSteps: findTrivialSteps,
 	findSubsetSteps: findSubsetSteps,
 	findOverlapSteps: findOverlapSteps,
+	findChainSteps: findChainSteps,
 	findEnumSteps: findEnumSteps,
 	findFirstSafeStep: findFirstSafeStep,
 	applyTrivialPass: applyTrivialPass,
 	applySubsetPass: applySubsetPass,
 	applyOverlapPass: applyOverlapPass,
+	applyChainPass: applyChainPass,
 	applyEnumPass: applyEnumPass
 };

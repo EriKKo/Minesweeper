@@ -284,12 +284,13 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		);
 	}
 
-	var trivCount = 0, subsetCount = 0, overlapCount = 0, enumCount = 0;
+	var trivCount = 0, subsetCount = 0, overlapCount = 0, chainCount = 0, enumCount = 0;
 	var maxEnumSize = 0;
 	while (true) {
 		if (puzzleSolver.applyTrivialPass(board, state, cascadeReveal)) { trivCount++; continue; }
 		if (puzzleSolver.applySubsetPass(board, state, cascadeReveal))  { subsetCount++; continue; }
 		if (puzzleSolver.applyOverlapPass(board, state, cascadeReveal)) { overlapCount++; continue; }
+		if (puzzleSolver.applyChainPass(board, state, cascadeReveal))   { chainCount++; continue; }
 		var enumResult = puzzleSolver.applyEnumPass(board, state, cascadeReveal);
 		if (enumResult.progress) {
 			enumCount++;
@@ -306,14 +307,17 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var totalSafe = rows * cols - numMines;
 	var solved = revealedSafe === totalSafe;
 
-	// Tiering: trivial (1) → subset (2/3) → overlap (3/4) → enum (4–6).
-	// Overlap and subset share tier 3 since both are pair-of-clues reasoning;
-	// overlap escalates to 4 once multiple overlap steps stack.
+	// Tiering: trivial (1) → subset (2/3) → overlap (3/4) → chain (4/5) → enum (4–6).
+	// Chain steps are visibly harder than overlap for humans (you have to
+	// see two sub-clues feeding a super-clue at once), so a single chain
+	// step is already tier 4 and two chains push to tier 5.
 	var difficulty;
 	if (!solved) difficulty = 0;
 	else if (enumCount >= 2 || maxEnumSize >= 7) difficulty = 6;
 	else if (maxEnumSize >= 5) difficulty = 5;
+	else if (chainCount >= 2) difficulty = 5;
 	else if (enumCount === 1) difficulty = 4;
+	else if (chainCount === 1) difficulty = 4;
 	else if (overlapCount >= 2) difficulty = 4;
 	else if (overlapCount === 1) difficulty = 3;
 	else if (subsetCount >= 2) difficulty = 3;
@@ -341,6 +345,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		+ trivBonus
 		+ 0.8 * subsetCount
 		+ 1.8 * overlapCount
+		+ 2.6 * chainCount
 		+ 0.8 * enumCount
 		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
 	if (!solved) score = 0;
@@ -350,7 +355,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		solved: solved,
 		difficulty: difficulty,
 		score: score,
-		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, enum: enumCount },
+		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
 		maxEnumSize: maxEnumSize
 	};
 }

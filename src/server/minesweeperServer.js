@@ -617,7 +617,7 @@ function servePuzzles(req, res, url) {
 	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
 	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
 	var methodRaw = url.searchParams.get("method");
-	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "overlap" || methodRaw === "enum") ? methodRaw : null;
+	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "overlap" || methodRaw === "chain" || methodRaw === "enum") ? methodRaw : null;
 	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
 	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, page: page, pageSize: pageSize, sort: sort });
 	var total = db.puzzleCount(diffFilter, method);

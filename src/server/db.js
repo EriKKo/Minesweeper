@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 2;
+var CURRENT_SCORING_VERSION = 3;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -90,6 +90,7 @@ addColumnIfMissing("users", "email", "TEXT");
 // overlap solver — startup re-runs the analyzer on those and stamps a real
 // value so their pass counts / difficulty / score reflect the new pass.
 addColumnIfMissing("puzzles", "overlap_passes", "INTEGER NOT NULL DEFAULT -1");
+addColumnIfMissing("puzzles", "chain_passes", "INTEGER NOT NULL DEFAULT 0");
 // Bumped whenever the scoring formula changes. The startup backfill picks
 // up rows whose stored version is below CURRENT_SCORING_VERSION and
 // re-analyzes them.
@@ -241,8 +242,8 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" trivial_passes, subset_passes, overlap_passes, enum_passes, max_enum_size, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -250,6 +251,7 @@ function insertPuzzle(p) {
 		(p.passes && p.passes.trivial) || 0,
 		(p.passes && p.passes.subset) || 0,
 		(p.passes && p.passes.overlap) || 0,
+		(p.passes && p.passes.chain) || 0,
 		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
 		CURRENT_SCORING_VERSION,
@@ -274,6 +276,7 @@ function deserializePuzzle(row) {
 			trivial: row.trivial_passes,
 			subset: row.subset_passes,
 			overlap: row.overlap_passes > 0 ? row.overlap_passes : 0,
+			chain: row.chain_passes || 0,
 			enum: row.enum_passes
 		},
 		maxEnumSize: row.max_enum_size,
@@ -290,9 +293,10 @@ function methodClause(method) {
 	// overlap_passes can be 0 (no overlap deductions) or -1 (legacy row,
 	// pre-overlap classification — treat as "we don't know", so include it
 	// in any non-overlap-specific bucket).
-	if (method === "trivial") return "subset_passes = 0 AND (overlap_passes <= 0) AND enum_passes = 0";
-	if (method === "subset")  return "subset_passes > 0 AND (overlap_passes <= 0) AND enum_passes = 0";
-	if (method === "overlap") return "overlap_passes > 0 AND enum_passes = 0";
+	if (method === "trivial") return "subset_passes = 0 AND (overlap_passes <= 0) AND chain_passes = 0 AND enum_passes = 0";
+	if (method === "subset")  return "subset_passes > 0 AND (overlap_passes <= 0) AND chain_passes = 0 AND enum_passes = 0";
+	if (method === "overlap") return "overlap_passes > 0 AND chain_passes = 0 AND enum_passes = 0";
+	if (method === "chain")   return "chain_passes > 0 AND enum_passes = 0";
 	if (method === "enum")    return "enum_passes > 0";
 	return null;
 }
@@ -506,7 +510,7 @@ function legacyPuzzleRows() {
 function applyPuzzleClassification(id, analysis) {
 	db.prepare(
 		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
-		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, enum_passes = ?, " +
+		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, chain_passes = ?, enum_passes = ?, " +
 		"max_enum_size = ?, scoring_version = ? " +
 		"WHERE id = ?"
 	).run(
@@ -516,6 +520,7 @@ function applyPuzzleClassification(id, analysis) {
 		analysis.passes.trivial || 0,
 		analysis.passes.subset || 0,
 		analysis.passes.overlap || 0,
+		analysis.passes.chain || 0,
 		analysis.passes.enum || 0,
 		analysis.maxEnumSize || 0,
 		CURRENT_SCORING_VERSION,
