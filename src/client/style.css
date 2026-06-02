@@ -1331,6 +1331,22 @@ main {
 	animation: board-shake 0.42s cubic-bezier(.36,.07,.19,.97) both;
 }
 
+/* Quick board-border pulse for run-mode solve / miss confirmation. Fast
+   (~280ms) so the next puzzle can land while the eye still registers the
+   green/red feedback. */
+.board-wrap.flash-solved { animation: boardFlashSolved 280ms ease-out forwards; }
+.board-wrap.flash-fail   { animation: boardFlashFail   280ms ease-out forwards; }
+@keyframes boardFlashSolved {
+	0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+	35%  { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0.55); }
+	100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+@keyframes boardFlashFail {
+	0%   { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+	35%  { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0.55); }
+	100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+}
+
 @keyframes board-shake {
 	10%, 90% { transform: translateX(-2px); }
 	20%, 80% { transform: translateX(3px); }

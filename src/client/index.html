@@ -645,6 +645,10 @@ socket.on("solo_rejected", function(data) {
 // puzzle picker. Mounts into the game view with puzzle-mode chrome (rating
 // header instead of timer + mine count).
 socket.on("puzzle_board", function(data) {
+	withPendingRunFlash(function() { applyPuzzleBoard(data); });
+});
+
+function applyPuzzleBoard(data) {
 	rows = data.rows;
 	cols = data.cols;
 	puzzleSession = {
@@ -692,7 +696,7 @@ socket.on("puzzle_board", function(data) {
 	updatePuzzleHud();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
-});
+}
 
 socket.on("puzzle_result", function(data) {
 	if (!puzzleSession) return;
@@ -715,16 +719,17 @@ socket.on("puzzle_result", function(data) {
 });
 
 socket.on("puzzle_run_end", function(data) {
-	if (!puzzleSession) return;
-	puzzleSession.finished = true;
-	stopStormTicker();
-	// Update local best so the home cards reflect it next render.
-	if (account) {
-		if (data.mode === "streak") account.streakBest = data.best;
-		else if (data.mode === "storm") account.stormBest = data.best;
-		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
-	}
-	showPuzzleRunOutcome(data);
+	withPendingRunFlash(function() {
+		if (!puzzleSession) return;
+		puzzleSession.finished = true;
+		stopStormTicker();
+		if (account) {
+			if (data.mode === "streak") account.streakBest = data.best;
+			else if (data.mode === "storm") account.stormBest = data.best;
+			if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+		}
+		showPuzzleRunOutcome(data);
+	});
 });
 
 // Hint pointer: server tells us which cell(s) to look at — clue cells and

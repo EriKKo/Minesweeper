@@ -105,6 +105,7 @@ function performAction(r, c, asFlag) {
 			startFreezeTick();
 		}
 		if (mode === "solo") soloOnAfterReveal(result);
+		if (mode === "puzzle" && typeof notePuzzleReveal === "function") notePuzzleReveal(result);
 	}
 	if (mode === "multiplayer" || mode === "puzzle") {
 		socket.emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });

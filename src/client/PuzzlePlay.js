@@ -12,6 +12,41 @@ var puzzleHintClues = [];   // [[r,c], …] — clue cells highlighted by the ac
 var puzzleHintCovered = []; // [[r,c], …] — covered cells whose status the clues determine
 var puzzleRunMode = null;   // "streak" | "storm" while a run is active, else null
 var puzzleStormTimer = null; // setInterval for storm countdown rendering
+var pendingRunFlash = null; // "solved" | "fail" — primed locally on the click, drained by puzzle_board / puzzle_run_end
+
+// Brief board-border pulse (green = solved, red = miss) used in run modes.
+// We buffer the next puzzle_board / puzzle_run_end for the flash duration
+// so the feedback lands on the OLD board before the new one swaps in.
+function flashRunBoard(kind) {
+	var wrap = document.querySelector(".game-view.puzzle .board-wrap");
+	if (!wrap) return;
+	wrap.classList.remove("flash-solved", "flash-fail");
+	void wrap.offsetWidth;
+	wrap.classList.add(kind === "solved" ? "flash-solved" : "flash-fail");
+}
+
+function withPendingRunFlash(fn) {
+	if (!pendingRunFlash) { fn(); return; }
+	var kind = pendingRunFlash;
+	pendingRunFlash = null;
+	flashRunBoard(kind);
+	setTimeout(fn, 280);
+}
+
+// Called from Input.js performAction after a reveal in puzzle mode — primes
+// the flash based on the LOCAL outcome so the visual fires immediately,
+// before the server's next message arrives.
+function notePuzzleReveal(result) {
+	if (!puzzleSession) return;
+	if (puzzleSession.mode !== "streak" && puzzleSession.mode !== "storm") return;
+	if (result.hitMine) { pendingRunFlash = "fail"; return; }
+	// Count revealed safe cells to detect solve.
+	var revealed = 0;
+	for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+		if (myState[r][c] === KNOWN && boardCell(r, c) !== MINE) revealed++;
+	}
+	if (revealed >= puzzleSession.totalSafe) pendingRunFlash = "solved";
+}
 
 // Show the puzzle play view: trigger a server-side pick. Server responds
 // with `puzzle_board` (rated/streak/storm flavor), which routes us into the
