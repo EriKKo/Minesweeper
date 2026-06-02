@@ -35,17 +35,13 @@ function withPendingRunFlash(fn) {
 
 // Called from Input.js performAction after a reveal in puzzle mode — primes
 // the flash based on the LOCAL outcome so the visual fires immediately,
-// before the server's next message arrives.
+// before the server's next message arrives. Only "fail" primes the board
+// flash; solve feedback is the big solve-counter bump that fires when the
+// next puzzle_board installs, which feels punchier than a board outline.
 function notePuzzleReveal(result) {
 	if (!puzzleSession) return;
 	if (puzzleSession.mode !== "streak" && puzzleSession.mode !== "storm") return;
-	if (result.hitMine) { pendingRunFlash = "fail"; return; }
-	// Count revealed safe cells to detect solve.
-	var revealed = 0;
-	for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
-		if (myState[r][c] === KNOWN && boardCell(r, c) !== MINE) revealed++;
-	}
-	if (revealed >= puzzleSession.totalSafe) pendingRunFlash = "solved";
+	if (result.hitMine) pendingRunFlash = "fail";
 }
 
 // Show the puzzle play view: trigger a server-side pick. Server responds
@@ -153,7 +149,18 @@ function renderPuzzleRunHud() {
 	var run = puzzleSession && puzzleSession.run;
 	if (!run) return;
 	var solvesEl = document.getElementById("puzzle_run_solves");
-	if (solvesEl) solvesEl.textContent = String(run.solves || 0);
+	if (solvesEl) {
+		var newSolves = run.solves || 0;
+		var prevSolves = parseInt(solvesEl.textContent, 10);
+		if (isNaN(prevSolves)) prevSolves = newSolves;
+		solvesEl.textContent = String(newSolves);
+		if (newSolves > prevSolves) {
+			// Re-trigger the keyframe by toggling the class.
+			solvesEl.classList.remove("bump");
+			void solvesEl.offsetWidth;
+			solvesEl.classList.add("bump");
+		}
+	}
 	var secondary = document.getElementById("puzzle_run_secondary_value");
 	if (secondary) {
 		if (run.mode === "streak") {
