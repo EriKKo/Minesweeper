@@ -36,9 +36,21 @@ var DEFAULT_MAX_CELLS = 8;
 var DEFAULT_MAX_BBOX = 2;     // Chebyshev distance between any two cells
 var DEFAULT_MAX_CLUES = 5000; // hard ceiling on the seen-set per search
 var FLAG_BONUS = 0.5;
-var SUBSET_COST = 1;
-var UNION_COST = 1;
-var INTERSECT_COST = 2;
+var SUBSET_COST = 1.5;
+var UNION_COST = 1.5;
+var INTERSECT_COST = 2.5;
+// Per-cell surcharge added to each initial clue. Counting against five
+// covered cells is harder than against two; the surcharge propagates
+// through every derivation since parent complexities sum.
+var CELL_CAP_FREE = 2;     // cells <= this many are free to read
+var CELL_SURCHARGE = 0.2;  // each cell over the free cap
+// Mine-density surcharge. Clues with mines in the middle of the range
+// (e.g. "3 of 5") are harder than extremes ("0 of 5" / "5 of 5"). Add
+// 0.1 per unit of min(mines, cells - mines) to the initial clue cost.
+var DENSITY_SURCHARGE = 0.1;
+// Op cost scales with the size of the result clue — a 5-cell deduction
+// is mentally heavier than a 1-cell one even at the same depth.
+var RESULT_SIZE_SURCHARGE = 0.1;
 
 function cellKey(cell) { return cell[0] + "," + cell[1]; }
 
@@ -84,7 +96,9 @@ function buildInitialClues(board, state) {
 			if (covered.length === 0) continue;
 			var mines = board[r][c] - flagged;
 			if (mines < 0) continue; // shouldn't happen on a consistent state
-			out.push(makeClue(covered, mines, FLAG_BONUS * flagged));
+			var sizeSurcharge = CELL_SURCHARGE * Math.max(0, covered.length - CELL_CAP_FREE);
+			var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
+			out.push(makeClue(covered, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged));
 		}
 	}
 	return out;
@@ -107,7 +121,8 @@ function combineSubset(A, B) {
 	}
 	var newMines = B.mines - A.mines;
 	if (newMines < 0 || newMines > extras.length) return null;
-	return makeClue(extras, newMines, A.complexity + B.complexity + SUBSET_COST);
+	var sizeCost = RESULT_SIZE_SURCHARGE * Math.max(0, extras.length - 1);
+	return makeClue(extras, newMines, A.complexity + B.complexity + SUBSET_COST + sizeCost);
 }
 
 function combineDisjointUnion(A, B) {
@@ -116,7 +131,9 @@ function combineDisjointUnion(A, B) {
 	for (var j = 0; j < B.cells.length; j++) {
 		if (aSet[cellKey(B.cells[j])]) return null;
 	}
-	return makeClue(A.cells.concat(B.cells), A.mines + B.mines, A.complexity + B.complexity + UNION_COST);
+	var union = A.cells.concat(B.cells);
+	var sizeCost = RESULT_SIZE_SURCHARGE * Math.max(0, union.length - 1);
+	return makeClue(union, A.mines + B.mines, A.complexity + B.complexity + UNION_COST + sizeCost);
 }
 
 function combineIntersection(A, B) {
@@ -137,7 +154,8 @@ function combineIntersection(A, B) {
 	var lo = Math.max(0, A.mines - uaSize, B.mines - ubSize);
 	var hi = Math.min(inter.length, A.mines, B.mines);
 	if (lo !== hi) return null;
-	return makeClue(inter, lo, A.complexity + B.complexity + INTERSECT_COST);
+	var sizeCost = RESULT_SIZE_SURCHARGE * Math.max(0, inter.length - 1);
+	return makeClue(inter, lo, A.complexity + B.complexity + INTERSECT_COST + sizeCost);
 }
 
 // Tiny binary heap keyed on the first element of each entry.
@@ -329,7 +347,7 @@ function findCaseSplitStep(board, state, opts) {
 		}
 		if (!revealed.length && !flagged.length) continue;
 		var branchMax = Math.max(okA ? maxA : 0, okB ? maxB : 0);
-		var complexity = 3 + branchMax;
+		var complexity = 5 + branchMax;
 		var yieldCount = revealed.length + flagged.length;
 		if (!best
 			|| complexity < best.complexity
