@@ -94,6 +94,7 @@ function applyConnected(data) {
 	googleSigninButton.style.display = oauth.google ? "" : "none";
 	devSigninButton.style.display = oauth.dev ? "" : "none";
 	signinOptions.style.display = (oauth.github || oauth.google || oauth.dev) ? "" : "none";
+	if (typeof noteServerDev === "function") noteServerDev(!!oauth.dev);
 	var token = localStorage.getItem("ms_session");
 	if (token) socket.emit("authenticate", { token: token });
 }

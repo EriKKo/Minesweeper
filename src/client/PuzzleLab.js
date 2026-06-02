@@ -9,6 +9,103 @@
 var puzzleLabState = { count: 50, diff: null, density: null };
 var puzzleLabPollTimer = null;
 
+// Admin token persistence for generate / clear in prod. Visit /puzzles
+// with `?token=XXX` once and the Lab stashes it in localStorage; all
+// future generate / clear requests then include it in the X-Admin-Token
+// header. In dev (DEV_AUTH=1), the server doesn't require the token.
+(function maybeStashAdminToken() {
+	try {
+		var params = new URLSearchParams(window.location.search);
+		var t = params.get("token");
+		if (t) {
+			localStorage.setItem("puzzleAdminToken", t);
+			// Schedule a nav refresh once the link element exists.
+			setTimeout(refreshAdminNavLink, 0);
+		}
+	} catch (e) { /* no localStorage */ }
+})();
+
+function puzzleAdminHeaders() {
+	try {
+		var t = localStorage.getItem("puzzleAdminToken");
+		return t ? { "X-Admin-Token": t } : {};
+	} catch (e) { return {}; }
+}
+
+function hasAdminToken() {
+	try { return !!localStorage.getItem("puzzleAdminToken"); }
+	catch (e) { return false; }
+}
+
+// Show the Admin nav link only when a token's been stashed (visit
+// /admin?token=XXX once to set it). In dev the server still allows
+// generate/clear via DEV_AUTH; we surface the tab unconditionally too
+// when DEV_AUTH is on so local users can find it.
+function refreshAdminNavLink() {
+	var link = document.getElementById("admin_nav_link");
+	if (!link) return;
+	var dev = (window.serverInfo && window.serverInfo.dev) || hasAdminToken();
+	link.style.display = dev ? "" : "none";
+}
+
+// Server "connected" event includes the dev flag; expose it so we can
+// surface the nav link without bothering with localStorage in dev.
+function noteServerDev(devFlag) {
+	window.serverInfo = window.serverInfo || {};
+	window.serverInfo.dev = !!devFlag;
+	refreshAdminNavLink();
+}
+
+function renderAdminLanding() {
+	var view = document.getElementById("admin_view");
+	if (!view) return;
+	view.innerHTML = "";
+	var title = document.createElement("h1");
+	title.className = "section-page-title";
+	title.textContent = "Admin";
+	view.appendChild(title);
+	var sub = document.createElement("p");
+	sub.className = "section-page-sub";
+	sub.textContent = "Puzzle pool tools. Generation requires DEV_AUTH locally or a PUZZLE_ADMIN_TOKEN on the server (set via ?token=… on the URL).";
+	view.appendChild(sub);
+
+	var cards = document.createElement("div");
+	cards.className = "admin-cards";
+
+	cards.appendChild(makeAdminCard(
+		"Puzzle Lab",
+		"Generate new puzzles, tune density and difficulty, inspect tier distribution.",
+		"Open Lab",
+		"#/admin/lab"
+	));
+	cards.appendChild(makeAdminCard(
+		"All puzzles",
+		"Browse the entire pool. Sort by rating, filter by tier.",
+		"Browse pool",
+		"#/admin/puzzles"
+	));
+	view.appendChild(cards);
+}
+
+function makeAdminCard(title, desc, label, href) {
+	var card = document.createElement("a");
+	card.className = "admin-card";
+	card.href = href;
+	var h = document.createElement("h2");
+	h.className = "admin-card-title";
+	h.textContent = title;
+	card.appendChild(h);
+	var p = document.createElement("p");
+	p.className = "admin-card-sub";
+	p.textContent = desc;
+	card.appendChild(p);
+	var s = document.createElement("span");
+	s.className = "admin-card-action";
+	s.textContent = label + " →";
+	card.appendChild(s);
+	return card;
+}
+
 var DENSITY_OPTIONS = [
 	{ label: "Mix", value: null },
 	{ label: "10%", value: 0.10 },
@@ -36,7 +133,7 @@ function renderPuzzleLab() {
 
 	var browseLink = document.createElement("p");
 	browseLink.className = "puzzles-list-footer";
-	browseLink.innerHTML = '<a href="#/puzzles/list">Browse all puzzles →</a>';
+	browseLink.innerHTML = '<a href="#/admin/puzzles">Browse all puzzles →</a>';
 	view.appendChild(browseLink);
 
 	var actions = document.createElement("div");
@@ -53,12 +150,6 @@ function renderPuzzleLab() {
 		});
 		actions.appendChild(btn);
 	});
-	var clearBtn = document.createElement("button");
-	clearBtn.className = "btn btn-secondary";
-	clearBtn.id = "puzzles_clear_btn";
-	clearBtn.textContent = "Clear pool";
-	clearBtn.addEventListener("click", clearPool);
-	actions.appendChild(clearBtn);
 	view.appendChild(actions);
 
 	var densityRow = document.createElement("div");
@@ -145,7 +236,7 @@ function startGenerationJob() {
 	var url = "/api/puzzles?count=" + puzzleLabState.count
 		+ (puzzleLabState.diff ? "&diff=" + puzzleLabState.diff : "")
 		+ (puzzleLabState.density != null ? "&density=" + puzzleLabState.density : "");
-	fetch(url, { method: "POST" }).then(function(r) {
+	fetch(url, { method: "POST", headers: puzzleAdminHeaders() }).then(function(r) {
 		return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
 	}).then(function(result) {
 		if (!result.ok) {
@@ -158,10 +249,6 @@ function startGenerationJob() {
 	});
 }
 
-function clearPool() {
-	fetch("/api/puzzles/clear", { method: "POST" })
-		.then(function() { refreshPool(); });
-}
 
 function startPolling() {
 	if (puzzleLabPollTimer) return;

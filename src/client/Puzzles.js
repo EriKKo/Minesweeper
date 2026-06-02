@@ -85,7 +85,7 @@ function renderPuzzlesList() {
 
 	var labLink = document.createElement("p");
 	labLink.className = "puzzles-list-footer";
-	labLink.innerHTML = '<a href="#/puzzles">Open the Puzzle Lab →</a>';
+	labLink.innerHTML = '<a href="#/admin/lab">Open the Puzzle Lab →</a>';
 	view.appendChild(labLink);
 
 	refreshPuzzleList();

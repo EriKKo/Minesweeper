@@ -61,17 +61,24 @@ function showCustomView() {
 	socket.emit("list_rooms");
 }
 
+function showAdminView() {
+	hideAllViews();
+	document.getElementById("admin_view").style.display = "";
+	setSiteNavActive("admin");
+	renderAdminLanding();
+}
+
 function showPuzzleLabView() {
 	hideAllViews();
 	document.getElementById("puzzles_view").style.display = "";
-	setSiteNavActive("");
+	setSiteNavActive("admin");
 	renderPuzzleLab();
 }
 
 function showPuzzlesListView() {
 	hideAllViews();
 	document.getElementById("puzzles_list_view").style.display = "";
-	setSiteNavActive("");
+	setSiteNavActive("admin");
 	renderPuzzlesList();
 }
 
@@ -178,12 +185,13 @@ function applyRouteFromHash() {
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
 	if (hash === "/custom") return showCustomView();
-	if (hash === "/puzzles/list") return showPuzzlesListView();
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
 	if (hash === "/puzzles/streak") return showPuzzleStreakView();
 	if (hash === "/puzzles/storm") return showPuzzleStormView();
 	if (hash === "/puzzles/daily") return showPuzzleDailyView();
-	if (hash === "/puzzles") return showPuzzleLabView();
+	if (hash === "/admin") return showAdminView();
+	if (hash === "/admin/lab") return showPuzzleLabView();
+	if (hash === "/admin/puzzles") return showPuzzlesListView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();

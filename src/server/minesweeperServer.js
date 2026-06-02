@@ -105,7 +105,7 @@ function handler (req, res) {
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
-	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res);
+	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 
 	var filePath = resolveStatic(pathname);
 	if (!filePath) { res.writeHead(404); res.end(); return; }
@@ -556,8 +556,29 @@ function startPuzzleJob(target, diff, density) {
 	return job;
 }
 
+// Pool-management endpoints (generate / clear) are admin-gated so an
+// anonymous request can't nuke the prod puzzle pool. DEV_AUTH=1 opens
+// the gate locally; in prod, set PUZZLE_ADMIN_TOKEN and supply it via
+// the `X-Admin-Token` header (or `?adminToken=` query string).
+var PUZZLE_ADMIN_TOKEN = process.env.PUZZLE_ADMIN_TOKEN || "";
+
+function isPuzzleAdmin(req, url) {
+	if (DEV_AUTH) return true;
+	if (!PUZZLE_ADMIN_TOKEN) return false;
+	var headerToken = req.headers["x-admin-token"];
+	if (headerToken && headerToken === PUZZLE_ADMIN_TOKEN) return true;
+	var qToken = url && url.searchParams.get("adminToken");
+	if (qToken && qToken === PUZZLE_ADMIN_TOKEN) return true;
+	return false;
+}
+
 function servePuzzles(req, res, url) {
 	if (req.method === "POST") {
+		if (!isPuzzleAdmin(req, url)) {
+			res.writeHead(403, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ error: "Admin token required to generate puzzles." }));
+			return;
+		}
 		var count = Math.max(1, Math.min(500, parseInt(url.searchParams.get("count"), 10) || 20));
 		var diff = parseInt(url.searchParams.get("diff"), 10);
 		var density = parseFloat(url.searchParams.get("density"));
@@ -582,7 +603,12 @@ function servePuzzles(req, res, url) {
 	res.end(JSON.stringify({ puzzles: puzzles, pool: db.puzzleCount(), job: puzzleJobStatus() }));
 }
 
-function servePuzzlesClear(req, res) {
+function servePuzzlesClear(req, res, url) {
+	if (!isPuzzleAdmin(req, url)) {
+		res.writeHead(403, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Admin token required to clear puzzles." }));
+		return;
+	}
 	db.clearPuzzles();
 	puzzleJob = null;
 	res.writeHead(200, { "Content-Type": "application/json" });

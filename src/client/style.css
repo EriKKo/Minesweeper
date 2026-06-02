@@ -741,6 +741,25 @@ main {
 .puzzles-list-footer a:hover { text-decoration: underline; }
 .puzzles-list-empty { color: var(--muted); font-style: italic; margin: 1rem 0; }
 
+.admin-cards {
+	display: grid; gap: 1.2rem; margin-top: 1.2rem;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.admin-card {
+	display: block;
+	padding: 1.4rem 1.2rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	color: var(--text);
+	text-decoration: none;
+	transition: border-color 120ms ease;
+}
+.admin-card:hover { border-color: var(--accent); }
+.admin-card-title { font-size: 1.2rem; font-weight: 800; margin: 0 0 0.4rem; }
+.admin-card-sub   { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.92rem; }
+.admin-card-action { color: var(--accent); font-weight: 700; }
+
 .puzzle-play-header {
 	display: flex; gap: 1.2rem; align-items: center; margin: 0.6rem 0 1rem;
 	font-size: 0.95rem;
