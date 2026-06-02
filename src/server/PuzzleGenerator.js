@@ -284,11 +284,12 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		);
 	}
 
-	var trivCount = 0, subsetCount = 0, enumCount = 0;
+	var trivCount = 0, subsetCount = 0, overlapCount = 0, enumCount = 0;
 	var maxEnumSize = 0;
 	while (true) {
 		if (puzzleSolver.applyTrivialPass(board, state, cascadeReveal)) { trivCount++; continue; }
 		if (puzzleSolver.applySubsetPass(board, state, cascadeReveal))  { subsetCount++; continue; }
+		if (puzzleSolver.applyOverlapPass(board, state, cascadeReveal)) { overlapCount++; continue; }
 		var enumResult = puzzleSolver.applyEnumPass(board, state, cascadeReveal);
 		if (enumResult.progress) {
 			enumCount++;
@@ -305,11 +306,16 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var totalSafe = rows * cols - numMines;
 	var solved = revealedSafe === totalSafe;
 
+	// Tiering: trivial (1) → subset (2/3) → overlap (3/4) → enum (4–6).
+	// Overlap and subset share tier 3 since both are pair-of-clues reasoning;
+	// overlap escalates to 4 once multiple overlap steps stack.
 	var difficulty;
 	if (!solved) difficulty = 0;
 	else if (enumCount >= 2 || maxEnumSize >= 7) difficulty = 6;
 	else if (maxEnumSize >= 5) difficulty = 5;
 	else if (enumCount === 1) difficulty = 4;
+	else if (overlapCount >= 2) difficulty = 4;
+	else if (overlapCount === 1) difficulty = 3;
 	else if (subsetCount >= 2) difficulty = 3;
 	else if (subsetCount === 1) difficulty = 2;
 	else difficulty = 1;
@@ -329,7 +335,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var trivBonus = Math.min(0.7, 0.1 * Math.max(0, trivCount - 1));
 	var score = 1.0
 		+ trivBonus
-		+ 0.8 * (subsetCount + enumCount)
+		+ 0.8 * (subsetCount + overlapCount + enumCount)
 		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
 	if (!solved) score = 0;
 	score = Math.round(score * 10) / 10;
@@ -338,7 +344,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		solved: solved,
 		difficulty: difficulty,
 		score: score,
-		passes: { trivial: trivCount, subset: subsetCount, enum: enumCount },
+		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, enum: enumCount },
 		maxEnumSize: maxEnumSize
 	};
 }
@@ -346,3 +352,4 @@ function analyzeWithTracking(board, revealedList, numMines) {
 exports.generatePuzzles = generatePuzzles;
 exports.canonicalKey = canonicalKey;
 exports.buildBoard = buildBoard;
+exports.analyzeWithTracking = analyzeWithTracking;

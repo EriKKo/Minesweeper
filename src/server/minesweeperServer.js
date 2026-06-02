@@ -617,7 +617,7 @@ function servePuzzles(req, res, url) {
 	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
 	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
 	var methodRaw = url.searchParams.get("method");
-	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "enum") ? methodRaw : null;
+	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "overlap" || methodRaw === "enum") ? methodRaw : null;
 	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
 	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, page: page, pageSize: pageSize, sort: sort });
 	var total = db.puzzleCount(diffFilter, method);
@@ -2326,7 +2326,32 @@ function ensurePuzzlePoolTopUp() {
 	setTimeout(tick, 2000);
 }
 
+// One-shot: re-classify puzzles inserted before the overlap pass existed
+// so their pass counts and tier reflect the new solver. Rows are batched
+// so a large pool doesn't block the event loop at startup.
+function backfillOverlapClassification() {
+	var rows = db.legacyPuzzleRows();
+	if (!rows.length) return;
+	console.log("reclassifying " + rows.length + " puzzles for the overlap pass");
+	var idx = 0;
+	function step() {
+		var end = Math.min(rows.length, idx + 50);
+		for (; idx < end; idx++) {
+			var row = rows[idx];
+			var mines = JSON.parse(row.mines);
+			var revealed = JSON.parse(row.revealed);
+			var board = puzzleGen.buildBoard(row.rows, row.cols, mines);
+			var analysis = puzzleGen.analyzeWithTracking(board, revealed, mines.length);
+			db.applyPuzzleClassification(row.id, analysis);
+		}
+		if (idx < rows.length) setImmediate(step);
+		else console.log("overlap reclassification complete");
+	}
+	setImmediate(step);
+}
+
 app.listen(PORT, "0.0.0.0", function() {
 	console.log("listening on " + PORT);
+	backfillOverlapClassification();
 	ensurePuzzlePoolTopUp();
 });

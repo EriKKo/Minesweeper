@@ -84,6 +84,7 @@ function renderPuzzlesList() {
 		{ key: null, label: "Any" },
 		{ key: "trivial", label: "Trivial only" },
 		{ key: "subset", label: "Subset" },
+		{ key: "overlap", label: "Overlap" },
 		{ key: "enum", label: "Enum required" }
 	].forEach(function(opt) {
 		var btn = document.createElement("button");

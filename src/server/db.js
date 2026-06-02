@@ -81,6 +81,10 @@ addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_last_solved", "TEXT");
 addColumnIfMissing("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "email", "TEXT");
+// `overlap_passes` was added later. Default -1 marks rows that pre-date the
+// overlap solver — startup re-runs the analyzer on those and stamps a real
+// value so their pass counts / difficulty / score reflect the new pass.
+addColumnIfMissing("puzzles", "overlap_passes", "INTEGER NOT NULL DEFAULT -1");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
@@ -228,14 +232,15 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" trivial_passes, subset_passes, enum_passes, max_enum_size, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" trivial_passes, subset_passes, overlap_passes, enum_passes, max_enum_size, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
 		p.coveredSafe, p.difficulty, p.score, scoreToRating(p.score),
 		(p.passes && p.passes.trivial) || 0,
 		(p.passes && p.passes.subset) || 0,
+		(p.passes && p.passes.overlap) || 0,
 		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
 		Date.now()
@@ -258,6 +263,7 @@ function deserializePuzzle(row) {
 		passes: {
 			trivial: row.trivial_passes,
 			subset: row.subset_passes,
+			overlap: row.overlap_passes > 0 ? row.overlap_passes : 0,
 			enum: row.enum_passes
 		},
 		maxEnumSize: row.max_enum_size,
@@ -267,11 +273,16 @@ function deserializePuzzle(row) {
 }
 
 function methodClause(method) {
-	// "trivial" — only trivial pass used
-	// "subset"  — uses subset, no enum
+	// "trivial" — only the trivial pass made progress
+	// "subset"  — subset rule used, no overlap or enum
+	// "overlap" — generalized constraint subtraction used, no enum
 	// "enum"    — enum pass involved
-	if (method === "trivial") return "subset_passes = 0 AND enum_passes = 0";
-	if (method === "subset")  return "subset_passes > 0 AND enum_passes = 0";
+	// overlap_passes can be 0 (no overlap deductions) or -1 (legacy row,
+	// pre-overlap classification — treat as "we don't know", so include it
+	// in any non-overlap-specific bucket).
+	if (method === "trivial") return "subset_passes = 0 AND (overlap_passes <= 0) AND enum_passes = 0";
+	if (method === "subset")  return "subset_passes > 0 AND (overlap_passes <= 0) AND enum_passes = 0";
+	if (method === "overlap") return "overlap_passes > 0 AND enum_passes = 0";
 	if (method === "enum")    return "enum_passes > 0";
 	return null;
 }
@@ -472,6 +483,31 @@ function pickPuzzleNearRating(targetRating, excludeIds, windows) {
 	return null;
 }
 
+// One-shot backfill helpers for the overlap pass. Rows inserted before the
+// overlap pass existed have overlap_passes = -1 (the column default); the
+// startup hook re-runs the analyzer on those rows and stamps a real value.
+function legacyPuzzleRows() {
+	return db.prepare("SELECT id, rows, cols, mines, revealed FROM puzzles WHERE overlap_passes < 0").all();
+}
+
+function applyPuzzleClassification(id, analysis) {
+	db.prepare(
+		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
+		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, enum_passes = ?, max_enum_size = ? " +
+		"WHERE id = ?"
+	).run(
+		analysis.difficulty,
+		analysis.score,
+		scoreToRating(analysis.score),
+		analysis.passes.trivial || 0,
+		analysis.passes.subset || 0,
+		analysis.passes.overlap || 0,
+		analysis.passes.enum || 0,
+		analysis.maxEnumSize || 0,
+		id
+	);
+}
+
 module.exports = {
 	upsertUser: upsertUser,
 	createSession: createSession,
@@ -502,5 +538,7 @@ module.exports = {
 	getOrPickDailyPuzzle: getOrPickDailyPuzzle,
 	getDailyAttempt: getDailyAttempt,
 	recordDailyAttempt: recordDailyAttempt,
-	dailyStreakForUser: dailyStreakForUser
+	dailyStreakForUser: dailyStreakForUser,
+	legacyPuzzleRows: legacyPuzzleRows,
+	applyPuzzleClassification: applyPuzzleClassification
 };

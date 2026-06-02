@@ -94,6 +94,60 @@ function findSubsetSteps(board, state) {
 	return steps;
 }
 
+// Generalized constraint subtraction: for every pair of clue constraints
+// that *overlap* (share at least one covered cell) but neither is a subset
+// of the other, derive bounds on the unique-to-A, unique-to-B, and
+// intersection regions. The classic 1-2 pattern (a 1 and a 2 with two
+// shared covered neighbours plus one unique neighbour each) is the
+// simplest case: the 1's unique neighbour is forced safe, the 2's unique
+// neighbour is forced mine. Subset deductions are a special case of this
+// (one of the unique regions is empty); we still surface those via the
+// subset pass so the tiering stays meaningful.
+function findOverlapSteps(board, state) {
+	var cs = gatherSubsetConstraints(board, state);
+	var steps = [];
+	for (var i = 0; i < cs.length; i++) {
+		for (var j = i + 1; j < cs.length; j++) {
+			var a = cs[i], b = cs[j];
+			var aSet = {}, bSet = {};
+			for (var k = 0; k < a.cells.length; k++) aSet[a.cells[k][0] + "," + a.cells[k][1]] = a.cells[k];
+			for (var k = 0; k < b.cells.length; k++) bSet[b.cells[k][0] + "," + b.cells[k][1]] = b.cells[k];
+			var S = [], UA = [], UB = [];
+			for (var ka in aSet) {
+				if (bSet[ka]) S.push(aSet[ka]);
+				else UA.push(aSet[ka]);
+			}
+			for (var kb in bSet) {
+				if (!aSet[kb]) UB.push(bSet[kb]);
+			}
+			if (S.length === 0) continue;            // disjoint — no overlap to exploit
+			if (UA.length === 0 || UB.length === 0) continue; // strict subset; let subset pass handle it
+			var sN = S.length, uaN = UA.length, ubN = UB.length;
+			// mines(S) bounded by both clues plus the size of S itself.
+			var sLo = Math.max(0, a.need - uaN, b.need - ubN);
+			var sHi = Math.min(sN, a.need, b.need);
+			if (sLo > sHi) continue; // infeasible — shouldn't happen on a valid board
+			// Propagate the S bounds back to mines(UA), mines(UB).
+			var uaLo = Math.max(0, a.need - sHi), uaHi = Math.min(uaN, a.need - sLo);
+			var ubLo = Math.max(0, b.need - sHi), ubHi = Math.min(ubN, b.need - sLo);
+			var safeCells = [], mineCells = [];
+			function pushRegion(cells, lo, hi, size) {
+				if (lo === hi) {
+					if (lo === 0) for (var x = 0; x < cells.length; x++) safeCells.push(cells[x]);
+					else if (lo === size) for (var y = 0; y < cells.length; y++) mineCells.push(cells[y]);
+				}
+			}
+			pushRegion(S, sLo, sHi, sN);
+			pushRegion(UA, uaLo, uaHi, uaN);
+			pushRegion(UB, ubLo, ubHi, ubN);
+			if (safeCells.length || mineCells.length) {
+				steps.push({ clueCells: [[a.r, a.c], [b.r, b.c]], safeCells: safeCells, mineCells: mineCells });
+			}
+		}
+	}
+	return steps;
+}
+
 function popcount(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
 
 // Brute-force enumeration over each independent frontier component (cells
@@ -267,6 +321,9 @@ function findFirstSafeStep(board, originalState) {
 		var r2 = tryLevel(findSubsetSteps(board, state), "subset");
 		if (r2.resolved) return r2.hint;
 		if (r2.advanced) continue;
+		var r2o = tryLevel(findOverlapSteps(board, state), "overlap");
+		if (r2o.resolved) return r2o.hint;
+		if (r2o.advanced) continue;
 		var r3 = tryLevel(findEnumSteps(board, state), "enum");
 		if (r3.resolved) return r3.hint;
 		if (r3.advanced) continue;
@@ -351,6 +408,23 @@ function applySubsetPass(board, state, revealCell) {
 	return prog;
 }
 
+function applyOverlapPass(board, state, revealCell) {
+	var steps = findOverlapSteps(board, state);
+	var prog = false;
+	for (var s = 0; s < steps.length; s++) {
+		var step = steps[s];
+		for (var i = 0; i < step.safeCells.length; i++) {
+			var sc = step.safeCells[i];
+			if (state[sc[0]][sc[1]] === UNKNOWN) { revealCell(sc[0], sc[1]); prog = true; }
+		}
+		for (var j = 0; j < step.mineCells.length; j++) {
+			var mc = step.mineCells[j];
+			if (state[mc[0]][mc[1]] !== FLAGGED) { state[mc[0]][mc[1]] = FLAGGED; prog = true; }
+		}
+	}
+	return prog;
+}
+
 // Returns { progress, maxComponentSize } so the analyzer can track which
 // frontier component drove the deduction (used for diff-4/5/6 split).
 function applyEnumPass(board, state, revealCell, opts) {
@@ -378,9 +452,11 @@ module.exports = {
 	constraintAt: constraintAt,
 	findTrivialSteps: findTrivialSteps,
 	findSubsetSteps: findSubsetSteps,
+	findOverlapSteps: findOverlapSteps,
 	findEnumSteps: findEnumSteps,
 	findFirstSafeStep: findFirstSafeStep,
 	applyTrivialPass: applyTrivialPass,
 	applySubsetPass: applySubsetPass,
+	applyOverlapPass: applyOverlapPass,
 	applyEnumPass: applyEnumPass
 };
