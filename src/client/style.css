@@ -627,7 +627,7 @@ main {
 }
 .puzzle-run-foot {
 	display: flex; gap: 0.4rem; align-items: baseline;
-	margin-top: 0.6rem; padding-top: 0.6rem;
+	margin-top: auto; padding-top: 0.6rem;
 	border-top: 1px solid var(--border);
 }
 .puzzle-run-foot-label {
@@ -889,10 +889,30 @@ main {
 }
 .puzzle-stats-secondary { margin-top: 0.4rem; }
 
-/* Puzzle view: fixed-size board area so the page layout doesn't shift as
-   small (4×4) and large (7×7) puzzles cycle through. The canvas itself
-   still scales — sizePlayerCanvas picks a cellPx that fits the larger
-   dim — and the smaller dim is centered in the box. */
+/* Puzzle view layout: the board and the side card sit together as a fixed,
+   centered block so nothing reflows when the puzzle dimensions change.
+   The board area is always 480×480 (cells scale to fit), the side card
+   matches that height, both share a tight gap to read as one component. */
+.game-view.puzzle .game-grid {
+	display: flex;
+	justify-content: center;
+	align-items: stretch;
+	gap: 0.6rem;
+	max-width: none;
+}
+.game-view.puzzle .game-left {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+.game-view.puzzle .player-board {
+	padding: 0;
+	background: transparent;
+	border: none;
+	box-shadow: none;
+}
+.game-view.puzzle #player_name0 { display: none; }
 .game-view.puzzle .board-scroll {
 	width: 480px;
 	height: 480px;
@@ -900,14 +920,45 @@ main {
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	box-shadow: var(--shadow);
 }
 .game-view.puzzle .board-wrap {
 	display: block;
 	width: 480px;
 }
+.game-view.puzzle .game-side {
+	position: static;
+	flex: 0 0 320px;
+	gap: 0;
+}
+.game-view.puzzle #puzzle_card {
+	height: 480px;
+	display: flex;
+	flex-direction: column;
+}
+.game-view.puzzle #puzzle_card .puzzle-mode-panel {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+.game-view.puzzle #puzzle_card .puzzle-hint-btn {
+	margin-top: auto;
+}
+@media (max-width: 900px) {
+	.game-view.puzzle .game-grid {
+		flex-direction: column;
+		align-items: center;
+	}
+	.game-view.puzzle .game-side { flex: 0 0 auto; }
+	.game-view.puzzle #puzzle_card { height: auto; width: 480px; }
+}
 @media (max-width: 600px) {
 	.game-view.puzzle .board-scroll,
-	.game-view.puzzle .board-wrap {
+	.game-view.puzzle .board-wrap,
+	.game-view.puzzle #puzzle_card {
 		width: 320px;
 	}
 	.game-view.puzzle .board-scroll { height: 320px; }
