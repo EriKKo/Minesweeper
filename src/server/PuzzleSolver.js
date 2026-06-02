@@ -520,26 +520,32 @@ function applyOverlapPass(board, state, revealCell) {
 	return prog;
 }
 
-// Returns { progress, maxComponentSize } so the analyzer can track which
-// frontier component drove the deduction (used for diff-4/5/6 split).
+// Apply enum on the **smallest** component that yields a deduction, not
+// every yielding component at once. After the analyzer wakes back up,
+// the simpler trivial/subset/overlap/chain passes get another shot at
+// the freshly-revealed state before the next enum is considered. The
+// returned `maxComponentSize` is the size of the one step we applied,
+// so the analyzer's running max tracks the hardest single enum step
+// it needed rather than coincidentally-yielding larger components.
 function applyEnumPass(board, state, revealCell, opts) {
 	opts = opts || {};
 	var cap = opts.cap || ENUM_CAP;
 	var steps = findEnumSteps(board, state, { cap: cap });
-	var prog = false, maxComp = 0;
-	for (var s = 0; s < steps.length; s++) {
-		var step = steps[s];
-		if (step.componentSize && step.componentSize > maxComp) maxComp = step.componentSize;
-		for (var i = 0; i < step.safeCells.length; i++) {
-			var sc = step.safeCells[i];
-			if (state[sc[0]][sc[1]] === UNKNOWN) { revealCell(sc[0], sc[1]); prog = true; }
-		}
-		for (var j = 0; j < step.mineCells.length; j++) {
-			var mc = step.mineCells[j];
-			if (state[mc[0]][mc[1]] !== FLAGGED) { state[mc[0]][mc[1]] = FLAGGED; prog = true; }
-		}
+	if (!steps.length) return { progress: false, maxComponentSize: 0 };
+	var best = steps[0];
+	for (var s = 1; s < steps.length; s++) {
+		if (steps[s].componentSize < best.componentSize) best = steps[s];
 	}
-	return { progress: prog, maxComponentSize: maxComp };
+	var prog = false;
+	for (var i = 0; i < best.safeCells.length; i++) {
+		var sc = best.safeCells[i];
+		if (state[sc[0]][sc[1]] === UNKNOWN) { revealCell(sc[0], sc[1]); prog = true; }
+	}
+	for (var j = 0; j < best.mineCells.length; j++) {
+		var mc = best.mineCells[j];
+		if (state[mc[0]][mc[1]] !== FLAGGED) { state[mc[0]][mc[1]] = FLAGGED; prog = true; }
+	}
+	return { progress: prog, maxComponentSize: best.componentSize };
 }
 
 module.exports = {
