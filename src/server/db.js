@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 5;
+var CURRENT_SCORING_VERSION = 6;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -226,16 +226,15 @@ function topPlayers(limit) {
 	return db.prepare("SELECT name, rating, wins, played FROM users ORDER BY rating DESC LIMIT ?").all(limit || 20);
 }
 
-// Map our continuous solver score (1.0 .. ~30) to a chess-style puzzle
-// rating. Power curve gives diminishing rating gain at high score (going
-// from 20 → 21 should feel like a small bump; going from 1 → 2 is a real
-// step up). The constants put a default player (rating 800) just above the
-// "single trivial click" puzzle (~750) so a fresh account is matched to
-// easy puzzles, and the curve climbs through ~1300 (subset), ~1800 (light
-// enum), to ~3000+ (deep case analysis).
+// Map the CSP-driven score (max complexity + small total bonus) to a
+// chess-style puzzle rating. Linear scaling — `score` already comes from
+// a continuous human-effort proxy, so we don't need an extra curve. The
+// constants put a default player (rating 800) above the "trivial cascade"
+// puzzles (~640) and the curve climbs through ~1100 (subset), ~1500
+// (single overlap), ~2000 (deep overlap), to ~2800+ (case-split / enum).
 function scoreToRating(score) {
 	if (!score || score <= 0) return 500;
-	return Math.round(400 + 350 * Math.pow(score, 0.6));
+	return Math.round(500 + 180 * score);
 }
 
 function insertPuzzle(p) {

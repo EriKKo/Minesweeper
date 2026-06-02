@@ -16,6 +16,7 @@
 
 var BoardLogic = require("../common/BoardLogic");
 var puzzleSolver = require("./PuzzleSolver");
+var cspSolver = require("./CSPSolver");
 var MINE = BoardLogic.MINE;
 var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;
@@ -307,56 +308,51 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var totalSafe = rows * cols - numMines;
 	var solved = revealedSafe === totalSafe;
 
-	// Tiering: trivial (1) → subset (2/3) → overlap (3/4) → chain (4/5) → enum (4–6).
-	// Chain steps are visibly harder than overlap for humans (you have to
-	// see two sub-clues feeding a super-clue at once), so a single chain
-	// step is already tier 4 and two chains push to tier 5.
+	// The pass-based analyzer above gives us the method classification
+	// (which the All Puzzles filter uses). Score, difficulty, and rating
+	// now come from the CSP analyzer's max-complexity instead — a more
+	// principled measure that tracks the cost of the hardest deduction
+	// the player had to do. Run it on a fresh state copy since both
+	// analyzers mutate.
+	var cspState = new Array(rows);
+	for (var rr2 = 0; rr2 < rows; rr2++) {
+		cspState[rr2] = new Array(cols);
+		for (var cc3 = 0; cc3 < cols; cc3++) cspState[rr2][cc3] = UNKNOWN;
+	}
+	revealedList.forEach(function(p) { cspState[p[0]][p[1]] = KNOWN; });
+	function cspCascade(rrr, ccc) {
+		BoardLogic.cascadeReveal(rrr, ccc, rows, cols,
+			function(rr3, cc4) { return cspState[rr3][cc4] === UNKNOWN; },
+			function(rr3, cc4) { cspState[rr3][cc4] = KNOWN; return false; },
+			function(rr3, cc4) { return board[rr3][cc4]; }
+		);
+	}
+	var cspResult = cspSolver.analyzeBoard(board, cspState, { revealCell: cspCascade });
+	var maxC = cspResult.maxComplexity;
+	var totalC = cspResult.totalComplexity;
+	// Score includes a small total-complexity bonus so puzzles that
+	// require many easy steps rate slightly higher than ones with the
+	// same single hardest step. Divide total by 20 to keep the bonus
+	// modest (~0.5 for typical chains).
+	var score = solved ? Math.round((maxC + totalC / 20) * 10) / 10 : 0;
+	// Tier bands by max complexity. Each band ~2 wide except the last.
 	var difficulty;
 	if (!solved) difficulty = 0;
-	else if (enumCount >= 2 || maxEnumSize >= 7) difficulty = 6;
-	else if (maxEnumSize >= 5) difficulty = 5;
-	else if (chainCount >= 2) difficulty = 5;
-	else if (enumCount === 1) difficulty = 4;
-	else if (chainCount === 1) difficulty = 4;
-	else if (overlapCount >= 2) difficulty = 4;
-	else if (overlapCount === 1) difficulty = 3;
-	else if (subsetCount >= 2) difficulty = 3;
-	else if (subsetCount === 1) difficulty = 2;
-	else difficulty = 1;
-
-	// Continuous difficulty score (~1.0 .. ~10.0). Trivial chains contribute a
-	// small bonus capped just below the first subset step (1.8) so a longer
-	// trivial chain rates higher than a single click but never crosses into
-	// "real deduction" territory. The non-trivial steps + hardest enum
-	// component dominate everything past that. Tiers:
-	//   1.0       one trivial step (or zero work)
-	//   1.0 → 1.7 trivial chain, asymptotic
-	//   1.8 / 2.6 / 3.4 …    +0.8 per subset step
-	//   ~3.3      enum on 3 cells
-	//   ~5.5      enum on 5 cells
-	//   ~8.0      enum on 7 cells
-	//   ~10+      enum ≥ 9 cells
-	// Overlap weighted higher than subset: pair-of-clue constraint subtraction
-	// is harder for humans to spot than a clean subset, even though the pass
-	// is structurally similar. Lifts overlap-needing puzzles into the
-	// 1100–1500 rating band so the Advanced tier actually has supply.
-	var trivBonus = Math.min(0.7, 0.1 * Math.max(0, trivCount - 1));
-	var score = 1.0
-		+ trivBonus
-		+ 0.8 * subsetCount
-		+ 1.8 * overlapCount
-		+ 3.4 * chainCount
-		+ 0.8 * enumCount
-		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
-	if (!solved) score = 0;
-	score = Math.round(score * 10) / 10;
+	else if (maxC <= 1.5) difficulty = 1;
+	else if (maxC <= 3.0) difficulty = 2;
+	else if (maxC <= 5.0) difficulty = 3;
+	else if (maxC <= 7.0) difficulty = 4;
+	else if (maxC <= 10.0) difficulty = 5;
+	else difficulty = 6;
 
 	return {
 		solved: solved,
 		difficulty: difficulty,
 		score: score,
 		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
-		maxEnumSize: maxEnumSize
+		maxEnumSize: maxEnumSize,
+		cspMaxComplexity: Math.round(maxC * 10) / 10,
+		cspTotalComplexity: Math.round(totalC * 10) / 10
 	};
 }
 
