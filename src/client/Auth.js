@@ -108,6 +108,7 @@ function applyAuthenticated(data) {
 	changeNameButton.style.display = "none";
 	signOutButton.style.display = "";
 	userBadge.style.display = "";
+	if (typeof refreshAdminNavLink === "function") refreshAdminNavLink();
 	if (!inRoom) applyRouteFromHash();
 }
 

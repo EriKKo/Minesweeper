@@ -557,24 +557,21 @@ function startPuzzleJob(target, diff, density) {
 }
 
 // Pool-management endpoints (generate / clear) are admin-gated so an
-// anonymous request can't nuke the prod puzzle pool. DEV_AUTH=1 opens
-// the gate locally; in prod, set PUZZLE_ADMIN_TOKEN and supply it via
-// the `X-Admin-Token` header (or `?adminToken=` query string).
-var PUZZLE_ADMIN_TOKEN = process.env.PUZZLE_ADMIN_TOKEN || "";
-
-function isPuzzleAdmin(req, url) {
+// anonymous request can't nuke the prod puzzle pool. The client sends
+// its existing session token via the X-Session-Token header; the
+// server resolves it to a user and checks `is_admin`. DEV_AUTH=1
+// still opens the gate locally for convenience.
+function isPuzzleAdmin(req) {
 	if (DEV_AUTH) return true;
-	if (!PUZZLE_ADMIN_TOKEN) return false;
-	var headerToken = req.headers["x-admin-token"];
-	if (headerToken && headerToken === PUZZLE_ADMIN_TOKEN) return true;
-	var qToken = url && url.searchParams.get("adminToken");
-	if (qToken && qToken === PUZZLE_ADMIN_TOKEN) return true;
-	return false;
+	var token = req.headers["x-session-token"];
+	if (!token) return false;
+	var user = db.getUserByToken(token);
+	return !!(user && user.is_admin);
 }
 
 function servePuzzles(req, res, url) {
 	if (req.method === "POST") {
-		if (!isPuzzleAdmin(req, url)) {
+		if (!isPuzzleAdmin(req)) {
 			res.writeHead(403, { "Content-Type": "application/json" });
 			res.end(JSON.stringify({ error: "Admin token required to generate puzzles." }));
 			return;
@@ -604,7 +601,7 @@ function servePuzzles(req, res, url) {
 }
 
 function servePuzzlesClear(req, res, url) {
-	if (!isPuzzleAdmin(req, url)) {
+	if (!isPuzzleAdmin(req)) {
 		res.writeHead(403, { "Content-Type": "application/json" });
 		res.end(JSON.stringify({ error: "Admin token required to clear puzzles." }));
 		return;
@@ -1876,7 +1873,8 @@ io.on("connection", function (socket) {
 			streakBest: user.streak_best,
 			stormBest: user.storm_best,
 			dailyStreak: db.dailyStreakForUser(user.id),
-			dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null
+			dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
+			isAdmin: !!user.is_admin
 		});
 		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
 		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);

@@ -79,6 +79,7 @@ addColumnIfMissing("users", "streak_best", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "storm_best", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_last_solved", "TEXT");
+addColumnIfMissing("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
@@ -124,6 +125,30 @@ function getUserByToken(token) {
 function getUserById(id) {
 	return db.prepare("SELECT * FROM users WHERE id = ?").get(id) || null;
 }
+
+function setUserAdmin(userId, isAdmin) {
+	db.prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(isAdmin ? 1 : 0, userId);
+}
+
+// On startup we honor ADMIN_USERS — comma-separated provider:provider_id
+// pairs (e.g. "google:1234567890,dev:erik"). Any matching user gets
+// is_admin = 1 idempotently. Survives DB resets.
+function applyAdminBootstrap() {
+	var spec = process.env.ADMIN_USERS;
+	if (!spec) return;
+	spec.split(",").map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(pair) {
+		var idx = pair.indexOf(":");
+		if (idx < 0) return;
+		var provider = pair.slice(0, idx);
+		var providerId = pair.slice(idx + 1);
+		var u = db.prepare("SELECT id, is_admin FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
+		if (u && !u.is_admin) {
+			db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(u.id);
+			console.log("[admin] marked " + provider + ":" + providerId + " as admin (user " + u.id + ")");
+		}
+	});
+}
+applyAdminBootstrap();
 
 function updateRating(userId, newRating, won) {
 	db.prepare("UPDATE users SET rating = ?, played = played + 1, wins = wins + ? WHERE id = ?")
@@ -377,6 +402,8 @@ module.exports = {
 	createSession: createSession,
 	getUserByToken: getUserByToken,
 	getUserById: getUserById,
+	setUserAdmin: setUserAdmin,
+	applyAdminBootstrap: applyAdminBootstrap,
 	updateRating: updateRating,
 	deleteSession: deleteSession,
 	topPlayers: topPlayers,

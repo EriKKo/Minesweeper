@@ -9,47 +9,27 @@
 var puzzleLabState = { count: 50, diff: null, density: null };
 var puzzleLabPollTimer = null;
 
-// Admin token persistence for generate / clear in prod. Visit /puzzles
-// with `?token=XXX` once and the Lab stashes it in localStorage; all
-// future generate / clear requests then include it in the X-Admin-Token
-// header. In dev (DEV_AUTH=1), the server doesn't require the token.
-(function maybeStashAdminToken() {
-	try {
-		var params = new URLSearchParams(window.location.search);
-		var t = params.get("token");
-		if (t) {
-			localStorage.setItem("puzzleAdminToken", t);
-			// Schedule a nav refresh once the link element exists.
-			setTimeout(refreshAdminNavLink, 0);
-		}
-	} catch (e) { /* no localStorage */ }
-})();
-
+// Admin generate / clear requests carry the session token; the server
+// resolves it to a user and checks the `is_admin` column. No separate
+// admin secret to manage.
 function puzzleAdminHeaders() {
 	try {
-		var t = localStorage.getItem("puzzleAdminToken");
-		return t ? { "X-Admin-Token": t } : {};
+		var t = localStorage.getItem("ms_session");
+		return t ? { "X-Session-Token": t } : {};
 	} catch (e) { return {}; }
 }
 
-function hasAdminToken() {
-	try { return !!localStorage.getItem("puzzleAdminToken"); }
-	catch (e) { return false; }
-}
-
-// Show the Admin nav link only when a token's been stashed (visit
-// /admin?token=XXX once to set it). In dev the server still allows
-// generate/clear via DEV_AUTH; we surface the tab unconditionally too
-// when DEV_AUTH is on so local users can find it.
+// Admin tab is visible when the signed-in user is flagged is_admin
+// (or in dev for convenience). Called from applyConnected (dev flag)
+// and applyAuthenticated (account.isAdmin).
 function refreshAdminNavLink() {
 	var link = document.getElementById("admin_nav_link");
 	if (!link) return;
-	var dev = (window.serverInfo && window.serverInfo.dev) || hasAdminToken();
-	link.style.display = dev ? "" : "none";
+	var dev = window.serverInfo && window.serverInfo.dev;
+	var admin = (typeof account !== "undefined" && account && account.isAdmin);
+	link.style.display = (dev || admin) ? "" : "none";
 }
 
-// Server "connected" event includes the dev flag; expose it so we can
-// surface the nav link without bothering with localStorage in dev.
 function noteServerDev(devFlag) {
 	window.serverInfo = window.serverInfo || {};
 	window.serverInfo.dev = !!devFlag;
