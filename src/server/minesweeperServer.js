@@ -136,7 +136,7 @@ function authGithubLogin(req, res) {
 	var params = new URLSearchParams({
 		client_id: GITHUB_CLIENT_ID,
 		redirect_uri: OAUTH_BASE + "/auth/github/callback",
-		scope: "read:user",
+		scope: "read:user user:email",
 		state: state
 	});
 	res.writeHead(302, { Location: "https://github.com/login/oauth/authorize?" + params.toString() });
@@ -168,7 +168,22 @@ function authGithubCallback(req, res, url) {
 				headers: { "Authorization": "Bearer " + accessToken, "User-Agent": "minesweeper", "Accept": "application/vnd.github+json" }
 			});
 			var gh = await ghResp.json();
-			var user = db.upsertUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url);
+			// /user doesn't return private emails — fetch /user/emails separately
+			// (requires `user:email` scope, which we ask for in the OAuth login).
+			var ghEmail = gh.email || null;
+			if (!ghEmail) {
+				try {
+					var emailsResp = await fetch("https://api.github.com/user/emails", {
+						headers: { "Authorization": "Bearer " + accessToken, "User-Agent": "minesweeper", "Accept": "application/vnd.github+json" }
+					});
+					var emails = await emailsResp.json();
+					if (Array.isArray(emails)) {
+						var primary = emails.find(function(e) { return e.primary && e.verified; });
+						if (primary) ghEmail = primary.email;
+					}
+				} catch (e) { /* email fetch optional */ }
+			}
+			var user = db.upsertUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url, ghEmail);
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("github oauth error", e);
@@ -218,7 +233,7 @@ function authGoogleCallback(req, res, url) {
 				headers: { "Authorization": "Bearer " + accessToken }
 			});
 			var g = await uResp.json();
-			var user = db.upsertUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture);
+			var user = db.upsertUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, g.email);
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("google oauth error", e);

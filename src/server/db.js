@@ -80,6 +80,7 @@ addColumnIfMissing("users", "storm_best", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_last_solved", "TEXT");
 addColumnIfMissing("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "email", "TEXT");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
@@ -96,17 +97,50 @@ db.exec(
 	");"
 );
 
-function upsertUser(provider, providerId, name, avatarUrl) {
+function upsertUser(provider, providerId, name, avatarUrl, email) {
 	providerId = String(providerId);
+	var emailLower = email ? String(email).toLowerCase() : null;
 	var existing = db.prepare("SELECT * FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
 	if (existing) {
-		db.prepare("UPDATE users SET name = ?, avatar_url = ? WHERE id = ?").run(name, avatarUrl || null, existing.id);
-		return db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
+		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
+			.run(name, avatarUrl || null, emailLower, existing.id);
+		var updated = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
+		applyAdminForEmail(updated);
+		return updated;
 	}
 	var info = db.prepare(
-		"INSERT INTO users (provider, provider_id, name, avatar_url, created_at) VALUES (?, ?, ?, ?, ?)"
-	).run(provider, providerId, name, avatarUrl || null, Date.now());
-	return db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+		"INSERT INTO users (provider, provider_id, name, avatar_url, email, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+	).run(provider, providerId, name, avatarUrl || null, emailLower, Date.now());
+	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+	applyAdminForEmail(created);
+	return created;
+}
+
+// Default admin email is hard-coded so the project owner is always admin
+// without any env-var setup. ADMIN_EMAILS extends the list with extra
+// addresses (comma-separated, case-insensitive). On upsert, if the user's
+// stored email matches the list, they get is_admin = 1.
+var HARDCODED_ADMIN_EMAILS = ["erik.odenman@gmail.com"];
+
+function getAdminEmails() {
+	var fromEnv = (process.env.ADMIN_EMAILS || "")
+		.split(",")
+		.map(function(s) { return s.trim().toLowerCase(); })
+		.filter(Boolean);
+	var combined = HARDCODED_ADMIN_EMAILS.concat(fromEnv);
+	var dedup = {};
+	combined.forEach(function(e) { dedup[e] = true; });
+	return Object.keys(dedup);
+}
+
+function applyAdminForEmail(user) {
+	if (!user || !user.email) return;
+	var admins = getAdminEmails();
+	if (admins.indexOf(user.email.toLowerCase()) >= 0 && !user.is_admin) {
+		db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+		user.is_admin = 1;
+		console.log("[admin] marked " + user.email + " as admin (user " + user.id + ")");
+	}
 }
 
 function createSession(userId) {
@@ -130,23 +164,38 @@ function setUserAdmin(userId, isAdmin) {
 	db.prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(isAdmin ? 1 : 0, userId);
 }
 
-// On startup we honor ADMIN_USERS — comma-separated provider:provider_id
-// pairs (e.g. "google:1234567890,dev:erik"). Any matching user gets
-// is_admin = 1 idempotently. Survives DB resets.
+// On startup we honor ADMIN_USERS (comma-separated provider:provider_id)
+// and the email list from getAdminEmails — hardcoded address + ADMIN_EMAILS.
+// Any matching existing user gets is_admin = 1 idempotently.
 function applyAdminBootstrap() {
 	var spec = process.env.ADMIN_USERS;
-	if (!spec) return;
-	spec.split(",").map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(pair) {
-		var idx = pair.indexOf(":");
-		if (idx < 0) return;
-		var provider = pair.slice(0, idx);
-		var providerId = pair.slice(idx + 1);
-		var u = db.prepare("SELECT id, is_admin FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
-		if (u && !u.is_admin) {
-			db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(u.id);
-			console.log("[admin] marked " + provider + ":" + providerId + " as admin (user " + u.id + ")");
-		}
-	});
+	if (spec) {
+		spec.split(",").map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(pair) {
+			var idx = pair.indexOf(":");
+			if (idx < 0) return;
+			var provider = pair.slice(0, idx);
+			var providerId = pair.slice(idx + 1);
+			var u = db.prepare("SELECT id, is_admin FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
+			if (u && !u.is_admin) {
+				db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(u.id);
+				console.log("[admin] marked " + provider + ":" + providerId + " as admin (user " + u.id + ")");
+			}
+		});
+	}
+	var adminEmails = getAdminEmails();
+	if (adminEmails.length) {
+		// LOWER() is portable across sqlite; emails are already stored lowercase
+		// but defensive in case any pre-existing row wasn't normalized.
+		var placeholders = adminEmails.map(function() { return "?"; }).join(",");
+		var stmt = db.prepare("SELECT id, email, is_admin FROM users WHERE LOWER(email) IN (" + placeholders + ")");
+		var rows = stmt.all.apply(stmt, adminEmails);
+		rows.forEach(function(u) {
+			if (!u.is_admin) {
+				db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(u.id);
+				console.log("[admin] marked " + u.email + " as admin (user " + u.id + ")");
+			}
+		});
+	}
 }
 applyAdminBootstrap();
 
