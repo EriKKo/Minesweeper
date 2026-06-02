@@ -233,6 +233,22 @@ function presentPanel(panel, kind, autoHideMs) {
 	}
 }
 
+// While a result panel is open, Enter triggers the primary action (the
+// first .btn-primary in the overlay). Every "play again" dialog —
+// puzzle run outcome, solo outcome, multiplayer series end, tournament
+// elimination — keeps its main CTA as the first btn-primary, so this
+// single handler covers all of them.
+document.addEventListener("keydown", function(e) {
+	if (e.key !== "Enter") return;
+	if (!boardOverlay || boardOverlay.style.display === "none") return;
+	var tag = (e.target && e.target.tagName) || "";
+	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+	var btn = boardOverlay.querySelector(".btn-primary");
+	if (!btn) return;
+	e.preventDefault();
+	btn.click();
+});
+
 function showRoundResultPanel(data) {
 	var standings = data.standings || [];
 	var won = data.winnerId === id;
