@@ -332,10 +332,16 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	//   ~5.5      enum on 5 cells
 	//   ~8.0      enum on 7 cells
 	//   ~10+      enum ≥ 9 cells
+	// Overlap weighted higher than subset: pair-of-clue constraint subtraction
+	// is harder for humans to spot than a clean subset, even though the pass
+	// is structurally similar. Lifts overlap-needing puzzles into the
+	// 1100–1500 rating band so the Advanced tier actually has supply.
 	var trivBonus = Math.min(0.7, 0.1 * Math.max(0, trivCount - 1));
 	var score = 1.0
 		+ trivBonus
-		+ 0.8 * (subsetCount + overlapCount + enumCount)
+		+ 0.8 * subsetCount
+		+ 1.8 * overlapCount
+		+ 0.8 * enumCount
 		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
 	if (!solved) score = 0;
 	score = Math.round(score * 10) / 10;

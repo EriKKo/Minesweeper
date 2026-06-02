@@ -4,6 +4,11 @@ var sqlite = require("node:sqlite");
 var crypto = require("node:crypto");
 var path = require("path");
 
+// Bumped any time the puzzle scoring formula changes. Rows stored under an
+// older version are re-classified on startup so their score and rating
+// match what a freshly-generated puzzle would get.
+var CURRENT_SCORING_VERSION = 2;
+
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
 var DB_PATH = process.env.RANKED_DB || path.join(__dirname, "..", "..", "ranked.db");
@@ -85,6 +90,10 @@ addColumnIfMissing("users", "email", "TEXT");
 // overlap solver — startup re-runs the analyzer on those and stamps a real
 // value so their pass counts / difficulty / score reflect the new pass.
 addColumnIfMissing("puzzles", "overlap_passes", "INTEGER NOT NULL DEFAULT -1");
+// Bumped whenever the scoring formula changes. The startup backfill picks
+// up rows whose stored version is below CURRENT_SCORING_VERSION and
+// re-analyzes them.
+addColumnIfMissing("puzzles", "scoring_version", "INTEGER NOT NULL DEFAULT 0");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
@@ -232,8 +241,8 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" trivial_passes, subset_passes, overlap_passes, enum_passes, max_enum_size, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" trivial_passes, subset_passes, overlap_passes, enum_passes, max_enum_size, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -243,6 +252,7 @@ function insertPuzzle(p) {
 		(p.passes && p.passes.overlap) || 0,
 		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
+		CURRENT_SCORING_VERSION,
 		Date.now()
 	);
 	return info.changes > 0;
@@ -483,17 +493,21 @@ function pickPuzzleNearRating(targetRating, excludeIds, windows) {
 	return null;
 }
 
-// One-shot backfill helpers for the overlap pass. Rows inserted before the
-// overlap pass existed have overlap_passes = -1 (the column default); the
-// startup hook re-runs the analyzer on those rows and stamps a real value.
+// Startup backfill: pick up rows that pre-date the current solver / scoring
+// version and re-run the analyzer so pass counts, difficulty, score, and
+// rating all reflect the latest code.
 function legacyPuzzleRows() {
-	return db.prepare("SELECT id, rows, cols, mines, revealed FROM puzzles WHERE overlap_passes < 0").all();
+	return db.prepare(
+		"SELECT id, rows, cols, mines, revealed FROM puzzles " +
+		"WHERE overlap_passes < 0 OR scoring_version < ?"
+	).all(CURRENT_SCORING_VERSION);
 }
 
 function applyPuzzleClassification(id, analysis) {
 	db.prepare(
 		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
-		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, enum_passes = ?, max_enum_size = ? " +
+		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, enum_passes = ?, " +
+		"max_enum_size = ?, scoring_version = ? " +
 		"WHERE id = ?"
 	).run(
 		analysis.difficulty,
@@ -504,6 +518,7 @@ function applyPuzzleClassification(id, analysis) {
 		analysis.passes.overlap || 0,
 		analysis.passes.enum || 0,
 		analysis.maxEnumSize || 0,
+		CURRENT_SCORING_VERSION,
 		id
 	);
 }
