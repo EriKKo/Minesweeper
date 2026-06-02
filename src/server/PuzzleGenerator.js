@@ -345,7 +345,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		+ trivBonus
 		+ 0.8 * subsetCount
 		+ 1.8 * overlapCount
-		+ 2.6 * chainCount
+		+ 3.4 * chainCount
 		+ 0.8 * enumCount
 		+ (maxEnumSize > 1 ? 0.6 * Math.pow(maxEnumSize - 1, 1.3) : 0);
 	if (!solved) score = 0;
