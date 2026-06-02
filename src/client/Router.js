@@ -79,7 +79,21 @@ function showPuzzlePlayView() {
 	hideAllViews();
 	document.getElementById("puzzle_play_view").style.display = "";
 	setSiteNavActive("");
-	renderPuzzlePlay();
+	renderPuzzlePlay("rated");
+}
+
+function showPuzzleStreakView() {
+	hideAllViews();
+	document.getElementById("puzzle_play_view").style.display = "";
+	setSiteNavActive("");
+	renderPuzzlePlay("streak");
+}
+
+function showPuzzleStormView() {
+	hideAllViews();
+	document.getElementById("puzzle_play_view").style.display = "";
+	setSiteNavActive("");
+	renderPuzzlePlay("storm");
 }
 
 function showLeaderboardView() {
@@ -126,11 +140,18 @@ function applyRouteFromHash() {
 		return;
 	}
 	if (puzzleSession) {
-		// Leaving mid-puzzle is fine — server keeps current_puzzle_id and
-		// will serve the same board next time. No confirm, no penalty.
+		// Rated: leaving is free — server keeps current_puzzle_id and
+		// re-serves the same board next time. Streak/Storm: tell the
+		// server to wrap up so the score is recorded as a personal-best
+		// update if it qualifies.
+		if ((puzzleSession.mode === "streak" || puzzleSession.mode === "storm") && !puzzleSession.finished) {
+			socket.emit("puzzle_run_abandon");
+		}
+		stopStormTicker();
 		togglePuzzleChrome(false);
 		if (gameView) gameView.classList.remove("puzzle");
 		puzzleSession = null;
+		puzzleRunMode = null;
 		hideOverlay();
 		myState = null;
 		prevPlayerState = null;
@@ -152,6 +173,8 @@ function applyRouteFromHash() {
 	if (hash === "/custom") return showCustomView();
 	if (hash === "/puzzles/list") return showPuzzlesListView();
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
+	if (hash === "/puzzles/streak") return showPuzzleStreakView();
+	if (hash === "/puzzles/storm") return showPuzzleStormView();
 	if (hash === "/puzzles") return showPuzzleLabView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();

@@ -88,4 +88,8 @@ function renderHomeRankChips() {
 			? (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)
 			: "";
 	}
+	var streakBestEl = document.getElementById("puzzle_streak_best");
+	var stormBestEl = document.getElementById("puzzle_storm_best");
+	if (streakBestEl) streakBestEl.textContent = account ? (account.streakBest || 0) : "—";
+	if (stormBestEl) stormBestEl.textContent = account ? (account.stormBest || 0) : "—";
 }

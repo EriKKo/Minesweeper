@@ -120,6 +120,32 @@
 					</div>
 					<button id="open_puzzles_button" class="btn btn-primary home-card-action">Play puzzles</button>
 				</div>
+
+				<div class="home-card home-card-streak">
+					<div class="home-card-head">
+						<span class="home-card-tag home-card-tag-streak">PUZZLES · STREAK</span>
+					</div>
+					<h2 class="home-card-title">Streak</h2>
+					<p class="home-card-sub">Solve as many as you can — puzzles get harder each turn, one mistake ends the run.</p>
+					<div class="home-card-rank" id="rank_chip_streak">
+						<span class="home-card-rank-label">Best</span>
+						<span class="home-card-rank-tier" id="puzzle_streak_best">—</span>
+					</div>
+					<button id="open_streak_button" class="btn btn-primary home-card-action">Start streak</button>
+				</div>
+
+				<div class="home-card home-card-storm">
+					<div class="home-card-head">
+						<span class="home-card-tag home-card-tag-storm">PUZZLES · STORM</span>
+					</div>
+					<h2 class="home-card-title">Storm</h2>
+					<p class="home-card-sub">Three-minute marathon. Solve fast, miss costs 10 seconds, score = puzzles cleared.</p>
+					<div class="home-card-rank" id="rank_chip_storm">
+						<span class="home-card-rank-label">Best</span>
+						<span class="home-card-rank-tier" id="puzzle_storm_best">—</span>
+					</div>
+					<button id="open_storm_button" class="btn btn-primary home-card-action">Start storm</button>
+				</div>
 			</div>
 
 			<div id="ranked_searching" class="ranked-searching" style="display:none">
@@ -343,27 +369,49 @@
 					<div id="puzzle_card" class="side-card puzzle-side-card" style="display:none">
 						<div class="puzzle-side-head">
 							<span class="puzzle-side-back" id="puzzle_side_back" title="Back to lobby">←</span>
-							<span class="puzzle-side-title">Rated puzzles</span>
+							<span id="puzzle_side_title" class="puzzle-side-title">Rated puzzles</span>
 						</div>
-						<div class="puzzle-side-rating-row">
-							<span class="puzzle-side-rating-wrap">
-								<span id="puzzle_rank_rating" class="puzzle-side-rating">—</span>
-								<span id="puzzle_rank_delta" class="puzzle-rank-delta"></span>
-							</span>
-							<span id="puzzle_streak_chip" class="puzzle-streak-chip" style="display:none">🔥 <span id="puzzle_streak_count">0</span></span>
+
+						<!-- Rated mode: tier + progress bar + hint -->
+						<div id="puzzle_rated_panel" class="puzzle-mode-panel">
+							<div class="puzzle-side-rating-row">
+								<span class="puzzle-side-rating-wrap">
+									<span id="puzzle_rank_rating" class="puzzle-side-rating">—</span>
+									<span id="puzzle_rank_delta" class="puzzle-rank-delta"></span>
+								</span>
+								<span id="puzzle_streak_chip" class="puzzle-streak-chip" style="display:none">🔥 <span id="puzzle_streak_count">0</span></span>
+							</div>
+							<div id="puzzle_rank_tier" class="puzzle-side-tier">—</div>
+							<div class="puzzle-rank-bar">
+								<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
+							</div>
+							<div class="puzzle-rank-foot">
+								<span id="puzzle_rank_progress">0 / 0</span>
+								<span id="puzzle_rank_next">→ —</span>
+							</div>
+							<button id="puzzle_hint_btn" class="btn btn-secondary puzzle-hint-btn" type="button">
+								<span class="puzzle-hint-icon">💡</span>
+								<span>Hint</span>
+							</button>
 						</div>
-						<div id="puzzle_rank_tier" class="puzzle-side-tier">—</div>
-						<div class="puzzle-rank-bar">
-							<div id="puzzle_rank_fill" class="puzzle-rank-fill"></div>
+
+						<!-- Run modes: solves + level (streak) or time (storm) -->
+						<div id="puzzle_run_panel" class="puzzle-mode-panel" style="display:none">
+							<div class="puzzle-run-row">
+								<div class="puzzle-run-stat">
+									<span class="puzzle-run-stat-label">Solved</span>
+									<span id="puzzle_run_solves" class="puzzle-run-stat-value">0</span>
+								</div>
+								<div class="puzzle-run-stat" id="puzzle_run_secondary">
+									<span class="puzzle-run-stat-label" id="puzzle_run_secondary_label">Level</span>
+									<span id="puzzle_run_secondary_value" class="puzzle-run-stat-value">—</span>
+								</div>
+							</div>
+							<div class="puzzle-run-foot">
+								<span class="puzzle-run-foot-label">Best</span>
+								<span id="puzzle_run_best" class="puzzle-run-foot-value">0</span>
+							</div>
 						</div>
-						<div class="puzzle-rank-foot">
-							<span id="puzzle_rank_progress">0 / 0</span>
-							<span id="puzzle_rank_next">→ —</span>
-						</div>
-						<button id="puzzle_hint_btn" class="btn btn-secondary puzzle-hint-btn" type="button">
-							<span class="puzzle-hint-icon">💡</span>
-							<span>Hint</span>
-						</button>
 					</div>
 					<div id="solo_card" class="side-card" style="display:none">
 						<h3 class="side-title">Free play</h3>
@@ -605,8 +653,11 @@ socket.on("puzzle_board", function(data) {
 		totalMines: data.mines,
 		playerRating: data.playerRating,
 		startedAt: Date.now(),
-		finished: false
+		finished: false,
+		mode: data.mode || "rated",
+		run: data.run || null
 	};
+	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
 	puzzleHintCovered = [];
 	// Reset BEFORE seeding state — resetBoardAnimations nulls prevPlayerState
@@ -637,7 +688,7 @@ socket.on("puzzle_board", function(data) {
 	hideAllViews();
 	gameView.style.display = "";
 	gameView.classList.add("puzzle");
-	togglePuzzleChrome(true);
+	togglePuzzleChrome(true, puzzleSession.mode);
 	updatePuzzleHud();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
@@ -645,6 +696,9 @@ socket.on("puzzle_board", function(data) {
 
 socket.on("puzzle_result", function(data) {
 	if (!puzzleSession) return;
+	// Run modes don't emit puzzle_result — the server transitions directly
+	// to the next puzzle_board (on solve) or to puzzle_run_end (on miss).
+	if (puzzleSession.mode === "streak" || puzzleSession.mode === "storm") return;
 	puzzleSession.finished = true;
 	puzzleSession.result = data;
 	puzzleSession.playerRating = data.playerAfter;
@@ -658,6 +712,19 @@ socket.on("puzzle_result", function(data) {
 	}
 	updatePuzzleHud();
 	showPuzzleOutcome(data);
+});
+
+socket.on("puzzle_run_end", function(data) {
+	if (!puzzleSession) return;
+	puzzleSession.finished = true;
+	stopStormTicker();
+	// Update local best so the home cards reflect it next render.
+	if (account) {
+		if (data.mode === "streak") account.streakBest = data.best;
+		else if (data.mode === "storm") account.stormBest = data.best;
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	}
+	showPuzzleRunOutcome(data);
 });
 
 // Hint pointer: server tells us which cell(s) to look at — clue cells and
@@ -835,6 +902,14 @@ document.getElementById("open_custom_button").addEventListener("click", function
 
 document.getElementById("open_puzzles_button").addEventListener("click", function() {
 	location.hash = "#/puzzles/play";
+});
+
+document.getElementById("open_streak_button").addEventListener("click", function() {
+	location.hash = "#/puzzles/streak";
+});
+
+document.getElementById("open_storm_button").addEventListener("click", function() {
+	location.hash = "#/puzzles/storm";
 });
 
 document.getElementById("puzzle_hint_btn").addEventListener("click", function() {

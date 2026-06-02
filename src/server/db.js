@@ -75,6 +75,8 @@ addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 800");
 addColumnIfMissing("users", "puzzles_solved", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "puzzles_attempted", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "current_puzzle_id", "INTEGER");
+addColumnIfMissing("users", "streak_best", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "storm_best", "INTEGER NOT NULL DEFAULT 0");
 
 function upsertUser(provider, providerId, name, avatarUrl) {
 	providerId = String(providerId);
@@ -218,6 +220,17 @@ function setCurrentPuzzle(userId, puzzleId) {
 	db.prepare("UPDATE users SET current_puzzle_id = ? WHERE id = ?").run(puzzleId, userId);
 }
 
+function getRunBest(userId, mode) {
+	var col = mode === "streak" ? "streak_best" : "storm_best";
+	var row = db.prepare("SELECT " + col + " AS v FROM users WHERE id = ?").get(userId);
+	return row ? row.v : 0;
+}
+
+function setRunBest(userId, mode, score) {
+	var col = mode === "streak" ? "streak_best" : "storm_best";
+	db.prepare("UPDATE users SET " + col + " = ? WHERE id = ?").run(score, userId);
+}
+
 // Standard Elo: expected score against an opponent of `opponentRating`,
 // then new = old + K * (actual - expected). Caller picks K — we use 20
 // for player ratings (snappy enough to converge in ~50 attempts) and 10
@@ -301,5 +314,7 @@ module.exports = {
 	eloUpdate: eloUpdate,
 	recordAttempt: recordAttempt,
 	recentlyAttemptedPuzzleIds: recentlyAttemptedPuzzleIds,
-	pickPuzzleNearRating: pickPuzzleNearRating
+	pickPuzzleNearRating: pickPuzzleNearRating,
+	getRunBest: getRunBest,
+	setRunBest: setRunBest
 };

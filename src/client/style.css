@@ -572,6 +572,45 @@ main {
 	color: #c084fc;
 	border-color: rgba(192, 132, 252, 0.5);
 }
+.home-card-streak {
+	background: linear-gradient(160deg, rgba(251, 146, 60, 0.16), rgba(251, 146, 60, 0.04) 70%);
+	border-color: rgba(251, 146, 60, 0.45);
+}
+.home-card-tag-streak {
+	background: rgba(251, 146, 60, 0.22);
+	color: #fb923c;
+	border-color: rgba(251, 146, 60, 0.5);
+}
+.home-card-storm {
+	background: linear-gradient(160deg, rgba(248, 113, 113, 0.16), rgba(248, 113, 113, 0.04) 70%);
+	border-color: rgba(248, 113, 113, 0.45);
+}
+.home-card-tag-storm {
+	background: rgba(248, 113, 113, 0.22);
+	color: #f87171;
+	border-color: rgba(248, 113, 113, 0.5);
+}
+
+.puzzle-run-row { display: flex; gap: 1.4rem; margin: 0.4rem 0; }
+.puzzle-run-stat { display: flex; flex-direction: column; gap: 0.2rem; }
+.puzzle-run-stat-label {
+	font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
+	color: var(--muted);
+}
+.puzzle-run-stat-value {
+	font-size: 2rem; font-weight: 800; line-height: 1;
+	color: var(--text);
+}
+.puzzle-run-foot {
+	display: flex; gap: 0.4rem; align-items: baseline;
+	margin-top: 0.6rem; padding-top: 0.6rem;
+	border-top: 1px solid var(--border);
+}
+.puzzle-run-foot-label {
+	font-size: 0.78rem; color: var(--muted);
+	letter-spacing: 0.04em; text-transform: uppercase;
+}
+.puzzle-run-foot-value { font-size: 0.95rem; font-weight: 700; color: var(--text); }
 
 .home-card-head { display: flex; align-items: center; gap: 0.5rem; }
 

@@ -247,13 +247,86 @@ function finishLogin(res, userId) {
 var puzzleJob = null; // { id, target, diff, density, done, dupes, stalls, startedAt }
 var nextPuzzleJobId = 1;
 
-// Active Rated-mode puzzle plays. Keyed by playerID — one in-flight puzzle
-// per socket. Each entry holds the puzzle row, the gameCreator-built game
-// (the authoritative state), and the user's pre-attempt rating so the Elo
-// update at the end is symmetric (player vs. puzzle as it was at start).
+// Active puzzle plays. Keyed by playerID — one in-flight puzzle per socket.
+// Each entry holds the puzzle row, the gameCreator-built game (the
+// authoritative state), and (for rated mode) the user's pre-attempt rating
+// so the Elo update at the end is symmetric.
+//
+// pp.runMode is set for streak/storm modes: when the player solves or
+// misses, finalizePuzzle hands off to the run controller below instead of
+// applying Elo. The run advances the target rating, picks the next puzzle,
+// and reuses startPuzzlePlay to set up another game on the same socket.
 var puzzlePlay = {};
+var puzzleRun = {};   // playerID -> { mode, targetRating, solves, startedAt, endsAt, timerHandle }
 
-function startPuzzlePlay(socket, playerID, user, puzzle) {
+// Streak / Storm tuning.
+var RUN_START_RATING = 500;
+var RUN_STEP = 60;
+var STORM_DURATION_MS = 3 * 60 * 1000;
+var STORM_MISS_PENALTY_MS = 10 * 1000;
+
+function startPuzzleRun(socket, playerID, user, mode) {
+	clearStormTimer(playerID);
+	var run = {
+		mode: mode,
+		targetRating: RUN_START_RATING,
+		solves: 0,
+		startedAt: Date.now()
+	};
+	if (mode === "storm") {
+		run.endsAt = Date.now() + STORM_DURATION_MS;
+		run.timerHandle = setTimeout(function() { endPuzzleRun(socket, playerID, "time"); }, STORM_DURATION_MS);
+	}
+	puzzleRun[playerID] = run;
+	serveRunPuzzle(socket, playerID, user);
+}
+
+function serveRunPuzzle(socket, playerID, user) {
+	var run = puzzleRun[playerID];
+	if (!run) return;
+	// Reuse the rating-near picker without exclusions — run mode doesn't
+	// track per-user attempt history; repeats over a long run are fine.
+	var puzzle = db.pickPuzzleNearRating(run.targetRating, []);
+	if (!puzzle) {
+		endPuzzleRun(socket, playerID, "no_puzzles");
+		return;
+	}
+	delete puzzlePlay[playerID];
+	startPuzzlePlay(socket, playerID, user, puzzle, run);
+}
+
+function clearStormTimer(playerID) {
+	var run = puzzleRun[playerID];
+	if (run && run.timerHandle) { clearTimeout(run.timerHandle); run.timerHandle = null; }
+}
+
+function endPuzzleRun(socket, playerID, reason) {
+	var run = puzzleRun[playerID];
+	if (!run) return;
+	clearStormTimer(playerID);
+	delete puzzleRun[playerID];
+	// Drop the in-flight game state too — the run is over.
+	delete puzzlePlay[playerID];
+	var pp_pre = run;
+	var finalScore = (run.mode === "streak") ? run.targetRating : run.solves;
+	var acc = accounts[playerID];
+	var userId = acc ? acc.userId : null;
+	var bestBefore = 0;
+	if (userId) {
+		bestBefore = db.getRunBest(userId, run.mode);
+		if (finalScore > bestBefore) db.setRunBest(userId, run.mode, finalScore);
+	}
+	socket.emit("puzzle_run_end", {
+		mode: run.mode,
+		reason: reason,
+		solves: run.solves,
+		score: finalScore,
+		bestBefore: bestBefore,
+		best: Math.max(finalScore, bestBefore)
+	});
+}
+
+function startPuzzlePlay(socket, playerID, user, puzzle, run) {
 	// Build the full board: -1 (MINE sentinel) where the puzzle's mine list
 	// says, otherwise a clue count.
 	var board = puzzleGen.buildBoard(puzzle.rows, puzzle.cols, puzzle.mines);
@@ -270,6 +343,7 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 	game.mineHit = function() { finalizePuzzle(socket, playerID, false); };
 
 	puzzlePlay[playerID] = {
+		mode: run ? run.mode : "rated",
 		puzzleId: puzzle.id,
 		userId: user.id,
 		game: game,
@@ -281,6 +355,7 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 
 	var obf = obfuscateBoard(board, puzzle.rows, puzzle.cols);
 	socket.emit("puzzle_board", {
+		mode: run ? run.mode : "rated",
 		puzzleId: puzzle.id,
 		rows: puzzle.rows,
 		cols: puzzle.cols,
@@ -291,7 +366,13 @@ function startPuzzlePlay(socket, playerID, user, puzzle) {
 		boardMask: obf.mask,
 		playerRating: user.puzzle_rating,
 		solved: user.puzzles_solved,
-		attempted: user.puzzles_attempted
+		attempted: user.puzzles_attempted,
+		run: run ? {
+			mode: run.mode,
+			targetRating: run.targetRating,
+			solves: run.solves,
+			endsAt: run.endsAt || null
+		} : null
 	});
 }
 
@@ -350,8 +431,36 @@ function findFrontierFallback(game) {
 function finalizePuzzle(socket, playerID, solved) {
 	var pp = puzzlePlay[playerID];
 	if (!pp) return;
-	delete puzzlePlay[playerID];
 	pp.game.playing = false;
+
+	// Run modes (streak / storm): no Elo, advance the run instead.
+	if (pp.mode === "streak" || pp.mode === "storm") {
+		var run = puzzleRun[playerID];
+		if (!run) { delete puzzlePlay[playerID]; return; }
+		if (solved) {
+			run.solves++;
+			run.targetRating += RUN_STEP;
+		} else if (pp.mode === "streak") {
+			endPuzzleRun(socket, playerID, "fail");
+			return;
+		} else if (pp.mode === "storm") {
+			// 10s penalty + reschedule the timer.
+			if (run.endsAt) {
+				run.endsAt -= STORM_MISS_PENALTY_MS;
+				clearStormTimer(playerID);
+				var remaining = run.endsAt - Date.now();
+				if (remaining <= 0) { endPuzzleRun(socket, playerID, "time"); return; }
+				run.timerHandle = setTimeout(function() { endPuzzleRun(socket, playerID, "time"); }, remaining);
+			}
+		}
+		// Serve next.
+		var u = db.getUserById(pp.userId);
+		if (!u) { endPuzzleRun(socket, playerID, "auth"); return; }
+		serveRunPuzzle(socket, playerID, u);
+		return;
+	}
+
+	delete puzzlePlay[playerID];
 	// Hinted solves earn half the rating exchange — same Elo math with the
 	// actual score set to 0.5 (a "draw" against the puzzle) instead of 1.
 	// A hinted failure is still a full loss; hint affects only the win.
@@ -1719,7 +1828,9 @@ io.on("connection", function (socket) {
 			provisional: user.played < PROVISIONAL_GAMES,
 			puzzleRating: user.puzzle_rating,
 			puzzlesSolved: user.puzzles_solved,
-			puzzlesAttempted: user.puzzles_attempted
+			puzzlesAttempted: user.puzzles_attempted,
+			streakBest: user.streak_best,
+			stormBest: user.storm_best
 		});
 		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
 		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
@@ -1801,7 +1912,37 @@ io.on("connection", function (socket) {
 			if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzles" }); return; }
 			db.setCurrentPuzzle(u.id, puzzle.id);
 		}
-		startPuzzlePlay(socket, playerID, u, puzzle);
+		// puzzle_next is rated-mode only — cancel any active run before
+		// starting a fresh rated attempt.
+		if (puzzleRun[playerID]) {
+			clearStormTimer(playerID);
+			delete puzzleRun[playerID];
+		}
+		startPuzzlePlay(socket, playerID, u, puzzle, null);
+	});
+
+	function authedUserForPuzzle() {
+		var acc = accounts[playerID];
+		if (!acc) { socket.emit("puzzle_error", { reason: "auth_required" }); return null; }
+		var u = db.getUserById(acc.userId);
+		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return null; }
+		return u;
+	}
+
+	socket.on("puzzle_streak_start", function() {
+		var u = authedUserForPuzzle(); if (!u) return;
+		delete puzzlePlay[playerID];
+		startPuzzleRun(socket, playerID, u, "streak");
+	});
+
+	socket.on("puzzle_storm_start", function() {
+		var u = authedUserForPuzzle(); if (!u) return;
+		delete puzzlePlay[playerID];
+		startPuzzleRun(socket, playerID, u, "storm");
+	});
+
+	socket.on("puzzle_run_abandon", function() {
+		if (puzzleRun[playerID]) endPuzzleRun(socket, playerID, "abandon");
 	});
 
 	// Hint points to the cell(s) where the next safe-reveal lives — it does
@@ -2034,7 +2175,9 @@ io.on("connection", function (socket) {
 		}
 		// Mid-puzzle disconnect is fine — current_puzzle_id stays set in the
 		// DB so the same puzzle is served on reconnect. We just drop the
-		// in-memory game state.
+		// in-memory game state. Active runs end (no resume — runs are
+		// session-only by design); score is recorded if it's a new best.
+		if (puzzleRun[playerID]) endPuzzleRun(socket, playerID, "disconnect");
 		delete puzzlePlay[playerID];
 		delete sockets[playerID];
 		delete names[playerID];
