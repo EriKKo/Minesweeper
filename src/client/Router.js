@@ -191,7 +191,9 @@ function applyRouteFromHash() {
 	if (hash === "/puzzles/daily") return showPuzzleDailyView();
 	if (hash === "/admin") return showAdminView();
 	if (hash === "/admin/lab") return showPuzzleLabView();
-	if (hash === "/admin/puzzles") return showPuzzlesListView();
+	// /admin/puzzles can carry filter state as a query string
+	// (e.g. ?diff=3&method=overlap&sort=desc&page=2) so reloads persist.
+	if (hash === "/admin/puzzles" || hash.indexOf("/admin/puzzles?") === 0) return showPuzzlesListView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();

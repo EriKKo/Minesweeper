@@ -7,9 +7,39 @@
 
 var puzzleListState = { sort: "score-asc", diff: null, method: null, page: 0, pageSize: 50 };
 
+// Filters persist via the URL hash so reloading keeps the view. The hash
+// after the path can carry a query string like
+// #/admin/puzzles?diff=3&method=overlap&sort=desc&page=2.
+function readPuzzleListStateFromHash() {
+	var hash = location.hash || "";
+	var qi = hash.indexOf("?");
+	if (qi < 0) return;
+	var params = new URLSearchParams(hash.slice(qi + 1));
+	var sort = params.get("sort");
+	if (sort === "score-asc" || sort === "score-desc") puzzleListState.sort = sort;
+	var diff = parseInt(params.get("diff"), 10);
+	puzzleListState.diff = (diff >= 1 && diff <= 6) ? diff : null;
+	var method = params.get("method");
+	puzzleListState.method = (method === "trivial" || method === "subset" || method === "overlap" || method === "chain" || method === "enum") ? method : null;
+	var page = parseInt(params.get("page"), 10);
+	puzzleListState.page = (page > 0) ? page : 0;
+}
+
+function writePuzzleListStateToHash() {
+	var bits = [];
+	if (puzzleListState.sort && puzzleListState.sort !== "score-asc") bits.push("sort=" + puzzleListState.sort);
+	if (puzzleListState.diff) bits.push("diff=" + puzzleListState.diff);
+	if (puzzleListState.method) bits.push("method=" + puzzleListState.method);
+	if (puzzleListState.page) bits.push("page=" + puzzleListState.page);
+	var qs = bits.length ? "?" + bits.join("&") : "";
+	var newHash = "#/admin/puzzles" + qs;
+	if (location.hash !== newHash) history.replaceState(null, "", newHash);
+}
+
 function renderPuzzlesList() {
 	var view = document.getElementById("puzzles_list_view");
 	if (!view) return;
+	readPuzzleListStateFromHash();
 	view.innerHTML = "";
 
 	var title = document.createElement("h1");
@@ -46,6 +76,7 @@ function renderPuzzlesList() {
 	sortSelect.addEventListener("change", function() {
 		puzzleListState.sort = sortSelect.value;
 		puzzleListState.page = 0;
+		writePuzzleListStateToHash();
 		refreshPuzzleList();
 	});
 	sortWrap.appendChild(sortSelect);
@@ -67,6 +98,7 @@ function renderPuzzlesList() {
 		btn.addEventListener("click", function() {
 			puzzleListState.diff = (d === "all") ? null : d;
 			puzzleListState.page = 0;
+			writePuzzleListStateToHash();
 			updatePuzzleListFilterChips();
 			refreshPuzzleList();
 		});
@@ -96,6 +128,7 @@ function renderPuzzlesList() {
 		btn.addEventListener("click", function() {
 			puzzleListState.method = opt.key;
 			puzzleListState.page = 0;
+			writePuzzleListStateToHash();
 			updatePuzzleListMethodChips();
 			refreshPuzzleList();
 		});
@@ -205,6 +238,7 @@ function renderPuzzleListPager(total, page, pageSize) {
 		b.addEventListener("click", function() {
 			if (target === page) return;
 			puzzleListState.page = Math.max(0, Math.min(totalPages - 1, target));
+			writePuzzleListStateToHash();
 			refreshPuzzleList();
 		});
 		pager.appendChild(b);
