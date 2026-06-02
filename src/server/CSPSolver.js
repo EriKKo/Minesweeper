@@ -207,6 +207,147 @@ function findBestTrivialClue(initialClues, opts) {
 	return null;
 }
 
+// Case analysis (1-cell split + propagate). When the CSP search can't
+// reach a trivial clue, we try splitting on each frontier cell: simulate
+// safe/mine, propagate each branch via the same CSP pipeline (no enum,
+// no recursion), and intersect the determined cells. Any cell forced
+// identically in both branches is determined regardless of the split
+// cell's value; if one branch contradicts, the other value is forced
+// for the split cell itself plus everything it propagates.
+//
+// This catches the puzzle patterns a human spots without brute-forcing:
+// "what if THAT cell is a mine?" → propagate → see the contradiction
+// or the common conclusion. Cost: 3 + max(branch propagation cost),
+// modeling "do two scenarios and compare".
+
+function snapshotState(state) {
+	var out = new Array(state.length);
+	for (var i = 0; i < state.length; i++) out[i] = state[i].slice();
+	return out;
+}
+
+function stateConsistent(board, state) {
+	var rows = board.length, cols = board[0].length;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var flagged = 0, covered = 0;
+			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+				if (state[nr][nc] === FLAGGED) flagged++;
+				else if (state[nr][nc] === UNKNOWN) covered++;
+			});
+			var need = board[r][c] - flagged;
+			if (need < 0 || need > covered) return false;
+		}
+	}
+	return true;
+}
+
+function makeCascadeFor(board, state) {
+	var rows = board.length, cols = board[0].length;
+	return function(rr, cc) {
+		BoardLogic.cascadeReveal(rr, cc, rows, cols,
+			function(r2, c2) { return state[r2][c2] === UNKNOWN; },
+			function(r2, c2) { state[r2][c2] = KNOWN; return false; },
+			function(r2, c2) { return board[r2][c2]; });
+	};
+}
+
+function propagateBranch(board, state, opts) {
+	var cascade = makeCascadeFor(board, state);
+	var maxC = 0;
+	while (true) {
+		if (!stateConsistent(board, state)) return -1; // contradiction
+		var initial = buildInitialClues(board, state);
+		if (!initial.length) break;
+		var direct = null;
+		for (var i = 0; i < initial.length; i++) {
+			if (isTrivial(initial[i]) && (!direct || initial[i].complexity < direct.complexity)) direct = initial[i];
+		}
+		var best = direct || findBestTrivialClue(initial, opts);
+		if (!best) break;
+		if (best.complexity > maxC) maxC = best.complexity;
+		applyTrivialClue(board, state, best, cascade);
+	}
+	return maxC;
+}
+
+function findCaseSplitStep(board, state, opts) {
+	var rows = board.length, cols = board[0].length;
+	// Frontier = covered cells adjacent to any KNOWN clue cell.
+	var frontierMap = {};
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+				if (state[nr][nc] === UNKNOWN) frontierMap[nr + "," + nc] = [nr, nc];
+			});
+		}
+	}
+	var frontier = [];
+	for (var fk in frontierMap) frontier.push(frontierMap[fk]);
+
+	var best = null;
+	for (var fi = 0; fi < frontier.length; fi++) {
+		var cell = frontier[fi];
+		var pr = cell[0], pc = cell[1];
+
+		var sA = snapshotState(state);
+		sA[pr][pc] = KNOWN;
+		makeCascadeFor(board, sA)(pr, pc);
+		var maxA = propagateBranch(board, sA, opts);
+
+		var sB = snapshotState(state);
+		sB[pr][pc] = FLAGGED;
+		var maxB = propagateBranch(board, sB, opts);
+
+		var okA = maxA >= 0, okB = maxB >= 0;
+		if (!okA && !okB) continue; // both contradict — shouldn't happen on a valid puzzle
+
+		var revealed = [], flagged = [];
+		if (!okA && okB) {
+			flagged.push([pr, pc]);
+			for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
+				if (state[r2][c2] !== UNKNOWN || (r2 === pr && c2 === pc)) continue;
+				if (sB[r2][c2] === KNOWN) revealed.push([r2, c2]);
+				else if (sB[r2][c2] === FLAGGED) flagged.push([r2, c2]);
+			}
+		} else if (!okB && okA) {
+			revealed.push([pr, pc]);
+			for (var r3 = 0; r3 < rows; r3++) for (var c3 = 0; c3 < cols; c3++) {
+				if (state[r3][c3] !== UNKNOWN || (r3 === pr && c3 === pc)) continue;
+				if (sA[r3][c3] === KNOWN) revealed.push([r3, c3]);
+				else if (sA[r3][c3] === FLAGGED) flagged.push([r3, c3]);
+			}
+		} else {
+			// Both branches consistent — keep cells forced identically.
+			for (var r4 = 0; r4 < rows; r4++) for (var c4 = 0; c4 < cols; c4++) {
+				if (state[r4][c4] !== UNKNOWN || (r4 === pr && c4 === pc)) continue;
+				if (sA[r4][c4] === KNOWN && sB[r4][c4] === KNOWN) revealed.push([r4, c4]);
+				else if (sA[r4][c4] === FLAGGED && sB[r4][c4] === FLAGGED) flagged.push([r4, c4]);
+			}
+		}
+		if (!revealed.length && !flagged.length) continue;
+		var branchMax = Math.max(okA ? maxA : 0, okB ? maxB : 0);
+		var complexity = 3 + branchMax;
+		var yieldCount = revealed.length + flagged.length;
+		if (!best
+			|| complexity < best.complexity
+			|| (complexity === best.complexity && yieldCount > best.yieldCount)) {
+			best = {
+				splitCell: [pr, pc],
+				revealed: revealed,
+				flagged: flagged,
+				complexity: complexity,
+				yieldCount: yieldCount,
+				branchA: okA ? maxA : null,
+				branchB: okB ? maxB : null
+			};
+		}
+	}
+	return best;
+}
+
 // Enum fallback. When the CSP search can't reach a trivial clue, we hand
 // off to the brute-force enum pass, but pick the **smallest yielding
 // component** — that way the move's complexity reflects only the case
@@ -291,7 +432,38 @@ function analyzeBoard(board, state, opts) {
 			});
 			continue;
 		}
-		// CSP search exhausted — try enum on the smallest yielding component.
+		// CSP search exhausted — try 1-cell case analysis (cheaper than enum).
+		var caseStep = findCaseSplitStep(board, state, opts);
+		if (caseStep) {
+			var caseRevealed = [], caseFlagged = [];
+			for (var csi = 0; csi < caseStep.revealed.length; csi++) {
+				var crc = caseStep.revealed[csi];
+				if (state[crc[0]][crc[1]] === UNKNOWN) {
+					caseRevealed.push(crc);
+					if (opts.revealCell) opts.revealCell(crc[0], crc[1]);
+					else state[crc[0]][crc[1]] = KNOWN;
+				}
+			}
+			for (var cfi = 0; cfi < caseStep.flagged.length; cfi++) {
+				var cfc = caseStep.flagged[cfi];
+				if (state[cfc[0]][cfc[1]] !== FLAGGED) {
+					caseFlagged.push(cfc);
+					state[cfc[0]][cfc[1]] = FLAGGED;
+				}
+			}
+			moves.push({
+				complexity: caseStep.complexity,
+				action: "case",
+				splitCell: caseStep.splitCell,
+				cells: caseRevealed.concat(caseFlagged),
+				changed: caseRevealed.concat(caseFlagged),
+				revealed: caseRevealed,
+				flagged: caseFlagged
+			});
+			continue;
+		}
+		// Even case analysis can't progress — final fallback is brute-force enum
+		// on the smallest yielding frontier component.
 		var enumStep = findSmallestEnumStep(board, state);
 		if (!enumStep) break;
 		var revealed = [], flagged = [];

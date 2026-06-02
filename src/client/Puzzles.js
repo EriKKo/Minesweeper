@@ -359,7 +359,7 @@ function openAnalyzeModal(p) {
 		controller.reset();
 		for (var i = 0; i <= upTo && i < moves.length; i++) {
 			var mv = moves[i];
-			if (mv.action === "enum") {
+			if (mv.action === "enum" || mv.action === "case") {
 				var rv = mv.revealed || [], fl = mv.flagged || [];
 				for (var rj = 0; rj < rv.length; rj++) controller.revealCell(rv[rj][0], rv[rj][1]);
 				for (var fj = 0; fj < fl.length; fj++) controller.flagCell(fl[fj][0], fl[fj][1]);
@@ -401,6 +401,7 @@ function openAnalyzeModal(p) {
 			var act = document.createElement("span");
 			act.className = "analyze-trace-action";
 			act.textContent = mv.action === "enum" ? "enum·" + mv.componentSize
+				: mv.action === "case" ? "case·(" + mv.splitCell[0] + "," + mv.splitCell[1] + ")"
 				: mv.action === "flag" ? "flag" : "reveal";
 			li.appendChild(act);
 			var cells = document.createElement("span");

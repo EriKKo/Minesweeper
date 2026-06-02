@@ -2599,3 +2599,4 @@ body.touch .find-next-arrow { display: inline-flex; }
 .analyze-trace-move:hover { background: rgba(99, 102, 241, 0.08); }
 .analyze-trace-move.active { background: rgba(250, 204, 21, 0.12); }
 .analyze-trace-enum .analyze-trace-action { color: #fbbf24; }
+.analyze-trace-case .analyze-trace-action { color: #c084fc; }
