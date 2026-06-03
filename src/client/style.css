@@ -2570,12 +2570,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border: 1px solid var(--border); border-radius: 0.4rem;
 }
 .analyze-trace-move {
-	display: flex; gap: 0.5rem; align-items: baseline;
-	padding: 0.35rem 0.6rem;
+	display: block;
 	border-bottom: 1px solid var(--border);
 	font-size: 0.82rem;
 }
 .analyze-trace-move:last-child { border-bottom: none; }
+.analyze-trace-move > .analyze-trace-header { gap: 0.5rem; }
 .analyze-trace-index { color: var(--muted); min-width: 2.2rem; }
 .analyze-trace-action { font-weight: 600; min-width: 3.4rem; }
 .analyze-trace-reveal .analyze-trace-action { color: var(--success); }
@@ -2600,3 +2600,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 .analyze-trace-move.active { background: rgba(250, 204, 21, 0.12); }
 .analyze-trace-enum .analyze-trace-action { color: #fbbf24; }
 .analyze-trace-case .analyze-trace-action { color: #c084fc; }
+.analyze-trace-header { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0.6rem; cursor: pointer; }
+.analyze-trace-header:hover { background: rgba(99, 102, 241, 0.08); }
+.analyze-trace-toggle { font-size: 0.7rem; color: var(--muted); min-width: 0.9rem; cursor: pointer; user-select: none; }
+.analyze-trace-toggle:not(.analyze-trace-toggle-empty):hover { color: var(--accent); }
+.analyze-trace-toggle-empty { cursor: default; }
+.analyze-trace-depth { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.analyze-trace-detail { padding: 0.4rem 0.6rem 0.5rem 1.8rem; background: rgba(10, 14, 30, 0.4); font-size: 0.78rem; }
+.analyze-deriv-step { display: flex; gap: 0.5rem; padding: 0.15rem 0; align-items: baseline; }
+.analyze-deriv-index { color: var(--muted); min-width: 1.8rem; font-variant-numeric: tabular-nums; }
+.analyze-deriv-op { min-width: 6.5rem; color: #a5b4fc; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.78rem; }
+.analyze-deriv-initial .analyze-deriv-op { color: var(--muted); }
+.analyze-deriv-cells { flex: 1; color: var(--text); font-family: ui-monospace, SFMono-Regular, monospace; }
+.analyze-deriv-compl { color: var(--accent); font-variant-numeric: tabular-nums; }

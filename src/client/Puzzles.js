@@ -481,26 +481,63 @@ function openAnalyzeModal(p) {
 		moves.forEach(function(mv, i) {
 			var li = document.createElement("li");
 			li.className = "analyze-trace-move analyze-trace-" + mv.action;
+			var header = document.createElement("div");
+			header.className = "analyze-trace-header";
+
+			var hasDerivation = mv.derivation && mv.derivation.length > 1;
+			var toggle = document.createElement("span");
+			toggle.className = "analyze-trace-toggle" + (hasDerivation ? "" : " analyze-trace-toggle-empty");
+			toggle.textContent = hasDerivation ? "▶" : "·";
+			header.appendChild(toggle);
+
 			var ix = document.createElement("span");
 			ix.className = "analyze-trace-index";
 			ix.textContent = "#" + (i + 1);
-			li.appendChild(ix);
+			header.appendChild(ix);
+
 			var act = document.createElement("span");
 			act.className = "analyze-trace-action";
 			act.textContent = mv.action === "enum" ? "enum·" + mv.componentSize
 				: mv.action === "case" ? "case·(" + mv.splitCell[0] + "," + mv.splitCell[1] + ")"
 				: mv.action === "flag" ? "flag" : "reveal";
-			li.appendChild(act);
+			header.appendChild(act);
+
 			var cells = document.createElement("span");
 			cells.className = "analyze-trace-cells";
 			var cellList = mv.changed || mv.cells || [];
 			cells.textContent = cellList.map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ");
-			li.appendChild(cells);
+			header.appendChild(cells);
+
+			if (typeof mv.depth === "number" && hasDerivation) {
+				var depth = document.createElement("span");
+				depth.className = "analyze-trace-depth";
+				depth.textContent = "d=" + mv.depth;
+				header.appendChild(depth);
+			}
+
 			var compl = document.createElement("span");
 			compl.className = "analyze-trace-compl";
 			compl.textContent = "c=" + (Math.round(mv.complexity * 10) / 10);
-			li.appendChild(compl);
-			li.addEventListener("click", function() {
+			header.appendChild(compl);
+			li.appendChild(header);
+
+			var detail = null;
+			if (hasDerivation) {
+				detail = document.createElement("div");
+				detail.className = "analyze-trace-detail";
+				detail.style.display = "none";
+				renderDerivation(detail, mv.derivation);
+				li.appendChild(detail);
+				toggle.addEventListener("click", function(e) {
+					e.stopPropagation();
+					var open = detail.style.display !== "none";
+					detail.style.display = open ? "none" : "block";
+					toggle.textContent = open ? "▶" : "▼";
+				});
+			}
+
+			header.addEventListener("click", function(e) {
+				if (e.target === toggle) return;
 				liRefs.forEach(function(other) { other.classList.remove("active"); });
 				li.classList.add("active");
 				applyMovesAndHighlight(moves, i, i);
@@ -532,6 +569,44 @@ function openAnalyzeModal(p) {
 		});
 	}).catch(function(e) {
 		traceStatus.textContent = "Error: " + e.message;
+	});
+}
+
+// Render the derivation tree of a move as a topologically-ordered list
+// of steps. Each step references its parents by step index, so the user
+// can read it like a proof: initial reads first, derived clues after.
+function renderDerivation(container, steps) {
+	steps.forEach(function(step) {
+		var row = document.createElement("div");
+		row.className = "analyze-deriv-step analyze-deriv-" + step.source;
+		var ix = document.createElement("span");
+		ix.className = "analyze-deriv-index";
+		ix.textContent = "[" + step.index + "]";
+		row.appendChild(ix);
+		var op = document.createElement("span");
+		op.className = "analyze-deriv-op";
+		if (step.source === "initial") {
+			op.textContent = "read (" + step.from[0] + "," + step.from[1] + ")";
+		} else if (step.source === "subset") {
+			op.textContent = "[" + step.parents[0] + "] ⊂ [" + step.parents[1] + "]";
+		} else if (step.source === "union") {
+			op.textContent = "[" + step.parents[0] + "] ∪ [" + step.parents[1] + "]";
+		} else if (step.source === "intersect") {
+			op.textContent = "[" + step.parents[0] + "] ∩ [" + step.parents[1] + "]";
+		} else {
+			op.textContent = step.source;
+		}
+		row.appendChild(op);
+		var body = document.createElement("span");
+		body.className = "analyze-deriv-cells";
+		body.textContent = step.cells.map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ")
+			+ " ∋ " + step.mines + (step.mines === step.cells.length ? " (all mines)" : step.mines === 0 ? " (all safe)" : "");
+		row.appendChild(body);
+		var compl = document.createElement("span");
+		compl.className = "analyze-deriv-compl";
+		compl.textContent = "c=" + step.complexity;
+		row.appendChild(compl);
+		container.appendChild(row);
 	});
 }
 

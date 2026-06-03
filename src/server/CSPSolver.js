@@ -53,7 +53,7 @@ var RESULT_SIZE_SURCHARGE = 0.12;
 
 function cellKey(cell) { return cell[0] + "," + cell[1]; }
 
-function makeClue(cells, mines, complexity) {
+function makeClue(cells, mines, complexity, meta) {
 	// Canonicalise so structurally-equal clues hash to the same key.
 	var seen = {}, canon = [];
 	for (var i = 0; i < cells.length; i++) {
@@ -62,7 +62,20 @@ function makeClue(cells, mines, complexity) {
 	}
 	canon.sort(function(a, b) { return a[0] - b[0] || a[1] - b[1]; });
 	var key = canon.map(cellKey).join(";");
-	return { key: key, cells: canon, mines: mines, complexity: complexity };
+	meta = meta || {};
+	var depth = 0;
+	if (meta.parents) {
+		for (var p = 0; p < meta.parents.length; p++) {
+			if (meta.parents[p].depth + 1 > depth) depth = meta.parents[p].depth + 1;
+		}
+	}
+	return {
+		key: key, cells: canon, mines: mines, complexity: complexity,
+		source: meta.source || "initial",
+		parents: meta.parents || null,
+		from: meta.from || null,    // origin cell for initial clues
+		depth: depth
+	};
 }
 
 function isTrivial(clue) {
@@ -97,7 +110,10 @@ function buildInitialClues(board, state) {
 			if (mines < 0) continue; // shouldn't happen on a consistent state
 			var sizeSurcharge = CELL_SURCHARGE * covered.length;
 			var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
-			out.push(makeClue(covered, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged));
+			out.push(makeClue(covered, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
+				source: "initial",
+				from: [r, c]
+			}));
 		}
 	}
 	return out;
@@ -121,7 +137,9 @@ function combineSubset(A, B) {
 	var newMines = B.mines - A.mines;
 	if (newMines < 0 || newMines > extras.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * extras.length;
-	return makeClue(extras, newMines, A.complexity + B.complexity + SUBSET_COST + sizeCost);
+	return makeClue(extras, newMines, A.complexity + B.complexity + SUBSET_COST + sizeCost, {
+		source: "subset", parents: [A, B]
+	});
 }
 
 function combineDisjointUnion(A, B) {
@@ -132,7 +150,9 @@ function combineDisjointUnion(A, B) {
 	}
 	var union = A.cells.concat(B.cells);
 	var sizeCost = RESULT_SIZE_SURCHARGE * union.length;
-	return makeClue(union, A.mines + B.mines, A.complexity + B.complexity + UNION_COST + sizeCost);
+	return makeClue(union, A.mines + B.mines, A.complexity + B.complexity + UNION_COST + sizeCost, {
+		source: "union", parents: [A, B]
+	});
 }
 
 function combineIntersection(A, B) {
@@ -154,7 +174,9 @@ function combineIntersection(A, B) {
 	var hi = Math.min(inter.length, A.mines, B.mines);
 	if (lo !== hi) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * inter.length;
-	return makeClue(inter, lo, A.complexity + B.complexity + INTERSECT_COST + sizeCost);
+	return makeClue(inter, lo, A.complexity + B.complexity + INTERSECT_COST + sizeCost, {
+		source: "intersect", parents: [A, B]
+	});
 }
 
 // Tiny binary heap keyed on the first element of each entry.
@@ -386,6 +408,34 @@ function findSmallestEnumStep(board, state) {
 	return best;
 }
 
+// Walk the proof DAG from a final trivial clue back to its initial
+// clues, producing a topologically-ordered list of derivation steps the
+// UI can render. Each step refers to its parents by index in the list,
+// so the renderer can show "step N = intersect of step A and step B".
+function flattenDerivation(clue) {
+	var seen = {}, steps = [];
+	function visit(c) {
+		if (seen[c.key] != null) return seen[c.key];
+		var parentIdx = null;
+		if (c.parents) parentIdx = c.parents.map(visit);
+		var step = {
+			index: steps.length,
+			source: c.source,
+			cells: c.cells,
+			mines: c.mines,
+			complexity: Math.round(c.complexity * 100) / 100,
+			depth: c.depth
+		};
+		if (c.from) step.from = c.from;
+		if (parentIdx) step.parents = parentIdx;
+		seen[c.key] = step.index;
+		steps.push(step);
+		return step.index;
+	}
+	visit(clue);
+	return steps;
+}
+
 // Apply a trivial clue's effect to the state. Returns false if the clue
 // wasn't trivial (caller error) or didn't change anything.
 function applyTrivialClue(board, state, clue, revealCell) {
@@ -445,7 +495,9 @@ function analyzeBoard(board, state, opts) {
 				action: best.mines === 0 ? "reveal" : "flag",
 				cells: best.cells,
 				changed: changed,
-				mines: best.mines
+				mines: best.mines,
+				depth: best.depth,
+				derivation: flattenDerivation(best)
 			});
 			continue;
 		}
