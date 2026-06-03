@@ -526,7 +526,31 @@ function openAnalyzeModal(p) {
 				detail = document.createElement("div");
 				detail.className = "analyze-trace-detail";
 				detail.style.display = "none";
-				renderDerivation(detail, mv.derivation);
+				(function(moveIdx, mvLocal) {
+					renderDerivation(detail, mvLocal.derivation, {
+						onHover: function(step, steps) {
+							// Replay to the state right *before* this move so the
+							// parent clue cells are still covered — gives a faithful
+							// picture of what the player would see at deduction time.
+							applyMovesAndHighlight(moves, moveIdx - 1, null);
+							var primary = step.cells.slice();
+							if (step.from) primary.push(step.from);
+							var context = [];
+							if (step.parents) {
+								step.parents.forEach(function(pi) {
+									var par = steps[pi];
+									if (!par) return;
+									par.cells.forEach(function(c) { context.push(c); });
+									if (par.from) context.push(par.from);
+								});
+							}
+							controller.highlight({ primary: primary, context: context });
+						},
+						onLeave: function() {
+							applyMovesAndHighlight(moves, moveIdx, moveIdx);
+						}
+					});
+				})(i, mv);
 				li.appendChild(detail);
 				toggle.addEventListener("click", function(e) {
 					e.stopPropagation();
@@ -575,7 +599,8 @@ function openAnalyzeModal(p) {
 // Render the derivation tree of a move as a topologically-ordered list
 // of steps. Each step references its parents by step index, so the user
 // can read it like a proof: initial reads first, derived clues after.
-function renderDerivation(container, steps) {
+function renderDerivation(container, steps, opts) {
+	opts = opts || {};
 	steps.forEach(function(step) {
 		var row = document.createElement("div");
 		row.className = "analyze-deriv-step analyze-deriv-" + step.source;
@@ -606,6 +631,10 @@ function renderDerivation(container, steps) {
 		compl.className = "analyze-deriv-compl";
 		compl.textContent = "c=" + step.complexity;
 		row.appendChild(compl);
+		if (opts.onHover) {
+			row.addEventListener("mouseenter", function() { opts.onHover(step, steps); });
+			row.addEventListener("mouseleave", function() { if (opts.onLeave) opts.onLeave(); });
+		}
 		container.appendChild(row);
 	});
 }

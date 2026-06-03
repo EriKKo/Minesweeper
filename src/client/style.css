@@ -2613,3 +2613,5 @@ body.touch .find-next-arrow { display: inline-flex; }
 .analyze-deriv-initial .analyze-deriv-op { color: var(--muted); }
 .analyze-deriv-cells { flex: 1; color: var(--text); font-family: ui-monospace, SFMono-Regular, monospace; }
 .analyze-deriv-compl { color: var(--accent); font-variant-numeric: tabular-nums; }
+.analyze-deriv-step { cursor: default; border-radius: 0.25rem; padding: 0.15rem 0.4rem; }
+.analyze-deriv-step:hover { background: rgba(250, 204, 21, 0.10); }

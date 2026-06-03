@@ -904,24 +904,39 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	wrap.appendChild(boardWrap);
 	var ctx = canvas.getContext("2d");
 
-	var highlightedCells = null; // optional set of [r,c] outlined after renderAll
+	// highlightedCells can be either:
+	//   * an array of [r,c] (single gold-outlined group, the simple case), or
+	//   * an object { primary: [...], context: [...] } where primary draws
+	//     gold and context draws softer blue — used to visualize a proof
+	//     step against the cells of its parent clues.
+	var highlightedCells = null;
+	function drawOutlines(sw, sh, cells, stroke, shadow) {
+		if (!cells || !cells.length) return;
+		ctx.save();
+		ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.08);
+		ctx.strokeStyle = stroke;
+		ctx.shadowColor = shadow;
+		ctx.shadowBlur = Math.min(sw, sh) * 0.25;
+		for (var hi = 0; hi < cells.length; hi++) {
+			var hc = cells[hi];
+			var hx = hc[1] * sw + sw * 0.08;
+			var hy = hc[0] * sh + sh * 0.08;
+			ctx.strokeRect(hx, hy, sw * 0.84, sh * 0.84);
+		}
+		ctx.restore();
+	}
 	function renderAll() {
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		var sw = canvas.width / C, sh = canvas.height / R;
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) drawCell(ctx, r, c, view, sw, sh, null);
-		if (highlightedCells && highlightedCells.length) {
-			ctx.save();
-			ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.08);
-			ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
-			ctx.shadowColor = "rgba(250, 204, 21, 0.7)";
-			ctx.shadowBlur = Math.min(sw, sh) * 0.25;
-			for (var hi = 0; hi < highlightedCells.length; hi++) {
-				var hc = highlightedCells[hi];
-				var hx = hc[1] * sw + sw * 0.08;
-				var hy = hc[0] * sh + sh * 0.08;
-				ctx.strokeRect(hx, hy, sw * 0.84, sh * 0.84);
+		if (highlightedCells) {
+			if (Array.isArray(highlightedCells)) {
+				drawOutlines(sw, sh, highlightedCells, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
+			} else {
+				// Context drawn first so primary outlines sit on top.
+				drawOutlines(sw, sh, highlightedCells.context, "rgba(96, 165, 250, 0.85)", "rgba(96, 165, 250, 0.5)");
+				drawOutlines(sw, sh, highlightedCells.primary, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
 			}
-			ctx.restore();
 		}
 	}
 	renderAll();
