@@ -33,7 +33,7 @@ var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic
 var MINE = BoardLogic.MINE;
 
 var DEFAULT_MAX_CELLS = 8;
-var DEFAULT_MAX_BBOX = 2;     // Chebyshev distance between any two cells
+var DEFAULT_MAX_BBOX = 3;     // Chebyshev distance between any two cells
 var DEFAULT_MAX_CLUES = 5000; // hard ceiling on the seen-set per search
 var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
