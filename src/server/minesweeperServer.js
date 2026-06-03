@@ -622,8 +622,10 @@ function servePuzzles(req, res, url) {
 	var methodRaw = url.searchParams.get("method");
 	var method = (methodRaw === "trivial" || methodRaw === "subset" || methodRaw === "overlap" || methodRaw === "chain" || methodRaw === "enum") ? methodRaw : null;
 	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
-	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, page: page, pageSize: pageSize, sort: sort });
-	var total = db.puzzleCount(diffFilter, method);
+	var scoreBandRaw = url.searchParams.get("score");
+	var scoreBand = (scoreBandRaw && /^(\d+(\.\d+)?-\d+(\.\d+)?|\d+(\.\d+)?\+)$/.test(scoreBandRaw)) ? scoreBandRaw : null;
+	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, page: page, pageSize: pageSize, sort: sort });
+	var total = db.puzzleCount(diffFilter, method, scoreBand);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({
 		puzzles: puzzles,

@@ -5,7 +5,23 @@
 // the puzzle DB exists this page is the natural place to swap the fetch over
 // to it; the rest of the UI stays unchanged.
 
-var puzzleListState = { sort: "score-asc", diff: null, method: null, page: 0, pageSize: 50 };
+var puzzleListState = { sort: "score-asc", diff: null, method: null, scoreBand: null, page: 0, pageSize: 50 };
+
+// Complexity bands shown in the All Puzzles filter. The score column
+// already carries CSP maxComplexity + total/20, so these map directly to
+// the difficulty bands the user sees in the rating curve.
+var SCORE_BANDS = [
+	{ key: null, label: "Any" },
+	{ key: "0-1", label: "0–1" },
+	{ key: "1-2", label: "1–2" },
+	{ key: "2-3", label: "2–3" },
+	{ key: "3-4", label: "3–4" },
+	{ key: "4-5", label: "4–5" },
+	{ key: "5-6", label: "5–6" },
+	{ key: "6-8", label: "6–8" },
+	{ key: "8-10", label: "8–10" },
+	{ key: "10+", label: "10+" }
+];
 
 // Filters persist via the URL hash so reloading keeps the view. The hash
 // after the path can carry a query string like
@@ -21,6 +37,9 @@ function readPuzzleListStateFromHash() {
 	puzzleListState.diff = (diff >= 1 && diff <= 6) ? diff : null;
 	var method = params.get("method");
 	puzzleListState.method = (method === "trivial" || method === "subset" || method === "overlap" || method === "chain" || method === "enum") ? method : null;
+	var score = params.get("score");
+	var validBand = SCORE_BANDS.some(function(b) { return b.key === score; });
+	puzzleListState.scoreBand = (validBand && score) ? score : null;
 	var page = parseInt(params.get("page"), 10);
 	puzzleListState.page = (page > 0) ? page : 0;
 }
@@ -30,6 +49,7 @@ function writePuzzleListStateToHash() {
 	if (puzzleListState.sort && puzzleListState.sort !== "score-asc") bits.push("sort=" + puzzleListState.sort);
 	if (puzzleListState.diff) bits.push("diff=" + puzzleListState.diff);
 	if (puzzleListState.method) bits.push("method=" + puzzleListState.method);
+	if (puzzleListState.scoreBand) bits.push("score=" + puzzleListState.scoreBand);
 	if (puzzleListState.page) bits.push("page=" + puzzleListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
 	var newHash = "#/admin/puzzles" + qs;
@@ -136,6 +156,29 @@ function renderPuzzlesList() {
 	});
 	toolbar.appendChild(methodRow);
 
+	var bandRow = document.createElement("div");
+	bandRow.className = "puzzles-filter";
+	var bandLabel = document.createElement("span");
+	bandLabel.className = "puzzles-filter-label";
+	bandLabel.textContent = "Complexity";
+	bandRow.appendChild(bandLabel);
+	SCORE_BANDS.forEach(function(opt) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.band = opt.key == null ? "any" : opt.key;
+		btn.textContent = opt.label;
+		if (opt.key === puzzleListState.scoreBand) btn.classList.add("active");
+		btn.addEventListener("click", function() {
+			puzzleListState.scoreBand = opt.key;
+			puzzleListState.page = 0;
+			writePuzzleListStateToHash();
+			updatePuzzleListBandChips();
+			refreshPuzzleList();
+		});
+		bandRow.appendChild(btn);
+	});
+	toolbar.appendChild(bandRow);
+
 	view.appendChild(toolbar);
 
 	var status = document.createElement("p");
@@ -177,15 +220,25 @@ function updatePuzzleListMethodChips() {
 	});
 }
 
+function updatePuzzleListBandChips() {
+	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip[data-band]").forEach(function(b) {
+		var v = b.dataset.band;
+		var match = (v === "any" && puzzleListState.scoreBand == null) || (v === puzzleListState.scoreBand);
+		b.classList.toggle("active", !!match);
+	});
+}
+
 function refreshPuzzleList() {
 	var diff = puzzleListState.diff;
 	var sort = puzzleListState.sort === "score-desc" ? "desc" : "asc";
 	var page = puzzleListState.page || 0;
 	var pageSize = puzzleListState.pageSize || 50;
 	var method = puzzleListState.method;
+	var band = puzzleListState.scoreBand;
 	var qs = "page=" + page + "&pageSize=" + pageSize + "&sort=" + sort
 		+ (diff ? "&diff=" + diff : "")
-		+ (method ? "&method=" + method : "");
+		+ (method ? "&method=" + method : "")
+		+ (band ? "&score=" + encodeURIComponent(band) : "");
 	var url = "/api/puzzles?" + qs;
 	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];

@@ -284,6 +284,23 @@ function deserializePuzzle(row) {
 	};
 }
 
+// Score band like "0-1", "5-7", or "10+". Returns SQL fragment + params,
+// or null for unknown bands.
+function scoreBandClause(band) {
+	if (!band) return null;
+	var m = band.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+	if (m) {
+		var lo = parseFloat(m[1]);
+		var hi = parseFloat(m[2]);
+		return { sql: "(score >= ? AND score < ?)", params: [lo, hi] };
+	}
+	var open = band.match(/^(\d+(?:\.\d+)?)\+$/);
+	if (open) {
+		return { sql: "score >= ?", params: [parseFloat(open[1])] };
+	}
+	return null;
+}
+
 function methodClause(method) {
 	// "trivial" — only the trivial pass made progress
 	// "subset"  — subset rule used, no overlap or enum
@@ -310,6 +327,11 @@ function listPuzzles(opts) {
 	}
 	var method = methodClause(opts.method);
 	if (method) clauses.push(method);
+	var band = scoreBandClause(opts.scoreBand);
+	if (band) {
+		clauses.push(band.sql);
+		band.params.forEach(function(p) { params.push(p); });
+	}
 	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
 	var pageSize = Math.max(1, Math.min(200, opts.pageSize || 50));
 	var page = Math.max(0, opts.page || 0);
@@ -321,7 +343,7 @@ function listPuzzles(opts) {
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
 }
 
-function puzzleCount(difficulty, method) {
+function puzzleCount(difficulty, method, scoreBand) {
 	var clauses = [];
 	var params = [];
 	if (difficulty >= 1 && difficulty <= 6) {
@@ -330,6 +352,11 @@ function puzzleCount(difficulty, method) {
 	}
 	var m = methodClause(method);
 	if (m) clauses.push(m);
+	var b = scoreBandClause(scoreBand);
+	if (b) {
+		clauses.push(b.sql);
+		b.params.forEach(function(p) { params.push(p); });
+	}
 	var sql = "SELECT COUNT(*) AS n FROM puzzles";
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
 	var stmt = db.prepare(sql);
