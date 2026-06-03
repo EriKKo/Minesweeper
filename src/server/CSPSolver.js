@@ -265,7 +265,10 @@ function snapshotState(state) {
 	return out;
 }
 
-function stateConsistent(board, state) {
+// Inconsistency check that also reports WHICH clue couldn't be satisfied
+// and why — used so the modal can highlight the cell that contradicts a
+// hypothetical branch.
+function findInconsistency(board, state) {
 	var rows = board.length, cols = board[0].length;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
@@ -276,10 +279,15 @@ function stateConsistent(board, state) {
 				else if (state[nr][nc] === UNKNOWN) covered++;
 			});
 			var need = board[r][c] - flagged;
-			if (need < 0 || need > covered) return false;
+			if (need < 0) return { clue: [r, c], why: "too many mines (need " + board[r][c] + " but " + flagged + " already flagged)" };
+			if (need > covered) return { clue: [r, c], why: "not enough cells (need " + need + " more mines but only " + covered + " covered)" };
 		}
 	}
-	return true;
+	return null;
+}
+
+function stateConsistent(board, state) {
+	return findInconsistency(board, state) === null;
 }
 
 function makeCascadeFor(board, state) {
@@ -295,8 +303,10 @@ function makeCascadeFor(board, state) {
 function propagateBranch(board, state, opts) {
 	var cascade = makeCascadeFor(board, state);
 	var maxC = 0;
+	var trace = [];
 	while (true) {
-		if (!stateConsistent(board, state)) return -1; // contradiction
+		var bad = findInconsistency(board, state);
+		if (bad) return { contradiction: bad, moves: trace, maxC: maxC };
 		var initial = buildInitialClues(board, state);
 		if (!initial.length) break;
 		var direct = null;
@@ -306,9 +316,21 @@ function propagateBranch(board, state, opts) {
 		var best = direct || findBestTrivialClue(initial, opts);
 		if (!best) break;
 		if (best.complexity > maxC) maxC = best.complexity;
+		var changed = [];
+		for (var ci = 0; ci < best.cells.length; ci++) {
+			if (state[best.cells[ci][0]][best.cells[ci][1]] === UNKNOWN) changed.push(best.cells[ci]);
+		}
+		trace.push({
+			action: best.mines === 0 ? "reveal" : "flag",
+			cells: best.cells,
+			changed: changed,
+			complexity: best.complexity,
+			depth: best.depth,
+			derivation: flattenDerivation(best)
+		});
 		applyTrivialClue(board, state, best, cascade);
 	}
-	return maxC;
+	return { contradiction: null, moves: trace, maxC: maxC };
 }
 
 function findCaseSplitStep(board, state, opts) {
@@ -334,13 +356,13 @@ function findCaseSplitStep(board, state, opts) {
 		var sA = snapshotState(state);
 		sA[pr][pc] = KNOWN;
 		makeCascadeFor(board, sA)(pr, pc);
-		var maxA = propagateBranch(board, sA, opts);
+		var resA = propagateBranch(board, sA, opts);
 
 		var sB = snapshotState(state);
 		sB[pr][pc] = FLAGGED;
-		var maxB = propagateBranch(board, sB, opts);
+		var resB = propagateBranch(board, sB, opts);
 
-		var okA = maxA >= 0, okB = maxB >= 0;
+		var okA = !resA.contradiction, okB = !resB.contradiction;
 		if (!okA && !okB) continue; // both contradict — shouldn't happen on a valid puzzle
 
 		var revealed = [], flagged = [];
@@ -359,7 +381,6 @@ function findCaseSplitStep(board, state, opts) {
 				else if (sA[r3][c3] === FLAGGED) flagged.push([r3, c3]);
 			}
 		} else {
-			// Both branches consistent — keep cells forced identically.
 			for (var r4 = 0; r4 < rows; r4++) for (var c4 = 0; c4 < cols; c4++) {
 				if (state[r4][c4] !== UNKNOWN || (r4 === pr && c4 === pc)) continue;
 				if (sA[r4][c4] === KNOWN && sB[r4][c4] === KNOWN) revealed.push([r4, c4]);
@@ -367,7 +388,7 @@ function findCaseSplitStep(board, state, opts) {
 			}
 		}
 		if (!revealed.length && !flagged.length) continue;
-		var branchMax = Math.max(okA ? maxA : 0, okB ? maxB : 0);
+		var branchMax = Math.max(okA ? resA.maxC : 0, okB ? resB.maxC : 0);
 		var complexity = 8 + branchMax;
 		var yieldCount = revealed.length + flagged.length;
 		if (!best
@@ -379,8 +400,10 @@ function findCaseSplitStep(board, state, opts) {
 				flagged: flagged,
 				complexity: complexity,
 				yieldCount: yieldCount,
-				branchA: okA ? maxA : null,
-				branchB: okB ? maxB : null
+				branches: {
+					safe: { contradiction: resA.contradiction, moves: resA.moves, maxC: resA.maxC },
+					mine: { contradiction: resB.contradiction, moves: resB.moves, maxC: resB.maxC }
+				}
 			};
 		}
 	}
@@ -527,7 +550,8 @@ function analyzeBoard(board, state, opts) {
 				cells: caseRevealed.concat(caseFlagged),
 				changed: caseRevealed.concat(caseFlagged),
 				revealed: caseRevealed,
-				flagged: caseFlagged
+				flagged: caseFlagged,
+				branches: caseStep.branches
 			});
 			continue;
 		}

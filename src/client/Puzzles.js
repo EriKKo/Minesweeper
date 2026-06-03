@@ -485,9 +485,11 @@ function openAnalyzeModal(p) {
 			header.className = "analyze-trace-header";
 
 			var hasDerivation = mv.derivation && mv.derivation.length > 1;
+			var hasBranches = mv.action === "case" && mv.branches;
+			var expandable = hasDerivation || hasBranches;
 			var toggle = document.createElement("span");
-			toggle.className = "analyze-trace-toggle" + (hasDerivation ? "" : " analyze-trace-toggle-empty");
-			toggle.textContent = hasDerivation ? "▶" : "·";
+			toggle.className = "analyze-trace-toggle" + (expandable ? "" : " analyze-trace-toggle-empty");
+			toggle.textContent = expandable ? "▶" : "·";
 			header.appendChild(toggle);
 
 			var ix = document.createElement("span");
@@ -522,34 +524,34 @@ function openAnalyzeModal(p) {
 			li.appendChild(header);
 
 			var detail = null;
-			if (hasDerivation) {
+			if (expandable) {
 				detail = document.createElement("div");
 				detail.className = "analyze-trace-detail";
 				detail.style.display = "none";
 				(function(moveIdx, mvLocal) {
-					renderDerivation(detail, mvLocal.derivation, {
-						onHover: function(step, steps) {
-							// Replay to the state right *before* this move so the
-							// parent clue cells are still covered — gives a faithful
-							// picture of what the player would see at deduction time.
-							applyMovesAndHighlight(moves, moveIdx - 1, null);
-							var primary = step.cells.slice();
-							if (step.from) primary.push(step.from);
-							var context = [];
-							if (step.parents) {
-								step.parents.forEach(function(pi) {
-									var par = steps[pi];
-									if (!par) return;
-									par.cells.forEach(function(c) { context.push(c); });
-									if (par.from) context.push(par.from);
-								});
-							}
-							controller.highlight({ primary: primary, context: context });
-						},
-						onLeave: function() {
-							applyMovesAndHighlight(moves, moveIdx, moveIdx);
-						}
-					});
+					if (hasDerivation) {
+						renderDerivation(detail, mvLocal.derivation, {
+							onHover: function(step, steps) {
+								applyMovesAndHighlight(moves, moveIdx - 1, null);
+								var primary = step.cells.slice();
+								if (step.from) primary.push(step.from);
+								var context = [];
+								if (step.parents) {
+									step.parents.forEach(function(pi) {
+										var par = steps[pi];
+										if (!par) return;
+										par.cells.forEach(function(c) { context.push(c); });
+										if (par.from) context.push(par.from);
+									});
+								}
+								controller.highlight({ primary: primary, context: context });
+							},
+							onLeave: function() { applyMovesAndHighlight(moves, moveIdx, moveIdx); }
+						});
+					}
+					if (hasBranches) {
+						renderCaseBranches(detail, mvLocal, moveIdx, moves, controller, applyMovesAndHighlight);
+					}
 				})(i, mv);
 				li.appendChild(detail);
 				toggle.addEventListener("click", function(e) {
@@ -652,6 +654,109 @@ function renderDerivation(container, steps, opts) {
 			row.addEventListener("mouseleave", function() { if (opts.onLeave) opts.onLeave(); });
 		}
 		container.appendChild(row);
+	});
+}
+
+// Render the two branches of a case-split move. Each branch is shown
+// with the moves the propagator took until either (a) a contradiction
+// was reached — meaning the split cell can't have that value, or (b)
+// the branch survives but pins certain cells. Hovering a move in a
+// branch highlights its cells on the board, with the state replayed to
+// just before the case-split + the hypothesis applied so the user can
+// see exactly what the solver was looking at.
+function renderCaseBranches(container, mv, moveIdx, moves, controller, applyMovesAndHighlight) {
+	var split = mv.splitCell;
+	["safe", "mine"].forEach(function(which) {
+		var branch = mv.branches && mv.branches[which];
+		if (!branch) return;
+		var header = document.createElement("div");
+		header.className = "analyze-case-branch-head";
+		var hyp = document.createElement("span");
+		hyp.className = "analyze-case-hyp analyze-case-hyp-" + which;
+		hyp.textContent = "If (" + split[0] + "," + split[1] + ") is " + (which === "safe" ? "safe" : "a mine");
+		header.appendChild(hyp);
+		if (branch.contradiction) {
+			var tag = document.createElement("span");
+			tag.className = "analyze-case-tag";
+			tag.textContent = "→ contradiction at (" + branch.contradiction.clue[0] + "," + branch.contradiction.clue[1] + ")";
+			header.appendChild(tag);
+		} else {
+			var tag2 = document.createElement("span");
+			tag2.className = "analyze-case-tag analyze-case-tag-ok";
+			tag2.textContent = "→ consistent";
+			header.appendChild(tag2);
+		}
+		container.appendChild(header);
+
+		function applyHypothetical() {
+			// Reset to state just before this case-split move, then apply
+			// the hypothesis (the split-cell value being tested).
+			applyMovesAndHighlight(moves, moveIdx - 1, null);
+			if (which === "safe") controller.revealCell(split[0], split[1]);
+			else controller.flagCell(split[0], split[1]);
+		}
+		function applyHypotheticalUpTo(stepIdx) {
+			applyHypothetical();
+			for (var k = 0; k <= stepIdx && k < branch.moves.length; k++) {
+				var bm = branch.moves[k];
+				var bcells = bm.changed && bm.changed.length ? bm.changed : bm.cells;
+				if (bm.action === "flag") {
+					for (var f = 0; f < bcells.length; f++) controller.flagCell(bcells[f][0], bcells[f][1]);
+				} else {
+					for (var r = 0; r < bcells.length; r++) controller.revealCell(bcells[r][0], bcells[r][1]);
+				}
+			}
+		}
+
+		branch.moves.forEach(function(bmv, bi) {
+			var row = document.createElement("div");
+			row.className = "analyze-case-step analyze-case-step-" + bmv.action;
+			var num = document.createElement("span");
+			num.className = "analyze-case-step-num";
+			num.textContent = (bi + 1) + ".";
+			row.appendChild(num);
+			var act = document.createElement("span");
+			act.className = "analyze-case-step-action";
+			act.textContent = bmv.action === "flag" ? "flag" : "reveal";
+			row.appendChild(act);
+			var cells = document.createElement("span");
+			cells.className = "analyze-case-step-cells";
+			cells.textContent = (bmv.changed || bmv.cells).map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ");
+			row.appendChild(cells);
+			var compl = document.createElement("span");
+			compl.className = "analyze-case-step-compl";
+			compl.textContent = "c=" + (Math.round(bmv.complexity * 10) / 10);
+			row.appendChild(compl);
+			row.addEventListener("mouseenter", function() {
+				applyHypotheticalUpTo(bi);
+				controller.highlight({
+					primary: bmv.changed || bmv.cells,
+					context: [split]
+				});
+			});
+			row.addEventListener("mouseleave", function() {
+				applyMovesAndHighlight(moves, moveIdx, moveIdx);
+			});
+			container.appendChild(row);
+		});
+
+		if (branch.contradiction) {
+			// Final row showing the contradicting clue itself.
+			var contraRow = document.createElement("div");
+			contraRow.className = "analyze-case-contra";
+			contraRow.textContent = "✗ " + branch.contradiction.why;
+			contraRow.addEventListener("mouseenter", function() {
+				applyHypotheticalUpTo(branch.moves.length - 1);
+				controller.highlight({
+					primary: [branch.contradiction.clue],
+					context: [split]
+				});
+			});
+			contraRow.addEventListener("mouseleave", function() {
+				applyMovesAndHighlight(moves, moveIdx, moveIdx);
+			});
+			container.appendChild(contraRow);
+		}
 	});
 }
 

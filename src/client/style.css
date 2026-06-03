@@ -2616,3 +2616,28 @@ body.touch .find-next-arrow { display: inline-flex; }
 .analyze-deriv-initial .analyze-deriv-label { color: var(--muted); }
 .analyze-deriv-body { flex: 1; color: var(--text); }
 .analyze-deriv-compl { color: var(--accent); font-variant-numeric: tabular-nums; }
+.analyze-case-branch-head {
+	margin: 0.4rem 0 0.2rem 0; padding: 0.25rem 0.4rem;
+	background: rgba(99, 102, 241, 0.10); border-radius: 0.25rem;
+	display: flex; gap: 0.6rem; align-items: baseline;
+}
+.analyze-case-hyp { font-weight: 600; color: #c084fc; }
+.analyze-case-tag { color: var(--muted); font-size: 0.78rem; }
+.analyze-case-tag-ok { color: var(--success); }
+.analyze-case-step {
+	display: flex; gap: 0.5rem; padding: 0.15rem 0.4rem 0.15rem 1.2rem;
+	border-radius: 0.25rem; cursor: default;
+}
+.analyze-case-step:hover { background: rgba(250, 204, 21, 0.10); }
+.analyze-case-step-num { color: var(--muted); min-width: 1.4rem; }
+.analyze-case-step-action { font-weight: 600; min-width: 3.4rem; }
+.analyze-case-step-reveal .analyze-case-step-action { color: var(--success); }
+.analyze-case-step-flag   .analyze-case-step-action { color: var(--danger); }
+.analyze-case-step-cells { flex: 1; color: var(--text); font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.78rem; }
+.analyze-case-step-compl { color: var(--accent); font-variant-numeric: tabular-nums; }
+.analyze-case-contra {
+	margin: 0.1rem 0 0.4rem 1.2rem; padding: 0.15rem 0.4rem;
+	color: var(--danger); font-weight: 600; cursor: default;
+	border-radius: 0.25rem;
+}
+.analyze-case-contra:hover { background: rgba(239, 68, 68, 0.10); }
