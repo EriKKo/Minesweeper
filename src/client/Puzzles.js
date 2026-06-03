@@ -599,33 +599,49 @@ function openAnalyzeModal(p) {
 // Render the derivation tree of a move as a topologically-ordered list
 // of steps. Each step references its parents by step index, so the user
 // can read it like a proof: initial reads first, derived clues after.
+function setName(idx) {
+	if (idx < 26) return String.fromCharCode(65 + idx);
+	return String.fromCharCode(65 + Math.floor(idx / 26) - 1) + String.fromCharCode(65 + (idx % 26));
+}
+
+function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+function describeStep(step) {
+	var cells = plural(step.cells.length, "cell");
+	var mines = plural(step.mines, "mine");
+	var tail = "";
+	if (step.cells.length > 0 && step.mines === step.cells.length) tail = " (all mines!)";
+	else if (step.cells.length > 0 && step.mines === 0) tail = " (all safe!)";
+	if (step.source === "initial") {
+		return "from clue at (" + step.from[0] + "," + step.from[1] + ") → " + cells + ", " + mines + tail;
+	}
+	var pA = setName(step.parents[0]);
+	var pB = setName(step.parents[1]);
+	if (step.source === "subset") {
+		// parents[1] is the superset, parents[0] the subset (see combineSubset)
+		return pB + " minus " + pA + " → " + cells + ", " + mines + tail;
+	}
+	if (step.source === "union") {
+		return pA + " combined with " + pB + " → " + cells + ", " + mines + tail;
+	}
+	if (step.source === "intersect") {
+		return "overlap of " + pA + " and " + pB + " → " + cells + ", " + mines + tail;
+	}
+	return step.source;
+}
+
 function renderDerivation(container, steps, opts) {
 	opts = opts || {};
 	steps.forEach(function(step) {
 		var row = document.createElement("div");
 		row.className = "analyze-deriv-step analyze-deriv-" + step.source;
-		var ix = document.createElement("span");
-		ix.className = "analyze-deriv-index";
-		ix.textContent = "[" + step.index + "]";
-		row.appendChild(ix);
-		var op = document.createElement("span");
-		op.className = "analyze-deriv-op";
-		if (step.source === "initial") {
-			op.textContent = "read (" + step.from[0] + "," + step.from[1] + ")";
-		} else if (step.source === "subset") {
-			op.textContent = "[" + step.parents[0] + "] ⊂ [" + step.parents[1] + "]";
-		} else if (step.source === "union") {
-			op.textContent = "[" + step.parents[0] + "] ∪ [" + step.parents[1] + "]";
-		} else if (step.source === "intersect") {
-			op.textContent = "[" + step.parents[0] + "] ∩ [" + step.parents[1] + "]";
-		} else {
-			op.textContent = step.source;
-		}
-		row.appendChild(op);
+		var label = document.createElement("span");
+		label.className = "analyze-deriv-label";
+		label.textContent = "Set " + setName(step.index);
+		row.appendChild(label);
 		var body = document.createElement("span");
-		body.className = "analyze-deriv-cells";
-		body.textContent = step.cells.map(function(rc) { return "(" + rc[0] + "," + rc[1] + ")"; }).join(" ")
-			+ " ∋ " + step.mines + (step.mines === step.cells.length ? " (all mines)" : step.mines === 0 ? " (all safe)" : "");
+		body.className = "analyze-deriv-body";
+		body.textContent = describeStep(step);
 		row.appendChild(body);
 		var compl = document.createElement("span");
 		compl.className = "analyze-deriv-compl";
