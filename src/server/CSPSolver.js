@@ -368,7 +368,7 @@ function findCaseSplitStep(board, state, opts) {
 		}
 		if (!revealed.length && !flagged.length) continue;
 		var branchMax = Math.max(okA ? maxA : 0, okB ? maxB : 0);
-		var complexity = 8 + branchMax;
+		var complexity = 7 + branchMax;
 		var yieldCount = revealed.length + flagged.length;
 		if (!best
 			|| complexity < best.complexity
