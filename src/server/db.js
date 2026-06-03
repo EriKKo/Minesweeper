@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 6;
+var CURRENT_SCORING_VERSION = 8;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -234,7 +234,7 @@ function topPlayers(limit) {
 // (single overlap), ~2000 (deep overlap), to ~2800+ (case-split / enum).
 function scoreToRating(score) {
 	if (!score || score <= 0) return 500;
-	return Math.round(500 + 180 * score);
+	return Math.round(500 + 200 * score);
 }
 
 function insertPuzzle(p) {

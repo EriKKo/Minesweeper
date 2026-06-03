@@ -36,9 +36,9 @@ var DEFAULT_MAX_CELLS = 8;
 var DEFAULT_MAX_BBOX = 2;     // Chebyshev distance between any two cells
 var DEFAULT_MAX_CLUES = 5000; // hard ceiling on the seen-set per search
 var FLAG_BONUS = 0.5;
-var SUBSET_COST = 1.5;
+var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
-var INTERSECT_COST = 2.0;
+var INTERSECT_COST = 2.5;
 // Per-cell surcharge added to each initial clue. Counting against five
 // covered cells is harder than against two; the surcharge propagates
 // through every derivation since parent complexities sum.
@@ -137,7 +137,7 @@ function combineSubset(A, B) {
 	var newMines = B.mines - A.mines;
 	if (newMines < 0 || newMines > extras.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * extras.length;
-	return makeClue(extras, newMines, A.complexity + B.complexity + SUBSET_COST + sizeCost, {
+	return makeClue(extras, newMines, Math.max(A.complexity, B.complexity) + SUBSET_COST + sizeCost, {
 		source: "subset", parents: [A, B]
 	});
 }
@@ -150,7 +150,7 @@ function combineDisjointUnion(A, B) {
 	}
 	var union = A.cells.concat(B.cells);
 	var sizeCost = RESULT_SIZE_SURCHARGE * union.length;
-	return makeClue(union, A.mines + B.mines, A.complexity + B.complexity + UNION_COST + sizeCost, {
+	return makeClue(union, A.mines + B.mines, Math.max(A.complexity, B.complexity) + UNION_COST + sizeCost, {
 		source: "union", parents: [A, B]
 	});
 }
@@ -174,7 +174,7 @@ function combineIntersection(A, B) {
 	var hi = Math.min(inter.length, A.mines, B.mines);
 	if (lo !== hi) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * inter.length;
-	return makeClue(inter, lo, A.complexity + B.complexity + INTERSECT_COST + sizeCost, {
+	return makeClue(inter, lo, Math.max(A.complexity, B.complexity) + INTERSECT_COST + sizeCost, {
 		source: "intersect", parents: [A, B]
 	});
 }
@@ -368,7 +368,7 @@ function findCaseSplitStep(board, state, opts) {
 		}
 		if (!revealed.length && !flagged.length) continue;
 		var branchMax = Math.max(okA ? maxA : 0, okB ? maxB : 0);
-		var complexity = 5 + branchMax;
+		var complexity = 8 + branchMax;
 		var yieldCount = revealed.length + flagged.length;
 		if (!best
 			|| complexity < best.complexity
