@@ -198,39 +198,135 @@ function applyMove(move, board, state, pending) {
 	}
 }
 
+// Grow a random connected cascade of `targetSize` clue=0 cells starting
+// from somewhere on the board. Each new cell is picked at random from
+// the current cascade's not-yet-included neighbours. The cascade can
+// touch board edges. Returns the list of cells in the cascade (the
+// caller derives the boundary from there).
+function growCascade(rows, cols, targetSize) {
+	var sr = randInt(0, rows - 1);
+	var sc = randInt(0, cols - 1);
+	var seen = {};
+	seen[sr + "," + sc] = true;
+	var cascade = [[sr, sc]];
+	while (cascade.length < targetSize) {
+		var pool = [];
+		var poolSeen = {};
+		for (var i = 0; i < cascade.length; i++) {
+			var ns = neighbours(rows, cols, cascade[i][0], cascade[i][1]);
+			for (var j = 0; j < ns.length; j++) {
+				var k = ns[j][0] + "," + ns[j][1];
+				if (seen[k] || poolSeen[k]) continue;
+				poolSeen[k] = true;
+				pool.push(ns[j]);
+			}
+		}
+		if (pool.length === 0) break;
+		var pick = pool[Math.floor(Math.random() * pool.length)];
+		seen[pick[0] + "," + pick[1]] = true;
+		cascade.push(pick);
+	}
+	return cascade;
+}
+
+// Given a cascade region, compute the boundary cells (cells adjacent
+// to the cascade but not in it). The cascade and its boundary together
+// form the "starting revealed" set the player sees.
+function cascadeBoundary(cascade, rows, cols) {
+	var cascadeKey = {};
+	cascade.forEach(function(c) { cascadeKey[c[0] + "," + c[1]] = true; });
+	var seen = {};
+	var boundary = [];
+	for (var i = 0; i < cascade.length; i++) {
+		var ns = neighbours(rows, cols, cascade[i][0], cascade[i][1]);
+		for (var j = 0; j < ns.length; j++) {
+			var k = ns[j][0] + "," + ns[j][1];
+			if (cascadeKey[k] || seen[k]) continue;
+			seen[k] = true;
+			boundary.push(ns[j]);
+		}
+	}
+	return boundary;
+}
+
+// Initialize a board/state from a cascade: mark the cascade cells
+// KNOWN with clue=0, mark the boundary cells KNOWN with clue still
+// uncommitted, then commit boundary clues via ambiguity-biased
+// sampling. Returns { board, state, startRevealed }.
+function initWithCascade(cascade, boundary, rows, cols, density) {
+	var board = makeGrid(rows, cols, null);
+	var state = makeGrid(rows, cols, UNKNOWN);
+	var startRevealed = [];
+	for (var i = 0; i < cascade.length; i++) {
+		var c = cascade[i];
+		state[c[0]][c[1]] = KNOWN;
+		board[c[0]][c[1]] = 0;
+		startRevealed.push(c);
+	}
+	for (var j = 0; j < boundary.length; j++) {
+		var b = boundary[j];
+		state[b[0]][b[1]] = KNOWN;
+		startRevealed.push(b);
+	}
+	// Boundary clue values via ambiguity-biased sampling, in random order.
+	var order = boundary.slice();
+	shuffle(order);
+	for (var k = 0; k < order.length; k++) {
+		var bc = order[k];
+		board[bc[0]][bc[1]] = pickClueValueAmbiguous(bc, state, rows, cols, density);
+	}
+	return { board: board, state: state, startRevealed: startRevealed };
+}
+
 function tryConstruct(opts) {
 	opts = opts || {};
 	var rows = opts.rows || randInt(5, 7);
 	var cols = opts.cols || randInt(5, 7);
-
-	var board = makeGrid(rows, cols, null);
-	var state = makeGrid(rows, cols, UNKNOWN);
-
-	// Seed: a single 0-clue cell. Its 8 neighbours are forced safe by
-	// the analyzer's cascade rule, so we cascade-reveal them up front
-	// (marking KNOWN with clue still uncommitted).
-	var seedR = randInt(1, rows - 2);
-	var seedC = randInt(1, cols - 2);
-	state[seedR][seedC] = KNOWN;
-	board[seedR][seedC] = 0;
-	var startRevealed = [[seedR, seedC]];
-	var nbrs = neighbours(rows, cols, seedR, seedC);
-	for (var i = 0; i < nbrs.length; i++) {
-		state[nbrs[i][0]][nbrs[i][1]] = KNOWN;
-		startRevealed.push(nbrs[i]);
-	}
-
-	// Commit clue values for the cascade boundary using ambiguity-biased
-	// random sampling — the search-driven chooser can't score anything
-	// here because no constraints exist yet (a single isolated clue
-	// can't combine into a non-trivial deduction).
 	var density = typeof opts.density === "number" ? opts.density : 0.20;
-	var boundaryOrder = nbrs.slice();
-	shuffle(boundaryOrder);
-	for (var bi = 0; bi < boundaryOrder.length; bi++) {
-		var bcell = boundaryOrder[bi];
-		board[bcell[0]][bcell[1]] = pickClueValueAmbiguous(bcell, state, rows, cols, density);
+
+	// Pick a target complexity for the first move (mapped from target
+	// rating). Cascade variants with different sizes produce different
+	// first-move complexities; we'll sample several and pick the one
+	// closest to this target.
+	var targetComplexity = null;
+	if (typeof opts.targetRating === "number") {
+		targetComplexity = Math.max(0, opts.targetRating / 240 + 0.5);
 	}
+
+	// Sample several cascade variants of different sizes and pick the
+	// one whose first-move complexity (after boundary commits) is
+	// closest to the target. When no target is set, pick uniformly at
+	// random across variants for natural variety.
+	var cascadeCandidates = opts.cascadeCandidates || 6;
+	var picks = [];
+	for (var attempt = 0; attempt < cascadeCandidates; attempt++) {
+		var size = randInt(1, 4);
+		var cascade = growCascade(rows, cols, size);
+		if (cascade.length === 0) continue;
+		var boundary = cascadeBoundary(cascade, rows, cols);
+		if (boundary.length === 0) continue;
+		var init = initWithCascade(cascade, boundary, rows, cols, density);
+		var probe = probeAnalyzer(init.board, init.state);
+		var firstC = probe ? probe.firstMove.complexity : 0;
+		picks.push({ init: init, boundary: boundary, firstComplexity: firstC, size: cascade.length });
+	}
+	if (picks.length === 0) return null;
+
+	var chosen;
+	if (targetComplexity != null) {
+		chosen = picks[0];
+		var bestDist = Math.abs(chosen.firstComplexity - targetComplexity);
+		for (var p = 1; p < picks.length; p++) {
+			var d = Math.abs(picks[p].firstComplexity - targetComplexity);
+			if (d < bestDist) { bestDist = d; chosen = picks[p]; }
+		}
+	} else {
+		chosen = picks[Math.floor(Math.random() * picks.length)];
+	}
+
+	var board = chosen.init.board;
+	var state = chosen.init.state;
+	var startRevealed = chosen.init.startRevealed;
 
 	// Main loop: drive construction from the analyzer's deductions.
 	// Each "reveal" move adds cells to `pending`, which then get clue
