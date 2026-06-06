@@ -102,6 +102,31 @@ function renderHomeRankChips() {
 		else { dailyStatusEl.textContent = "Missed today"; }
 	}
 	renderLobbyDailyBoard();
+	renderLobbyDailyState();
+}
+
+// Drives state-aware styling on the daily hero (solved / missed / new),
+// the button text, and the corner badge over the board preview.
+function renderLobbyDailyState() {
+	var hero = document.querySelector(".lobby-daily-hero");
+	if (!hero) return;
+	hero.classList.remove("daily-solved", "daily-missed", "daily-fresh");
+	var btn = document.getElementById("open_daily_button");
+	var attempt = account && account.dailyAttempt;
+	if (!account) {
+		if (btn) { btn.textContent = "Sign in to play"; btn.disabled = true; }
+		return;
+	}
+	if (!attempt) {
+		hero.classList.add("daily-fresh");
+		if (btn) { btn.textContent = "Play today's puzzle"; btn.disabled = false; }
+	} else if (attempt.solved) {
+		hero.classList.add("daily-solved");
+		if (btn) { btn.textContent = "Solved — back tomorrow"; btn.disabled = true; }
+	} else {
+		hero.classList.add("daily-missed");
+		if (btn) { btn.textContent = "Missed — back tomorrow"; btn.disabled = true; }
+	}
 }
 
 // Paints the daily puzzle's starting position into the lobby hero card.

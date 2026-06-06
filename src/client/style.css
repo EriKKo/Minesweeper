@@ -2822,3 +2822,58 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .lobby-daily-meta-value { font-size: 1rem; color: var(--text); font-weight: 600; }
 .lobby-daily-action { margin-top: 0.4rem; padding: 0.6rem; font-size: 0.95rem; }
+
+/* Daily-hero state indicators. */
+.lobby-daily-hero.daily-solved {
+	border-color: rgba(34, 197, 94, 0.45);
+	box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25), 0 12px 32px rgba(34, 197, 94, 0.08);
+}
+.lobby-daily-hero.daily-missed {
+	border-color: rgba(239, 68, 68, 0.45);
+	box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25), 0 12px 32px rgba(239, 68, 68, 0.08);
+}
+.lobby-daily-hero.daily-solved .lobby-daily-meta-cell:last-child {
+	background: rgba(34, 197, 94, 0.10);
+	border-color: rgba(34, 197, 94, 0.45);
+}
+.lobby-daily-hero.daily-solved .lobby-daily-meta-cell:last-child .lobby-daily-meta-value {
+	color: var(--success);
+}
+.lobby-daily-hero.daily-missed .lobby-daily-meta-cell:last-child {
+	background: rgba(239, 68, 68, 0.08);
+	border-color: rgba(239, 68, 68, 0.35);
+}
+.lobby-daily-hero.daily-missed .lobby-daily-meta-cell:last-child .lobby-daily-meta-value {
+	color: var(--danger);
+}
+
+.lobby-daily-board-wrap { position: relative; }
+.lobby-daily-badge {
+	position: absolute; top: 0.6rem; right: 0.6rem;
+	min-width: 2.4rem; height: 2.4rem;
+	border-radius: 999px;
+	display: none;
+	align-items: center; justify-content: center;
+	font-weight: 700; font-size: 1.4rem; line-height: 1;
+	color: white;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+	z-index: 2;
+	padding: 0 0.5rem;
+}
+.lobby-daily-hero.daily-solved .lobby-daily-badge {
+	display: inline-flex;
+	background: var(--success);
+}
+.lobby-daily-hero.daily-solved .lobby-daily-badge::after { content: "✓"; }
+.lobby-daily-hero.daily-missed .lobby-daily-badge {
+	display: inline-flex;
+	background: var(--danger);
+}
+.lobby-daily-hero.daily-missed .lobby-daily-badge::after { content: "✕"; }
+
+/* Faded board for the post-play states so the badge / colored border
+   read as the focal point. */
+.lobby-daily-hero.daily-solved .lobby-daily-preview,
+.lobby-daily-hero.daily-missed .lobby-daily-preview {
+	opacity: 0.55;
+}
