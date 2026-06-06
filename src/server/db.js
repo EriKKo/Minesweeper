@@ -167,6 +167,12 @@ db.exec(
 // admin browse view.
 addColumnIfMissing("starting_positions", "forced_safe_mask", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("starting_positions", "forced_mine_mask", "INTEGER NOT NULL DEFAULT 0");
+// Primality: a pattern is "prime" when no single boundary clue can be
+// removed without shrinking the deduction set. removable_mask is an
+// 8-bit field flagging which specific clues are individually
+// removable (1 = redundant, 0 = essential).
+addColumnIfMissing("starting_positions", "is_prime", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("starting_positions", "removable_mask", "INTEGER NOT NULL DEFAULT 0");
 
 function upsertUser(provider, providerId, name, avatarUrl, email) {
 	providerId = String(providerId);
@@ -501,9 +507,9 @@ function insertStartingPosition(p) {
 	try {
 		var info = db.prepare(
 			"INSERT INTO starting_positions " +
-			"(size, pattern, solutions, forced_safe, forced_mine, forced_safe_mask, forced_mine_mask, first_action, first_complexity, rating) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.forcedSafeMask || 0, p.forcedMineMask || 0, p.firstAction, p.firstComplexity, p.rating);
+			"(size, pattern, solutions, forced_safe, forced_mine, forced_safe_mask, forced_mine_mask, is_prime, removable_mask, first_action, first_complexity, rating) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.forcedSafeMask || 0, p.forcedMineMask || 0, p.isPrime ? 1 : 0, p.removableMask || 0, p.firstAction, p.firstComplexity, p.rating);
 		return info.lastInsertRowid;
 	} catch (e) {
 		// UNIQUE constraint — pattern already exists for this size.
@@ -526,6 +532,8 @@ function startingPositionFilterClauses(opts) {
 	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
 	if (opts.uniqueSolution === true) { clauses.push("solutions = 1"); }
 	else if (opts.uniqueSolution === false) { clauses.push("solutions > 1"); }
+	if (opts.prime === true) { clauses.push("is_prime = 1"); }
+	else if (opts.prime === false) { clauses.push("is_prime = 0"); }
 	return { clauses: clauses, params: params };
 }
 

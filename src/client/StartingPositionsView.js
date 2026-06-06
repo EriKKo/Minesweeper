@@ -14,7 +14,8 @@ var startingPosListState = {
 	pageSize: 60,
 	action: null,          // null | "reveal" | "flag" | "case"
 	ratingBand: null,      // null | "0-199" | "1200-1399" | "1600-1799" | "1800-1999"
-	unique: null           // null | "true" | "false"
+	unique: null,          // null | "true" | "false"
+	prime: null            // null | "true" | "false"
 };
 
 var RATING_BANDS = [
@@ -34,6 +35,11 @@ var UNIQUE_OPTIONS = [
 	{ key: null,    label: "Any" },
 	{ key: "true",  label: "Unique" },
 	{ key: "false", label: "Multiple" }
+];
+var PRIME_OPTIONS = [
+	{ key: null,    label: "Any" },
+	{ key: "true",  label: "Prime" },
+	{ key: "false", label: "Reducible" }
 ];
 
 function readStartingPosStateFromHash() {
@@ -55,6 +61,8 @@ function readStartingPosStateFromHash() {
 	startingPosListState.ratingBand = (validBand && band) ? band : null;
 	var unique = params.get("unique");
 	startingPosListState.unique = (unique === "true" || unique === "false") ? unique : null;
+	var prime = params.get("prime");
+	startingPosListState.prime = (prime === "true" || prime === "false") ? prime : null;
 }
 
 function writeStartingPosStateToHash() {
@@ -64,6 +72,7 @@ function writeStartingPosStateToHash() {
 	if (startingPosListState.action) bits.push("action=" + startingPosListState.action);
 	if (startingPosListState.ratingBand) bits.push("band=" + startingPosListState.ratingBand);
 	if (startingPosListState.unique) bits.push("unique=" + startingPosListState.unique);
+	if (startingPosListState.prime) bits.push("prime=" + startingPosListState.prime);
 	if (startingPosListState.page) bits.push("page=" + startingPosListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
 	var newHash = "#/admin/starting-positions" + qs;
@@ -141,6 +150,12 @@ function renderStartingPositions() {
 		startingPosListState.page = 0;
 	}));
 
+	// Primality filter
+	toolbar.appendChild(makeFilterRow("Pattern", "prime", PRIME_OPTIONS, startingPosListState.prime, function(key) {
+		startingPosListState.prime = key;
+		startingPosListState.page = 0;
+	}));
+
 	view.appendChild(toolbar);
 
 	var status = document.createElement("p");
@@ -204,6 +219,7 @@ function refreshStartingPosList() {
 		if (range.max != null) bits.push("maxRating=" + range.max);
 	}
 	if (startingPosListState.unique) bits.push("unique=" + startingPosListState.unique);
+	if (startingPosListState.prime) bits.push("prime=" + startingPosListState.prime);
 	var qs = bits.join("&");
 	fetch("/api/starting-positions?" + qs).then(function(r) { return r.json(); }).then(function(data) {
 		var positions = (data && data.positions) || [];

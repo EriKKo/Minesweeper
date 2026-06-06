@@ -113,14 +113,19 @@ function compareTuple(a, b) {
 
 // Brute-force every mine arrangement of the 16-cell outer ring and
 // return solution count plus per-cell "always-mine" / "always-safe"
-// bitmasks. Returns null if no arrangement is consistent with the clues.
-function bruteForce3x3(clues) {
+// bitmasks. `skipClueMask` is a bitmask over the 8 boundary clues —
+// any bit set means "ignore this clue's constraint" (used to test
+// whether a clue is essential to the deduction). Returns null if no
+// arrangement is consistent with the (non-skipped) clues.
+function bruteForce3x3(clues, skipClueMask) {
+	skipClueMask = skipClueMask || 0;
 	var total = 1 << 16;
 	var solCount = 0;
 	var orCount = new Array(16).fill(0);
 	for (var a = 0; a < total; a++) {
 		var ok = true;
 		for (var c = 0; c < 8; c++) {
+			if (skipClueMask & (1 << c)) continue;
 			if (popcount(a & MASK_3x3[c]) !== clues[c]) { ok = false; break; }
 		}
 		if (!ok) continue;
@@ -140,6 +145,23 @@ function bruteForce3x3(clues) {
 		forcedSafeMask: safeMask,
 		forcedMineMask: mineMask
 	};
+}
+
+// A clue is "removable" iff dropping its constraint leaves the
+// deduction set unchanged. A pattern is "prime" iff every clue is
+// essential — i.e. no clue is removable. Returns { isPrime,
+// removableMask } where removableMask flags the redundant clues
+// (bit i = 1 means clue i can be dropped).
+function primeAnalysis3x3(clues, fullSafeMask, fullMineMask) {
+	var removableMask = 0;
+	for (var i = 0; i < 8; i++) {
+		var bf = bruteForce3x3(clues, 1 << i);
+		if (!bf) continue;
+		if (bf.forcedSafeMask === fullSafeMask && bf.forcedMineMask === fullMineMask) {
+			removableMask |= (1 << i);
+		}
+	}
+	return { isPrime: removableMask === 0, removableMask: removableMask };
 }
 
 // Build a 5x5 board/state with the cascade in the centre and the
@@ -207,6 +229,7 @@ function enumerate3x3() {
 		// pattern if the analyzer's bounded search misses it. Skip
 		// those so the rating stays meaningful.
 		if (!r) continue;
+		var prime = primeAnalysis3x3(clues, bf.forcedSafeMask, bf.forcedMineMask);
 		records.push({
 			size: 3,
 			pattern: clues.join("."),
@@ -215,6 +238,8 @@ function enumerate3x3() {
 			forcedMine: bf.forcedMine,
 			forcedSafeMask: bf.forcedSafeMask,
 			forcedMineMask: bf.forcedMineMask,
+			isPrime: prime.isPrime,
+			removableMask: prime.removableMask,
 			firstAction: r.firstAction,
 			firstComplexity: r.firstComplexity,
 			rating: scoreToRating(r.firstComplexity)

@@ -681,12 +681,15 @@ function serveStartingPositions(req, res, url) {
 	var maxRatingRaw = parseInt(url.searchParams.get("maxRating"), 10);
 	var uniqueRaw = url.searchParams.get("unique");
 	var uniqueSolution = (uniqueRaw === "true") ? true : (uniqueRaw === "false") ? false : null;
+	var primeRaw = url.searchParams.get("prime");
+	var prime = (primeRaw === "true") ? true : (primeRaw === "false") ? false : null;
 	var filterOpts = {
 		size: (size >= 3 && size <= 9) ? size : null,
 		firstAction: firstAction,
 		minRating: !isNaN(minRatingRaw) ? minRatingRaw : null,
 		maxRating: !isNaN(maxRatingRaw) ? maxRatingRaw : null,
-		uniqueSolution: uniqueSolution
+		uniqueSolution: uniqueSolution,
+		prime: prime
 	};
 	var listOpts = Object.assign({ page: page, pageSize: pageSize, sort: sort }, filterOpts);
 	var positions = db.listStartingPositions(listOpts);
