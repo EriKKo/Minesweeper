@@ -623,9 +623,11 @@ function analyzeBoard(board, state, opts) {
 	}
 	var maxC = 0, totalC = 0;
 	for (var m = 0; m < moves.length; m++) { totalC += moves[m].complexity; if (moves[m].complexity > maxC) maxC = moves[m].complexity; }
+	var bundled;
+	try { bundled = bundleMoves(moves); } catch (e) { console.error("bundleMoves failed:", e.message); bundled = moves; }
 	return {
 		solved: safeCovered === 0,
-		moves: bundleMoves(moves),
+		moves: bundled,
 		maxComplexity: maxC,
 		totalComplexity: totalC,
 		safeCovered: safeCovered

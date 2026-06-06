@@ -7,8 +7,10 @@
 
 var BoardLogic = require("../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
+var puzzleGen = require("./PuzzleGenerator");
 var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;
+var FLAGGED = BoardLogic.FLAGGED;
 
 // Walk a derivation chain and collect the (r, c) positions of every
 // initial-clue leaf, deduped.
@@ -76,6 +78,153 @@ function initsKey(inits) {
 //                   in the deduced set). They're geometrically part of
 //                   the pattern even when the bundled moves don't
 //                   decide them.
+// Extract a deduction pattern for a single move on (board, state).
+// The state reflects what's KNOWN/FLAGGED/UNKNOWN BEFORE the move is
+// applied, which matters for general puzzles where prior moves have
+// flagged some neighbours. Clue values come out as effective values
+// (raw clue − pre-flagged neighbours) so two configurations that
+// reach the same logical constraint collapse to the same pattern.
+// Walls are added for every off-board position adjacent to an input
+// clue, so the canonical form distinguishes corner / edge / interior
+// clue placements.
+function extractMovePattern(board, state, move) {
+	var rows = board.length, cols = board[0].length;
+
+	// Init-source clues. We use the derivation's stored lo (== hi for
+	// initial steps) as the effective clue value — the analyzer has
+	// already subtracted any pre-flagged neighbours from it.
+	var inits = [];
+	var seenInit = {};
+	function visit(d) {
+		if (!d) return;
+		for (var i = 0; i < d.length; i++) {
+			var s = d[i];
+			if (s.source !== "initial" || !s.from) continue;
+			var k = s.from[0] + "," + s.from[1];
+			if (seenInit[k]) continue;
+			seenInit[k] = true;
+			inits.push({ pos: s.from, value: s.lo });
+		}
+	}
+	visit(move.derivation);
+	if (move.method === "case" && move.branches) {
+		["safe", "mine"].forEach(function(side) {
+			var br = move.branches[side];
+			if (br && br.moves) br.moves.forEach(function(m) { visit(m.derivation); });
+		});
+	}
+	if (inits.length === 0) return null;
+
+	var clueCells = inits.map(function(s) { return [s.pos[0], s.pos[1], s.value]; })
+		.filter(function(c) { return c[2] != null && c[2] >= 0; });
+
+	var deducedCells = [];
+	var deducedKey = {};
+	(move.revealed || []).forEach(function(c) {
+		var k = c[0] + "," + c[1];
+		if (deducedKey[k]) return;
+		deducedKey[k] = true;
+		deducedCells.push([c[0], c[1], "S"]);
+	});
+	(move.flagged || []).forEach(function(c) {
+		var k = c[0] + "," + c[1];
+		if (deducedKey[k]) return;
+		deducedKey[k] = true;
+		deducedCells.push([c[0], c[1], "M"]);
+	});
+
+	var coveredCells = [];
+	var coveredKey = {};
+	var wallCells = [];
+	var wallKey = {};
+	function addCovered(r, c) {
+		if (state[r][c] !== UNKNOWN) return;
+		var k = r + "," + c;
+		if (coveredKey[k] || deducedKey[k]) return;
+		coveredKey[k] = true;
+		coveredCells.push([r, c, "?"]);
+	}
+	function addWall(r, c) {
+		var k = r + "," + c;
+		if (wallKey[k]) return;
+		wallKey[k] = true;
+		wallCells.push([r, c, "W"]);
+	}
+	for (var i = 0; i < inits.length; i++) {
+		var p = inits[i].pos;
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				var nr = p[0] + dr, nc = p[1] + dc;
+				if (nr >= 0 && nc >= 0 && nr < rows && nc < cols) addCovered(nr, nc);
+				else addWall(nr, nc);
+			}
+		}
+	}
+	if (move.method === "case" && move.splitCell) {
+		var sc = move.splitCell;
+		if (sc[0] >= 0 && sc[0] < rows && sc[1] >= 0 && sc[1] < cols) addCovered(sc[0], sc[1]);
+	}
+
+	var canon = canonicalize({
+		method: move.method || "trivial",
+		complexity: move.complexity,
+		clueCells: clueCells,
+		deducedCells: deducedCells,
+		coveredCells: coveredCells,
+		wallCells: wallCells
+	});
+	var bb = patternBoundingBox(canon);
+	canon.width = bb.width;
+	canon.height = bb.height;
+	canon.rating = scoreToRating(canon.complexity);
+	return canon;
+}
+
+// Walk every move of a puzzle's analyzer trace, extracting each move's
+// pattern using the state just before that move was applied. Returns
+// an array of canonical patterns.
+function extractPatternsFromPuzzle(rows, cols, mines, revealed) {
+	var board = puzzleGen.buildBoard(rows, cols, mines);
+
+	// Tracking state used for pattern extraction. Starts at the
+	// puzzle's initial revealed set, then advances move-by-move so
+	// each pattern sees the state immediately before its move runs.
+	var trackingState = new Array(rows);
+	for (var r = 0; r < rows; r++) trackingState[r] = new Array(cols).fill(UNKNOWN);
+	function cascadeIn(state, r, c) {
+		BoardLogic.cascadeReveal(r, c, rows, cols,
+			function(rr, cc) { return state[rr][cc] === UNKNOWN; },
+			function(rr, cc) { state[rr][cc] = KNOWN; return false; },
+			function(rr, cc) { return board[rr][cc]; }
+		);
+	}
+	revealed.forEach(function(p) { trackingState[p[0]][p[1]] = KNOWN; });
+	revealed.forEach(function(p) { cascadeIn(trackingState, p[0], p[1]); });
+
+	// Separate state for the analyzer — its revealCell callback MUST
+	// mutate the state the analyzer is iterating over, or the
+	// analyzer's loop never sees its own deductions apply and it
+	// spins forever on the same constraint.
+	var analyzerState = trackingState.map(function(row) { return row.slice(); });
+	function analyzerCascade(r, c) { cascadeIn(analyzerState, r, c); }
+	var result = cspSolver.analyzeBoard(board, analyzerState, { revealCell: analyzerCascade });
+
+	var patterns = [];
+	for (var m = 0; m < result.moves.length; m++) {
+		var move = result.moves[m];
+		var pat = extractMovePattern(board, trackingState, move);
+		if (pat) patterns.push(pat);
+		// Advance tracking state to mirror what the analyzer just did.
+		(move.revealed || []).forEach(function(c) {
+			if (board[c[0]][c[1]] === 0) cascadeIn(trackingState, c[0], c[1]);
+			else trackingState[c[0]][c[1]] = KNOWN;
+		});
+		(move.flagged || []).forEach(function(c) { trackingState[c[0]][c[1]] = FLAGGED; });
+	}
+	return patterns;
+}
+
 function extractFirstDeductionPattern(board, state) {
 	var stateCopy = state.map(function(row) { return row.slice(); });
 	var result = cspSolver.analyzeBoard(board, stateCopy, {});
@@ -166,8 +315,9 @@ function transformAndNormalize(pattern, t) {
 	var clues = pattern.clueCells.map(tx);
 	var deduced = pattern.deducedCells.map(tx);
 	var covered = (pattern.coveredCells || []).map(tx);
+	var walls = (pattern.wallCells || []).map(tx);
 	var minR = Infinity, minC = Infinity;
-	clues.concat(deduced, covered).forEach(function(c) {
+	clues.concat(deduced, covered, walls).forEach(function(c) {
 		if (c[0] < minR) minR = c[0];
 		if (c[1] < minC) minC = c[1];
 	});
@@ -176,6 +326,7 @@ function transformAndNormalize(pattern, t) {
 		clueCells: clues.map(shift),
 		deducedCells: deduced.map(shift),
 		coveredCells: covered.map(shift),
+		wallCells: walls.map(shift),
 		method: pattern.method,
 		complexity: pattern.complexity
 	};
@@ -183,14 +334,18 @@ function transformAndNormalize(pattern, t) {
 
 // Canonical key — the lex-smallest serialization over all 8 dihedral
 // variants. Cells in each variant are sorted before joining so the
-// ordering of the inputs doesn't influence the key. Each cell-kind
-// prefix (C/D/X) keeps clue, deduced, and ambiguous covered cells
-// distinct in the key.
+// ordering of the inputs doesn't influence the key. The four cell
+// kinds — clue (C), deduced (D), ambiguous-covered (X), wall (W) —
+// each carry their own prefix so the canonicalization preserves
+// corner/edge geometry: a clue with three off-board neighbours
+// always reads as distinct from an interior clue with three covered
+// neighbours, because the W cells participate in the bbox and the key.
 function patternKey(pattern) {
 	var parts = [];
 	pattern.clueCells.forEach(function(c) { parts.push("C" + c[0] + "," + c[1] + ":" + c[2]); });
 	pattern.deducedCells.forEach(function(c) { parts.push("D" + c[0] + "," + c[1] + ":" + c[2]); });
 	(pattern.coveredCells || []).forEach(function(c) { parts.push("X" + c[0] + "," + c[1]); });
+	(pattern.wallCells || []).forEach(function(c) { parts.push("W" + c[0] + "," + c[1]); });
 	parts.sort();
 	return parts.join(";");
 }
@@ -212,7 +367,7 @@ function canonicalize(pattern) {
 
 function patternBoundingBox(pattern) {
 	var maxR = 0, maxC = 0;
-	pattern.clueCells.concat(pattern.deducedCells, pattern.coveredCells || []).forEach(function(c) {
+	pattern.clueCells.concat(pattern.deducedCells, pattern.coveredCells || [], pattern.wallCells || []).forEach(function(c) {
 		if (c[0] > maxR) maxR = c[0];
 		if (c[1] > maxC) maxC = c[1];
 	});
@@ -394,6 +549,8 @@ function extract3x3PatternFromClues(clues) {
 
 module.exports = {
 	extractFirstDeductionPattern: extractFirstDeductionPattern,
+	extractMovePattern: extractMovePattern,
+	extractPatternsFromPuzzle: extractPatternsFromPuzzle,
 	canonicalize: canonicalize,
 	patternKey: patternKey,
 	extract3x3PatternFromClues: extract3x3PatternFromClues
