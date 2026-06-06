@@ -66,17 +66,24 @@ function profileStat(label, value) {
 }
 
 function renderHomeRankChips() {
-	function applyTo(tierEl, ratingEl) {
+	function applyTo(tierEl, ratingEl, rating) {
 		if (!tierEl || !ratingEl) return;
 		if (!account) { tierEl.textContent = "—"; tierEl.style.color = ""; ratingEl.textContent = ""; return; }
-		var t = tierFor(account.rating, account.provisional);
+		var t = tierFor(rating, account.provisional);
 		tierEl.textContent = t.name;
 		tierEl.style.color = t.color;
-		ratingEl.textContent = (account.provisional ? "~" : "") + account.rating;
+		ratingEl.textContent = (account.provisional ? "~" : "") + rating;
 	}
-	applyTo(rankTierDuo, rankRatingDuo);
-	applyTo(rankTierSix, rankRatingSix);
-	applyTo(rankTierTournament, rankRatingTournament);
+	var sprint = account ? (account.ratingSprint != null ? account.ratingSprint : account.rating) : null;
+	var standard = account ? (account.ratingStandard != null ? account.ratingStandard : account.rating) : null;
+	var tournament = account ? (account.ratingTournament != null ? account.ratingTournament : account.rating) : null;
+	// Each playstyle has a single rating; both 1v1 and 6P tiles show the
+	// same value so a Sprint player tracks one ladder regardless of size.
+	applyTo(rankTierSprint, rankRatingSprint, sprint);
+	applyTo(rankTierSprintSix, rankRatingSprintSix, sprint);
+	applyTo(rankTierStandard, rankRatingStandard, standard);
+	applyTo(rankTierStandardSix, rankRatingStandardSix, standard);
+	applyTo(rankTierTournament, rankRatingTournament, tournament);
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");

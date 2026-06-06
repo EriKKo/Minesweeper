@@ -729,26 +729,31 @@ var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the 
 var nextBotId = 1;
 var MAX_BOTS_PER_ROOM = 15;
 
-// Ranked matchmaking — three modes.
-//   duo / six  → single-match lobbies (one game, then Elo).
-//   tournament → 16-player battle royale; bottom half eliminated each round
-//                until one survivor remains. `schedule` lists how many players
-//                survive *after* each round.
+// Ranked matchmaking — five modes split across two playstyles.
+//   sprint_*   → cascade-y races, 10% mines, fewer forced deductions.
+//   standard_* → dense boards (20%), favouring deduction over click speed.
+//   tournament → keeps the original 15% as the marquee event.
+// Each playstyle (sprint / standard / tournament) carries its own Elo so
+// a player can be Bronze in Sprint and Gold in Standard.
 var RANKED_MODES = {
-	duo: { size: 2, label: "1v1" },
-	six: { size: 6, label: "6-player" },
+	sprint_duo: { size: 2, label: "1v1 Sprint", style: "sprint", mineDensity: 0.10, boardSize: "medium" },
+	sprint_six: { size: 6, label: "6P Sprint",  style: "sprint", mineDensity: 0.10, boardSize: "medium" },
+	standard_duo: { size: 2, label: "1v1 Standard", style: "standard", mineDensity: 0.20, boardSize: "medium" },
+	standard_six: { size: 6, label: "6P Standard", style: "standard", mineDensity: 0.20, boardSize: "medium" },
 	// Cut 4 per round while many players are alive (16 → 12 → 8), then drop to
 	// 2 per round (8 → 6 → 4 → 2) so the bottom of the bracket gets dramatic
 	// per-round 1v1 elimination drama all the way to the 2 → 1 final.
-	tournament: { size: 16, label: "Tournament", schedule: [12, 8, 6, 4, 2, 1] }
+	tournament: { size: 16, label: "Tournament", style: "tournament", mineDensity: 0.15, boardSize: "medium", schedule: [12, 8, 6, 4, 2, 1] }
 };
-var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5, mineDensity: 0.15, boardSize: "medium" };
+var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
 // players can see who they're playing and at what tier. Tournament takes a
 // little longer since there's a 16-row roster to read.
 var RANKED_MATCH_REVEAL_MS = {
-	duo: 2500,
-	six: 3000,
+	sprint_duo: 2500,
+	sprint_six: 3000,
+	standard_duo: 2500,
+	standard_six: 3000,
 	tournament: 5000
 };
 var RANKED_BOT_RATING = 1000;
@@ -757,10 +762,10 @@ var RANKED_BOT_RATING = 1000;
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
-var rankedQueues = { duo: [], six: [], tournament: [] };
-var pendingBotsLists = { duo: [], six: [], tournament: [] };
-var rankedFillTimers = { duo: null, six: null, tournament: null };
-var rankedQueueMode = {}; // playerID -> "duo" | "six"
+var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [] };
+var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [] };
+var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null };
+var rankedQueueMode = {}; // playerID -> mode key
 
 function isBot(playerID) {
 	return !!bots[playerID];
@@ -1148,12 +1153,22 @@ function buildStandings(room) {
 	return entries;
 }
 
+// Read the rating column matching this match's playstyle so Sprint /
+// Standard / Tournament each evolve independently.
+function readUserRating(u, style) {
+	if (!u) return RANKED_BOT_RATING;
+	if (style === "sprint") return u.rating_sprint != null ? u.rating_sprint : u.rating;
+	if (style === "standard") return u.rating_standard != null ? u.rating_standard : u.rating;
+	if (style === "tournament") return u.rating_tournament != null ? u.rating_tournament : u.rating;
+	return u.rating;
+}
+
 // Compute and apply Elo for a single player against a known set of standings.
 // Used by tournament mode so eliminated players get their rating change the
 // moment they're cut, instead of waiting for the survivor to be crowned. The
 // math is the same pairwise formula as applyRankedElo. Returns the delta info
 // (or null if the player isn't a persisted human).
-function applyEloForPlayer(targetPid, allParts) {
+function applyEloForPlayer(targetPid, allParts, style) {
 	var target = null;
 	for (var i = 0; i < allParts.length; i++) if (allParts[i].id === targetPid) { target = allParts[i]; break; }
 	if (!target || target.bot || !target.userId) return null;
@@ -1171,9 +1186,14 @@ function applyEloForPlayer(targetPid, allParts) {
 	var delta = Math.round(K * sum / Math.sqrt(n - 1));
 	var newRating = target.rating + delta;
 	var provisional = (target.played + 1) < PROVISIONAL_GAMES;
-	db.updateRating(target.userId, newRating, target.rank === 1);
+	db.updateRating(target.userId, newRating, target.rank === 1, style);
 	if (accounts[targetPid]) {
-		accounts[targetPid].rating = newRating;
+		// Cache the style-specific rating on the in-memory account so the
+		// lobby tile updates the right tier badge.
+		if (style === "sprint") accounts[targetPid].ratingSprint = newRating;
+		else if (style === "standard") accounts[targetPid].ratingStandard = newRating;
+		else if (style === "tournament") accounts[targetPid].ratingTournament = newRating;
+		accounts[targetPid].rating = newRating; // legacy field kept in sync
 		accounts[targetPid].played = target.played + 1;
 	}
 	return { delta: delta, newRating: newRating, provisional: provisional };
@@ -1186,6 +1206,7 @@ function applyEloForPlayer(targetPid, allParts) {
 // their stored places.
 function tournamentEloParts(room, focusedPid, focusedRank) {
 	var participants = room.tournamentParticipants || [];
+	var style = room.rankedStyle || "tournament";
 	return participants.map(function(pid) {
 		var rank;
 		if (pid === focusedPid) {
@@ -1201,7 +1222,7 @@ function tournamentEloParts(room, focusedPid, focusedRank) {
 		var userId = null, played = 0;
 		if (!bot && acc) {
 			var u = db.getUserById(acc.userId);
-			if (u) { rating = u.rating; userId = acc.userId; played = u.played; }
+			if (u) { rating = readUserRating(u, style); userId = acc.userId; played = u.played; }
 		}
 		return { id: pid, rank: rank, rating: rating, bot: bot, userId: userId, played: played };
 	});
@@ -1211,14 +1232,14 @@ function tournamentEloParts(room, focusedPid, focusedRank) {
 // a player's delta is K * mean(score - expected) across opponents (so a round's
 // swing stays ~K regardless of lobby size). Bots use a fixed rating and aren't
 // persisted. Mutates human standings entries with ratingDelta/rating/provisional.
-function applyRankedElo(standings) {
+function applyRankedElo(standings, style) {
 	var parts = standings.map(function(s) {
 		var bot = isBot(s.id);
 		var acc = accounts[s.id];
 		var rating = bot ? (botRating[s.id] || RANKED_BOT_RATING) : RANKED_BOT_RATING, userId = null, played = 0;
 		if (!bot && acc) {
 			var u = db.getUserById(acc.userId);
-			if (u) { rating = u.rating; userId = acc.userId; played = u.played; }
+			if (u) { rating = readUserRating(u, style); userId = acc.userId; played = u.played; }
 		}
 		return { rank: s.rank, rating: rating, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
 	});
@@ -1243,7 +1264,7 @@ function applyRankedElo(standings) {
 		p.delta = Math.round(K * sum / Math.sqrt(n - 1));
 		p.newRating = p.rating + p.delta;
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
-		db.updateRating(p.userId, p.newRating, p.rank === 1);
+		db.updateRating(p.userId, p.newRating, p.rank === 1, style);
 	}
 	for (var k = 0; k < standings.length; k++) {
 		if (!parts[k].bot && parts[k].userId) {
@@ -1252,8 +1273,12 @@ function applyRankedElo(standings) {
 			standings[k].provisional = parts[k].provisional;
 			// Keep the in-memory cache in sync with what we just persisted.
 			if (accounts[standings[k].id]) {
-				accounts[standings[k].id].rating = parts[k].newRating;
-				accounts[standings[k].id].played = parts[k].played + 1;
+				var acc = accounts[standings[k].id];
+				if (style === "sprint") acc.ratingSprint = parts[k].newRating;
+				else if (style === "standard") acc.ratingStandard = parts[k].newRating;
+				else if (style === "tournament") acc.ratingTournament = parts[k].newRating;
+				acc.rating = parts[k].newRating; // legacy field
+				acc.played = parts[k].played + 1;
 			}
 		}
 	}
@@ -1294,7 +1319,7 @@ function endIndividualGame(room, reason) {
 			// survivors are pinned at rank 1 (they outranked this player) and the
 			// already-eliminated keep their fixed places, so the pairwise math
 			// gives them their real final delta right now.
-			var eloInfo = applyEloForPlayer(sCut.id, tournamentEloParts(room, sCut.id, place));
+			var eloInfo = applyEloForPlayer(sCut.id, tournamentEloParts(room, sCut.id, place), room.rankedStyle || "tournament");
 			if (eloInfo) room.tournamentElo[sCut.id] = eloInfo;
 			if (sockets[sCut.id]) {
 				sockets[sCut.id].emit("tournament_eliminated", {
@@ -1436,14 +1461,14 @@ function endSeries(room) {
 		var winnerPid = room.players[0];
 		if (winnerPid) {
 			if (!room.tournamentElo) room.tournamentElo = {};
-			var winnerInfo = applyEloForPlayer(winnerPid, tournamentEloParts(room, winnerPid, 1));
+			var winnerInfo = applyEloForPlayer(winnerPid, tournamentEloParts(room, winnerPid, 1), room.rankedStyle || "tournament");
 			if (winnerInfo) room.tournamentElo[winnerPid] = winnerInfo;
 		}
 		seriesStandings = buildTournamentStandings(room);
 		room.seriesWinner = seriesStandings[0] ? seriesStandings[0].id : null;
 	} else {
 		seriesStandings = buildSeriesStandings(room);
-		if (room.ranked) applyRankedElo(seriesStandings);
+		if (room.ranked) applyRankedElo(seriesStandings, room.rankedStyle);
 	}
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
@@ -1732,18 +1757,20 @@ function formRankedMatch(mode) {
 	if (humans.length === 0) return;
 
 	var id = nextRoomId++;
+	var modeDef = RANKED_MODES[mode];
 	var room = roomCreator.createRoom(id, humans[0], matchSize);
 	room.ranked = true;
 	room.rankedMode = mode;
+	room.rankedStyle = modeDef.style; // sprint / standard / tournament
 	room.roundSeconds = RANKED_RULES.roundSeconds;
 	room.deathPenalty = RANKED_RULES.deathPenalty;
-	room.mineDensity = RANKED_RULES.mineDensity;
-	room.setBoardSize(RANKED_RULES.boardSize);
+	room.mineDensity = modeDef.mineDensity;
+	room.setBoardSize(modeDef.boardSize);
 	if (mode === "tournament") {
-		room.tournamentSchedule = RANKED_MODES.tournament.schedule.slice();
+		room.tournamentSchedule = modeDef.schedule.slice();
 		room.tournamentParticipants = [];   // populated after players join
 		room.tournamentEliminated = {};      // pid -> { round, place }
-		room.gameCount = RANKED_MODES.tournament.schedule.length;
+		room.gameCount = modeDef.schedule.length;
 	} else {
 		room.gameCount = RANKED_RULES.gameCount;
 	}
@@ -1841,7 +1868,7 @@ function applyEarlyLeavePenalty(playerID, room) {
 		// everyone already eliminated who placed above them.
 		var place = room.players.length;
 		room.tournamentEliminated[playerID] = { round: (room.gamesPlayed || 0) + 1, place: place };
-		var teloInfo = applyEloForPlayer(playerID, tournamentEloParts(room, playerID, place));
+		var teloInfo = applyEloForPlayer(playerID, tournamentEloParts(room, playerID, place), room.rankedStyle || "tournament");
 		if (teloInfo) room.tournamentElo[playerID] = teloInfo;
 		return teloInfo;
 	}
@@ -1850,21 +1877,21 @@ function applyEarlyLeavePenalty(playerID, room) {
 	// players' Elo is still computed normally at endSeries.
 	var standings = buildSeriesStandings(room);
 	var lastRank = standings.length + 1;
-	var parts = [buildPlayerParts(playerID, lastRank)];
+	var parts = [buildPlayerParts(playerID, lastRank, room.rankedStyle)];
 	for (var i = 0; i < standings.length; i++) {
-		parts.push(buildPlayerParts(standings[i].id, standings[i].rank));
+		parts.push(buildPlayerParts(standings[i].id, standings[i].rank, room.rankedStyle));
 	}
-	return applyEloForPlayer(playerID, parts);
+	return applyEloForPlayer(playerID, parts, room.rankedStyle);
 }
 
-function buildPlayerParts(pid, rank) {
+function buildPlayerParts(pid, rank, style) {
 	var bot = isBot(pid);
 	var acc = accounts[pid];
 	var u = !bot && acc ? db.getUserById(acc.userId) : null;
 	return {
 		id: pid,
 		rank: rank,
-		rating: bot ? (botRating[pid] || RANKED_BOT_RATING) : (u ? u.rating : RANKED_BOT_RATING),
+		rating: bot ? (botRating[pid] || RANKED_BOT_RATING) : (u ? readUserRating(u, style) : RANKED_BOT_RATING),
 		bot: bot,
 		userId: u ? u.id : null,
 		played: u ? u.played : 0
@@ -1935,7 +1962,13 @@ io.on("connection", function (socket) {
 		var token = data && data.token;
 		var user = db.getUserByToken(token);
 		if (!user) { socket.emit("auth_failed"); return; }
-		accounts[playerID] = { userId: user.id, token: token, rating: user.rating, played: user.played };
+		accounts[playerID] = {
+			userId: user.id, token: token, played: user.played,
+			rating: user.rating,
+			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
+			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
+			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating
+		};
 		var isFirst = !names[playerID];
 		names[playerID] = user.name;
 		if (games[playerID]) {
@@ -1947,6 +1980,9 @@ io.on("connection", function (socket) {
 		socket.emit("authenticated", {
 			name: user.name,
 			rating: user.rating,
+			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
+			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
+			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
 			avatarUrl: user.avatar_url,
 			wins: user.wins,
 			played: user.played,
@@ -1999,7 +2035,7 @@ io.on("connection", function (socket) {
 	socket.on("find_ranked", function(data) {
 		if (!accounts[playerID]) { socket.emit("ranked_rejected", { reason: "Sign in to play ranked." }); return; }
 		if (roomMapping[playerID]) return;
-		var mode = (data && data.mode) || "duo";
+		var mode = (data && data.mode) || "sprint_duo";
 		if (!isValidMode(mode)) { socket.emit("ranked_rejected", { reason: "Unknown ranked mode." }); return; }
 		enqueueRanked(playerID, mode);
 	});

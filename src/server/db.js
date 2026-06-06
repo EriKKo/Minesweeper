@@ -86,6 +86,26 @@ addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_last_solved", "TEXT");
 addColumnIfMissing("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "email", "TEXT");
+// Ranked is split into Sprint / Standard playstyles (and Tournament keeps
+// its own pool). Each playstyle carries its own Elo and provisional
+// counter so a player can be Bronze at Sprint and Gold at Standard.
+addColumnIfMissing("users", "rating_sprint", "INTEGER NOT NULL DEFAULT 1000");
+addColumnIfMissing("users", "rating_standard", "INTEGER NOT NULL DEFAULT 1000");
+addColumnIfMissing("users", "rating_tournament", "INTEGER NOT NULL DEFAULT 1000");
+addColumnIfMissing("users", "sprint_provisional", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "standard_provisional", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "tournament_provisional", "INTEGER NOT NULL DEFAULT 0");
+// One-shot backfill: seed the per-style columns from the legacy `rating`
+// the first time a user is touched after this column is added. Pre-split
+// users keep their progress rather than reset to 1000 across the board.
+try {
+	db.exec(
+		"UPDATE users SET rating_sprint = rating, rating_standard = rating, rating_tournament = rating, " +
+		"sprint_provisional = provisional_games, standard_provisional = provisional_games, " +
+		"tournament_provisional = provisional_games " +
+		"WHERE rating_sprint = 1000 AND rating_standard = 1000 AND rating_tournament = 1000 AND rating <> 1000"
+	);
+} catch (e) { /* columns may already be backfilled */ }
 // `overlap_passes` was added later. Default -1 marks rows that pre-date the
 // overlap solver — startup re-runs the analyzer on those and stamps a real
 // value so their pass counts / difficulty / score reflect the new pass.
@@ -220,9 +240,20 @@ function applyAdminBootstrap() {
 }
 applyAdminBootstrap();
 
-function updateRating(userId, newRating, won) {
-	db.prepare("UPDATE users SET rating = ?, played = played + 1, wins = wins + ? WHERE id = ?")
-		.run(newRating, won ? 1 : 0, userId);
+// Write a fresh rating to the column for the playstyle this match
+// belonged to. `style` is one of "sprint" | "standard" | "tournament";
+// anything else falls back to the legacy `rating` column so old
+// callers keep working.
+function updateRating(userId, newRating, won, style) {
+	var ratingCol = "rating";
+	if (style === "sprint")       ratingCol = "rating_sprint";
+	else if (style === "standard")   ratingCol = "rating_standard";
+	else if (style === "tournament") ratingCol = "rating_tournament";
+	// `played` / `wins` stay as overall ranked counts so leaderboards
+	// can still show a single record per user.
+	db.prepare(
+		"UPDATE users SET " + ratingCol + " = ?, played = played + 1, wins = wins + ? WHERE id = ?"
+	).run(newRating, won ? 1 : 0, userId);
 }
 
 function deleteSession(token) {
