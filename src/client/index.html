@@ -65,110 +65,110 @@
 		</section>
 
 		<section id="lobby_view" class="view" style="display:none">
-			<div id="home_cards" class="home-cards">
-				<div class="home-card home-card-ranked" data-mode="duo">
-					<div class="home-card-head">
-						<span class="home-card-tag">RANKED · 1v1</span>
-					</div>
-					<h2 class="home-card-title">1v1</h2>
-					<p class="home-card-sub">Head-to-head against a matched opponent.</p>
-					<div class="home-card-rank" id="rank_chip_duo">
-						<span class="home-card-rank-label">Your rank</span>
-						<span class="home-card-rank-tier" id="rank_tier_duo">—</span>
-						<span class="home-card-rank-rating" id="rank_rating_duo"></span>
-					</div>
-					<button id="find_ranked_duo" class="btn btn-primary home-card-action">Find 1v1 match</button>
-				</div>
+			<div class="lobby-grid">
+				<aside class="lobby-modes">
+					<h3 class="lobby-modes-heading">Multiplayer</h3>
+					<ul class="lobby-mode-list">
+						<li class="lobby-mode" data-mode="duo">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">1v1</span>
+								<span class="lobby-mode-sub">Head-to-head race.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-tier" id="rank_tier_duo">—</span>
+								<span class="lobby-mode-stat-rating" id="rank_rating_duo"></span>
+							</span>
+							<button id="find_ranked_duo" class="btn btn-primary lobby-mode-action">Find</button>
+						</li>
+						<li class="lobby-mode" data-mode="six">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">6-player</span>
+								<span class="lobby-mode-sub">Free-for-all sprint.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-tier" id="rank_tier_six">—</span>
+								<span class="lobby-mode-stat-rating" id="rank_rating_six"></span>
+							</span>
+							<button id="find_ranked_six" class="btn btn-primary lobby-mode-action">Find</button>
+						</li>
+						<li class="lobby-mode" data-mode="tournament">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">Tournament</span>
+								<span class="lobby-mode-sub">16-player battle royale.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-tier" id="rank_tier_tournament">—</span>
+								<span class="lobby-mode-stat-rating" id="rank_rating_tournament"></span>
+							</span>
+							<button id="find_ranked_tournament" class="btn btn-primary lobby-mode-action">Find</button>
+						</li>
+						<li class="lobby-mode" data-mode="custom">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">Custom</span>
+								<span class="lobby-mode-sub">Casual rooms with friends.</span>
+							</div>
+							<span class="lobby-mode-stat lobby-mode-stat-tag">CASUAL</span>
+							<button id="open_custom_button" class="btn btn-primary lobby-mode-action">Open</button>
+						</li>
+					</ul>
 
-				<div class="home-card home-card-ranked" data-mode="six">
-					<div class="home-card-head">
-						<span class="home-card-tag">RANKED · 6-PLAYER</span>
-					</div>
-					<h2 class="home-card-title">6-player</h2>
-					<p class="home-card-sub">Free-for-all sprint — top of the pack takes the lobby.</p>
-					<div class="home-card-rank" id="rank_chip_six">
-						<span class="home-card-rank-label">Your rank</span>
-						<span class="home-card-rank-tier" id="rank_tier_six">—</span>
-						<span class="home-card-rank-rating" id="rank_rating_six"></span>
-					</div>
-					<button id="find_ranked_six" class="btn btn-primary home-card-action">Find 6-player match</button>
-				</div>
+					<h3 class="lobby-modes-heading">Solo puzzles</h3>
+					<ul class="lobby-mode-list">
+						<li class="lobby-mode" data-mode="puzzles">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">Puzzles</span>
+								<span class="lobby-mode-sub">Climb the puzzle ladder.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-rating" id="puzzle_rating_value">—</span>
+								<span class="lobby-mode-stat-tier" id="puzzle_solved_count"></span>
+							</span>
+							<button id="open_puzzles_button" class="btn btn-primary lobby-mode-action">Play</button>
+						</li>
+						<li class="lobby-mode" data-mode="streak">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">Streak</span>
+								<span class="lobby-mode-sub">One mistake ends the run.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-label">Best</span>
+								<span class="lobby-mode-stat-rating" id="puzzle_streak_best">—</span>
+							</span>
+							<button id="open_streak_button" class="btn btn-primary lobby-mode-action">Start</button>
+						</li>
+						<li class="lobby-mode" data-mode="storm">
+							<div class="lobby-mode-main">
+								<span class="lobby-mode-title">Storm</span>
+								<span class="lobby-mode-sub">Three-minute marathon.</span>
+							</div>
+							<span class="lobby-mode-stat">
+								<span class="lobby-mode-stat-label">Best</span>
+								<span class="lobby-mode-stat-rating" id="puzzle_storm_best">—</span>
+							</span>
+							<button id="open_storm_button" class="btn btn-primary lobby-mode-action">Start</button>
+						</li>
+					</ul>
+				</aside>
 
-				<div class="home-card home-card-ranked home-card-tournament" data-mode="tournament">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-tournament">RANKED · TOURNAMENT</span>
+				<div class="lobby-daily-hero">
+					<div class="lobby-daily-head">
+						<span class="lobby-daily-tag">DAILY PUZZLE</span>
+						<span id="lobby_daily_date" class="lobby-daily-date"></span>
 					</div>
-					<h2 class="home-card-title">Tournament</h2>
-					<p class="home-card-sub">16-player battle royale, bottom half eliminated each round. Last one standing wins big.</p>
-					<div class="home-card-rank" id="rank_chip_tournament">
-						<span class="home-card-rank-label">Your rank</span>
-						<span class="home-card-rank-tier" id="rank_tier_tournament">—</span>
-						<span class="home-card-rank-rating" id="rank_rating_tournament"></span>
+					<h2 class="lobby-daily-title">Today's challenge</h2>
+					<p class="lobby-daily-sub">One puzzle a day, same for everyone. Solve every day to keep your streak alive.</p>
+					<div id="lobby_daily_board" class="lobby-daily-board"></div>
+					<div class="lobby-daily-meta">
+						<span class="lobby-daily-meta-cell">
+							<span class="lobby-daily-meta-label">Streak</span>
+							<span class="lobby-daily-meta-value" id="puzzle_daily_streak">—</span>
+						</span>
+						<span class="lobby-daily-meta-cell">
+							<span class="lobby-daily-meta-label">Today</span>
+							<span class="lobby-daily-meta-value" id="puzzle_daily_status">—</span>
+						</span>
 					</div>
-					<button id="find_ranked_tournament" class="btn btn-primary home-card-action">Find tournament</button>
-				</div>
-
-				<div class="home-card home-card-custom">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-casual">CASUAL</span>
-					</div>
-					<h2 class="home-card-title">Custom lobby</h2>
-					<p class="home-card-sub">Browse open rooms or make your own — tweak board size, mine density, and series length.</p>
-					<button id="open_custom_button" class="btn btn-primary home-card-action">Open custom lobbies</button>
-				</div>
-
-				<div class="home-card home-card-puzzles">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-puzzles">PUZZLES · SINGLE-PLAYER</span>
-					</div>
-					<h2 class="home-card-title">Puzzles</h2>
-					<p class="home-card-sub">Solve handcrafted boards near your rating. Win to climb, miss to drop — like a chess puzzle ladder.</p>
-					<div class="home-card-rank" id="rank_chip_puzzles">
-						<span class="home-card-rank-label">Your rating</span>
-						<span class="home-card-rank-tier" id="puzzle_rating_value">—</span>
-						<span class="home-card-rank-rating" id="puzzle_solved_count"></span>
-					</div>
-					<button id="open_puzzles_button" class="btn btn-primary home-card-action">Play puzzles</button>
-				</div>
-
-				<div class="home-card home-card-streak">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-streak">PUZZLES · STREAK</span>
-					</div>
-					<h2 class="home-card-title">Streak</h2>
-					<p class="home-card-sub">Solve as many as you can — puzzles get harder each turn, one mistake ends the run.</p>
-					<div class="home-card-rank" id="rank_chip_streak">
-						<span class="home-card-rank-label">Best</span>
-						<span class="home-card-rank-tier" id="puzzle_streak_best">—</span>
-					</div>
-					<button id="open_streak_button" class="btn btn-primary home-card-action">Start streak</button>
-				</div>
-
-				<div class="home-card home-card-storm">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-storm">PUZZLES · STORM</span>
-					</div>
-					<h2 class="home-card-title">Storm</h2>
-					<p class="home-card-sub">Three-minute marathon. Solve fast, miss costs 10 seconds, score = puzzles cleared.</p>
-					<div class="home-card-rank" id="rank_chip_storm">
-						<span class="home-card-rank-label">Best</span>
-						<span class="home-card-rank-tier" id="puzzle_storm_best">—</span>
-					</div>
-					<button id="open_storm_button" class="btn btn-primary home-card-action">Start storm</button>
-				</div>
-
-				<div class="home-card home-card-daily">
-					<div class="home-card-head">
-						<span class="home-card-tag home-card-tag-daily">PUZZLES · DAILY</span>
-					</div>
-					<h2 class="home-card-title">Daily puzzle</h2>
-					<p class="home-card-sub">One puzzle a day, same for everyone. Solve every day to keep your streak alive.</p>
-					<div class="home-card-rank" id="rank_chip_daily">
-						<span class="home-card-rank-label">Streak</span>
-						<span class="home-card-rank-tier" id="puzzle_daily_streak">—</span>
-						<span class="home-card-rank-rating" id="puzzle_daily_status">—</span>
-					</div>
-					<button id="open_daily_button" class="btn btn-primary home-card-action">Play today's puzzle</button>
+					<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
 				</div>
 			</div>
 
@@ -749,6 +749,8 @@ socket.on("puzzle_daily_status", function(data) {
 	if (account) {
 		account.dailyStreak = data.streak || 0;
 		account.dailyAttempt = data.attempt || null;
+		account.dailyBoard = data.board || null;
+		account.dailyDate = data.date || null;
 		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
 	}
 	// If we're actively on the daily route, decide whether to play or show result.

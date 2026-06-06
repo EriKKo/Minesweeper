@@ -2718,3 +2718,107 @@ body.touch .find-next-arrow { display: inline-flex; }
 .audio-panel-row { display: flex; align-items: center; gap: 0.6rem; }
 .audio-panel-label { min-width: 4.2rem; font-size: 0.82rem; color: var(--muted); }
 .audio-panel-row input[type="range"] { flex: 1; }
+
+/* Lobby layout — two-column grid: left sidebar groups game modes by
+   section, right column hosts the daily-puzzle hero card with the
+   actual board rendered. */
+.lobby-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+	gap: 1.6rem;
+	align-items: start;
+	max-width: 1180px;
+	margin: 0 auto;
+	padding: 0.6rem 0;
+}
+@media (max-width: 900px) {
+	.lobby-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.lobby-modes { display: flex; flex-direction: column; gap: 0.8rem; }
+.lobby-modes-heading {
+	font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em;
+	color: var(--muted); text-transform: uppercase;
+	margin: 0.6rem 0 0;
+}
+.lobby-mode-list {
+	list-style: none; margin: 0; padding: 0;
+	display: flex; flex-direction: column; gap: 0.5rem;
+}
+.lobby-mode {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 0.9rem;
+	align-items: center;
+	padding: 0.7rem 0.9rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 0.55rem;
+	transition: border-color 0.15s, transform 0.15s;
+}
+.lobby-mode:hover { border-color: var(--accent); transform: translateY(-1px); }
+.lobby-mode-main { display: flex; flex-direction: column; min-width: 0; }
+.lobby-mode-title { font-weight: 600; font-size: 1rem; }
+.lobby-mode-sub { font-size: 0.78rem; color: var(--muted); }
+.lobby-mode-stat {
+	display: flex; flex-direction: column; align-items: flex-end;
+	font-size: 0.78rem; color: var(--muted);
+	min-width: 4rem; text-align: right;
+}
+.lobby-mode-stat-label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.lobby-mode-stat-tier { color: var(--text); font-weight: 600; }
+.lobby-mode-stat-rating { font-variant-numeric: tabular-nums; }
+.lobby-mode-stat-tag {
+	font-size: 0.7rem; font-weight: 600; color: var(--muted);
+	letter-spacing: 0.05em; padding-top: 0.2rem;
+}
+.lobby-mode-action { padding: 0.35rem 0.9rem; font-size: 0.85rem; }
+
+/* Daily-puzzle hero on the right. Keeps the mounted buildLearnPuzzle
+   visible but click-through to the Play button below. */
+.lobby-daily-hero {
+	background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+	border: 1px solid var(--border);
+	border-radius: 0.8rem;
+	padding: 1.1rem 1.2rem 1.2rem;
+	display: flex; flex-direction: column; gap: 0.7rem;
+}
+.lobby-daily-head {
+	display: flex; align-items: baseline; justify-content: space-between;
+}
+.lobby-daily-tag {
+	font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+	color: #fbbf24; text-transform: uppercase;
+}
+.lobby-daily-date { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lobby-daily-title { margin: 0; font-size: 1.3rem; }
+.lobby-daily-sub { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+.lobby-daily-board {
+	background: rgba(11, 16, 32, 0.4);
+	border-radius: 0.5rem;
+	padding: 0.6rem;
+	min-height: 240px;
+	display: flex; align-items: center; justify-content: center;
+}
+.lobby-daily-board-empty { color: var(--muted); font-size: 0.9rem; }
+.lobby-daily-preview { width: 100%; max-width: 420px; pointer-events: none; }
+.lobby-daily-preview .learn-controls, .lobby-daily-preview .learn-puzzle-title { display: none; }
+
+.lobby-daily-meta {
+	display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;
+	margin-top: 0.2rem;
+}
+.lobby-daily-meta-cell {
+	display: flex; flex-direction: column; gap: 0.15rem;
+	padding: 0.5rem 0.7rem;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: 0.4rem;
+}
+.lobby-daily-meta-label {
+	font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+	text-transform: uppercase; color: var(--muted);
+}
+.lobby-daily-meta-value { font-size: 1rem; color: var(--text); font-weight: 600; }
+.lobby-daily-action { margin-top: 0.4rem; padding: 0.6rem; font-size: 0.95rem; }

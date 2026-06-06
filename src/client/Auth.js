@@ -109,6 +109,9 @@ function applyAuthenticated(data) {
 	signOutButton.style.display = "";
 	userBadge.style.display = "";
 	if (typeof refreshAdminNavLink === "function") refreshAdminNavLink();
+	// Prefetch the daily-puzzle state so the lobby hero card can render
+	// today's board immediately.
+	if (typeof socket !== "undefined") socket.emit("puzzle_daily_status");
 	if (!inRoom) applyRouteFromHash();
 }
 

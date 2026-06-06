@@ -2081,6 +2081,17 @@ io.on("connection", function (socket) {
 		socket.emit("puzzle_daily_status", {
 			date: date,
 			puzzleId: puzzle ? puzzle.id : null,
+			// Board data so the lobby can paint the daily preview. The
+			// `revealed` set is the seed cascade only — no spoilers about
+			// where mines are beyond what the player would see at start.
+			board: puzzle ? {
+				rows: puzzle.rows,
+				cols: puzzle.cols,
+				mines: puzzle.mines,
+				revealed: puzzle.revealed,
+				rating: puzzle.rating,
+				difficulty: puzzle.difficulty
+			} : null,
 			attempt: attempt ? { solved: !!attempt.solved, at: attempt.attempted_at } : null,
 			streak: db.dailyStreakForUser(u.id)
 		});

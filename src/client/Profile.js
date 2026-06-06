@@ -101,4 +101,33 @@ function renderHomeRankChips() {
 		else if (account.dailyAttempt.solved) { dailyStatusEl.textContent = "Solved today"; }
 		else { dailyStatusEl.textContent = "Missed today"; }
 	}
+	renderLobbyDailyBoard();
+}
+
+// Paints the daily puzzle's starting position into the lobby hero card.
+// Read-only — clicks fall through to the "Play today's puzzle" button.
+function renderLobbyDailyBoard() {
+	var container = document.getElementById("lobby_daily_board");
+	if (!container) return;
+	var dateEl = document.getElementById("lobby_daily_date");
+	var board = account && account.dailyBoard;
+	if (!board) {
+		container.innerHTML = '<div class="lobby-daily-board-empty">Sign in to see today’s puzzle.</div>';
+		if (dateEl) dateEl.textContent = "";
+		return;
+	}
+	if (dateEl) dateEl.textContent = account.dailyDate || "";
+	if (container.dataset.boardKey === board.rows + "x" + board.cols + "@" + account.dailyDate) return;
+	container.dataset.boardKey = board.rows + "x" + board.cols + "@" + account.dailyDate;
+	container.innerHTML = "";
+	var pseudo = {
+		title: "",
+		rows: board.rows,
+		cols: board.cols,
+		mines: board.mines,
+		revealed: board.revealed
+	};
+	var puzzleEl = buildLearnPuzzle(pseudo, false, function() {});
+	puzzleEl.classList.add("lobby-daily-preview");
+	container.appendChild(puzzleEl);
 }
