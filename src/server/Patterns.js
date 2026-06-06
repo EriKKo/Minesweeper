@@ -78,21 +78,91 @@ function initsKey(inits) {
 //                   in the deduced set). They're geometrically part of
 //                   the pattern even when the bundled moves don't
 //                   decide them.
+function popcount32Inline(x) {
+	x = x - ((x >>> 1) & 0x55555555);
+	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
+// Brute-force the union of UNKNOWN neighbours of the init source
+// clues and find every cell that is forced safe or forced mine across
+// all consistent mine arrangements. Returns null when the constraint
+// set is inconsistent or the covered region is too large for brute
+// force. This is what makes two starting positions whose first move
+// uses the same clue cells collapse to the same canonical pattern,
+// regardless of which forced cells the analyzer's bundling happened
+// to extract from each one's surrounding context.
+function bruteForceForClues(state, inits, rows, cols) {
+	var covered = [];
+	var coveredIdx = {};
+	for (var i = 0; i < inits.length; i++) {
+		var p = inits[i].pos;
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				var nr = p[0] + dr, nc = p[1] + dc;
+				if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+				if (state[nr][nc] !== UNKNOWN) continue;
+				var k = nr + "," + nc;
+				if (!(k in coveredIdx)) {
+					coveredIdx[k] = covered.length;
+					covered.push([nr, nc]);
+				}
+			}
+		}
+	}
+	var n = covered.length;
+	if (n > 20) return null; // 2^21 = 2M, getting expensive; bail
+	var clueMasks = new Array(inits.length);
+	for (var ci = 0; ci < inits.length; ci++) {
+		var pp = inits[ci].pos;
+		var m = 0;
+		for (var dr2 = -1; dr2 <= 1; dr2++) {
+			for (var dc2 = -1; dc2 <= 1; dc2++) {
+				if (dr2 === 0 && dc2 === 0) continue;
+				var nr2 = pp[0] + dr2, nc2 = pp[1] + dc2;
+				if (nr2 < 0 || nr2 >= rows || nc2 < 0 || nc2 >= cols) continue;
+				if (state[nr2][nc2] !== UNKNOWN) continue;
+				m |= (1 << coveredIdx[nr2 + "," + nc2]);
+			}
+		}
+		clueMasks[ci] = m;
+	}
+	var total = 1 << n;
+	var solCount = 0;
+	var orCount = new Array(n).fill(0);
+	for (var a = 0; a < total; a++) {
+		var ok = true;
+		for (var ci2 = 0; ci2 < inits.length; ci2++) {
+			if (popcount32Inline(a & clueMasks[ci2]) !== inits[ci2].value) { ok = false; break; }
+		}
+		if (!ok) continue;
+		solCount++;
+		for (var b = 0; b < n; b++) if (a & (1 << b)) orCount[b]++;
+	}
+	if (solCount === 0) return null;
+	return { covered: covered, orCount: orCount, solCount: solCount };
+}
+
 // Extract a deduction pattern for a single move on (board, state).
 // The state reflects what's KNOWN/FLAGGED/UNKNOWN BEFORE the move is
-// applied, which matters for general puzzles where prior moves have
-// flagged some neighbours. Clue values come out as effective values
-// (raw clue − pre-flagged neighbours) so two configurations that
-// reach the same logical constraint collapse to the same pattern.
-// Walls are added for every off-board position adjacent to an input
-// clue, so the canonical form distinguishes corner / edge / interior
-// clue placements.
+// applied. Clue values come out as effective values (raw clue minus
+// pre-flagged neighbours) directly from the derivation chain. Walls
+// are added for every off-board position adjacent to an input clue
+// so corner / edge / interior placements canonicalize separately.
+//
+// For trivial / subset / intersect / union moves we brute-force the
+// COMPLETE deduction the init source clues force on their own,
+// rather than just recording whatever cells the analyzer's bundled
+// move happened to mark. That way two moves that input the same
+// clue cells produce the same pattern, even if one analyzer run
+// extracted only a subset of the forced cells before hopping to a
+// different deduction. Case-split and enum moves are inherently
+// global inferences, so for those we record the analyzer's
+// revealed/flagged lists verbatim.
 function extractMovePattern(board, state, move) {
 	var rows = board.length, cols = board[0].length;
 
-	// Init-source clues. We use the derivation's stored lo (== hi for
-	// initial steps) as the effective clue value — the analyzer has
-	// already subtracted any pre-flagged neighbours from it.
 	var inits = [];
 	var seenInit = {};
 	function visit(d) {
@@ -117,60 +187,76 @@ function extractMovePattern(board, state, move) {
 
 	var clueCells = inits.map(function(s) { return [s.pos[0], s.pos[1], s.value]; })
 		.filter(function(c) { return c[2] != null && c[2] >= 0; });
+	if (clueCells.length === 0) return null;
 
 	var deducedCells = [];
-	var deducedKey = {};
-	(move.revealed || []).forEach(function(c) {
-		var k = c[0] + "," + c[1];
-		if (deducedKey[k]) return;
-		deducedKey[k] = true;
-		deducedCells.push([c[0], c[1], "S"]);
-	});
-	(move.flagged || []).forEach(function(c) {
-		var k = c[0] + "," + c[1];
-		if (deducedKey[k]) return;
-		deducedKey[k] = true;
-		deducedCells.push([c[0], c[1], "M"]);
-	});
-
 	var coveredCells = [];
-	var coveredKey = {};
+	if (move.method === "case" || move.method === "enum") {
+		// Use the analyzer's revealed/flagged directly.
+		(move.revealed || []).forEach(function(c) { deducedCells.push([c[0], c[1], "S"]); });
+		(move.flagged || []).forEach(function(c) { deducedCells.push([c[0], c[1], "M"]); });
+		// Walk neighbours of clue cells for ambiguous covered context.
+		var deducedKey = {};
+		deducedCells.forEach(function(c) { deducedKey[c[0] + "," + c[1]] = true; });
+		var coveredKey = {};
+		for (var i = 0; i < inits.length; i++) {
+			var p = inits[i].pos;
+			for (var dr = -1; dr <= 1; dr++) {
+				for (var dc = -1; dc <= 1; dc++) {
+					if (dr === 0 && dc === 0) continue;
+					var nr = p[0] + dr, nc = p[1] + dc;
+					if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+					if (state[nr][nc] !== UNKNOWN) continue;
+					var ck = nr + "," + nc;
+					if (deducedKey[ck] || coveredKey[ck]) continue;
+					coveredKey[ck] = true;
+					coveredCells.push([nr, nc, "?"]);
+				}
+			}
+		}
+		if (move.method === "case" && move.splitCell) {
+			var sc = move.splitCell;
+			if (sc[0] >= 0 && sc[0] < rows && sc[1] >= 0 && sc[1] < cols && state[sc[0]][sc[1]] === UNKNOWN) {
+				var sck = sc[0] + "," + sc[1];
+				if (!deducedKey[sck] && !coveredKey[sck]) {
+					coveredKey[sck] = true;
+					coveredCells.push([sc[0], sc[1], "?"]);
+				}
+			}
+		}
+	} else {
+		// Trivial / subset / intersect / union: brute-force the
+		// complete deduction from these specific clues.
+		var bf = bruteForceForClues(state, inits, rows, cols);
+		if (!bf) return null;
+		for (var ki = 0; ki < bf.covered.length; ki++) {
+			var cell = bf.covered[ki];
+			if (bf.orCount[ki] === 0) deducedCells.push([cell[0], cell[1], "S"]);
+			else if (bf.orCount[ki] === bf.solCount) deducedCells.push([cell[0], cell[1], "M"]);
+			else coveredCells.push([cell[0], cell[1], "?"]);
+		}
+	}
+
+	// Walls: off-board positions adjacent to clue cells.
 	var wallCells = [];
 	var wallKey = {};
-	function addCovered(r, c) {
-		if (state[r][c] !== UNKNOWN) return;
-		var k = r + "," + c;
-		if (coveredKey[k] || deducedKey[k]) return;
-		coveredKey[k] = true;
-		coveredCells.push([r, c, "?"]);
-	}
-	function addWall(r, c) {
-		var k = r + "," + c;
-		if (wallKey[k]) return;
-		wallKey[k] = true;
-		wallCells.push([r, c, "W"]);
-	}
-	for (var i = 0; i < inits.length; i++) {
-		var p = inits[i].pos;
-		for (var dr = -1; dr <= 1; dr++) {
-			for (var dc = -1; dc <= 1; dc++) {
-				if (dr === 0 && dc === 0) continue;
-				var nr = p[0] + dr, nc = p[1] + dc;
-				if (nr >= 0 && nc >= 0 && nr < rows && nc < cols) addCovered(nr, nc);
-				else addWall(nr, nc);
+	for (var wi = 0; wi < inits.length; wi++) {
+		var wp = inits[wi].pos;
+		for (var wdr = -1; wdr <= 1; wdr++) {
+			for (var wdc = -1; wdc <= 1; wdc++) {
+				if (wdr === 0 && wdc === 0) continue;
+				var wnr = wp[0] + wdr, wnc = wp[1] + wdc;
+				if (wnr >= 0 && wnr < rows && wnc >= 0 && wnc < cols) continue;
+				var wk = wnr + "," + wnc;
+				if (wallKey[wk]) continue;
+				wallKey[wk] = true;
+				wallCells.push([wnr, wnc, "W"]);
 			}
 		}
 	}
-	if (move.method === "case" && move.splitCell) {
-		var sc = move.splitCell;
-		if (sc[0] >= 0 && sc[0] < rows && sc[1] >= 0 && sc[1] < cols) addCovered(sc[0], sc[1]);
-	}
 
-	// Drop patterns where the deduction doesn't pin any mine. A pure
-	// "this cell is safe" reveal contributes no positional info about
-	// where the mines are, so it's noise in a pattern catalogue.
-	var hasMine = deducedCells.some(function(c) { return c[2] === "M"; });
-	if (!hasMine) return null;
+	// Drop patterns that don't pin any mine.
+	if (!deducedCells.some(function(c) { return c[2] === "M"; })) return null;
 
 	var canon = canonicalize({
 		method: move.method || "trivial",
@@ -339,19 +425,24 @@ function transformAndNormalize(pattern, t) {
 }
 
 // Canonical key — the lex-smallest serialization over all 8 dihedral
-// variants. Cells in each variant are sorted before joining so the
-// ordering of the inputs doesn't influence the key. The four cell
-// kinds — clue (C), deduced (D), ambiguous-covered (X), wall (W) —
-// each carry their own prefix so the canonicalization preserves
-// corner/edge geometry: a clue with three off-board neighbours
-// always reads as distinct from an interior clue with three covered
-// neighbours, because the W cells participate in the bbox and the key.
+// variants. Only the stable cells (clues with values, deduced cells,
+// walls) participate; ambiguous-covered cells are state-dependent
+// context that varies across puzzles even when the logical deduction
+// is identical, so they're left out of the identity. Position
+// numbers are re-normalized to the stable cells' own bounding box so
+// covered cells extending beyond that bbox don't influence the key.
 function patternKey(pattern) {
+	var stable = pattern.clueCells.concat(pattern.deducedCells, pattern.wallCells || []);
+	if (stable.length === 0) return "";
+	var minR = Infinity, minC = Infinity;
+	for (var i = 0; i < stable.length; i++) {
+		if (stable[i][0] < minR) minR = stable[i][0];
+		if (stable[i][1] < minC) minC = stable[i][1];
+	}
 	var parts = [];
-	pattern.clueCells.forEach(function(c) { parts.push("C" + c[0] + "," + c[1] + ":" + c[2]); });
-	pattern.deducedCells.forEach(function(c) { parts.push("D" + c[0] + "," + c[1] + ":" + c[2]); });
-	(pattern.coveredCells || []).forEach(function(c) { parts.push("X" + c[0] + "," + c[1]); });
-	(pattern.wallCells || []).forEach(function(c) { parts.push("W" + c[0] + "," + c[1]); });
+	pattern.clueCells.forEach(function(c) { parts.push("C" + (c[0] - minR) + "," + (c[1] - minC) + ":" + c[2]); });
+	pattern.deducedCells.forEach(function(c) { parts.push("D" + (c[0] - minR) + "," + (c[1] - minC) + ":" + c[2]); });
+	(pattern.wallCells || []).forEach(function(c) { parts.push("W" + (c[0] - minR) + "," + (c[1] - minC)); });
 	parts.sort();
 	return parts.join(";");
 }
