@@ -261,9 +261,94 @@ function patternBoundingBox(pattern) {
 
 function scoreToRating(score) { return Math.max(0, Math.round(240 * (score - 0.5))); }
 
+// Boundary cell positions in the 5x5-with-3x3-cascade setup,
+// clockwise from (1,1). Their bitmask of outside-neighbour cells in
+// the 16-cell ring lives in StartingPositions.MASK_3x3 — duplicated
+// here so we don't introduce a require cycle.
+var BOUNDARY_3x3 = [
+	[1,1], [1,2], [1,3], [2,3], [3,3], [3,2], [3,1], [2,1]
+];
+var MASK_3x3 = (function() {
+	var out = [];
+	function outsideIndex(r, c) {
+		if (r === 0) return c;
+		if (r === 4) return 11 + c;
+		if (c === 0) return 5 + (r - 1);
+		if (c === 4) return 8 + (r - 1);
+		return -1;
+	}
+	BOUNDARY_3x3.forEach(function(b) {
+		var m = 0;
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				var nr = b[0] + dr, nc = b[1] + dc;
+				if (nr < 0 || nc < 0 || nr >= 5 || nc >= 5) continue;
+				var idx = outsideIndex(nr, nc);
+				if (idx < 0) continue;
+				m |= (1 << idx);
+			}
+		}
+		out.push(m);
+	});
+	return out;
+})();
+
+function outsideCellFromIndex(idx) {
+	if (idx <= 4) return [0, idx];
+	if (idx <= 7) return [idx - 4, 0];
+	if (idx <= 10) return [idx - 7, 4];
+	return [4, idx - 11];
+}
+
+function popcount32(x) {
+	x = x - ((x >>> 1) & 0x55555555);
+	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
+// Given the 8 boundary clue values and a bitmask of clue indices to
+// keep "active", brute-force every mine arrangement of the 16-cell
+// ring that satisfies those clues. Returns the always-mine and
+// always-safe bitmasks. Returns null when no arrangement is consistent.
+function bruteForceWithMask(clues, activeMask) {
+	var total = 1 << 16;
+	var solCount = 0;
+	var orCount = new Array(16).fill(0);
+	for (var a = 0; a < total; a++) {
+		var ok = true;
+		for (var c = 0; c < 8; c++) {
+			if (!(activeMask & (1 << c))) continue;
+			if (popcount32(a & MASK_3x3[c]) !== clues[c]) { ok = false; break; }
+		}
+		if (!ok) continue;
+		solCount++;
+		for (var b = 0; b < 16; b++) if (a & (1 << b)) orCount[b]++;
+	}
+	if (solCount === 0) return null;
+	var safeMask = 0, mineMask = 0;
+	for (var k = 0; k < 16; k++) {
+		if (orCount[k] === 0) safeMask |= (1 << k);
+		else if (orCount[k] === solCount) mineMask |= (1 << k);
+	}
+	return { safeMask: safeMask, mineMask: mineMask };
+}
+
+function boundaryIndexOf(r, c) {
+	for (var i = 0; i < BOUNDARY_3x3.length; i++) {
+		if (BOUNDARY_3x3[i][0] === r && BOUNDARY_3x3[i][1] === c) return i;
+	}
+	return -1;
+}
+
 // Build the (board, state) pair for a 3x3 starting position given its
 // pattern (e.g. "1.1.1.1.2.2.2.2") and ask the analyzer for the first
-// move. Returns the canonical pattern object, or null on no-move.
+// move. The canonical pattern's deduction is the COMPLETE set of cells
+// the init-source clues force on their own — derived via a brute-force
+// pass that ignores every other clue in the cascade. This way two
+// starting positions that hand the analyzer the same input clues
+// always produce the same pattern, regardless of which forced cells
+// the analyzer's bundling happened to extract in context.
 function extract3x3PatternFromClues(clues) {
 	var board = [], state = [];
 	for (var r = 0; r < 5; r++) {
@@ -274,12 +359,72 @@ function extract3x3PatternFromClues(clues) {
 		for (var cc = 1; cc <= 3; cc++) state[rr][cc] = KNOWN;
 	}
 	board[2][2] = 0;
-	// Clockwise from (1,1): (1,1), (1,2), (1,3), (2,3), (3,3), (3,2), (3,1), (2,1)
-	var BOUND = [[1,1],[1,2],[1,3],[2,3],[3,3],[3,2],[3,1],[2,1]];
-	for (var i = 0; i < 8; i++) board[BOUND[i][0]][BOUND[i][1]] = clues[i];
+	for (var i = 0; i < 8; i++) board[BOUNDARY_3x3[i][0]][BOUNDARY_3x3[i][1]] = clues[i];
+
 	var raw = extractFirstDeductionPattern(board, state);
 	if (!raw) return null;
-	var canon = canonicalize(raw);
+
+	// Determine which boundary clues are in scope for the deduction.
+	// Trivial / subset / intersect / union derivations work from a
+	// specific subset of the clues — exactly the init sources the
+	// analyzer's derivation chain identified. Case-split, in contrast,
+	// is a global inference: it propagates over every constraint, even
+	// if the recorded "init sources" only call out the clues that
+	// participated in a contradictory branch. So for case patterns we
+	// activate all eight boundary clues.
+	var clueCellsForPattern = raw.clueCells;
+	var activeMask = 0;
+	if (raw.method === "case") {
+		activeMask = 0xFF;
+		clueCellsForPattern = BOUNDARY_3x3.map(function(b, i) { return [b[0], b[1], clues[i]]; });
+	} else {
+		for (var j = 0; j < raw.clueCells.length; j++) {
+			var idx = boundaryIndexOf(raw.clueCells[j][0], raw.clueCells[j][1]);
+			if (idx >= 0) activeMask |= (1 << idx);
+		}
+	}
+	var bf = bruteForceWithMask(clues, activeMask);
+	if (!bf) return null;
+
+	// Rebuild deducedCells from the brute-force result.
+	var deducedCells = [];
+	for (var k = 0; k < 16; k++) {
+		var bit = 1 << k;
+		var cell = outsideCellFromIndex(k);
+		if (bf.safeMask & bit) deducedCells.push([cell[0], cell[1], "S"]);
+		else if (bf.mineMask & bit) deducedCells.push([cell[0], cell[1], "M"]);
+	}
+	var deducedKey = {};
+	deducedCells.forEach(function(c) { deducedKey[c[0] + "," + c[1]] = true; });
+
+	// Covered context: UNKNOWN neighbours of the active clue cells
+	// that the deduction didn't decide. Inside-cascade cells (rows 1-3,
+	// cols 1-3) are revealed, so skip them.
+	var coveredCells = [];
+	var coveredKey = {};
+	for (var ci = 0; ci < clueCellsForPattern.length; ci++) {
+		var cp = clueCellsForPattern[ci];
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				var nr = cp[0] + dr, nc = cp[1] + dc;
+				if (nr < 0 || nc < 0 || nr >= 5 || nc >= 5) continue;
+				if (nr >= 1 && nr <= 3 && nc >= 1 && nc <= 3) continue;
+				var ck = nr + "," + nc;
+				if (deducedKey[ck] || coveredKey[ck]) continue;
+				coveredKey[ck] = true;
+				coveredCells.push([nr, nc, "?"]);
+			}
+		}
+	}
+
+	var canon = canonicalize({
+		method: raw.method,
+		complexity: raw.complexity,
+		clueCells: clueCellsForPattern,
+		deducedCells: deducedCells,
+		coveredCells: coveredCells
+	});
 	var bb = patternBoundingBox(canon);
 	canon.width = bb.width;
 	canon.height = bb.height;
