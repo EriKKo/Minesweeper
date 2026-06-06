@@ -1,44 +1,58 @@
-// Procedural music for MSBattle — a layered, adaptive engine generated
-// live by the Web Audio API. The base groove (pad + bass) always plays;
-// arpeggio, kick, and shaker layers fade in as the player's activity
-// rises so the soundtrack feels like it's reacting to how fast you're
-// playing.
+// Procedural battle/synthwave soundtrack for MSBattle, generated live by
+// the Web Audio API. Driving 120 BPM groove in E minor — pumping
+// sawtooth bass, plucked chord stabs, always-on kick/snare, with a lead
+// melody and hi-hat that layer in as the player gets active.
 //
-// Game code calls `music.pulse()` whenever the player does something
-// (reveal, flag, chord). We track those over a short window and turn
-// that rate into a 0..1 "intensity" that drives the layer mix.
+// Activity-adaptive: game code calls `music.pulse()` on player actions
+// (Animations.js wires this). A rolling 4s window converts the pulse
+// rate to a 0..1 intensity which scales the louder layers.
 //
-// No external assets. Mute and volume persist via localStorage; both
-// the topbar 🔊/🔇 button and a per-channel slider in the audio popover
-// can drive them.
+// Mute/volume persist via localStorage; both the topbar 🔊 popover
+// and the dedicated `Music` slider drive them.
 
 var music = (function() {
-	var ctx = null, master = null;
+	var ctx = null, master = null, masterLP = null;
 	var muted = localStorage.getItem("ms_music_muted") === "1";
 	var volume = parseFloat(localStorage.getItem("ms_music_volume"));
 	if (isNaN(volume)) volume = 0.22;
 	var started = false;
 	var nextBarTime = 0;
-	var chordIdx = 0;
+	var barIdx = 0;
 	var schedulerHandle = null;
 	var activity = [];
 
-	// Tempo: 100 BPM gives a beat at 0.6s — peppy without being frantic.
-	var BPM = 100;
-	var BEAT_S = 60 / BPM;
+	var BPM = 120;
+	var BEAT_S = 60 / BPM;            // 0.5s
 	var BAR_BEATS = 4;
-	var BAR_DUR = BEAT_S * BAR_BEATS; // one chord per bar
+	var BAR_DUR = BEAT_S * BAR_BEATS; // 2.0s
 	var LOOKAHEAD_S = 1.0;
 	var ACTIVITY_WINDOW_MS = 4000;
-	var ACTIVITY_FULL_RATE = 3; // events/sec ≈ "fast play"
+	var ACTIVITY_FULL_RATE = 3;
 
-	// I-vi-IV-V in C major, voiced as seventh chords. Each chord exposes
-	// its root, the pad tones, and a scale to draw arpeggio notes from.
-	var CHORDS = [
-		{ root: 130.81, pad: [130.81, 164.81, 196.00, 246.94], scale: [261.63, 293.66, 329.63, 392.00, 493.88] }, // Cmaj7
-		{ root: 110.00, pad: [110.00, 130.81, 164.81, 196.00], scale: [220.00, 261.63, 293.66, 329.63, 440.00] }, // Am7
-		{ root:  87.31, pad: [ 87.31, 110.00, 130.81, 164.81], scale: [174.61, 220.00, 261.63, 329.63, 349.23] }, // Fmaj7
-		{ root:  98.00, pad: [ 98.00, 123.47, 146.83, 174.61], scale: [196.00, 246.94, 293.66, 349.23, 392.00] }  // G7
+	// 4-bar progression in E minor: Em - C - G - D (i - VI - III - VII).
+	// Classic "epic" loop; each chord exposes its bass root, a triad in
+	// the mid octave for stabs, and a 4-note lead motif on top.
+	var BARS = [
+		{ // Em
+			bassRoot: 82.41,
+			stabs:    [164.81, 196.00, 246.94],
+			lead:     [329.63, 392.00, 493.88, 392.00] // E G B G
+		},
+		{ // C
+			bassRoot: 65.41,
+			stabs:    [130.81, 164.81, 196.00],
+			lead:     [329.63, 392.00, 523.25, 392.00] // E G C G
+		},
+		{ // G
+			bassRoot: 98.00,
+			stabs:    [196.00, 246.94, 293.66],
+			lead:     [392.00, 493.88, 587.33, 493.88] // G B D B
+		},
+		{ // D
+			bassRoot: 73.42,
+			stabs:    [146.83, 185.00, 220.00],
+			lead:     [369.99, 440.00, 587.33, 440.00] // F# A D A
+		}
 	];
 
 	function ensure() {
@@ -48,11 +62,13 @@ var music = (function() {
 		ctx = new AC();
 		master = ctx.createGain();
 		master.gain.value = muted ? 0 : volume;
-		var lp = ctx.createBiquadFilter();
-		lp.type = "lowpass";
-		lp.frequency.value = 4500;
-		master.connect(lp);
-		lp.connect(ctx.destination);
+		// Global low-pass — opens up with intensity for a "filter-sweep"
+		// feel as the action picks up.
+		masterLP = ctx.createBiquadFilter();
+		masterLP.type = "lowpass";
+		masterLP.frequency.value = 2200;
+		master.connect(masterLP);
+		masterLP.connect(ctx.destination);
 		return ctx;
 	}
 
@@ -66,122 +82,163 @@ var music = (function() {
 		var now = (ctx ? ctx.currentTime * 1000 : performance.now());
 		while (activity.length && now - activity[0] > ACTIVITY_WINDOW_MS) activity.shift();
 		var rate = activity.length / (ACTIVITY_WINDOW_MS / 1000);
-		var raw = Math.min(1, rate / ACTIVITY_FULL_RATE);
-		return raw;
+		return Math.min(1, rate / ACTIVITY_FULL_RATE);
 	}
 
-	function padTone(type, freq, t, dur, gain) {
+	// Sawtooth bass plucks with a quick filter envelope — that "pumping"
+	// synthwave bass feel.
+	function bassPluck(freq, t, dur, gain) {
 		var osc = ctx.createOscillator();
-		osc.type = type;
+		osc.type = "sawtooth";
 		osc.frequency.value = freq;
-		var g = ctx.createGain();
-		var attack = 0.4, release = 0.4;
-		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + attack);
-		g.gain.setValueAtTime(gain, t + dur - release);
-		g.gain.linearRampToValueAtTime(0.0001, t + dur);
-		osc.connect(g); g.connect(master);
-		osc.start(t); osc.stop(t + dur + 0.05);
-	}
-
-	function pluck(freq, t, dur, gain) {
-		var osc = ctx.createOscillator();
-		osc.type = "triangle";
-		osc.frequency.value = freq;
+		var filt = ctx.createBiquadFilter();
+		filt.type = "lowpass";
+		filt.frequency.setValueAtTime(900, t);
+		filt.frequency.exponentialRampToValueAtTime(180, t + dur * 0.7);
 		var g = ctx.createGain();
 		g.gain.setValueAtTime(0.0001, t);
 		g.gain.linearRampToValueAtTime(gain, t + 0.005);
 		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-		osc.connect(g); g.connect(master);
+		osc.connect(filt); filt.connect(g); g.connect(master);
 		osc.start(t); osc.stop(t + dur + 0.02);
 	}
 
-	function bass(freq, t, gain) {
-		var osc = ctx.createOscillator();
-		osc.type = "triangle";
-		osc.frequency.setValueAtTime(freq, t);
+	// Plucked chord stab — three triangle waves sharing an envelope.
+	function chordStab(freqs, t, dur, gain) {
 		var g = ctx.createGain();
 		g.gain.setValueAtTime(0.0001, t);
 		g.gain.linearRampToValueAtTime(gain, t + 0.01);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-		osc.connect(g); g.connect(master);
-		osc.start(t); osc.stop(t + 0.4);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		g.connect(master);
+		for (var i = 0; i < freqs.length; i++) {
+			var osc = ctx.createOscillator();
+			osc.type = "triangle";
+			osc.frequency.value = freqs[i];
+			osc.connect(g);
+			osc.start(t); osc.stop(t + dur + 0.02);
+		}
+	}
+
+	function lead(freq, t, dur, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "square";
+		osc.frequency.value = freq;
+		var filt = ctx.createBiquadFilter();
+		filt.type = "lowpass";
+		filt.frequency.value = 2800;
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.01);
+		g.gain.linearRampToValueAtTime(gain * 0.6, t + dur * 0.6);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		osc.connect(filt); filt.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + dur + 0.02);
 	}
 
 	function kick(t, gain) {
 		var osc = ctx.createOscillator();
 		osc.type = "sine";
-		osc.frequency.setValueAtTime(140, t);
-		osc.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+		osc.frequency.setValueAtTime(150, t);
+		osc.frequency.exponentialRampToValueAtTime(45, t + 0.13);
 		var g = ctx.createGain();
 		g.gain.setValueAtTime(0.0001, t);
 		g.gain.linearRampToValueAtTime(gain, t + 0.005);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
 		osc.connect(g); g.connect(master);
-		osc.start(t); osc.stop(t + 0.2);
+		osc.start(t); osc.stop(t + 0.22);
 	}
 
-	function shaker(t, gain) {
-		var dur = 0.06;
+	function snare(t, gain) {
+		var dur = 0.18;
 		var samples = Math.floor(ctx.sampleRate * dur);
 		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
 		var data = buf.getChannelData(0);
 		for (var i = 0; i < samples; i++) {
-			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2.5);
+			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 1.6);
 		}
 		var src = ctx.createBufferSource(); src.buffer = buf;
-		var hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6000;
+		var bp = ctx.createBiquadFilter();
+		bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 0.7;
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.003);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+		src.connect(bp); bp.connect(g); g.connect(master);
+		src.start(t);
+	}
+
+	function hihat(t, gain) {
+		var dur = 0.05;
+		var samples = Math.floor(ctx.sampleRate * dur);
+		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < samples; i++) {
+			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 3);
+		}
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var hp = ctx.createBiquadFilter();
+		hp.type = "highpass"; hp.frequency.value = 7000;
 		var g = ctx.createGain(); g.gain.value = gain;
 		src.connect(hp); hp.connect(g); g.connect(master);
 		src.start(t);
 	}
 
-	function scheduleBar(chord, t, intens) {
-		// Pad — always present, fairly soft.
-		var padDur = BAR_DUR + 0.5;
-		padTone("triangle", chord.pad[0] * 0.5, t, padDur, 0.16);
-		padTone("sine",     chord.pad[1],       t, padDur, 0.07);
-		padTone("sine",     chord.pad[2],       t, padDur, 0.07);
-		padTone("sine",     chord.pad[3],       t, padDur, 0.05);
+	function scheduleBar(t) {
+		var bar = BARS[barIdx];
+		var intens = intensity();
 
-		// Walking bass on beats 1 and 3 — always there but louder with intensity.
-		var bassGain = 0.10 + 0.06 * intens;
-		bass(chord.root, t, bassGain);
-		bass(chord.root, t + 2 * BEAT_S, bassGain);
+		// Open the global filter as intensity rises so the whole mix gets
+		// brighter when the player is racing.
+		if (masterLP) {
+			masterLP.frequency.linearRampToValueAtTime(2000 + 4000 * intens, t + BAR_DUR);
+		}
 
-		// 8th-note arpeggio that grows with intensity (silent when idle).
-		if (intens > 0.05) {
-			for (var i = 0; i < 8; i++) {
-				var note = chord.scale[(i + chordIdx) % chord.scale.length];
-				// Occasional octave jump for sparkle when intensity is high.
-				if (intens > 0.6 && (i % 2 === 0)) note *= 2;
-				pluck(note, t + i * 0.5 * BEAT_S, 0.22, 0.025 + 0.06 * intens);
+		// Pumping 8th-note sawtooth bass on the root — always on, slightly
+		// louder with intensity. The off-beats are half-volume for a
+		// classic "doof - tss" pulse.
+		var bassGain = 0.18 + 0.06 * intens;
+		for (var i = 0; i < 8; i++) {
+			var nt = t + i * 0.5 * BEAT_S;
+			bassPluck(bar.bassRoot, nt, 0.32, bassGain * (i % 2 === 0 ? 1 : 0.55));
+		}
+
+		// Chord stabs on beats 2 and 4 (the off-beats).
+		chordStab(bar.stabs, t + 1 * BEAT_S, 0.45, 0.05 + 0.04 * intens);
+		chordStab(bar.stabs, t + 3 * BEAT_S, 0.45, 0.05 + 0.04 * intens);
+
+		// Drums — light always, building with intensity.
+		// Kick on every beat (1, 2, 3, 4).
+		var kickGain = 0.16 + 0.10 * intens;
+		for (var b = 0; b < BAR_BEATS; b++) kick(t + b * BEAT_S, kickGain);
+		// Snare on beats 2 and 4 (back-beat).
+		var snareGain = 0.05 + 0.10 * intens;
+		snare(t + 1 * BEAT_S, snareGain);
+		snare(t + 3 * BEAT_S, snareGain);
+
+		// Hi-hat 8ths fade in past intensity 0.2.
+		if (intens > 0.2) {
+			var hatGain = 0.012 + 0.018 * (intens - 0.2);
+			for (var h = 0; h < 8; h++) {
+				hihat(t + h * 0.5 * BEAT_S, hatGain * (h % 2 === 1 ? 1.2 : 0.7));
 			}
 		}
 
-		// Soft kick — fades in past intensity 0.25.
-		if (intens > 0.25) {
-			var kickGain = 0.05 + 0.10 * (intens - 0.25);
-			kick(t, kickGain);
-			kick(t + 2 * BEAT_S, kickGain);
-			// Extra back-beat kick at high intensity.
-			if (intens > 0.7) kick(t + 3 * BEAT_S, kickGain * 0.7);
-		}
-
-		// Shaker — joins at higher intensity, 8th notes.
-		if (intens > 0.45) {
-			var shakerGain = 0.015 + 0.025 * (intens - 0.45);
-			for (var s = 0; s < 8; s++) {
-				shaker(t + s * 0.5 * BEAT_S, shakerGain * (s % 2 === 1 ? 1 : 0.6));
+		// Lead melody — square synth, 4 quarter notes per bar — fades in
+		// past intensity 0.35 so chill play stays groove-only.
+		if (intens > 0.35) {
+			var leadGain = 0.05 + 0.08 * (intens - 0.35);
+			for (var n = 0; n < 4; n++) {
+				lead(bar.lead[n], t + n * BEAT_S, 0.42, leadGain);
 			}
 		}
+
+		barIdx = (barIdx + 1) % BARS.length;
 	}
 
 	function scheduleAhead() {
 		if (!ctx) return;
 		while (nextBarTime < ctx.currentTime + LOOKAHEAD_S) {
-			scheduleBar(CHORDS[chordIdx], nextBarTime, intensity());
-			chordIdx = (chordIdx + 1) % CHORDS.length;
+			scheduleBar(nextBarTime);
 			nextBarTime += BAR_DUR;
 		}
 	}
@@ -192,20 +249,20 @@ var music = (function() {
 		if (ctx.state === "suspended") ctx.resume();
 		if (started) return;
 		started = true;
-		nextBarTime = ctx.currentTime + 0.3;
+		nextBarTime = ctx.currentTime + 0.25;
 		scheduleAhead();
-		schedulerHandle = setInterval(scheduleAhead, 500);
+		schedulerHandle = setInterval(scheduleAhead, 400);
 	}
 
 	function setMuted(m) {
 		muted = m;
 		localStorage.setItem("ms_music_muted", m ? "1" : "0");
-		if (master) master.gain.linearRampToValueAtTime(m ? 0 : volume, (ctx ? ctx.currentTime : 0) + 0.2);
+		if (master) master.gain.linearRampToValueAtTime(m ? 0 : volume, (ctx ? ctx.currentTime : 0) + 0.15);
 	}
 	function setVolume(v) {
 		volume = v;
 		localStorage.setItem("ms_music_volume", String(v));
-		if (master && !muted) master.gain.linearRampToValueAtTime(v, (ctx ? ctx.currentTime : 0) + 0.2);
+		if (master && !muted) master.gain.linearRampToValueAtTime(v, (ctx ? ctx.currentTime : 0) + 0.15);
 	}
 
 	return {
