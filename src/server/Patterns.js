@@ -166,6 +166,12 @@ function extractMovePattern(board, state, move) {
 		if (sc[0] >= 0 && sc[0] < rows && sc[1] >= 0 && sc[1] < cols) addCovered(sc[0], sc[1]);
 	}
 
+	// Drop patterns where the deduction doesn't pin any mine. A pure
+	// "this cell is safe" reveal contributes no positional info about
+	// where the mines are, so it's noise in a pattern catalogue.
+	var hasMine = deducedCells.some(function(c) { return c[2] === "M"; });
+	if (!hasMine) return null;
+
 	var canon = canonicalize({
 		method: move.method || "trivial",
 		complexity: move.complexity,
@@ -532,6 +538,10 @@ function extract3x3PatternFromClues(clues) {
 			}
 		}
 	}
+
+	// Same filter as extractMovePattern: drop pure-reveal deductions
+	// that don't tell us where any mine is.
+	if (!deducedCells.some(function(c) { return c[2] === "M"; })) return null;
 
 	var canon = canonicalize({
 		method: raw.method,
