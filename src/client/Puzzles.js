@@ -689,28 +689,17 @@ function openAnalyzeModal(p) {
 
 	document.addEventListener("keydown", onAnalyzeModalKey);
 
-	// Apply moves 0..upTo, then highlight the focused move's cells.
-	// Enum moves carry separate reveal/flag lists since one component can
-	// pin both safe and mine cells at once.
-	function applyMovesAndHighlight(moves, upTo, focusIndex) {
+	// Apply move-bundles 0..upTo, then highlight the focused bundle's cells.
+	function applyMovesAndHighlight(bundles, upTo, focusIndex) {
 		controller.reset();
-		for (var i = 0; i <= upTo && i < moves.length; i++) {
-			var mv = moves[i];
-			if (mv.action === "enum" || mv.action === "case") {
-				var rv = mv.revealed || [], fl = mv.flagged || [];
-				for (var rj = 0; rj < rv.length; rj++) controller.revealCell(rv[rj][0], rv[rj][1]);
-				for (var fj = 0; fj < fl.length; fj++) controller.flagCell(fl[fj][0], fl[fj][1]);
-			} else {
-				var cells = mv.changed && mv.changed.length ? mv.changed : mv.cells;
-				if (mv.action === "flag") {
-					for (var j = 0; j < cells.length; j++) controller.flagCell(cells[j][0], cells[j][1]);
-				} else {
-					for (var k = 0; k < cells.length; k++) controller.revealCell(cells[k][0], cells[k][1]);
-				}
-			}
+		for (var i = 0; i <= upTo && i < bundles.length; i++) {
+			var b = bundles[i];
+			for (var rj = 0; rj < b.revealed.length; rj++) controller.revealCell(b.revealed[rj][0], b.revealed[rj][1]);
+			for (var fj = 0; fj < b.flagged.length; fj++) controller.flagCell(b.flagged[fj][0], b.flagged[fj][1]);
 		}
-		if (focusIndex != null && moves[focusIndex]) {
-			controller.highlight(moves[focusIndex].changed || moves[focusIndex].cells);
+		if (focusIndex != null && bundles[focusIndex]) {
+			var b2 = bundles[focusIndex];
+			controller.highlight(b2.revealed.concat(b2.flagged));
 		} else {
 			controller.highlight(null);
 		}
@@ -722,7 +711,8 @@ function openAnalyzeModal(p) {
 			traceStatus.textContent = "Error: " + data.error;
 			return;
 		}
-		var moves = data.moves || [];
+		var rawMoves = data.moves || [];
+		var moves = bundleAnalyzerMoves(rawMoves);
 		function fmt(n) { return (Math.round(n * 10) / 10).toFixed(1); }
 		traceStatus.textContent = "max complexity " + fmt(data.maxComplexity) + " · total " + fmt(data.totalComplexity)
 			+ (data.solved ? " · solved" : " · " + data.safeCovered + " safe cells uncovered");
@@ -749,9 +739,18 @@ function openAnalyzeModal(p) {
 
 			var act = document.createElement("span");
 			act.className = "analyze-trace-action";
-			act.textContent = mv.action === "enum" ? "enum·" + mv.componentSize
-				: mv.action === "case" ? "case·(" + mv.splitCell[0] + "," + mv.splitCell[1] + ")"
-				: mv.action === "flag" ? "flag" : "reveal";
+			if (mv.action === "enum") act.textContent = "enum·" + mv.componentSize;
+			else if (mv.action === "case") act.textContent = "case·(" + mv.splitCell[0] + "," + mv.splitCell[1] + ")";
+			else if (mv.method && mv.method !== "trivial") {
+				// Bundled deduction: lead with the operation, suffix the
+				// outcome counts so a mixed step (1 safe + 3 mines) reads
+				// as "subset · 1S 3M" instead of just "reveal".
+				var bits = [mv.method];
+				if (mv.revealed && mv.revealed.length) bits.push(mv.revealed.length + "S");
+				if (mv.flagged && mv.flagged.length) bits.push(mv.flagged.length + "M");
+				act.textContent = bits.join(" · ");
+			} else if (mv.action === "flag") act.textContent = "flag";
+			else act.textContent = "reveal";
 			header.appendChild(act);
 
 			var cells = document.createElement("span");
@@ -846,6 +845,88 @@ function openAnalyzeModal(p) {
 	}).catch(function(e) {
 		traceStatus.textContent = "Error: " + e.message;
 	});
+}
+
+// Bundle consecutive analyzer moves that share the same set of init
+// source clue cells into one "deduction step." This matches the
+// patterns view: a single overlap operation that forces both reveals
+// and flags shows up as one step instead of two separate moves.
+function bundleAnalyzerMoves(rawMoves) {
+	function initsFor(mv) {
+		var seen = {};
+		var positions = [];
+		function visit(d) {
+			if (!d) return;
+			for (var i = 0; i < d.length; i++) {
+				if (d[i].source === "initial" && d[i].from) {
+					var k = d[i].from[0] + "," + d[i].from[1];
+					if (!seen[k]) { seen[k] = true; positions.push(d[i].from); }
+				}
+			}
+		}
+		visit(mv.derivation);
+		if (mv.action === "case" && mv.branches) {
+			["safe", "mine"].forEach(function(side) {
+				var br = mv.branches[side];
+				if (br && br.moves) br.moves.forEach(function(m) { visit(m.derivation); });
+			});
+		}
+		return positions.map(function(p) { return p[0] + "," + p[1]; }).sort().join("|");
+	}
+
+	var bundles = [];
+	var i = 0;
+	while (i < rawMoves.length) {
+		var groupKey = initsFor(rawMoves[i]);
+		var group = [rawMoves[i]];
+		var j = i + 1;
+		// Enum moves stand alone — they're already exhaustive over their
+		// component and shouldn't merge with anything else.
+		if (rawMoves[i].action !== "enum") {
+			while (j < rawMoves.length && rawMoves[j].action !== "enum" && initsFor(rawMoves[j]) === groupKey) {
+				group.push(rawMoves[j]);
+				j++;
+			}
+		}
+		var revealed = [], flagged = [];
+		var maxC = 0, hardest = group[0];
+		group.forEach(function(mv) {
+			if (mv.complexity > maxC) { maxC = mv.complexity; hardest = mv; }
+			if (mv.action === "reveal") (mv.cells || []).forEach(function(c) { revealed.push(c); });
+			else if (mv.action === "flag") (mv.cells || []).forEach(function(c) { flagged.push(c); });
+			else if (mv.action === "case" || mv.action === "enum") {
+				(mv.revealed || []).forEach(function(c) { revealed.push(c); });
+				(mv.flagged || []).forEach(function(c) { flagged.push(c); });
+			}
+		});
+		var method;
+		if (hardest.action === "case") method = "case";
+		else if (hardest.action === "enum") method = "enum";
+		else if (hardest.derivation && hardest.derivation.length) {
+			var root = hardest.derivation[hardest.derivation.length - 1];
+			method = root.source === "initial" ? "trivial" : root.source;
+		} else method = "trivial";
+		// Bundle masquerades as a single move for the existing renderer.
+		bundles.push({
+			action: hardest.action,
+			method: method,
+			revealed: revealed,
+			flagged: flagged,
+			cells: revealed.concat(flagged),
+			changed: revealed.concat(flagged),
+			complexity: maxC,
+			depth: hardest.depth,
+			derivation: hardest.derivation,
+			branches: hardest.branches,
+			splitCell: hardest.splitCell,
+			componentSize: hardest.componentSize,
+			lo: hardest.lo,
+			hi: hardest.hi,
+			moves: group
+		});
+		i = j;
+	}
+	return bundles;
 }
 
 // Render the derivation tree of a move as a topologically-ordered list
