@@ -279,7 +279,7 @@ var puzzlePlay = {};
 var puzzleRun = {};   // playerID -> { mode, targetRating, solves, startedAt, endsAt, timerHandle }
 
 // Streak / Storm tuning.
-var RUN_START_RATING = 500;
+var RUN_START_RATING = 100;
 var RUN_STEP = 60;
 var STORM_DURATION_MS = 3 * 60 * 1000;
 var STORM_MISS_PENALTY_MS = 10 * 1000;
@@ -290,7 +290,8 @@ function startPuzzleRun(socket, playerID, user, mode) {
 		mode: mode,
 		targetRating: RUN_START_RATING,
 		solves: 0,
-		startedAt: Date.now()
+		startedAt: Date.now(),
+		servedIds: []   // puzzles served this run, so we don't repeat within a run
 	};
 	if (mode === "storm") {
 		run.endsAt = Date.now() + STORM_DURATION_MS;
@@ -303,13 +304,15 @@ function startPuzzleRun(socket, playerID, user, mode) {
 function serveRunPuzzle(socket, playerID, user) {
 	var run = puzzleRun[playerID];
 	if (!run) return;
-	// Reuse the rating-near picker without exclusions — run mode doesn't
-	// track per-user attempt history; repeats over a long run are fine.
-	var puzzle = db.pickPuzzleNearRating(run.targetRating, []);
+	// Exclude every puzzle served so far in this run so a single
+	// playthrough never repeats — pickPuzzleNearRating widens the
+	// rating window and falls back to "any unseen" if nothing matches.
+	var puzzle = db.pickPuzzleNearRating(run.targetRating, run.servedIds);
 	if (!puzzle) {
 		endPuzzleRun(socket, playerID, "no_puzzles");
 		return;
 	}
+	run.servedIds.push(puzzle.id);
 	delete puzzlePlay[playerID];
 	startPuzzlePlay(socket, playerID, user, puzzle, run);
 }

@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 16;
+var CURRENT_SCORING_VERSION = 17;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -234,14 +234,13 @@ function topPlayers(limit) {
 }
 
 // Map the CSP-driven score (max complexity + small total bonus) to a
-// chess-style puzzle rating. Linear scaling — `score` already comes from
-// a continuous human-effort proxy, so we don't need an extra curve. The
-// constants put a default player (rating 800) above the "trivial cascade"
-// puzzles (~640) and the curve climbs through ~1100 (subset), ~1500
-// (single overlap), ~2000 (deep overlap), to ~2800+ (case-split / enum).
+// chess-style puzzle rating. Linear `240·(score − 0.5)`, clamped at 0,
+// so the easiest possible puzzle (a single trivial cascade reveal,
+// score ≈ 0.5) lands right at 0 and the deepest current puzzles
+// (score ≈ 13) reach ~3000.
 function scoreToRating(score) {
-	if (!score || score <= 0) return 500;
-	return Math.round(500 + 200 * score);
+	if (!score || score <= 0) return 0;
+	return Math.max(0, Math.round(240 * (score - 0.5)));
 }
 
 function insertPuzzle(p) {
