@@ -6,7 +6,7 @@
 // background. Polling refreshes job progress + pool contents while a job
 // runs, then stops once the server reports the job is done.
 
-var puzzleLabState = { count: 50, diff: null, density: null };
+var puzzleLabState = { count: 50, diff: null, density: null, source: "random" };
 var puzzleLabPollTimer = null;
 
 // Admin generate / clear requests carry the session token; the server
@@ -134,6 +134,29 @@ function renderPuzzleLab() {
 	});
 	view.appendChild(actions);
 
+	var sourceRow = document.createElement("div");
+	sourceRow.className = "puzzles-filter";
+	var sourceLabel = document.createElement("span");
+	sourceLabel.className = "puzzles-filter-label";
+	sourceLabel.textContent = "Generator";
+	sourceRow.appendChild(sourceLabel);
+	[
+		{ value: "random", label: "Random + analyze" },
+		{ value: "inside_out", label: "Inside-out" }
+	].forEach(function(opt) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.source = opt.value;
+		btn.textContent = opt.label;
+		if (opt.value === puzzleLabState.source) btn.classList.add("active");
+		btn.addEventListener("click", function() {
+			puzzleLabState.source = opt.value;
+			updateSourceChips();
+		});
+		sourceRow.appendChild(btn);
+	});
+	view.appendChild(sourceRow);
+
 	var densityRow = document.createElement("div");
 	densityRow.className = "puzzles-filter";
 	var densityLabel = document.createElement("span");
@@ -212,12 +235,19 @@ function updateDensityChips() {
 	});
 }
 
+function updateSourceChips() {
+	document.querySelectorAll("#puzzles_view .puzzles-filter-chip[data-source]").forEach(function(b) {
+		b.classList.toggle("active", b.dataset.source === puzzleLabState.source);
+	});
+}
+
 function startGenerationJob() {
 	var status = document.getElementById("puzzle_lab_status");
 	if (status) status.textContent = "Starting generation job…";
 	var url = "/api/puzzles?count=" + puzzleLabState.count
 		+ (puzzleLabState.diff ? "&diff=" + puzzleLabState.diff : "")
-		+ (puzzleLabState.density != null ? "&density=" + puzzleLabState.density : "");
+		+ (puzzleLabState.density != null ? "&density=" + puzzleLabState.density : "")
+		+ (puzzleLabState.source && puzzleLabState.source !== "random" ? "&source=" + puzzleLabState.source : "");
 	fetch(url, { method: "POST", headers: puzzleAdminHeaders() }).then(function(r) {
 		return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
 	}).then(function(result) {

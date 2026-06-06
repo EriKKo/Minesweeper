@@ -118,6 +118,10 @@ addColumnIfMissing("puzzles", "needs_case_split", "INTEGER NOT NULL DEFAULT 0");
 // "trivial" (no derivation), "subset", "union", "intersect", "case",
 // "enum". Drives the method filter; reset on every (re)classification.
 addColumnIfMissing("puzzles", "csp_method", "TEXT NOT NULL DEFAULT 'trivial'");
+// Which generator produced the puzzle — "random" for the original
+// random-mine generate-and-test pipeline, "inside_out" for the
+// new constructive generator (and any future variants we add).
+addColumnIfMissing("puzzles", "source", "TEXT NOT NULL DEFAULT 'random'");
 // Bumped whenever the scoring formula changes. The startup backfill picks
 // up rows whose stored version is below CURRENT_SCORING_VERSION and
 // re-analyzes them.
@@ -279,8 +283,8 @@ function insertPuzzle(p) {
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
 		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, " +
-		" needs_case_split, csp_method, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" needs_case_split, csp_method, source, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -293,6 +297,7 @@ function insertPuzzle(p) {
 		p.maxEnumSize || 0,
 		p.needsCaseSplit ? 1 : 0,
 		p.cspMethod || "trivial",
+		p.source || "random",
 		CURRENT_SCORING_VERSION,
 		Date.now()
 	);
@@ -321,6 +326,7 @@ function deserializePuzzle(row) {
 		maxEnumSize: row.max_enum_size,
 		cspMethod: row.csp_method || "trivial",
 		needsCaseSplit: !!row.needs_case_split,
+		source: row.source || "random",
 		attempts: row.attempts,
 		solves: row.solves
 	};

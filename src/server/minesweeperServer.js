@@ -5,6 +5,7 @@ var http = require("http")
   , gameCreator = require("./GameCreator")
   , noGuess = require("./NoGuessGenerator")
   , puzzleGen = require("./PuzzleGenerator")
+  , insideOut = require("./InsideOutGenerator")
   , roomCreator = require("./RoomCreator")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
@@ -528,12 +529,15 @@ function finalizePuzzle(socket, playerID, solved) {
 	});
 }
 
-function startPuzzleJob(target, diff, density) {
+function startPuzzleJob(target, diff, density, source) {
+	source = source || "random";
+	var generator = source === "inside_out" ? insideOut : puzzleGen;
 	var job = {
 		id: nextPuzzleJobId++,
 		target: target,
 		diff: diff || null,
 		density: (typeof density === "number") ? density : null,
+		source: source,
 		done: 0,
 		dupes: 0,
 		stalls: 0,
@@ -545,7 +549,7 @@ function startPuzzleJob(target, diff, density) {
 	function tick() {
 		if (puzzleJob !== job) return; // a newer job superseded this one
 		if (job.done >= job.target) { puzzleJob = null; return; }
-		var batch = puzzleGen.generatePuzzles({
+		var batch = generator.generatePuzzles({
 			count: Math.min(5, job.target - job.done),
 			diff: job.diff || undefined,
 			density: (job.density != null) ? job.density : undefined
@@ -601,6 +605,8 @@ function servePuzzles(req, res, url) {
 		var count = Math.max(1, Math.min(500, parseInt(url.searchParams.get("count"), 10) || 20));
 		var diff = parseInt(url.searchParams.get("diff"), 10);
 		var density = parseFloat(url.searchParams.get("density"));
+		var sourceRaw = url.searchParams.get("source");
+		var source = (sourceRaw === "inside_out") ? "inside_out" : "random";
 		if (puzzleJob) {
 			res.writeHead(409, { "Content-Type": "application/json" });
 			res.end(JSON.stringify({ error: "A generation job is already running.", job: puzzleJobStatus() }));
@@ -609,10 +615,11 @@ function servePuzzles(req, res, url) {
 		var job = startPuzzleJob(
 			count,
 			(diff >= 1 && diff <= 6) ? diff : null,
-			(density >= 0.05 && density <= 0.50) ? density : null
+			(density >= 0.05 && density <= 0.50) ? density : null,
+			source
 		);
 		res.writeHead(202, { "Content-Type": "application/json" });
-		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density } }));
+		res.end(JSON.stringify({ ok: true, job: { id: job.id, target: job.target, diff: job.diff, density: job.density, source: job.source } }));
 		return;
 	}
 	// GET — return DB-backed puzzles. Paginated: `page` (0-indexed) +
@@ -703,6 +710,7 @@ function puzzleJobStatus() {
 		target: puzzleJob.target,
 		diff: puzzleJob.diff,
 		density: puzzleJob.density,
+		source: puzzleJob.source || "random",
 		done: puzzleJob.done,
 		dupes: puzzleJob.dupes
 	};
