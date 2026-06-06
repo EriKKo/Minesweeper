@@ -1036,7 +1036,7 @@ main {
 }
 .starting-positions-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 	gap: 0.8rem;
 }
 .starting-pos-card {
@@ -1049,52 +1049,66 @@ main {
 	align-items: center;
 	gap: 0.5rem;
 }
+.starting-pos-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	gap: 0.6rem;
+}
+.starting-pos-rating {
+	font-weight: 900;
+	font-size: 1.15rem;
+	padding: 0.18rem 0.6rem;
+	border-radius: 6px;
+	background: rgba(99, 102, 241, 0.18);
+	color: var(--accent-hover);
+}
+.starting-pos-rating.sp-rating-tier-trivial       { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
+.starting-pos-rating.sp-rating-tier-subset        { background: rgba(34, 211, 238, 0.18); color: #22d3ee; }
+.starting-pos-rating.sp-rating-tier-intersect     { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+.starting-pos-rating.sp-rating-tier-intersect-hard{ background: rgba(248, 113, 113, 0.18); color: #f87171; }
+.starting-pos-rating.sp-rating-tier-case          { background: rgba(192, 132, 252, 0.22); color: #c084fc; }
+.starting-pos-action {
+	font-size: 0.65rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-weight: 800;
+	padding: 0.18rem 0.45rem;
+	border-radius: 4px;
+}
+.starting-pos-action-reveal { background: rgba(74, 222, 128, 0.16); color: #4ade80; }
+.starting-pos-action-flag   { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+.starting-pos-action-case   { background: rgba(192, 132, 252, 0.20); color: #c084fc; }
 .starting-pos-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 32px);
-	grid-template-rows: repeat(3, 32px);
+	grid-template-columns: repeat(5, 26px);
+	grid-template-rows: repeat(5, 26px);
 	gap: 2px;
+	background: rgba(15, 23, 42, 0.45);
+	padding: 3px;
+	border-radius: 4px;
 }
 .starting-pos-cell {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-weight: 800;
-	font-size: 0.95rem;
-	background: rgba(99, 102, 241, 0.12);
-	border-radius: 3px;
-	color: #e2e8f0;
+	font-size: 0.85rem;
+	border-radius: 2px;
 }
-.starting-pos-cell.starting-pos-clue-0 { background: rgba(148, 163, 184, 0.18); color: transparent; }
-.starting-pos-cell.starting-pos-clue-1 { color: #60a5fa; }
-.starting-pos-cell.starting-pos-clue-2 { color: #4ade80; }
-.starting-pos-cell.starting-pos-clue-3 { color: #f87171; }
-.starting-pos-cell.starting-pos-clue-4 { color: #a78bfa; }
-.starting-pos-cell.starting-pos-clue-5 { color: #fbbf24; }
-.starting-pos-meta {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.2rem;
-	font-size: 0.78rem;
-}
-.starting-pos-rating {
-	font-weight: 800;
-	font-size: 0.95rem;
-	color: var(--accent-hover);
-}
-.starting-pos-action {
-	font-size: 0.7rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	font-weight: 700;
-	padding: 0.1rem 0.4rem;
-	border-radius: 3px;
-}
-.starting-pos-action-reveal { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
-.starting-pos-action-flag   { background: rgba(248, 113, 113, 0.18); color: #f87171; }
-.starting-pos-action-case   { background: rgba(192, 132, 252, 0.22); color: #c084fc; }
+.starting-pos-cell.sp-cell-clue   { background: rgba(99, 102, 241, 0.18); color: #e2e8f0; }
+.starting-pos-cell.sp-clue-0 { background: rgba(99, 102, 241, 0.10); color: transparent; }
+.starting-pos-cell.sp-clue-1 { color: #60a5fa; }
+.starting-pos-cell.sp-clue-2 { color: #4ade80; }
+.starting-pos-cell.sp-clue-3 { color: #f87171; }
+.starting-pos-cell.sp-clue-4 { color: #a78bfa; }
+.starting-pos-cell.sp-clue-5 { color: #fbbf24; }
+.starting-pos-cell.sp-cell-covered { background: rgba(71, 85, 105, 0.5); }
+.starting-pos-cell.sp-cell-safe    { background: rgba(74, 222, 128, 0.22); border: 1px solid rgba(74, 222, 128, 0.35); }
+.starting-pos-cell.sp-cell-mine    { background: rgba(248, 113, 113, 0.25); color: #fecaca; }
 .starting-pos-details { color: var(--muted); font-size: 0.72rem; }
+.starting-pos-pattern { color: rgba(148, 163, 184, 0.7); font-size: 0.66rem; font-family: monospace; letter-spacing: 0.04em; }
 .puzzle-card {
 	background: var(--surface);
 	border: 1px solid var(--border);

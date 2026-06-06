@@ -161,6 +161,13 @@ db.exec(
 	");"
 );
 
+// Bitmasks over the 16 outer-ring cells (3x3 cascade context). Each
+// bit set marks an outer cell that is safe / a mine across every
+// consistent mine arrangement. Drives the 5x5 visualization in the
+// admin browse view.
+addColumnIfMissing("starting_positions", "forced_safe_mask", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("starting_positions", "forced_mine_mask", "INTEGER NOT NULL DEFAULT 0");
+
 function upsertUser(provider, providerId, name, avatarUrl, email) {
 	providerId = String(providerId);
 	var emailLower = email ? String(email).toLowerCase() : null;
@@ -494,9 +501,9 @@ function insertStartingPosition(p) {
 	try {
 		var info = db.prepare(
 			"INSERT INTO starting_positions " +
-			"(size, pattern, solutions, forced_safe, forced_mine, first_action, first_complexity, rating) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.firstAction, p.firstComplexity, p.rating);
+			"(size, pattern, solutions, forced_safe, forced_mine, forced_safe_mask, forced_mine_mask, first_action, first_complexity, rating) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.forcedSafeMask || 0, p.forcedMineMask || 0, p.firstAction, p.firstComplexity, p.rating);
 		return info.lastInsertRowid;
 	} catch (e) {
 		// UNIQUE constraint — pattern already exists for this size.
@@ -510,24 +517,41 @@ function clearStartingPositions(size) {
 	else db.exec("DELETE FROM starting_positions");
 }
 
-function listStartingPositions(opts) {
-	opts = opts || {};
+function startingPositionFilterClauses(opts) {
 	var clauses = [];
 	var params = [];
 	if (opts.size != null) { clauses.push("size = ?"); params.push(opts.size); }
+	if (opts.firstAction) { clauses.push("first_action = ?"); params.push(opts.firstAction); }
+	if (opts.minRating != null) { clauses.push("rating >= ?"); params.push(opts.minRating); }
+	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
+	if (opts.uniqueSolution === true) { clauses.push("solutions = 1"); }
+	else if (opts.uniqueSolution === false) { clauses.push("solutions > 1"); }
+	return { clauses: clauses, params: params };
+}
+
+function listStartingPositions(opts) {
+	opts = opts || {};
+	var f = startingPositionFilterClauses(opts);
 	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
 	var pageSize = Math.max(1, Math.min(500, opts.pageSize || 100));
 	var page = Math.max(0, opts.page || 0);
 	var sql = "SELECT * FROM starting_positions";
-	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	if (f.clauses.length) sql += " WHERE " + f.clauses.join(" AND ");
 	sql += " ORDER BY rating " + sortDir + ", id " + sortDir + " LIMIT ? OFFSET ?";
-	params.push(pageSize, page * pageSize);
-	return db.prepare(sql).all.apply(db.prepare(sql), params);
+	var params = f.params.concat([pageSize, page * pageSize]);
+	var stmt = db.prepare(sql);
+	return stmt.all.apply(stmt, params);
 }
 
-function startingPositionCount(size) {
-	if (size != null) return db.prepare("SELECT COUNT(*) AS n FROM starting_positions WHERE size = ?").get(size).n;
-	return db.prepare("SELECT COUNT(*) AS n FROM starting_positions").get().n;
+function startingPositionCount(opts) {
+	// Backwards-compatible: passing a number is treated as `size`.
+	if (typeof opts === "number") opts = { size: opts };
+	opts = opts || {};
+	var f = startingPositionFilterClauses(opts);
+	var sql = "SELECT COUNT(*) AS n FROM starting_positions";
+	if (f.clauses.length) sql += " WHERE " + f.clauses.join(" AND ");
+	var stmt = db.prepare(sql);
+	return stmt.get.apply(stmt, f.params).n;
 }
 
 function getPuzzleById(id) {

@@ -675,9 +675,22 @@ function serveStartingPositions(req, res, url) {
 	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
 	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
 	var size = parseInt(url.searchParams.get("size"), 10);
-	var sizeFilter = (size >= 3 && size <= 9) ? size : null;
-	var positions = db.listStartingPositions({ size: sizeFilter, page: page, pageSize: pageSize, sort: sort });
-	var total = db.startingPositionCount(sizeFilter);
+	var actionRaw = url.searchParams.get("action");
+	var firstAction = (actionRaw === "reveal" || actionRaw === "flag" || actionRaw === "case") ? actionRaw : null;
+	var minRatingRaw = parseInt(url.searchParams.get("minRating"), 10);
+	var maxRatingRaw = parseInt(url.searchParams.get("maxRating"), 10);
+	var uniqueRaw = url.searchParams.get("unique");
+	var uniqueSolution = (uniqueRaw === "true") ? true : (uniqueRaw === "false") ? false : null;
+	var filterOpts = {
+		size: (size >= 3 && size <= 9) ? size : null,
+		firstAction: firstAction,
+		minRating: !isNaN(minRatingRaw) ? minRatingRaw : null,
+		maxRating: !isNaN(maxRatingRaw) ? maxRatingRaw : null,
+		uniqueSolution: uniqueSolution
+	};
+	var listOpts = Object.assign({ page: page, pageSize: pageSize, sort: sort }, filterOpts);
+	var positions = db.listStartingPositions(listOpts);
+	var total = db.startingPositionCount(filterOpts);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ positions: positions, total: total, page: page, pageSize: pageSize }));
 }

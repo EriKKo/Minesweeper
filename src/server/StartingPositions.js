@@ -113,7 +113,7 @@ function compareTuple(a, b) {
 
 // Brute-force every mine arrangement of the 16-cell outer ring and
 // return solution count plus per-cell "always-mine" / "always-safe"
-// stats. Returns null if no arrangement is consistent with the clues.
+// bitmasks. Returns null if no arrangement is consistent with the clues.
 function bruteForce3x3(clues) {
 	var total = 1 << 16;
 	var solCount = 0;
@@ -128,12 +128,18 @@ function bruteForce3x3(clues) {
 		for (var b = 0; b < 16; b++) if (a & (1 << b)) orCount[b]++;
 	}
 	if (solCount === 0) return null;
-	var forcedSafe = 0, forcedMine = 0;
+	var safeMask = 0, mineMask = 0;
 	for (var k = 0; k < 16; k++) {
-		if (orCount[k] === 0) forcedSafe++;
-		else if (orCount[k] === solCount) forcedMine++;
+		if (orCount[k] === 0) safeMask |= (1 << k);
+		else if (orCount[k] === solCount) mineMask |= (1 << k);
 	}
-	return { solCount: solCount, forcedSafe: forcedSafe, forcedMine: forcedMine };
+	return {
+		solCount: solCount,
+		forcedSafe: popcount(safeMask),
+		forcedMine: popcount(mineMask),
+		forcedSafeMask: safeMask,
+		forcedMineMask: mineMask
+	};
 }
 
 // Build a 5x5 board/state with the cascade in the centre and the
@@ -207,6 +213,8 @@ function enumerate3x3() {
 			solutions: bf.solCount,
 			forcedSafe: bf.forcedSafe,
 			forcedMine: bf.forcedMine,
+			forcedSafeMask: bf.forcedSafeMask,
+			forcedMineMask: bf.forcedMineMask,
 			firstAction: r.firstAction,
 			firstComplexity: r.firstComplexity,
 			rating: scoreToRating(r.firstComplexity)
