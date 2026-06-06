@@ -255,8 +255,13 @@ function extractMovePattern(board, state, move) {
 		}
 	}
 
-	// Drop patterns that don't pin any mine.
-	if (!deducedCells.some(function(c) { return c[2] === "M"; })) return null;
+	// Drop patterns whose deduction is one-sided. A pattern is only
+	// interesting when it forces BOTH a mine and a safe — pure-flag
+	// templates (e.g. clue=N over N covered neighbours) and pure-reveal
+	// templates carry no positional contrast between the two outcomes.
+	var hasMine = deducedCells.some(function(c) { return c[2] === "M"; });
+	var hasSafe = deducedCells.some(function(c) { return c[2] === "S"; });
+	if (!hasMine || !hasSafe) return null;
 
 	var canon = canonicalize({
 		method: move.method || "trivial",
@@ -630,9 +635,11 @@ function extract3x3PatternFromClues(clues) {
 		}
 	}
 
-	// Same filter as extractMovePattern: drop pure-reveal deductions
-	// that don't tell us where any mine is.
-	if (!deducedCells.some(function(c) { return c[2] === "M"; })) return null;
+	// Same filter as extractMovePattern: a pattern needs both a forced
+	// mine AND a forced safe to be interesting.
+	var hasMine3 = deducedCells.some(function(c) { return c[2] === "M"; });
+	var hasSafe3 = deducedCells.some(function(c) { return c[2] === "S"; });
+	if (!hasMine3 || !hasSafe3) return null;
 
 	var canon = canonicalize({
 		method: raw.method,
