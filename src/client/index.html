@@ -68,65 +68,70 @@
 			<div class="lobby-grid">
 				<aside class="lobby-modes">
 					<h3 class="lobby-modes-heading">Ranked</h3>
-					<ul class="lobby-mode-list">
-						<li class="lobby-mode lobby-mode-expandable" data-style="sprint">
-							<button class="lobby-mode-header" type="button" aria-expanded="false">
-								<div class="lobby-mode-main">
-									<span class="lobby-mode-title">Sprint</span>
-									<span class="lobby-mode-sub">10% mines · fast race</span>
-								</div>
-								<span class="lobby-mode-stat">
-									<span class="lobby-mode-stat-tier" id="rank_tier_sprint">—</span>
-									<span class="lobby-mode-stat-rating" id="rank_rating_sprint"></span>
-								</span>
-								<span class="lobby-mode-chevron" aria-hidden="true">▾</span>
-							</button>
-							<div class="lobby-mode-sizes" hidden>
-								<button id="find_ranked_sprint_duo" class="btn btn-primary lobby-mode-size">
-									<span class="lobby-mode-size-title">1v1</span>
-									<span class="lobby-mode-size-sub">Head-to-head race</span>
-								</button>
-								<button id="find_ranked_sprint_six" class="btn btn-primary lobby-mode-size">
-									<span class="lobby-mode-size-title">6-player</span>
-									<span class="lobby-mode-size-sub">Free-for-all sprint</span>
-								</button>
+					<div class="mode-card-list">
+						<a class="mode-card mode-card-sprint" href="#/ranked/sprint" data-style="sprint" aria-label="Play Sprint">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<defs>
+									<linearGradient id="g_sprint" x1="0" y1="0" x2="1" y2="1">
+										<stop offset="0%" stop-color="#fbbf24"/>
+										<stop offset="100%" stop-color="#f59e0b"/>
+									</linearGradient>
+								</defs>
+								<path d="M120 -10 L70 110 L120 110 L80 220 L160 80 L110 80 z" fill="url(#g_sprint)" opacity="0.18"/>
+								<path d="M170 30 L150 75 L170 75 L160 110 L185 65 L170 65 z" fill="#fbbf24" opacity="0.32"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
 							</div>
-						</li>
-						<li class="lobby-mode lobby-mode-expandable" data-style="standard">
-							<button class="lobby-mode-header" type="button" aria-expanded="false">
-								<div class="lobby-mode-main">
-									<span class="lobby-mode-title">Standard</span>
-									<span class="lobby-mode-sub">20% mines · deduction</span>
-								</div>
-								<span class="lobby-mode-stat">
-									<span class="lobby-mode-stat-tier" id="rank_tier_standard">—</span>
-									<span class="lobby-mode-stat-rating" id="rank_rating_standard"></span>
-								</span>
-								<span class="lobby-mode-chevron" aria-hidden="true">▾</span>
-							</button>
-							<div class="lobby-mode-sizes" hidden>
-								<button id="find_ranked_standard_duo" class="btn btn-primary lobby-mode-size">
-									<span class="lobby-mode-size-title">1v1</span>
-									<span class="lobby-mode-size-sub">Head-to-head deduction</span>
-								</button>
-								<button id="find_ranked_standard_six" class="btn btn-primary lobby-mode-size">
-									<span class="lobby-mode-size-title">6-player</span>
-									<span class="lobby-mode-size-sub">Dense free-for-all</span>
-								</button>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Sprint</h4>
+								<p class="mode-card-tag">10% mines · fast race</p>
+								<p class="mode-card-pitch">Wide cascades, blink-fast clears, click speed wins.</p>
 							</div>
-						</li>
-						<li class="lobby-mode" data-mode="tournament">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">Tournament</span>
-								<span class="lobby-mode-sub">16-player battle royale · 15%</span>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-tier" id="rank_tier_sprint">—</span>
+								<span class="mode-card-rank-rating" id="rank_rating_sprint"></span>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-tier" id="rank_tier_tournament">—</span>
-								<span class="lobby-mode-stat-rating" id="rank_rating_tournament"></span>
-							</span>
-							<button id="find_ranked_tournament" class="btn btn-primary lobby-mode-action">Find</button>
-						</li>
-					</ul>
+						</a>
+						<a class="mode-card mode-card-standard" href="#/ranked/standard" data-style="standard" aria-label="Play Standard">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<circle cx="160" cy="60" r="70" fill="none" stroke="#a78bfa" stroke-width="3" opacity="0.20"/>
+								<circle cx="160" cy="60" r="45" fill="none" stroke="#8b5cf6" stroke-width="3" opacity="0.30"/>
+								<circle cx="160" cy="60" r="20" fill="#a78bfa" opacity="0.32"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+							</div>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Standard</h4>
+								<p class="mode-card-tag">20% mines · deduction</p>
+								<p class="mode-card-pitch">Dense boards. Read the numbers carefully or pay the price.</p>
+							</div>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-tier" id="rank_tier_standard">—</span>
+								<span class="mode-card-rank-rating" id="rank_rating_standard"></span>
+							</div>
+						</a>
+						<a class="mode-card mode-card-tournament" href="#/ranked/tournament" data-style="tournament" aria-label="Play Tournament">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<path d="M30 30 L80 30 L80 50 L70 50 L70 80 L60 80 L60 110 L75 110 L75 130 L55 130 L55 130" fill="none" stroke="#fca5a5" stroke-width="3" opacity="0.18"/>
+								<path d="M170 30 L120 30 L120 50 L130 50 L130 80 L140 80 L140 110 L125 110 L125 130 L145 130" fill="none" stroke="#f87171" stroke-width="3" opacity="0.20"/>
+								<circle cx="100" cy="50" r="12" fill="#ef4444" opacity="0.30"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><path d="M5 4h14v3a4 4 0 01-4 4 4 4 0 01-1 1.7V14h2v3H8v-3h2v-1.3A4 4 0 019 11a4 4 0 01-4-4V4zm14 1h2v2a3 3 0 01-2 2.8V5zm-14 0v4.8A3 3 0 013 7V5h2z" fill="currentColor"/></svg>
+							</div>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Tournament</h4>
+								<p class="mode-card-tag">16 players · 15%</p>
+								<p class="mode-card-pitch">Bottom half cut every round. Last one alive takes the crown.</p>
+							</div>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-tier" id="rank_tier_tournament">—</span>
+								<span class="mode-card-rank-rating" id="rank_rating_tournament"></span>
+							</div>
+						</a>
+					</div>
 
 					<h3 class="lobby-modes-heading">Casual</h3>
 					<ul class="lobby-mode-list">
@@ -221,6 +226,46 @@
 			</div>
 
 			<p id="lobby_message" class="lobby-message" style="display:none"></p>
+		</section>
+
+		<section id="ranked_picker_view" class="view section-view" style="display:none">
+			<button id="ranked_picker_back" class="btn btn-ghost learn-back-btn" type="button">← Back to lobby</button>
+			<header class="ranked-picker-head">
+				<div class="ranked-picker-icon" id="ranked_picker_icon" aria-hidden="true"></div>
+				<div>
+					<h1 id="ranked_picker_title" class="ranked-picker-title">Sprint</h1>
+					<p id="ranked_picker_sub" class="ranked-picker-sub">10% mines · fast race</p>
+				</div>
+				<div class="ranked-picker-rating" id="ranked_picker_rating">
+					<span class="ranked-picker-rating-tier" id="ranked_picker_tier">—</span>
+					<span class="ranked-picker-rating-num" id="ranked_picker_num"></span>
+				</div>
+			</header>
+			<p id="ranked_picker_pitch" class="ranked-picker-pitch"></p>
+			<h2 class="ranked-picker-prompt">Choose your match</h2>
+			<div class="ranked-picker-options">
+				<button id="ranked_picker_duo" class="ranked-picker-option" type="button">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5" fill="currentColor"/><circle cx="16" cy="12" r="3.5" fill="currentColor"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">1v1</span>
+					<span class="ranked-picker-option-sub" id="ranked_picker_duo_sub">Head-to-head race</span>
+				</button>
+				<button id="ranked_picker_six" class="ranked-picker-option" type="button">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24">
+							<circle cx="5" cy="8" r="2.4" fill="currentColor"/>
+							<circle cx="12" cy="6" r="2.4" fill="currentColor"/>
+							<circle cx="19" cy="8" r="2.4" fill="currentColor"/>
+							<circle cx="5" cy="17" r="2.4" fill="currentColor"/>
+							<circle cx="12" cy="19" r="2.4" fill="currentColor"/>
+							<circle cx="19" cy="17" r="2.4" fill="currentColor"/>
+						</svg>
+					</span>
+					<span class="ranked-picker-option-title">6-player</span>
+					<span class="ranked-picker-option-sub" id="ranked_picker_six_sub">Free-for-all sprint</span>
+				</button>
+			</div>
 		</section>
 
 		<section id="custom_view" class="view section-view" style="display:none">
@@ -909,11 +954,9 @@ var busyRoomList = document.getElementById("busy_room_list");
 var lobbyMessage = document.getElementById("lobby_message");
 var rankedTag = document.getElementById("ranked_tag");
 var homeCards = document.getElementById("home_cards");
-var findRankedSprintDuoButton = document.getElementById("find_ranked_sprint_duo");
-var findRankedSprintSixButton = document.getElementById("find_ranked_sprint_six");
-var findRankedStandardDuoButton = document.getElementById("find_ranked_standard_duo");
-var findRankedStandardSixButton = document.getElementById("find_ranked_standard_six");
-var findRankedTournamentButton = document.getElementById("find_ranked_tournament");
+// Ranked cards are now anchor tags pointing at #/ranked/:style. The
+// router translates that into findRanked() (tournament fires
+// immediately; sprint/standard show the size picker first).
 var rankTierSprint = document.getElementById("rank_tier_sprint");
 var rankRatingSprint = document.getElementById("rank_rating_sprint");
 var rankTierSprintSix = document.getElementById("rank_tier_sprint_six");
@@ -1092,36 +1135,6 @@ document.getElementById("solo_restart").addEventListener("click", function() {
 
 // Lobby functions moved to Lobby.js.
 
-findRankedSprintDuoButton.addEventListener("click", function() { findRanked("sprint_duo"); });
-findRankedSprintSixButton.addEventListener("click", function() { findRanked("sprint_six"); });
-findRankedStandardDuoButton.addEventListener("click", function() { findRanked("standard_duo"); });
-findRankedStandardSixButton.addEventListener("click", function() { findRanked("standard_six"); });
-findRankedTournamentButton.addEventListener("click", function() { findRanked("tournament"); });
-
-// Playstyle expand/collapse — clicking the Sprint or Standard header
-// reveals the 1v1 / 6P size buttons. Only one playstyle stays open at
-// a time so the sidebar can't grow taller than the daily hero.
-Array.prototype.forEach.call(document.querySelectorAll(".lobby-mode-expandable"), function(card) {
-	var header = card.querySelector(".lobby-mode-header");
-	var sizes = card.querySelector(".lobby-mode-sizes");
-	if (!header || !sizes) return;
-	header.addEventListener("click", function() {
-		var open = header.getAttribute("aria-expanded") === "true";
-		// Collapse every expandable first, then open this one if it was closed.
-		Array.prototype.forEach.call(document.querySelectorAll(".lobby-mode-expandable"), function(other) {
-			var oh = other.querySelector(".lobby-mode-header");
-			var os = other.querySelector(".lobby-mode-sizes");
-			if (oh) oh.setAttribute("aria-expanded", "false");
-			if (os) os.hidden = true;
-			other.classList.remove("expanded");
-		});
-		if (!open) {
-			header.setAttribute("aria-expanded", "true");
-			sizes.hidden = false;
-			card.classList.add("expanded");
-		}
-	});
-});
 
 cancelRankedButton.addEventListener("click", function() {
 	socket.emit("cancel_ranked");
@@ -1436,7 +1449,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "puzzle_play_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "puzzle_play_view", "ranked_picker_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

@@ -24,6 +24,59 @@ function showNameView() {
 	setTimeout(function() { nameInput.focus(); }, 0);
 }
 
+// Sub-page that lets you pick 1v1 or 6P after choosing a Sprint /
+// Standard playstyle on the lobby. Tournament skips this and queues
+// directly; Custom has its own lobby.
+var RANKED_PICKER_META = {
+	sprint:   { title: "Sprint",   sub: "10% mines · fast race",
+		pitch: "Wide cascades, blink-fast clears. Read the open spaces and out-click your opponent.",
+		duoSub: "Head-to-head sprint", sixSub: "Free-for-all sprint", color: "#fbbf24",
+		iconPath: "M13 2L3 14h7l-1 8 10-12h-7l1-8z" },
+	standard: { title: "Standard", sub: "20% mines · deduction",
+		pitch: "Dense boards reward careful reading. Bad guesses end your match — every flag matters.",
+		duoSub: "Head-to-head deduction", sixSub: "Dense free-for-all", color: "#a78bfa",
+		iconPath: "M12 3a9 9 0 109 9 9 9 0 00-9-9zm0 4a5 5 0 11-5 5 5 5 0 015-5zm0 3a2 2 0 102 2 2 2 0 00-2-2z" }
+};
+
+function showRankedPickerView(style) {
+	var meta = RANKED_PICKER_META[style];
+	if (!meta) { location.hash = "#/"; return; }
+	hideAllViews();
+	document.getElementById("ranked_picker_view").style.display = "";
+	setSiteNavActive("home");
+	var iconEl = document.getElementById("ranked_picker_icon");
+	if (iconEl) {
+		iconEl.style.color = meta.color;
+		iconEl.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + meta.iconPath + '" fill="currentColor"/></svg>';
+	}
+	document.getElementById("ranked_picker_title").textContent = meta.title;
+	document.getElementById("ranked_picker_sub").textContent = meta.sub;
+	document.getElementById("ranked_picker_pitch").textContent = meta.pitch;
+	document.getElementById("ranked_picker_duo_sub").textContent = meta.duoSub;
+	document.getElementById("ranked_picker_six_sub").textContent = meta.sixSub;
+	// Rating displayed up top reflects this playstyle's Elo so the
+	// player sees what's on the line for the match they're about to queue.
+	var rating = null;
+	if (account) {
+		if (style === "sprint") rating = account.ratingSprint != null ? account.ratingSprint : account.rating;
+		else if (style === "standard") rating = account.ratingStandard != null ? account.ratingStandard : account.rating;
+	}
+	var tierEl = document.getElementById("ranked_picker_tier");
+	var ratingEl = document.getElementById("ranked_picker_num");
+	if (rating != null && typeof tierFor === "function") {
+		var t = tierFor(rating, account && account.provisional);
+		tierEl.textContent = t.name; tierEl.style.color = t.color;
+		ratingEl.textContent = (account && account.provisional ? "~" : "") + rating;
+	} else {
+		tierEl.textContent = "—"; ratingEl.textContent = "";
+	}
+	var duoBtn = document.getElementById("ranked_picker_duo");
+	var sixBtn = document.getElementById("ranked_picker_six");
+	duoBtn.onclick = function() { findRanked(style + "_duo"); location.hash = "#/"; };
+	sixBtn.onclick = function() { findRanked(style + "_six"); location.hash = "#/"; };
+	document.getElementById("ranked_picker_back").onclick = function() { location.hash = "#/"; };
+}
+
 function showLobbyView() {
 	hideAllViews();
 	lobbyView.style.display = "";
@@ -188,6 +241,13 @@ function applyRouteFromHash() {
 	var inGame = inGameRoutes.indexOf(hash) !== -1;
 	if (typeof music !== "undefined") {
 		if (inGame) music.resume(); else music.pause();
+	}
+	// Ranked picker: /ranked/sprint, /ranked/standard, /ranked/tournament.
+	// Tournament has no size choice so it just queues immediately.
+	if (hash.indexOf("/ranked/") === 0) {
+		var style = hash.slice("/ranked/".length);
+		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); location.hash = "#/"; return; }
+		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
