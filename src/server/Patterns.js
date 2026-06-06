@@ -145,18 +145,35 @@ function extractFirstDeductionPattern(board, state) {
 		if (m.action === "case" && m.splitCell) addCovered(m.splitCell[0], m.splitCell[1]);
 	});
 
-	// Action label: mixed if the bundle has both kinds of trivial
-	// outcomes, otherwise the single action (or "case" if any
-	// case-split is in the bundle).
-	var hasReveal = bundled.some(function(m) { return m.action === "reveal" || (m.action === "case" && (m.revealed || []).length); });
-	var hasFlag   = bundled.some(function(m) { return m.action === "flag"   || (m.action === "case" && (m.flagged   || []).length); });
-	var hasCase   = bundled.some(function(m) { return m.action === "case"; });
-	var action = hasCase ? "case" : (hasReveal && hasFlag ? "mixed" : (hasReveal ? "reveal" : "flag"));
-	var maxComplexity = 0;
-	bundled.forEach(function(m) { if (m.complexity > maxComplexity) maxComplexity = m.complexity; });
+	// Method = derivation operation of the hardest move in the bundle.
+	// For trivial derivations the root step has source="initial"; we
+	// surface that as "trivial". Case-split and enum moves have their
+	// own labels. Whether the move happened to flag, reveal, or do
+	// both falls out of the cells; we don't separate "mixed" because
+	// an overlap operation that yields cells of both kinds is still
+	// the same operation type.
+	function methodFor(m) {
+		if (m.action === "case") return "case";
+		if (m.action === "enum") return "enum";
+		if (m.derivation && m.derivation.length) {
+			var root = m.derivation[m.derivation.length - 1];
+			if (root.source === "initial") return "trivial";
+			return root.source; // "subset" | "union" | "intersect"
+		}
+		return "trivial";
+	}
+	var hardest = bundled[0];
+	for (var b = 1; b < bundled.length; b++) {
+		if (bundled[b].complexity > hardest.complexity) hardest = bundled[b];
+	}
+	var method = methodFor(hardest);
+	var maxComplexity = hardest.complexity;
+	for (var b2 = 0; b2 < bundled.length; b2++) {
+		if (bundled[b2].complexity > maxComplexity) maxComplexity = bundled[b2].complexity;
+	}
 
 	return {
-		action: action,
+		method: method,
 		complexity: maxComplexity,
 		clueCells: clueCells,
 		deducedCells: deducedCells,
@@ -199,7 +216,7 @@ function transformAndNormalize(pattern, t) {
 		clueCells: clues.map(shift),
 		deducedCells: deduced.map(shift),
 		coveredCells: covered.map(shift),
-		action: pattern.action,
+		method: pattern.method,
 		complexity: pattern.complexity
 	};
 }

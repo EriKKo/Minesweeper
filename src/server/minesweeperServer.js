@@ -708,12 +708,13 @@ function servePatterns(req, res, url) {
 	var sort = url.searchParams.get("sort") === "asc" ? "asc" : "desc";
 	var orderByRaw = url.searchParams.get("orderBy");
 	var orderBy = (orderByRaw === "occurrences" || orderByRaw === "rating") ? orderByRaw : "rating";
-	var actionRaw = url.searchParams.get("action");
-	var action = (actionRaw === "reveal" || actionRaw === "flag" || actionRaw === "mixed" || actionRaw === "case") ? actionRaw : null;
+	var methodRaw = url.searchParams.get("method");
+	var validMethod = { trivial: 1, subset: 1, union: 1, intersect: 1, case: 1, enum: 1 };
+	var method = validMethod[methodRaw] ? methodRaw : null;
 	var minRatingRaw = parseInt(url.searchParams.get("minRating"), 10);
 	var maxRatingRaw = parseInt(url.searchParams.get("maxRating"), 10);
 	var filterOpts = {
-		action: action,
+		method: method,
 		minRating: !isNaN(minRatingRaw) ? minRatingRaw : null,
 		maxRating: !isNaN(maxRatingRaw) ? maxRatingRaw : null
 	};

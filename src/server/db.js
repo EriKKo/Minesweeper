@@ -180,6 +180,9 @@ addColumnIfMissing("starting_positions", "removable_mask", "INTEGER NOT NULL DEF
 // that move deduced. Canonicalized by translation + dihedral
 // symmetry, so any starting position whose first deduction matches
 // the pattern up to position/rotation/mirror points at the same row.
+// `method` is the derivation operation (trivial / subset / intersect
+// / union / case) — not the reveal/flag/mixed distinction, since that
+// just falls out of whatever cells the operation happens to force.
 db.exec(
 	"CREATE TABLE IF NOT EXISTS patterns (" +
 	"  id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -190,13 +193,15 @@ db.exec(
 	"  clue_count INTEGER NOT NULL," +
 	"  safe_count INTEGER NOT NULL," +
 	"  mine_count INTEGER NOT NULL," +
-	"  action TEXT NOT NULL," +
+	"  method TEXT NOT NULL," +
 	"  complexity REAL NOT NULL," +
 	"  rating INTEGER NOT NULL," +
 	"  occurrence_count INTEGER NOT NULL DEFAULT 0," +
 	"  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
 	");"
 );
+// Rename action → method on any earlier-schema rows.
+try { db.exec("ALTER TABLE patterns RENAME COLUMN action TO method"); } catch (e) {}
 addColumnIfMissing("starting_positions", "pattern_id", "INTEGER");
 
 function upsertUser(provider, providerId, name, avatarUrl, email) {
@@ -585,9 +590,9 @@ function upsertPattern(p) {
 		return existing.id;
 	}
 	var info = db.prepare(
-		"INSERT INTO patterns (key, cells_json, width, height, clue_count, safe_count, mine_count, action, complexity, rating, occurrence_count) " +
+		"INSERT INTO patterns (key, cells_json, width, height, clue_count, safe_count, mine_count, method, complexity, rating, occurrence_count) " +
 		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
-	).run(p.key, p.cellsJson, p.width, p.height, p.clueCount, p.safeCount, p.mineCount, p.action, p.complexity, p.rating);
+	).run(p.key, p.cellsJson, p.width, p.height, p.clueCount, p.safeCount, p.mineCount, p.method, p.complexity, p.rating);
 	return info.lastInsertRowid;
 }
 
@@ -606,7 +611,7 @@ function listPatterns(opts) {
 	var params = [];
 	if (opts.minRating != null) { clauses.push("rating >= ?"); params.push(opts.minRating); }
 	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
-	if (opts.action) { clauses.push("action = ?"); params.push(opts.action); }
+	if (opts.method) { clauses.push("method = ?"); params.push(opts.method); }
 	var sortDir = opts.sort === "asc" ? "ASC" : "DESC";
 	var sortBy = opts.orderBy === "occurrences" ? "occurrence_count" : "rating";
 	var pageSize = Math.max(1, Math.min(500, opts.pageSize || 100));
@@ -624,7 +629,7 @@ function patternCount(opts) {
 	var params = [];
 	if (opts.minRating != null) { clauses.push("rating >= ?"); params.push(opts.minRating); }
 	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
-	if (opts.action) { clauses.push("action = ?"); params.push(opts.action); }
+	if (opts.method) { clauses.push("method = ?"); params.push(opts.method); }
 	var sql = "SELECT COUNT(*) AS n FROM patterns";
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
 	var stmt = db.prepare(sql);

@@ -14,16 +14,19 @@ var patternsListState = {
 	orderBy: "rating",
 	page: 0,
 	pageSize: 50,
-	action: null
+	method: null
 };
 
-var PATTERN_ACTION_OPTIONS = [
-	{ key: null,     label: "Any" },
-	{ key: "reveal", label: "Reveal" },
-	{ key: "flag",   label: "Flag" },
-	{ key: "mixed",  label: "Mixed" },
-	{ key: "case",   label: "Case" }
+var PATTERN_METHOD_OPTIONS = [
+	{ key: null,        label: "Any" },
+	{ key: "trivial",   label: "Trivial" },
+	{ key: "subset",    label: "Subset" },
+	{ key: "intersect", label: "Intersect" },
+	{ key: "union",     label: "Union" },
+	{ key: "case",      label: "Case" }
 ];
+
+var VALID_METHODS = { trivial: 1, subset: 1, union: 1, intersect: 1, case: 1, enum: 1 };
 
 var PATTERN_CELL_PX = 36;
 
@@ -38,15 +41,15 @@ function readPatternsStateFromHash() {
 	if (orderBy === "occurrences" || orderBy === "rating") patternsListState.orderBy = orderBy;
 	var page = parseInt(params.get("page"), 10);
 	patternsListState.page = (page > 0) ? page : 0;
-	var action = params.get("action");
-	patternsListState.action = (action === "reveal" || action === "flag" || action === "mixed" || action === "case") ? action : null;
+	var method = params.get("method");
+	patternsListState.method = VALID_METHODS[method] ? method : null;
 }
 
 function writePatternsStateToHash() {
 	var bits = [];
 	if (patternsListState.sort !== "desc") bits.push("sort=" + patternsListState.sort);
 	if (patternsListState.orderBy !== "rating") bits.push("orderBy=" + patternsListState.orderBy);
-	if (patternsListState.action) bits.push("action=" + patternsListState.action);
+	if (patternsListState.method) bits.push("method=" + patternsListState.method);
 	if (patternsListState.page) bits.push("page=" + patternsListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
 	var newHash = "#/admin/patterns" + qs;
@@ -104,32 +107,32 @@ function renderPatterns() {
 	orderWrap.appendChild(orderSelect);
 	toolbar.appendChild(orderWrap);
 
-	var actionRow = document.createElement("div");
-	actionRow.className = "puzzles-filter";
-	var actionLbl = document.createElement("span");
-	actionLbl.className = "puzzles-filter-label";
-	actionLbl.textContent = "Action";
-	actionRow.appendChild(actionLbl);
-	PATTERN_ACTION_OPTIONS.forEach(function(opt) {
+	var methodRow = document.createElement("div");
+	methodRow.className = "puzzles-filter";
+	var methodLbl = document.createElement("span");
+	methodLbl.className = "puzzles-filter-label";
+	methodLbl.textContent = "Method";
+	methodRow.appendChild(methodLbl);
+	PATTERN_METHOD_OPTIONS.forEach(function(opt) {
 		var btn = document.createElement("button");
 		btn.className = "puzzles-filter-chip";
-		btn.dataset.actionKey = opt.key == null ? "any" : opt.key;
+		btn.dataset.methodKey = opt.key == null ? "any" : opt.key;
 		btn.textContent = opt.label;
-		if (opt.key === patternsListState.action) btn.classList.add("active");
+		if (opt.key === patternsListState.method) btn.classList.add("active");
 		btn.addEventListener("click", function() {
-			patternsListState.action = opt.key;
+			patternsListState.method = opt.key;
 			patternsListState.page = 0;
 			writePatternsStateToHash();
-			actionRow.querySelectorAll(".puzzles-filter-chip").forEach(function(b) {
-				var v = b.dataset.actionKey;
+			methodRow.querySelectorAll(".puzzles-filter-chip").forEach(function(b) {
+				var v = b.dataset.methodKey;
 				var match = (v === "any" && opt.key == null) || (v === String(opt.key));
 				b.classList.toggle("active", !!match);
 			});
 			refreshPatternsList();
 		});
-		actionRow.appendChild(btn);
+		methodRow.appendChild(btn);
 	});
-	toolbar.appendChild(actionRow);
+	toolbar.appendChild(methodRow);
 
 	view.appendChild(toolbar);
 
@@ -158,7 +161,7 @@ function refreshPatternsList() {
 		"sort=" + patternsListState.sort,
 		"orderBy=" + patternsListState.orderBy
 	];
-	if (patternsListState.action) bits.push("action=" + patternsListState.action);
+	if (patternsListState.method) bits.push("method=" + patternsListState.method);
 	fetch("/api/patterns?" + bits.join("&")).then(function(r) { return r.json(); }).then(function(data) {
 		var patterns = (data && data.patterns) || [];
 		var total = data && typeof data.total === "number" ? data.total : patterns.length;
@@ -196,10 +199,10 @@ function renderPatternCard(pat) {
 	rating.className = "pattern-card-rating sp-rating-tier-" + ratingTier(pat.rating);
 	rating.textContent = pat.rating;
 	head.appendChild(rating);
-	var action = document.createElement("span");
-	action.className = "starting-pos-action starting-pos-action-" + pat.action;
-	action.textContent = pat.action;
-	head.appendChild(action);
+	var method = document.createElement("span");
+	method.className = "pattern-card-method pattern-method-" + pat.method;
+	method.textContent = pat.method;
+	head.appendChild(method);
 	card.appendChild(head);
 
 	var canvas = buildPatternCanvas(pat.width, pat.height);
