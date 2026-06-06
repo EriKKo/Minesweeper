@@ -465,6 +465,7 @@
 <script src="/Animations.js"></script>
 <script src="/Input.js"></script>
 <script src="/Sound.js"></script>
+<script src="/Music.js"></script>
 <script src="/PuzzleLab.js"></script>
 <script src="/Puzzles.js"></script>
 <script src="/PuzzlePlay.js"></script>
@@ -945,7 +946,10 @@ volumeSlider.value = String(Math.round(sound.getVolume() * 100));
 refreshMuteIcon();
 muteButton.addEventListener("click", function() {
 	sound.unlock();
-	sound.setMuted(!sound.isMuted());
+	if (typeof music !== "undefined") music.start();
+	var next = !sound.isMuted();
+	sound.setMuted(next);
+	if (typeof music !== "undefined") music.setMuted(next);
 	refreshMuteIcon();
 });
 volumeSlider.addEventListener("input", function() {

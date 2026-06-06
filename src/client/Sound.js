@@ -86,5 +86,11 @@ var sound = (function() {
 	};
 })();
 
-document.addEventListener("click", sound.unlock, { once: true });
-document.addEventListener("keydown", sound.unlock, { once: true });
+function unlockAudio() {
+	sound.unlock();
+	// Ambient music starts here too — on first gesture and only if music is
+	// available (loaded after Sound.js via the index.html script tags).
+	if (typeof music !== "undefined") music.start();
+}
+document.addEventListener("click", unlockAudio, { once: true });
+document.addEventListener("keydown", unlockAudio, { once: true });
