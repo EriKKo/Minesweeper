@@ -133,7 +133,14 @@ function renderRoomState(state) {
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;
 	document.getElementById("player_name0").textContent = ownName;
-	document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
+	// player_div is shared with puzzle play. Only toggle the "Waiting
+	// for series to start" idle overlay when we're actually viewing the
+	// multiplayer lobby — otherwise room_state ticks would fade out the
+	// puzzle board mid-play.
+	var inMpView = (location.hash === "" || location.hash === "#/" || location.hash.indexOf("#/?") === 0);
+	if (inMpView) {
+		document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
+	}
 
 	if (state.phase === "playing" && me && me.finished && !roundResultShown) {
 		showOverlay("Cleared — waiting for others", "win");

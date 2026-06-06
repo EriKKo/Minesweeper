@@ -50,6 +50,11 @@ function notePuzzleReveal(result) {
 function renderPuzzlePlay(mode) {
 	mode = mode || "rated";
 	puzzleRunMode = (mode === "streak" || mode === "storm" || mode === "daily") ? mode : null;
+	// player_div is shared with the multiplayer view, which leaves an
+	// .idle class on it during the lobby's "planning" phase. Clear it
+	// so the puzzle board isn't faded behind a "Waiting for series" tag.
+	var playerDiv = document.getElementById("player_div");
+	if (playerDiv) playerDiv.classList.remove("idle");
 	var view = document.getElementById("puzzle_play_view");
 	if (!view) return;
 	view.innerHTML = "";
