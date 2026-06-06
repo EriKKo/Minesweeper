@@ -376,14 +376,16 @@ function paintStartingPosCanvas(canvas, pos) {
 
 function drawSafeMarker(ctx, x, y, sw, sh) {
 	var cx = x + sw / 2, cy = y + sh / 2;
-	var r = Math.min(sw, sh) * 0.18;
+	var s = Math.min(sw, sh) * 0.28;
 	ctx.save();
+	ctx.strokeStyle = "#4ade80";
+	ctx.lineWidth = Math.max(2, s * 0.35);
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
 	ctx.beginPath();
-	ctx.arc(cx, cy, r, 0, Math.PI * 2);
-	ctx.fillStyle = "#4ade80";
-	ctx.fill();
-	ctx.strokeStyle = "rgba(15, 23, 42, 0.7)";
-	ctx.lineWidth = Math.max(1, r * 0.18);
+	ctx.moveTo(cx - s, cy + s * 0.05);
+	ctx.lineTo(cx - s * 0.25, cy + s * 0.65);
+	ctx.lineTo(cx + s, cy - s * 0.55);
 	ctx.stroke();
 	ctx.restore();
 }
