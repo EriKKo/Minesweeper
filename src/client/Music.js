@@ -1,15 +1,15 @@
-// Procedural smooth-jazz soundtrack for MSBattle, generated live by the
-// Web Audio API. ii-V-I-vi turnaround in C major (Dm7 - G7 - Cmaj7 -
-// A7) at ~92 BPM with swing eighth-notes. Walking bass and brushed
-// percussion always play; FM-Rhodes comping stabs and a melodic lead
-// layer in as the player gets active.
+// Procedural chiptune-style soundtrack for MSBattle, generated live by
+// the Web Audio API. Inspired by "bassloom — pixel pulse": 128 BPM in
+// A minor with an Am-F-C-G progression, pulse-wave bass on 16th notes,
+// square-wave arpeggio + lead, and a punchy kick/snare/hi-hat kit.
 //
 // Activity-adaptive: game code calls `music.pulse()` on player actions
 // (Animations.js wires this). A rolling 4s window converts the pulse
-// rate to a 0..1 intensity which scales the louder layers.
+// rate to a 0..1 intensity which scales the louder layers — fast play
+// brightens the mix and adds the lead motif on top.
 //
-// Mute/volume persist via localStorage; both the topbar 🔊 popover
-// and the dedicated `Music` slider drive them.
+// No external assets. Mute/volume persist via localStorage; both the
+// topbar 🔊 popover and the dedicated `Music` slider drive them.
 
 var music = (function() {
 	var ctx = null, master = null, masterLP = null;
@@ -22,40 +22,39 @@ var music = (function() {
 	var schedulerHandle = null;
 	var activity = [];
 
-	var BPM = 92;
-	var BEAT_S = 60 / BPM;            // 0.652s — strolling tempo
+	var BPM = 128;
+	var BEAT_S = 60 / BPM;            // 0.469s — driving but not frantic
 	var BAR_BEATS = 4;
-	var BAR_DUR = BEAT_S * BAR_BEATS; // 2.61s
-	// Swing ratio for 8th notes: first 8th gets ~66% of the beat (triplet
-	// feel), second 8th gets the remaining ~34%. The classic jazz lilt.
-	var SWING_OFFSET = BEAT_S * 0.66;
-	var LOOKAHEAD_S = 1.2;
+	var BAR_DUR = BEAT_S * BAR_BEATS; // 1.875s
+	var LOOKAHEAD_S = 1.0;
 	var ACTIVITY_WINDOW_MS = 4000;
 	var ACTIVITY_FULL_RATE = 3;
 
-	// ii-V-I-vi turnaround in C. Each bar carries: a 4-note walking-bass
-	// line through chord tones, a rootless mid-range voicing for the
-	// Rhodes comp, and the chord-scale degrees the melody can pick from.
+	// Am - F - C - G ("axis of awesome") in A minor. Each bar exposes:
+	// * bassRoot — pulse-wave bass root frequency
+	// * arp — 4-note arpeggio pattern (one note per beat, looped 4×
+	//         to give 16 sixteenth-notes per bar via repetition)
+	// * lead — 8 note phrase across the bar for the melodic lead
 	var BARS = [
-		{ // Dm7
-			walk:    [146.83, 174.61, 220.00, 261.63],   // D - F - A - C
-			voicing: [261.63, 349.23, 440.00, 523.25],   // C E A C (rootless Dm9-ish)
-			scale:   [293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33] // D dorian
+		{ // Am
+			bassRoot: 110.00,
+			arp:  [220.00, 261.63, 329.63, 440.00],            // A C E A
+			lead: [659.25, 587.33, 523.25, 587.33, 659.25, 659.25, 587.33, 523.25]
 		},
-		{ // G7
-			walk:    [196.00, 246.94, 293.66, 174.61],   // G - B - D - F
-			voicing: [246.94, 293.66, 349.23, 493.88],   // B D F B
-			scale:   [293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 587.33] // G mixolydian
+		{ // F
+			bassRoot:  87.31,
+			arp:  [174.61, 220.00, 261.63, 349.23],            // F A C F
+			lead: [523.25, 587.33, 698.46, 587.33, 523.25, 523.25, 440.00, 523.25]
 		},
-		{ // Cmaj7
-			walk:    [130.81, 164.81, 196.00, 220.00],   // C - E - G - A
-			voicing: [246.94, 329.63, 392.00, 493.88],   // B E G B
-			scale:   [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88] // C major
+		{ // C
+			bassRoot: 130.81,
+			arp:  [261.63, 329.63, 392.00, 523.25],            // C E G C
+			lead: [659.25, 698.46, 783.99, 698.46, 659.25, 587.33, 523.25, 587.33]
 		},
-		{ // A7
-			walk:    [110.00, 138.59, 164.81, 196.00],   // A - C# - E - G
-			voicing: [277.18, 329.63, 391.99, 523.25],   // C# E G C (rootless A13)
-			scale:   [293.66, 329.63, 369.99, 415.30, 440.00, 523.25, 587.33] // A mixolydian-ish
+		{ // G
+			bassRoot:  98.00,
+			arp:  [196.00, 246.94, 293.66, 392.00],            // G B D G
+			lead: [587.33, 698.46, 783.99, 698.46, 587.33, 493.88, 440.00, 493.88]
 		}
 	];
 
@@ -68,7 +67,7 @@ var music = (function() {
 		master.gain.value = muted ? 0 : volume;
 		masterLP = ctx.createBiquadFilter();
 		masterLP.type = "lowpass";
-		masterLP.frequency.value = 3000;
+		masterLP.frequency.value = 3500;
 		master.connect(masterLP);
 		masterLP.connect(ctx.destination);
 		return ctx;
@@ -86,168 +85,153 @@ var music = (function() {
 		return Math.min(1, rate / ACTIVITY_FULL_RATE);
 	}
 
-	// Upright-bass-ish pluck: triangle + low-pass + soft attack + decay.
-	function walkBass(freq, t, dur, gain) {
+	// Pulse-wave bass — square with a quick filter envelope for that
+	// "doof" attack. Each hit is short so 16th-notes pump cleanly.
+	function pulseBass(freq, t, dur, gain) {
 		var osc = ctx.createOscillator();
-		osc.type = "triangle";
+		osc.type = "square";
 		osc.frequency.value = freq;
 		var filt = ctx.createBiquadFilter();
 		filt.type = "lowpass";
-		filt.frequency.value = 380;
+		filt.frequency.setValueAtTime(900, t);
+		filt.frequency.exponentialRampToValueAtTime(280, t + dur * 0.7);
 		var g = ctx.createGain();
 		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + 0.02);
-		g.gain.linearRampToValueAtTime(gain * 0.45, t + dur * 0.4);
+		g.gain.linearRampToValueAtTime(gain, t + 0.003);
 		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
 		osc.connect(filt); filt.connect(g); g.connect(master);
 		osc.start(t); osc.stop(t + dur + 0.02);
 	}
 
-	// Rhodes-style electric piano via FM synthesis. The modulator at the
-	// carrier's frequency gives that bell-like bite; the modulation index
-	// drops fast for the soft body underneath.
-	function rhodesNote(freq, t, dur, gain) {
-		var carrier = ctx.createOscillator();
-		var modulator = ctx.createOscillator();
-		var modGain = ctx.createGain();
-		carrier.type = "sine";
-		modulator.type = "sine";
-		carrier.frequency.value = freq;
-		modulator.frequency.value = freq;
-		// FM depth: sharp at attack, fades through note for that pluck.
-		modGain.gain.setValueAtTime(freq * 3.5, t);
-		modGain.gain.exponentialRampToValueAtTime(freq * 0.2, t + 0.18);
-		modulator.connect(modGain);
-		modGain.connect(carrier.frequency);
-		var g = ctx.createGain();
-		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + 0.005);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-		carrier.connect(g); g.connect(master);
-		carrier.start(t); carrier.stop(t + dur + 0.02);
-		modulator.start(t); modulator.stop(t + dur + 0.02);
-	}
-
-	function rhodesStab(freqs, t, dur, gain) {
-		// Slight stagger gives the comp a more played-by-hand feel.
-		for (var i = 0; i < freqs.length; i++) {
-			rhodesNote(freqs[i], t + i * 0.004, dur, gain);
-		}
-	}
-
-	// Brushed snare/cymbal — filtered noise with a soft envelope.
-	function brush(t, dur, gain, lowpass) {
-		var samples = Math.floor(ctx.sampleRate * dur);
-		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
-		var data = buf.getChannelData(0);
-		for (var i = 0; i < samples; i++) {
-			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 1.3);
-		}
-		var src = ctx.createBufferSource(); src.buffer = buf;
-		var lp = ctx.createBiquadFilter();
-		lp.type = "lowpass"; lp.frequency.value = lowpass || 6000;
-		var hp = ctx.createBiquadFilter();
-		hp.type = "highpass"; hp.frequency.value = 1200;
-		var g = ctx.createGain();
-		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + 0.01);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-		src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(master);
-		src.start(t);
-	}
-
-	function leadNote(freq, t, dur, gain) {
+	// Square-wave melodic voice — NES-style with a touch of vibrato
+	// at the tail for that "wavering" chiptune lead feel.
+	function squareLead(freq, t, dur, gain) {
 		var osc = ctx.createOscillator();
-		osc.type = "sine";
+		osc.type = "square";
 		osc.frequency.value = freq;
-		// Light vibrato for a more "blown" or "sung" feel.
+		// Subtle vibrato kicking in after the attack.
 		var vib = ctx.createOscillator();
 		var vibGain = ctx.createGain();
-		vib.frequency.value = 5.5;
-		vibGain.gain.value = freq * 0.008;
+		vib.frequency.value = 6.5;
+		vibGain.gain.setValueAtTime(0, t);
+		vibGain.gain.linearRampToValueAtTime(freq * 0.012, t + dur * 0.4);
 		vib.connect(vibGain); vibGain.connect(osc.frequency);
 		var g = ctx.createGain();
 		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + 0.04);
-		g.gain.linearRampToValueAtTime(gain * 0.7, t + dur * 0.6);
+		g.gain.linearRampToValueAtTime(gain, t + 0.01);
+		g.gain.linearRampToValueAtTime(gain * 0.75, t + dur * 0.6);
 		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
 		osc.connect(g); g.connect(master);
 		osc.start(t); osc.stop(t + dur + 0.02);
 		vib.start(t); vib.stop(t + dur + 0.02);
 	}
 
-	// Swing-aware time for the i-th 8th note from a beat start (0 = down,
-	// 1 = "and" with swing).
-	function swing8(beatStart, eighthIdx) {
-		return beatStart + (eighthIdx === 0 ? 0 : SWING_OFFSET);
+	// Triangle-wave arpeggio — fast notes, very short. NES classic.
+	function triangleArp(freq, t, dur, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "triangle";
+		osc.frequency.value = freq;
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.002);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + dur + 0.02);
 	}
 
-	function pickMelodyPhrase(scale, prev) {
-		// 4 quarter-note positions, but each can carry a swung 8th-note
-		// pair when intensity is high. Pick mostly stepwise motion from
-		// the previous note for a singable line.
-		var phrase = [];
-		var idx = prev != null ? prev : Math.floor(scale.length / 2);
-		for (var i = 0; i < 4; i++) {
-			var step = Math.floor(Math.random() * 3) - 1; // -1, 0, +1
-			idx = Math.max(0, Math.min(scale.length - 1, idx + step));
-			phrase.push({ note: scale[idx], scaleIdx: idx });
+	function kick(t, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "sine";
+		osc.frequency.setValueAtTime(160, t);
+		osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.004);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + 0.2);
+	}
+
+	function snare(t, gain) {
+		var dur = 0.14;
+		var samples = Math.floor(ctx.sampleRate * dur);
+		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < samples; i++) {
+			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 1.5);
 		}
-		return phrase;
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var bp = ctx.createBiquadFilter();
+		bp.type = "bandpass"; bp.frequency.value = 2000; bp.Q.value = 0.8;
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.003);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		src.connect(bp); bp.connect(g); g.connect(master);
+		src.start(t);
 	}
 
-	var lastMelodyIdx = null;
+	function hihat(t, gain) {
+		var dur = 0.04;
+		var samples = Math.floor(ctx.sampleRate * dur);
+		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < samples; i++) {
+			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 3);
+		}
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var hp = ctx.createBiquadFilter();
+		hp.type = "highpass"; hp.frequency.value = 7500;
+		var g = ctx.createGain(); g.gain.value = gain;
+		src.connect(hp); hp.connect(g); g.connect(master);
+		src.start(t);
+	}
 
 	function scheduleBar(t) {
 		var bar = BARS[barIdx];
 		var intens = intensity();
 
 		if (masterLP) {
-			masterLP.frequency.linearRampToValueAtTime(2800 + 3000 * intens, t + BAR_DUR);
+			masterLP.frequency.linearRampToValueAtTime(2800 + 3500 * intens, t + BAR_DUR);
 		}
 
-		// Walking bass — quarter notes through chord tones every bar.
-		var bassGain = 0.18 + 0.04 * intens;
-		for (var b = 0; b < BAR_BEATS; b++) {
-			walkBass(bar.walk[b], t + b * BEAT_S, BEAT_S * 0.92, bassGain);
+		// 16th-note pulse-wave bass on the root. The accent on the
+		// downbeats gives the "boom-pop-boom-pop" pump.
+		var bassGain = 0.18 + 0.06 * intens;
+		var sixteenth = BEAT_S * 0.25;
+		for (var s = 0; s < 16; s++) {
+			var accent = (s % 4 === 0) ? 1.0 : (s % 2 === 0 ? 0.55 : 0.4);
+			pulseBass(bar.bassRoot, t + s * sixteenth, sixteenth * 0.85, bassGain * accent);
 		}
 
-		// Brushes — soft "tss" on every beat, slightly accented on 2 and 4
-		// for a relaxed jazz drum feel. Always present.
-		for (var br = 0; br < BAR_BEATS; br++) {
-			var accent = (br === 1 || br === 3) ? 1 : 0.6;
-			brush(t + br * BEAT_S, 0.18, 0.025 * accent + 0.012 * intens, 7000);
+		// Triangle arpeggio — 8 sixteenths per bar (every other 16th),
+		// climbing through the chord tones. Always on.
+		var arpGain = 0.07 + 0.04 * intens;
+		for (var a = 0; a < 8; a++) {
+			var note = bar.arp[a % bar.arp.length];
+			// Octave-up jumps on alternate hits for sparkle when intense.
+			if (intens > 0.55 && a % 2 === 1) note *= 2;
+			triangleArp(note, t + a * sixteenth * 2, sixteenth * 1.6, arpGain);
 		}
 
-		// Comping stabs — Rhodes voicing on the "and of 2" and "and of 4"
-		// with swing. Always present, slightly louder with intensity.
-		var compGain = 0.07 + 0.05 * intens;
-		rhodesStab(bar.voicing, swing8(t + 1 * BEAT_S, 1), 0.45, compGain);
-		rhodesStab(bar.voicing, swing8(t + 3 * BEAT_S, 1), 0.45, compGain);
+		// Drums — 4-on-the-floor kick, snare back-beat, hi-hat 8ths.
+		var kickGain = 0.20 + 0.08 * intens;
+		for (var b = 0; b < BAR_BEATS; b++) kick(t + b * BEAT_S, kickGain);
+		var snareGain = 0.07 + 0.08 * intens;
+		snare(t + 1 * BEAT_S, snareGain);
+		snare(t + 3 * BEAT_S, snareGain);
+		var hatGain = 0.015 + 0.020 * intens;
+		for (var h = 0; h < 8; h++) {
+			hihat(t + h * BEAT_S * 0.5, hatGain * (h % 2 === 1 ? 1.2 : 0.7));
+		}
 
-		// Soft ghost notes / shaker pattern on the swung 8ths past 0.25
-		// intensity — fills the rhythmic gaps so the groove pushes forward.
-		if (intens > 0.25) {
-			var ghostGain = 0.005 + 0.012 * (intens - 0.25);
-			for (var bb = 0; bb < BAR_BEATS; bb++) {
-				brush(swing8(t + bb * BEAT_S, 1), 0.07, ghostGain, 4500);
+		// Square-wave lead — fades in past intensity 0.3. 8 notes
+		// spread across the bar (8th-note resolution).
+		if (intens > 0.3) {
+			var leadGain = 0.05 + 0.08 * (intens - 0.3);
+			for (var n = 0; n < 8; n++) {
+				squareLead(bar.lead[n], t + n * BEAT_S * 0.5, BEAT_S * 0.45, leadGain);
 			}
-		}
-
-		// Melodic lead — joins past intensity 0.35. Quarter notes following
-		// the chord scale, with stepwise motion from the previous phrase.
-		if (intens > 0.35) {
-			var leadGain = 0.06 + 0.06 * (intens - 0.35);
-			var phrase = pickMelodyPhrase(bar.scale, lastMelodyIdx);
-			for (var n = 0; n < 4; n++) {
-				leadNote(phrase[n].note, t + n * BEAT_S, BEAT_S * 0.9, leadGain);
-				// At high intensity, sprinkle a passing 8th on some beats.
-				if (intens > 0.7 && Math.random() < 0.4) {
-					var passingIdx = Math.max(0, Math.min(bar.scale.length - 1, phrase[n].scaleIdx + 1));
-					leadNote(bar.scale[passingIdx], swing8(t + n * BEAT_S, 1), BEAT_S * 0.35, leadGain * 0.7);
-				}
-			}
-			lastMelodyIdx = phrase[3].scaleIdx;
 		}
 
 		barIdx = (barIdx + 1) % BARS.length;
@@ -267,9 +251,9 @@ var music = (function() {
 		if (ctx.state === "suspended") ctx.resume();
 		if (started) return;
 		started = true;
-		nextBarTime = ctx.currentTime + 0.3;
+		nextBarTime = ctx.currentTime + 0.25;
 		scheduleAhead();
-		schedulerHandle = setInterval(scheduleAhead, 500);
+		schedulerHandle = setInterval(scheduleAhead, 400);
 	}
 
 	function setMuted(m) {
