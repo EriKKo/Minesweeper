@@ -70,6 +70,47 @@ function popcount(x) {
 	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
 }
 
+// Dihedral-8 symmetry on the 3x3 boundary tuple. Tuple positions
+// correspond to boundary cells in clockwise order from (1,1):
+// indices 0..7 = (1,1), (1,2), (1,3), (2,3), (3,3), (3,2), (3,1), (2,1).
+// A 90° clockwise board rotation maps cell (1,1) to (1,3), so the
+// rotated tuple's index 0 is the original tuple's index 6. The full
+// rotation thus shifts the tuple by 2 positions (one corner+edge).
+function rotate90CW(t) {
+	return [t[6], t[7], t[0], t[1], t[2], t[3], t[4], t[5]];
+}
+// Horizontal flip swaps the two sides while leaving the vertical
+// midline fixed.
+function hflip(t) {
+	return [t[2], t[1], t[0], t[7], t[6], t[5], t[4], t[3]];
+}
+
+// Return the lexicographically smallest of the eight dihedral
+// variants of `t`. Use this as the canonical key when storing
+// patterns so symmetric duplicates collapse to a single row.
+function canonical3x3(t) {
+	var best = t;
+	var current = t;
+	for (var i = 0; i < 3; i++) {
+		current = rotate90CW(current);
+		if (compareTuple(current, best) < 0) best = current;
+	}
+	current = hflip(t);
+	if (compareTuple(current, best) < 0) best = current;
+	for (var j = 0; j < 3; j++) {
+		current = rotate90CW(current);
+		if (compareTuple(current, best) < 0) best = current;
+	}
+	return best;
+}
+
+function compareTuple(a, b) {
+	for (var i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) return a[i] - b[i];
+	}
+	return 0;
+}
+
 // Brute-force every mine arrangement of the 16-cell outer ring and
 // return solution count plus per-cell "always-mine" / "always-safe"
 // stats. Returns null if no arrangement is consistent with the clues.
@@ -134,6 +175,7 @@ function enumerate3x3() {
 	var total = 0;
 	var inconsistent = 0;
 	var noForcedSafe = 0;
+	var nonCanonical = 0;
 	for (var c1 = 1; c1 <= 5; c1++)
 	for (var c2 = 1; c2 <= 5; c2++)
 	for (var c3 = 1; c3 <= 5; c3++)
@@ -146,6 +188,11 @@ function enumerate3x3() {
 		// Order matches BOUNDARY_3x3: (1,1)=c1, (1,2)=e1, (1,3)=c2, (2,3)=e2,
 		// (3,3)=c3, (3,2)=e3, (3,1)=c4, (2,1)=e4
 		var clues = [c1, e1, c2, e2, c3, e3, c4, e4];
+		// Skip any tuple that isn't the lex-smallest of its dihedral
+		// orbit — the canonical representative carries the same
+		// information and avoids storing 8 symmetric duplicates.
+		var canon = canonical3x3(clues);
+		if (compareTuple(clues, canon) !== 0) { nonCanonical++; continue; }
 		var bf = bruteForce3x3(clues);
 		if (!bf) { inconsistent++; continue; }
 		if (bf.forcedSafe === 0) { noForcedSafe++; continue; }
@@ -169,6 +216,7 @@ function enumerate3x3() {
 		total: total,
 		inconsistent: inconsistent,
 		noForcedSafe: noForcedSafe,
+		nonCanonical: nonCanonical,
 		records: records
 	};
 }
@@ -176,5 +224,6 @@ function enumerate3x3() {
 module.exports = {
 	enumerate3x3: enumerate3x3,
 	bruteForce3x3: bruteForce3x3,
-	rate3x3: rate3x3
+	rate3x3: rate3x3,
+	canonical3x3: canonical3x3
 };

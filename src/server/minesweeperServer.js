@@ -109,6 +109,7 @@ function handler (req, res) {
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
 	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
+	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
@@ -665,6 +666,20 @@ function servePuzzlesClear(req, res, url) {
 	puzzleJob = null;
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ ok: true }));
+}
+
+// Browse enumerated starting positions. Paged list with optional
+// size filter and sort direction.
+function serveStartingPositions(req, res, url) {
+	var page = parseInt(url.searchParams.get("page"), 10) || 0;
+	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
+	var sort = url.searchParams.get("sort") === "desc" ? "desc" : "asc";
+	var size = parseInt(url.searchParams.get("size"), 10);
+	var sizeFilter = (size >= 3 && size <= 9) ? size : null;
+	var positions = db.listStartingPositions({ size: sizeFilter, page: page, pageSize: pageSize, sort: sort });
+	var total = db.startingPositionCount(sizeFilter);
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ positions: positions, total: total, page: page, pageSize: pageSize }));
 }
 
 // Aggregate stats for the All-Puzzles dashboard.

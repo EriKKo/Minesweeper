@@ -349,6 +349,7 @@
 		<section id="admin_view" class="view section-view" style="display:none"></section>
 		<section id="puzzles_view" class="view section-view" style="display:none"></section>
 		<section id="puzzles_list_view" class="view section-view" style="display:none"></section>
+		<section id="starting_positions_view" class="view section-view" style="display:none"></section>
 		<section id="puzzle_play_view" class="view section-view" style="display:none"></section>
 
 		<section id="game_view" class="view game-view" style="display:none">
@@ -560,6 +561,7 @@
 <script src="/Music.js"></script>
 <script src="/PuzzleLab.js"></script>
 <script src="/Puzzles.js"></script>
+<script src="/StartingPositionsView.js"></script>
 <script src="/PuzzlePlay.js"></script>
 <script src="/Overlay.js"></script>
 <script src="/RoundTimer.js"></script>
@@ -1456,7 +1458,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "puzzle_play_view", "ranked_picker_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "starting_positions_view", "puzzle_play_view", "ranked_picker_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

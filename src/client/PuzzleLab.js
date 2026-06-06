@@ -72,6 +72,12 @@ function renderAdminLanding() {
 		"Browse pool",
 		"#/admin/puzzles"
 	));
+	cards.appendChild(makeAdminCard(
+		"Starting positions",
+		"Enumerated cascade patterns rated by analyzer difficulty.",
+		"Browse positions",
+		"#/admin/starting-positions"
+	));
 	view.appendChild(cards);
 }
 
