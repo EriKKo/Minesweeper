@@ -139,6 +139,25 @@ db.exec(
 	"  solved INTEGER NOT NULL," +
 	"  attempted_at INTEGER NOT NULL," +
 	"  PRIMARY KEY (user_id, date)" +
+	");" +
+	// Starting positions: enumerated cascade patterns with at least one
+	// forced-safe outside cell. `pattern` is the 8-tuple of boundary
+	// clue values (clockwise from top-left) joined with dots, e.g.
+	// "1.1.1.1.1.1.1.1". `size` is the cascade dimension (3 = 3x3
+	// cascade in a 5x5 board); future bigger cascades can live in
+	// the same table with size>3.
+	"CREATE TABLE IF NOT EXISTS starting_positions (" +
+	"  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+	"  size INTEGER NOT NULL," +
+	"  pattern TEXT NOT NULL," +
+	"  solutions INTEGER NOT NULL," +
+	"  forced_safe INTEGER NOT NULL," +
+	"  forced_mine INTEGER NOT NULL," +
+	"  first_action TEXT NOT NULL," +
+	"  first_complexity REAL NOT NULL," +
+	"  rating INTEGER NOT NULL," +
+	"  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))," +
+	"  UNIQUE(size, pattern)" +
 	");"
 );
 
@@ -471,6 +490,46 @@ function clearPuzzles() {
 	db.exec("DELETE FROM puzzles");
 }
 
+function insertStartingPosition(p) {
+	try {
+		var info = db.prepare(
+			"INSERT INTO starting_positions " +
+			"(size, pattern, solutions, forced_safe, forced_mine, first_action, first_complexity, rating) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.firstAction, p.firstComplexity, p.rating);
+		return info.lastInsertRowid;
+	} catch (e) {
+		// UNIQUE constraint — pattern already exists for this size.
+		if (/UNIQUE/.test(e.message)) return null;
+		throw e;
+	}
+}
+
+function clearStartingPositions(size) {
+	if (size != null) db.prepare("DELETE FROM starting_positions WHERE size = ?").run(size);
+	else db.exec("DELETE FROM starting_positions");
+}
+
+function listStartingPositions(opts) {
+	opts = opts || {};
+	var clauses = [];
+	var params = [];
+	if (opts.size != null) { clauses.push("size = ?"); params.push(opts.size); }
+	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
+	var pageSize = Math.max(1, Math.min(500, opts.pageSize || 100));
+	var page = Math.max(0, opts.page || 0);
+	var sql = "SELECT * FROM starting_positions";
+	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	sql += " ORDER BY rating " + sortDir + ", id " + sortDir + " LIMIT ? OFFSET ?";
+	params.push(pageSize, page * pageSize);
+	return db.prepare(sql).all.apply(db.prepare(sql), params);
+}
+
+function startingPositionCount(size) {
+	if (size != null) return db.prepare("SELECT COUNT(*) AS n FROM starting_positions WHERE size = ?").get(size).n;
+	return db.prepare("SELECT COUNT(*) AS n FROM starting_positions").get().n;
+}
+
 function getPuzzleById(id) {
 	var row = db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id);
 	return row ? deserializePuzzle(row) : null;
@@ -693,5 +752,10 @@ module.exports = {
 	recordDailyAttempt: recordDailyAttempt,
 	dailyStreakForUser: dailyStreakForUser,
 	legacyPuzzleRows: legacyPuzzleRows,
-	applyPuzzleClassification: applyPuzzleClassification
+	applyPuzzleClassification: applyPuzzleClassification,
+	// Starting positions
+	insertStartingPosition: insertStartingPosition,
+	clearStartingPositions: clearStartingPositions,
+	listStartingPositions: listStartingPositions,
+	startingPositionCount: startingPositionCount
 };
