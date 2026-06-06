@@ -345,9 +345,32 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	else if (maxC <= 10.0) difficulty = 5;
 	else difficulty = 6;
 
+	// Highest-tier CSP op the analyzer needed for this puzzle.
+	// Ordering: trivial < subset < union < intersect < case < enum.
+	var methodOrder = { trivial: 0, subset: 1, union: 2, intersect: 3, case: 4, enum: 5 };
+	var cspMethod = "trivial";
 	var needsCaseSplit = false;
 	for (var mi = 0; mi < (cspResult.moves || []).length; mi++) {
-		if (cspResult.moves[mi].action === "case") { needsCaseSplit = true; break; }
+		var mv = cspResult.moves[mi];
+		if (mv.action === "case") {
+			needsCaseSplit = true;
+			if (methodOrder[cspMethod] < methodOrder["case"]) cspMethod = "case";
+			continue;
+		}
+		if (mv.action === "enum") {
+			if (methodOrder[cspMethod] < methodOrder["enum"]) cspMethod = "enum";
+			continue;
+		}
+		// Regular CSP move — look at derivation steps for the hardest op
+		// used to derive the trivial clue.
+		if (mv.derivation) {
+			for (var di = 0; di < mv.derivation.length; di++) {
+				var src = mv.derivation[di].source;
+				if (src && methodOrder[src] != null && methodOrder[cspMethod] < methodOrder[src]) {
+					cspMethod = src;
+				}
+			}
+		}
 	}
 	return {
 		solved: solved,
@@ -356,6 +379,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
 		maxEnumSize: maxEnumSize,
 		needsCaseSplit: needsCaseSplit,
+		cspMethod: cspMethod,
 		cspMaxComplexity: Math.round(maxC * 10) / 10,
 		cspTotalComplexity: Math.round(totalC * 10) / 10
 	};

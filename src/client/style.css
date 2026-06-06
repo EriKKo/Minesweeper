@@ -2681,11 +2681,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .puzzles-stats-stack { display: flex; height: 100%; border-radius: 0.18rem; overflow: hidden; }
 .puzzles-stats-seg { display: block; height: 100%; }
-.puzzles-stats-seg-trivial { background: #475569; }
-.puzzles-stats-seg-subset  { background: #6366f1; }
-.puzzles-stats-seg-overlap { background: #8b5cf6; }
-.puzzles-stats-seg-chain   { background: #ec4899; }
-.puzzles-stats-seg-enum    { background: #f59e0b; }
+.puzzles-stats-seg-trivial   { background: #475569; }
+.puzzles-stats-seg-subset    { background: #6366f1; }
+.puzzles-stats-seg-union     { background: #8b5cf6; }
+.puzzles-stats-seg-intersect { background: #ec4899; }
+.puzzles-stats-seg-case      { background: #c084fc; }
+.puzzles-stats-seg-enum      { background: #f59e0b; }
 .puzzles-stats-value {
 	min-width: 2.5rem; text-align: right;
 	color: var(--text); font-variant-numeric: tabular-nums; flex-shrink: 0;

@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 15;
+var CURRENT_SCORING_VERSION = 16;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -94,6 +94,10 @@ addColumnIfMissing("puzzles", "chain_passes", "INTEGER NOT NULL DEFAULT 0");
 // Set to 1 when the CSP analyzer fell back to case-split for at least
 // one move — used by the All Puzzles "Case" filter.
 addColumnIfMissing("puzzles", "needs_case_split", "INTEGER NOT NULL DEFAULT 0");
+// The hardest CSP op the analyzer needed for this puzzle. One of:
+// "trivial" (no derivation), "subset", "union", "intersect", "case",
+// "enum". Drives the method filter; reset on every (re)classification.
+addColumnIfMissing("puzzles", "csp_method", "TEXT NOT NULL DEFAULT 'trivial'");
 // Bumped whenever the scoring formula changes. The startup backfill picks
 // up rows whose stored version is below CURRENT_SCORING_VERSION and
 // re-analyzes them.
@@ -245,8 +249,8 @@ function insertPuzzle(p) {
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
 		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, " +
-		" needs_case_split, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" needs_case_split, csp_method, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -258,6 +262,7 @@ function insertPuzzle(p) {
 		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
 		p.needsCaseSplit ? 1 : 0,
+		p.cspMethod || "trivial",
 		CURRENT_SCORING_VERSION,
 		Date.now()
 	);
@@ -284,6 +289,8 @@ function deserializePuzzle(row) {
 			enum: row.enum_passes
 		},
 		maxEnumSize: row.max_enum_size,
+		cspMethod: row.csp_method || "trivial",
+		needsCaseSplit: !!row.needs_case_split,
 		attempts: row.attempts,
 		solves: row.solves
 	};
@@ -314,14 +321,17 @@ function methodClause(method) {
 	// overlap_passes can be 0 (no overlap deductions) or -1 (legacy row,
 	// pre-overlap classification — treat as "we don't know", so include it
 	// in any non-overlap-specific bucket).
-	if (method === "trivial") return "subset_passes = 0 AND (overlap_passes <= 0) AND chain_passes = 0 AND enum_passes = 0";
-	if (method === "subset")  return "subset_passes > 0 AND (overlap_passes <= 0) AND chain_passes = 0 AND enum_passes = 0";
-	if (method === "overlap") return "overlap_passes > 0 AND chain_passes = 0 AND enum_passes = 0";
-	if (method === "chain")   return "chain_passes > 0 AND enum_passes = 0";
-	if (method === "enum")    return "enum_passes > 0";
-	// "case" filter is orthogonal to the pass-tag classification — it's set
-	// when the CSP analyzer needed a case-split for at least one move.
-	if (method === "case")    return "needs_case_split = 1";
+	// Filter on the CSP analyzer's hardest-op tag. Old pass-tag columns
+	// (subset_passes / overlap_passes / chain_passes / enum_passes) are
+	// retained but no longer drive the filter, since they reflected the
+	// pre-CSP pass-based analyzer's path through a puzzle, not the proof
+	// the current solver actually constructs.
+	if (method === "trivial")   return "csp_method = 'trivial'";
+	if (method === "subset")    return "csp_method = 'subset'";
+	if (method === "union")     return "csp_method = 'union'";
+	if (method === "intersect") return "csp_method = 'intersect'";
+	if (method === "case")      return "csp_method = 'case'";
+	if (method === "enum")      return "csp_method = 'enum'";
 	return null;
 }
 
@@ -381,11 +391,12 @@ function puzzleStats() {
 	).all();
 	var tierRows = db.prepare(
 		"SELECT difficulty AS tier, " +
-		"  SUM(CASE WHEN subset_passes = 0 AND overlap_passes <= 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS trivial, " +
-		"  SUM(CASE WHEN subset_passes > 0 AND overlap_passes <= 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS subset, " +
-		"  SUM(CASE WHEN overlap_passes > 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS overlap, " +
-		"  SUM(CASE WHEN chain_passes > 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS chain, " +
-		"  SUM(CASE WHEN enum_passes > 0 THEN 1 ELSE 0 END) AS enum_, " +
+		"  SUM(CASE WHEN csp_method = 'trivial'   THEN 1 ELSE 0 END) AS trivial, " +
+		"  SUM(CASE WHEN csp_method = 'subset'    THEN 1 ELSE 0 END) AS subset, " +
+		"  SUM(CASE WHEN csp_method = 'union'     THEN 1 ELSE 0 END) AS union_, " +
+		"  SUM(CASE WHEN csp_method = 'intersect' THEN 1 ELSE 0 END) AS intersect_, " +
+		"  SUM(CASE WHEN csp_method = 'case'      THEN 1 ELSE 0 END) AS case_, " +
+		"  SUM(CASE WHEN csp_method = 'enum'      THEN 1 ELSE 0 END) AS enum_, " +
 		"  COUNT(*) AS n " +
 		"FROM puzzles GROUP BY difficulty ORDER BY difficulty"
 	).all();
@@ -401,7 +412,9 @@ function puzzleStats() {
 		total: total,
 		ratingHistogram: ratingRows.map(function(r) { return { bucket: r.bucket, n: r.n }; }),
 		tierBreakdown: tierRows.map(function(r) {
-			return { tier: r.tier, n: r.n, trivial: r.trivial, subset: r.subset, overlap: r.overlap, chain: r.chain, enum: r.enum_ };
+			return { tier: r.tier, n: r.n,
+				trivial: r.trivial, subset: r.subset, union: r.union_,
+				intersect: r.intersect_, case: r.case_, enum: r.enum_ };
 		}),
 		sizeMix: sizeRows.map(function(r) { return { size: r.size, n: r.n }; }),
 		densityMix: densityRows.map(function(r) { return { bucket: r.bucket, n: r.n }; }),
@@ -583,7 +596,7 @@ function applyPuzzleClassification(id, analysis) {
 	db.prepare(
 		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
 		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, chain_passes = ?, enum_passes = ?, " +
-		"max_enum_size = ?, needs_case_split = ?, scoring_version = ? " +
+		"max_enum_size = ?, needs_case_split = ?, csp_method = ?, scoring_version = ? " +
 		"WHERE id = ?"
 	).run(
 		analysis.difficulty,
@@ -596,6 +609,7 @@ function applyPuzzleClassification(id, analysis) {
 		analysis.passes.enum || 0,
 		analysis.maxEnumSize || 0,
 		analysis.needsCaseSplit ? 1 : 0,
+		analysis.cspMethod || "trivial",
 		CURRENT_SCORING_VERSION,
 		id
 	);

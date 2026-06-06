@@ -36,7 +36,7 @@ function readPuzzleListStateFromHash() {
 	var diff = parseInt(params.get("diff"), 10);
 	puzzleListState.diff = (diff >= 1 && diff <= 6) ? diff : null;
 	var method = params.get("method");
-	puzzleListState.method = (method === "trivial" || method === "subset" || method === "overlap" || method === "chain" || method === "enum" || method === "case") ? method : null;
+	puzzleListState.method = (method === "trivial" || method === "subset" || method === "union" || method === "intersect" || method === "case" || method === "enum") ? method : null;
 	var score = params.get("score");
 	var validBand = SCORE_BANDS.some(function(b) { return b.key === score; });
 	puzzleListState.scoreBand = (validBand && score) ? score : null;
@@ -140,12 +140,12 @@ function renderPuzzlesList() {
 	methodRow.appendChild(methodLabel);
 	[
 		{ key: null, label: "Any" },
-		{ key: "trivial", label: "Trivial only" },
+		{ key: "trivial", label: "Trivial" },
 		{ key: "subset", label: "Subset" },
-		{ key: "overlap", label: "Overlap" },
-		{ key: "chain", label: "Chain" },
-		{ key: "enum", label: "Enum required" },
-		{ key: "case", label: "Needs case-split" }
+		{ key: "union", label: "Union" },
+		{ key: "intersect", label: "Intersection" },
+		{ key: "case", label: "Case-split" },
+		{ key: "enum", label: "Enum" }
 	].forEach(function(opt) {
 		var btn = document.createElement("button");
 		btn.className = "puzzles-filter-chip";
@@ -328,7 +328,7 @@ function buildTierChart(tiers, total) {
 	var tbl = document.createElement("div");
 	tbl.className = "puzzles-stats-chart";
 	var max = maxOf(tiers, function(t) { return t.n; });
-	var methodKeys = ["trivial", "subset", "overlap", "chain", "enum"];
+	var methodKeys = ["trivial", "subset", "union", "intersect", "case", "enum"];
 	tiers.forEach(function(t) {
 		var row = document.createElement("div");
 		row.className = "puzzles-stats-row";
