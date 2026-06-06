@@ -261,9 +261,14 @@ function scoreToRating(score) {
 function generatePuzzles(opts) {
 	opts = opts || {};
 	var count = opts.count || 50;
-	var attemptsPerPuzzle = opts.attempts || (opts.targetRating != null ? 60 : 30);
 	var targetRating = (typeof opts.targetRating === "number") ? opts.targetRating : null;
-	var ratingWindow = (typeof opts.ratingWindow === "number") ? opts.ratingWindow : 250;
+	// At high targets the natural distribution from max-bias construction
+	// tapers off (intersect-method tops out around 2000), so scale both
+	// the per-puzzle attempt budget and the accept window up with the
+	// requested rating to keep yield reasonable.
+	var hardness = (targetRating != null) ? Math.max(0, targetRating - 1000) / 1000 : 0;
+	var attemptsPerPuzzle = opts.attempts || (targetRating != null ? Math.round(60 + 240 * hardness) : 30);
+	var ratingWindow = (typeof opts.ratingWindow === "number") ? opts.ratingWindow : Math.round(250 + 200 * hardness);
 	var ambiguityBias = (typeof opts.ambiguityBias === "number")
 		? opts.ambiguityBias
 		: ambiguityBiasForRating(targetRating);
