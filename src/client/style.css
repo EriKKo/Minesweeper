@@ -2877,3 +2877,50 @@ body.touch .find-next-arrow { display: inline-flex; }
 .lobby-daily-hero.daily-missed .lobby-daily-preview {
 	opacity: 0.55;
 }
+
+/* Expandable playstyle cards. Header is a click target; the size
+   picker (1v1 / 6-player) lives in a hidden region that animates open. */
+.lobby-mode-expandable {
+	display: block;
+	padding: 0;
+	overflow: hidden;
+}
+.lobby-mode-header {
+	width: 100%;
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 0.9rem;
+	align-items: center;
+	padding: 0.7rem 0.9rem;
+	background: transparent;
+	border: none;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.lobby-mode-header:hover { background: rgba(99, 102, 241, 0.06); }
+.lobby-mode-chevron {
+	color: var(--muted);
+	font-size: 0.9rem;
+	transition: transform 0.2s;
+	min-width: 1rem;
+	text-align: center;
+}
+.lobby-mode-expandable.expanded .lobby-mode-chevron { transform: rotate(180deg); color: var(--accent); }
+.lobby-mode-expandable.expanded { border-color: var(--accent); }
+
+.lobby-mode-sizes {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.5rem;
+	padding: 0.2rem 0.9rem 0.8rem;
+}
+.lobby-mode-sizes[hidden] { display: none; }
+.lobby-mode-size {
+	display: flex; flex-direction: column; gap: 0.15rem;
+	align-items: flex-start;
+	padding: 0.6rem 0.8rem;
+	text-align: left;
+}
+.lobby-mode-size-title { font-weight: 600; font-size: 0.95rem; }
+.lobby-mode-size-sub { font-size: 0.74rem; opacity: 0.85; }

@@ -67,64 +67,58 @@
 		<section id="lobby_view" class="view" style="display:none">
 			<div class="lobby-grid">
 				<aside class="lobby-modes">
-					<h3 class="lobby-modes-heading">Sprint <span class="lobby-modes-heading-meta">10% mines · fast race</span></h3>
+					<h3 class="lobby-modes-heading">Ranked</h3>
 					<ul class="lobby-mode-list">
-						<li class="lobby-mode" data-mode="sprint_duo">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">1v1 Sprint</span>
-								<span class="lobby-mode-sub">Head-to-head race.</span>
+						<li class="lobby-mode lobby-mode-expandable" data-style="sprint">
+							<button class="lobby-mode-header" type="button" aria-expanded="false">
+								<div class="lobby-mode-main">
+									<span class="lobby-mode-title">Sprint</span>
+									<span class="lobby-mode-sub">10% mines · fast race</span>
+								</div>
+								<span class="lobby-mode-stat">
+									<span class="lobby-mode-stat-tier" id="rank_tier_sprint">—</span>
+									<span class="lobby-mode-stat-rating" id="rank_rating_sprint"></span>
+								</span>
+								<span class="lobby-mode-chevron" aria-hidden="true">▾</span>
+							</button>
+							<div class="lobby-mode-sizes" hidden>
+								<button id="find_ranked_sprint_duo" class="btn btn-primary lobby-mode-size">
+									<span class="lobby-mode-size-title">1v1</span>
+									<span class="lobby-mode-size-sub">Head-to-head race</span>
+								</button>
+								<button id="find_ranked_sprint_six" class="btn btn-primary lobby-mode-size">
+									<span class="lobby-mode-size-title">6-player</span>
+									<span class="lobby-mode-size-sub">Free-for-all sprint</span>
+								</button>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-tier" id="rank_tier_sprint">—</span>
-								<span class="lobby-mode-stat-rating" id="rank_rating_sprint"></span>
-							</span>
-							<button id="find_ranked_sprint_duo" class="btn btn-primary lobby-mode-action">Find</button>
 						</li>
-						<li class="lobby-mode" data-mode="sprint_six">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">6P Sprint</span>
-								<span class="lobby-mode-sub">Free-for-all sprint.</span>
+						<li class="lobby-mode lobby-mode-expandable" data-style="standard">
+							<button class="lobby-mode-header" type="button" aria-expanded="false">
+								<div class="lobby-mode-main">
+									<span class="lobby-mode-title">Standard</span>
+									<span class="lobby-mode-sub">20% mines · deduction</span>
+								</div>
+								<span class="lobby-mode-stat">
+									<span class="lobby-mode-stat-tier" id="rank_tier_standard">—</span>
+									<span class="lobby-mode-stat-rating" id="rank_rating_standard"></span>
+								</span>
+								<span class="lobby-mode-chevron" aria-hidden="true">▾</span>
+							</button>
+							<div class="lobby-mode-sizes" hidden>
+								<button id="find_ranked_standard_duo" class="btn btn-primary lobby-mode-size">
+									<span class="lobby-mode-size-title">1v1</span>
+									<span class="lobby-mode-size-sub">Head-to-head deduction</span>
+								</button>
+								<button id="find_ranked_standard_six" class="btn btn-primary lobby-mode-size">
+									<span class="lobby-mode-size-title">6-player</span>
+									<span class="lobby-mode-size-sub">Dense free-for-all</span>
+								</button>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-tier" id="rank_tier_sprint_six">—</span>
-								<span class="lobby-mode-stat-rating" id="rank_rating_sprint_six"></span>
-							</span>
-							<button id="find_ranked_sprint_six" class="btn btn-primary lobby-mode-action">Find</button>
 						</li>
-					</ul>
-
-					<h3 class="lobby-modes-heading">Standard <span class="lobby-modes-heading-meta">20% mines · deduction</span></h3>
-					<ul class="lobby-mode-list">
-						<li class="lobby-mode" data-mode="standard_duo">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">1v1 Standard</span>
-								<span class="lobby-mode-sub">Dense, careful reads.</span>
-							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-tier" id="rank_tier_standard">—</span>
-								<span class="lobby-mode-stat-rating" id="rank_rating_standard"></span>
-							</span>
-							<button id="find_ranked_standard_duo" class="btn btn-primary lobby-mode-action">Find</button>
-						</li>
-						<li class="lobby-mode" data-mode="standard_six">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">6P Standard</span>
-								<span class="lobby-mode-sub">Dense free-for-all.</span>
-							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-tier" id="rank_tier_standard_six">—</span>
-								<span class="lobby-mode-stat-rating" id="rank_rating_standard_six"></span>
-							</span>
-							<button id="find_ranked_standard_six" class="btn btn-primary lobby-mode-action">Find</button>
-						</li>
-					</ul>
-
-					<h3 class="lobby-modes-heading">Other</h3>
-					<ul class="lobby-mode-list">
 						<li class="lobby-mode" data-mode="tournament">
 							<div class="lobby-mode-main">
 								<span class="lobby-mode-title">Tournament</span>
-								<span class="lobby-mode-sub">16-player battle royale · 15%.</span>
+								<span class="lobby-mode-sub">16-player battle royale · 15%</span>
 							</div>
 							<span class="lobby-mode-stat">
 								<span class="lobby-mode-stat-tier" id="rank_tier_tournament">—</span>
@@ -132,6 +126,10 @@
 							</span>
 							<button id="find_ranked_tournament" class="btn btn-primary lobby-mode-action">Find</button>
 						</li>
+					</ul>
+
+					<h3 class="lobby-modes-heading">Casual</h3>
+					<ul class="lobby-mode-list">
 						<li class="lobby-mode" data-mode="custom">
 							<div class="lobby-mode-main">
 								<span class="lobby-mode-title">Custom</span>
@@ -1099,6 +1097,31 @@ findRankedSprintSixButton.addEventListener("click", function() { findRanked("spr
 findRankedStandardDuoButton.addEventListener("click", function() { findRanked("standard_duo"); });
 findRankedStandardSixButton.addEventListener("click", function() { findRanked("standard_six"); });
 findRankedTournamentButton.addEventListener("click", function() { findRanked("tournament"); });
+
+// Playstyle expand/collapse — clicking the Sprint or Standard header
+// reveals the 1v1 / 6P size buttons. Only one playstyle stays open at
+// a time so the sidebar can't grow taller than the daily hero.
+Array.prototype.forEach.call(document.querySelectorAll(".lobby-mode-expandable"), function(card) {
+	var header = card.querySelector(".lobby-mode-header");
+	var sizes = card.querySelector(".lobby-mode-sizes");
+	if (!header || !sizes) return;
+	header.addEventListener("click", function() {
+		var open = header.getAttribute("aria-expanded") === "true";
+		// Collapse every expandable first, then open this one if it was closed.
+		Array.prototype.forEach.call(document.querySelectorAll(".lobby-mode-expandable"), function(other) {
+			var oh = other.querySelector(".lobby-mode-header");
+			var os = other.querySelector(".lobby-mode-sizes");
+			if (oh) oh.setAttribute("aria-expanded", "false");
+			if (os) os.hidden = true;
+			other.classList.remove("expanded");
+		});
+		if (!open) {
+			header.setAttribute("aria-expanded", "true");
+			sizes.hidden = false;
+			card.classList.add("expanded");
+		}
+	});
+});
 
 cancelRankedButton.addEventListener("click", function() {
 	socket.emit("cancel_ranked");
