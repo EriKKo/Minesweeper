@@ -6,7 +6,15 @@
 // background. Polling refreshes job progress + pool contents while a job
 // runs, then stops once the server reports the job is done.
 
-var puzzleLabState = { count: 50, diff: null, density: null, source: "random" };
+var puzzleLabState = { count: 50, diff: null, density: null, source: "random", targetRating: null };
+var TARGET_RATING_OPTIONS = [
+	{ value: null, label: "Any" },
+	{ value: 200, label: "~200" },
+	{ value: 500, label: "~500" },
+	{ value: 900, label: "~900" },
+	{ value: 1300, label: "~1300" },
+	{ value: 1700, label: "~1700" }
+];
 var puzzleLabPollTimer = null;
 
 // Admin generate / clear requests carry the session token; the server
@@ -152,10 +160,33 @@ function renderPuzzleLab() {
 		btn.addEventListener("click", function() {
 			puzzleLabState.source = opt.value;
 			updateSourceChips();
+			updateTargetRatingRow();
 		});
 		sourceRow.appendChild(btn);
 	});
 	view.appendChild(sourceRow);
+
+	var targetRow = document.createElement("div");
+	targetRow.className = "puzzles-filter";
+	targetRow.id = "puzzles_target_rating_row";
+	var targetLabel = document.createElement("span");
+	targetLabel.className = "puzzles-filter-label";
+	targetLabel.textContent = "Target rating";
+	targetRow.appendChild(targetLabel);
+	TARGET_RATING_OPTIONS.forEach(function(opt) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.target = (opt.value == null) ? "any" : String(opt.value);
+		btn.textContent = opt.label;
+		if (opt.value === puzzleLabState.targetRating) btn.classList.add("active");
+		btn.addEventListener("click", function() {
+			puzzleLabState.targetRating = opt.value;
+			updateTargetRatingChips();
+		});
+		targetRow.appendChild(btn);
+	});
+	view.appendChild(targetRow);
+	updateTargetRatingRow();
 
 	var densityRow = document.createElement("div");
 	densityRow.className = "puzzles-filter";
@@ -241,13 +272,28 @@ function updateSourceChips() {
 	});
 }
 
+function updateTargetRatingRow() {
+	var row = document.getElementById("puzzles_target_rating_row");
+	if (!row) return;
+	row.hidden = puzzleLabState.source !== "inside_out";
+}
+
+function updateTargetRatingChips() {
+	document.querySelectorAll("#puzzles_view .puzzles-filter-chip[data-target]").forEach(function(b) {
+		var raw = b.dataset.target;
+		var val = (raw === "any") ? null : parseInt(raw, 10);
+		b.classList.toggle("active", val === puzzleLabState.targetRating);
+	});
+}
+
 function startGenerationJob() {
 	var status = document.getElementById("puzzle_lab_status");
 	if (status) status.textContent = "Starting generation job…";
 	var url = "/api/puzzles?count=" + puzzleLabState.count
 		+ (puzzleLabState.diff ? "&diff=" + puzzleLabState.diff : "")
 		+ (puzzleLabState.density != null ? "&density=" + puzzleLabState.density : "")
-		+ (puzzleLabState.source && puzzleLabState.source !== "random" ? "&source=" + puzzleLabState.source : "");
+		+ (puzzleLabState.source && puzzleLabState.source !== "random" ? "&source=" + puzzleLabState.source : "")
+		+ (puzzleLabState.source === "inside_out" && puzzleLabState.targetRating != null ? "&targetRating=" + puzzleLabState.targetRating : "");
 	fetch(url, { method: "POST", headers: puzzleAdminHeaders() }).then(function(r) {
 		return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
 	}).then(function(result) {
