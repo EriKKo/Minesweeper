@@ -174,6 +174,31 @@ addColumnIfMissing("starting_positions", "forced_mine_mask", "INTEGER NOT NULL D
 addColumnIfMissing("starting_positions", "is_prime", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("starting_positions", "removable_mask", "INTEGER NOT NULL DEFAULT 0");
 
+// Patterns table: each row is a unique "first deduction" template —
+// the minimal set of clue cells (with values) that fed into the
+// analyzer's first move on some starting position, plus the cells
+// that move deduced. Canonicalized by translation + dihedral
+// symmetry, so any starting position whose first deduction matches
+// the pattern up to position/rotation/mirror points at the same row.
+db.exec(
+	"CREATE TABLE IF NOT EXISTS patterns (" +
+	"  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+	"  key TEXT NOT NULL UNIQUE," +
+	"  cells_json TEXT NOT NULL," +
+	"  width INTEGER NOT NULL," +
+	"  height INTEGER NOT NULL," +
+	"  clue_count INTEGER NOT NULL," +
+	"  safe_count INTEGER NOT NULL," +
+	"  mine_count INTEGER NOT NULL," +
+	"  action TEXT NOT NULL," +
+	"  complexity REAL NOT NULL," +
+	"  rating INTEGER NOT NULL," +
+	"  occurrence_count INTEGER NOT NULL DEFAULT 0," +
+	"  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
+	");"
+);
+addColumnIfMissing("starting_positions", "pattern_id", "INTEGER");
+
 function upsertUser(provider, providerId, name, avatarUrl, email) {
 	providerId = String(providerId);
 	var emailLower = email ? String(email).toLowerCase() : null;
@@ -551,6 +576,61 @@ function listStartingPositions(opts) {
 	return stmt.all.apply(stmt, params);
 }
 
+// Upsert a deduction pattern. If the key already exists, increment
+// occurrence_count and leave other fields alone. Returns the row id.
+function upsertPattern(p) {
+	var existing = db.prepare("SELECT id FROM patterns WHERE key = ?").get(p.key);
+	if (existing) {
+		db.prepare("UPDATE patterns SET occurrence_count = occurrence_count + 1 WHERE id = ?").run(existing.id);
+		return existing.id;
+	}
+	var info = db.prepare(
+		"INSERT INTO patterns (key, cells_json, width, height, clue_count, safe_count, mine_count, action, complexity, rating, occurrence_count) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+	).run(p.key, p.cellsJson, p.width, p.height, p.clueCount, p.safeCount, p.mineCount, p.action, p.complexity, p.rating);
+	return info.lastInsertRowid;
+}
+
+function clearPatterns() {
+	db.exec("DELETE FROM patterns");
+	db.prepare("UPDATE starting_positions SET pattern_id = NULL").run();
+}
+
+function setStartingPositionPattern(startingPositionId, patternId) {
+	db.prepare("UPDATE starting_positions SET pattern_id = ? WHERE id = ?").run(patternId, startingPositionId);
+}
+
+function listPatterns(opts) {
+	opts = opts || {};
+	var clauses = [];
+	var params = [];
+	if (opts.minRating != null) { clauses.push("rating >= ?"); params.push(opts.minRating); }
+	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
+	if (opts.action) { clauses.push("action = ?"); params.push(opts.action); }
+	var sortDir = opts.sort === "asc" ? "ASC" : "DESC";
+	var sortBy = opts.orderBy === "occurrences" ? "occurrence_count" : "rating";
+	var pageSize = Math.max(1, Math.min(500, opts.pageSize || 100));
+	var page = Math.max(0, opts.page || 0);
+	var sql = "SELECT * FROM patterns";
+	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	sql += " ORDER BY " + sortBy + " " + sortDir + ", id ASC LIMIT ? OFFSET ?";
+	var stmt = db.prepare(sql);
+	return stmt.all.apply(stmt, params.concat([pageSize, page * pageSize]));
+}
+
+function patternCount(opts) {
+	opts = opts || {};
+	var clauses = [];
+	var params = [];
+	if (opts.minRating != null) { clauses.push("rating >= ?"); params.push(opts.minRating); }
+	if (opts.maxRating != null) { clauses.push("rating <= ?"); params.push(opts.maxRating); }
+	if (opts.action) { clauses.push("action = ?"); params.push(opts.action); }
+	var sql = "SELECT COUNT(*) AS n FROM patterns";
+	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+	var stmt = db.prepare(sql);
+	return stmt.get.apply(stmt, params).n;
+}
+
 function startingPositionCount(opts) {
 	// Backwards-compatible: passing a number is treated as `size`.
 	if (typeof opts === "number") opts = { size: opts };
@@ -789,5 +869,11 @@ module.exports = {
 	insertStartingPosition: insertStartingPosition,
 	clearStartingPositions: clearStartingPositions,
 	listStartingPositions: listStartingPositions,
-	startingPositionCount: startingPositionCount
+	startingPositionCount: startingPositionCount,
+	// Patterns
+	upsertPattern: upsertPattern,
+	clearPatterns: clearPatterns,
+	setStartingPositionPattern: setStartingPositionPattern,
+	listPatterns: listPatterns,
+	patternCount: patternCount
 };
