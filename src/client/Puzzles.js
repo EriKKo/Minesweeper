@@ -608,12 +608,22 @@ function setName(idx) {
 
 function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
 
+function describeMines(step) {
+	var lo = step.lo, hi = step.hi;
+	if (lo === hi) return plural(lo, "mine");
+	if (lo === 0) return "at most " + plural(hi, "mine");
+	if (hi === step.cells.length) return "at least " + plural(lo, "mine");
+	return "between " + lo + " and " + plural(hi, "mine");
+}
+
 function describeStep(step) {
 	var cells = plural(step.cells.length, "cell");
-	var mines = plural(step.mines, "mine");
+	var mines = describeMines(step);
 	var tail = "";
-	if (step.cells.length > 0 && step.mines === step.cells.length) tail = " (all mines!)";
-	else if (step.cells.length > 0 && step.mines === 0) tail = " (all safe!)";
+	if (step.cells.length > 0 && step.lo === step.hi) {
+		if (step.hi === step.cells.length) tail = " (all mines!)";
+		else if (step.hi === 0) tail = " (all safe!)";
+	}
 	if (step.source === "initial") {
 		return "from clue at (" + step.from[0] + "," + step.from[1] + ") → " + cells + ", " + mines + tail;
 	}

@@ -1,24 +1,29 @@
 // Generalized CSP-style solver for Minesweeper deductions.
 //
-// A "clue" is a cardinality constraint: a set S of covered cells known to
-// contain exactly M mines. Each numbered cell on the board generates an
-// initial clue at complexity 0 (with a +0.5 bump per flagged neighbour
-// that's been folded into the mine count). Three combine ops produce new
-// clues from existing ones:
+// A "clue" is a cardinality constraint: a set S of covered cells whose
+// mine count lies in a range [lo, hi]. Each numbered cell on the board
+// generates an initial equality clue (lo = hi = M). Three combine ops
+// produce new clues from existing ones, each carrying tightened bounds:
 //
-//   * subset       — if A.cells ⊂ B.cells, derive (B\A, M_B − M_A).   +1
-//   * disjoint sum — if A ∩ B = ∅,         derive (A ∪ B, M_A + M_B). +1
-//   * intersection — if bounds on |A ∩ B mines| collapse to a point,
-//                    derive (A ∩ B, that point).                     +2
+//   * subset       — A.cells ⊂ B.cells ⇒ B\A has [B.lo−A.hi, B.hi−A.lo]
+//                    mines (clamped to [0, |B\A|]).
+//   * disjoint sum — A ∩ B = ∅          ⇒ A∪B has [A.lo+B.lo, A.hi+B.hi].
+//   * intersection — A, B overlap        ⇒ A∩B has bounds from each side.
 //
-// Complexity of a derived clue = sum of parent complexities + op cost.
-// We do best-first (min-complexity) search and stop at the first trivial
-// clue (M = 0 → safe-set, or M = |S| → mine-set). Search space is bounded
-// by:
+// Earlier versions only produced *equality* clues (lo == hi). Allowing
+// "at most"/"at least" clues — the cases where the intersection or
+// subset doesn't collapse to a point — lets short proofs reach
+// deductions that previously required case-split. A trivial deduction
+// is still the same: lo == hi == 0 (set is all safe) or lo == hi ==
+// |cells| (set is all mines).
+//
+// Complexity of a derived clue = max(parents) + op cost. Best-first
+// search stops at the first trivial clue. Search space is bounded by:
 //
 //   * clue size ≤ 8 cells
 //   * Chebyshev bounding-box of a clue's cells ≤ 2 (any pair of cells
-//     within a 3×3 area)
+//     within a 3×3 area — past that, humans can't easily reason about
+//     the combination)
 //
 // These two caps make the reachable clue space finite — the search either
 // terminates with a deduction or genuinely runs out (puzzle needs enum).
@@ -33,8 +38,8 @@ var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic
 var MINE = BoardLogic.MINE;
 
 var DEFAULT_MAX_CELLS = 8;
-var DEFAULT_MAX_BBOX = 3;     // Chebyshev distance between any two cells
-var DEFAULT_MAX_CLUES = 5000; // hard ceiling on the seen-set per search
+var DEFAULT_MAX_BBOX = 2;     // Chebyshev distance between any two cells
+var DEFAULT_MAX_CLUES = 10000; // hard ceiling on the seen-set per search
 var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
@@ -53,7 +58,7 @@ var RESULT_SIZE_SURCHARGE = 0.12;
 
 function cellKey(cell) { return cell[0] + "," + cell[1]; }
 
-function makeClue(cells, mines, complexity, meta) {
+function makeClue(cells, lo, hi, complexity, meta) {
 	// Canonicalise so structurally-equal clues hash to the same key.
 	var seen = {}, canon = [];
 	for (var i = 0; i < cells.length; i++) {
@@ -61,7 +66,13 @@ function makeClue(cells, mines, complexity, meta) {
 		if (!seen[k]) { seen[k] = true; canon.push(cells[i]); }
 	}
 	canon.sort(function(a, b) { return a[0] - b[0] || a[1] - b[1]; });
-	var key = canon.map(cellKey).join(";");
+	// Clamp bounds to the legal [0, |cells|] range.
+	if (lo < 0) lo = 0;
+	if (hi > canon.length) hi = canon.length;
+	// Key includes bounds so "≤2 mines" and "=1 mine" on the same cells
+	// are tracked as distinct deductions.
+	var cellsKey = canon.map(cellKey).join(";");
+	var key = cellsKey + "|" + lo + "-" + hi;
 	meta = meta || {};
 	var depth = 0;
 	if (meta.parents) {
@@ -70,7 +81,8 @@ function makeClue(cells, mines, complexity, meta) {
 		}
 	}
 	return {
-		key: key, cells: canon, mines: mines, complexity: complexity,
+		key: key, cellsKey: cellsKey, cells: canon, lo: lo, hi: hi,
+		complexity: complexity,
 		source: meta.source || "initial",
 		parents: meta.parents || null,
 		from: meta.from || null,    // origin cell for initial clues
@@ -80,7 +92,12 @@ function makeClue(cells, mines, complexity, meta) {
 
 function isTrivial(clue) {
 	if (clue.cells.length === 0) return false;
-	return clue.mines === 0 || clue.mines === clue.cells.length;
+	if (clue.lo !== clue.hi) return false;
+	return clue.hi === 0 || clue.hi === clue.cells.length;
+}
+
+function isContradiction(clue) {
+	return clue.lo > clue.hi;
 }
 
 function bboxOk(cells, maxDist) {
@@ -110,7 +127,7 @@ function buildInitialClues(board, state) {
 			if (mines < 0) continue; // shouldn't happen on a consistent state
 			var sizeSurcharge = CELL_SURCHARGE * covered.length;
 			var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
-			out.push(makeClue(covered, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
+			out.push(makeClue(covered, mines, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
 				source: "initial",
 				from: [r, c]
 			}));
@@ -120,7 +137,8 @@ function buildInitialClues(board, state) {
 }
 
 function combineSubset(A, B) {
-	// Strict subset: A.cells ⊂ B.cells. Derives the extras.
+	// A.cells ⊂ B.cells. The extras (B\A) hold mines(B) − mines(A).
+	// With bounded clues, mines(B\A) ∈ [B.lo − A.hi, B.hi − A.lo].
 	if (A.cells.length >= B.cells.length) return null;
 	var bSet = {};
 	for (var i = 0; i < B.cells.length; i++) bSet[cellKey(B.cells[i])] = true;
@@ -134,10 +152,13 @@ function combineSubset(A, B) {
 	for (var m = 0; m < B.cells.length; m++) {
 		if (!aKeys[cellKey(B.cells[m])]) extras.push(B.cells[m]);
 	}
-	var newMines = B.mines - A.mines;
-	if (newMines < 0 || newMines > extras.length) return null;
+	var lo = Math.max(0, B.lo - A.hi);
+	var hi = Math.min(extras.length, B.hi - A.lo);
+	if (lo > hi) return null;
+	// Skip trivially-uninformative results (no tighter than (0..|extras|)).
+	if (lo === 0 && hi === extras.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * extras.length;
-	return makeClue(extras, newMines, Math.max(A.complexity, B.complexity) + SUBSET_COST + sizeCost, {
+	return makeClue(extras, lo, hi, Math.max(A.complexity, B.complexity) + SUBSET_COST + sizeCost, {
 		source: "subset", parents: [A, B]
 	});
 }
@@ -149,16 +170,17 @@ function combineDisjointUnion(A, B) {
 		if (aSet[cellKey(B.cells[j])]) return null;
 	}
 	var union = A.cells.concat(B.cells);
+	var lo = A.lo + B.lo;
+	var hi = A.hi + B.hi;
+	if (lo === 0 && hi === union.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * union.length;
-	return makeClue(union, A.mines + B.mines, Math.max(A.complexity, B.complexity) + UNION_COST + sizeCost, {
+	return makeClue(union, lo, hi, Math.max(A.complexity, B.complexity) + UNION_COST + sizeCost, {
 		source: "union", parents: [A, B]
 	});
 }
 
 function combineIntersection(A, B) {
-	// Overlap (neither subset) with bounds on |intersection ∩ mines|
-	// collapsing to a single value — yields a fresh clue on the
-	// intersection. Skips the subset case (subsumed by combineSubset).
+	// Bounds on mines(A∩B) from each side, then take the tighter.
 	var aSet = {};
 	for (var i = 0; i < A.cells.length; i++) aSet[cellKey(A.cells[i])] = true;
 	var inter = [];
@@ -170,11 +192,12 @@ function combineIntersection(A, B) {
 	if (inter.length === B.cells.length) return null; // B ⊆ A
 	var uaSize = A.cells.length - inter.length;
 	var ubSize = B.cells.length - inter.length;
-	var lo = Math.max(0, A.mines - uaSize, B.mines - ubSize);
-	var hi = Math.min(inter.length, A.mines, B.mines);
-	if (lo !== hi) return null;
+	var lo = Math.max(0, A.lo - uaSize, B.lo - ubSize);
+	var hi = Math.min(inter.length, A.hi, B.hi);
+	if (lo > hi) return null;
+	if (lo === 0 && hi === inter.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * inter.length;
-	return makeClue(inter, lo, Math.max(A.complexity, B.complexity) + INTERSECT_COST + sizeCost, {
+	return makeClue(inter, lo, hi, Math.max(A.complexity, B.complexity) + INTERSECT_COST + sizeCost, {
 		source: "intersect", parents: [A, B]
 	});
 }
@@ -445,7 +468,8 @@ function flattenDerivation(clue) {
 			index: steps.length,
 			source: c.source,
 			cells: c.cells,
-			mines: c.mines,
+			lo: c.lo,
+			hi: c.hi,
 			complexity: Math.round(c.complexity * 100) / 100,
 			depth: c.depth
 		};
@@ -464,7 +488,7 @@ function flattenDerivation(clue) {
 function applyTrivialClue(board, state, clue, revealCell) {
 	if (!isTrivial(clue)) return false;
 	var prog = false;
-	if (clue.mines === 0) {
+	if (clue.hi === 0) {
 		for (var i = 0; i < clue.cells.length; i++) {
 			var r = clue.cells[i][0], c = clue.cells[i][1];
 			if (state[r][c] === UNKNOWN) {
@@ -515,10 +539,11 @@ function analyzeBoard(board, state, opts) {
 			applyTrivialClue(board, state, best, opts.revealCell);
 			moves.push({
 				complexity: best.complexity,
-				action: best.mines === 0 ? "reveal" : "flag",
+				action: best.hi === 0 ? "reveal" : "flag",
 				cells: best.cells,
 				changed: changed,
-				mines: best.mines,
+				lo: best.lo,
+				hi: best.hi,
 				depth: best.depth,
 				derivation: flattenDerivation(best)
 			});
