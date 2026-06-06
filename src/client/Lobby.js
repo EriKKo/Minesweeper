@@ -12,31 +12,58 @@ function findRanked(mode) {
 	setRankedSearching(true, mode);
 }
 var rankedSearchInfo = null;
-var MODE_LABELS = { duo: "1v1", six: "6-player", tournament: "Tournament" };
+var MODE_LABELS = {
+	sprint_duo: "1v1 Sprint",   sprint_six: "6-player Sprint",
+	standard_duo: "1v1 Standard", standard_six: "6-player Standard",
+	tournament: "Tournament"
+};
+
+// Fixed match-search toast lives in the bottom-right while queued — it
+// survives navigation so the player can poke around the rest of the UI
+// without losing their place in line. The elapsed timer ticks while
+// the toast is visible.
+var rankedSearchStart = 0;
+var rankedSearchTickHandle = null;
+var matchToastModeEl = document.getElementById("match_toast_mode");
+var matchToastElapsedEl = document.getElementById("match_toast_elapsed");
+var searchProgressFill = document.getElementById("search_progress_fill");
 
 function setRankedSearching(on, mode) {
-	rankedSearching.style.display = on ? "" : "none";
-	// Hide the whole home grid while searching — the search panel takes the spot.
-	if (homeCards) homeCards.style.display = on ? "none" : "";
-	if (on) updateRankedSearchingText();
-	else rankedSearchInfo = null;
+	if (on) rankedSearching.removeAttribute("hidden");
+	else rankedSearching.setAttribute("hidden", "");
+	if (on) {
+		rankedSearchStart = Date.now();
+		updateRankedSearchingText();
+		updateRankedSearchingElapsed();
+		if (rankedSearchTickHandle) clearInterval(rankedSearchTickHandle);
+		rankedSearchTickHandle = setInterval(updateRankedSearchingElapsed, 500);
+	} else {
+		rankedSearchInfo = null;
+		if (rankedSearchTickHandle) { clearInterval(rankedSearchTickHandle); rankedSearchTickHandle = null; }
+	}
 	// currentRankedMode stays set after match formation so series-end can re-queue.
 }
 
-var SEARCH_RING_CIRC = 2 * Math.PI * 52;
-var searchProgressFill = document.getElementById("search_progress_fill");
+function updateRankedSearchingElapsed() {
+	if (!matchToastElapsedEl) return;
+	var s = Math.floor((Date.now() - rankedSearchStart) / 1000);
+	var m = Math.floor(s / 60);
+	matchToastElapsedEl.textContent = m + ":" + ((s % 60) < 10 ? "0" : "") + (s % 60);
+}
+
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
 	var count = info.count || 1, size = info.size || 2;
 	var modeLabel = MODE_LABELS[info.mode || currentRankedMode] || "Ranked";
 	rankedSearchingText.textContent = count >= size
-		? modeLabel + " match found — joining…"
-		: "Finding " + modeLabel + " match…";
+		? "Match found — joining…"
+		: "Finding match…";
+	if (matchToastModeEl) matchToastModeEl.textContent = modeLabel;
 	if (searchCountText) searchCountText.textContent = count;
 	if (searchSizeText) searchSizeText.textContent = size;
 	if (searchProgressFill) {
 		var ratio = Math.max(0, Math.min(1, count / size));
-		searchProgressFill.style.strokeDashoffset = SEARCH_RING_CIRC * (1 - ratio);
+		searchProgressFill.style.width = (ratio * 100) + "%";
 	}
 }
 

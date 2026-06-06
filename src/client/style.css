@@ -3042,3 +3042,65 @@ body.touch .find-next-arrow { display: inline-flex; }
 .ranked-picker-option-icon svg { width: 100%; height: 100%; }
 .ranked-picker-option-title { font-size: 1.4rem; font-weight: 700; }
 .ranked-picker-option-sub { color: var(--muted); font-size: 0.85rem; }
+
+/* === Match-search toast (fixed bottom-right) ====================== */
+.match-toast {
+	position: fixed;
+	bottom: 1.2rem; right: 1.2rem;
+	width: 17rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 0.7rem;
+	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+	padding: 0.85rem 1rem 0.9rem;
+	z-index: 80;
+	color: var(--text);
+	animation: match-toast-in 0.18s ease-out;
+}
+.match-toast[hidden] { display: none; }
+@keyframes match-toast-in {
+	from { transform: translateY(8px); opacity: 0; }
+	to   { transform: translateY(0);   opacity: 1; }
+}
+.match-toast-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.match-toast-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.92rem; }
+.match-toast-spinner {
+	width: 0.9rem; height: 0.9rem;
+	border: 2px solid rgba(99, 102, 241, 0.25);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: match-toast-spin 0.8s linear infinite;
+}
+@keyframes match-toast-spin { to { transform: rotate(360deg); } }
+.match-toast-cancel {
+	width: 1.6rem; height: 1.6rem;
+	border: 1px solid var(--border); border-radius: 0.35rem;
+	background: transparent; color: var(--muted);
+	cursor: pointer; line-height: 1;
+}
+.match-toast-cancel:hover { background: rgba(239, 68, 68, 0.12); color: var(--danger); border-color: var(--danger); }
+.match-toast-meta {
+	display: flex; justify-content: space-between; align-items: baseline;
+	margin: 0.55rem 0 0.35rem;
+	font-size: 0.78rem; color: var(--muted);
+}
+.match-toast-mode { font-weight: 600; color: var(--text); }
+.match-toast-elapsed { font-variant-numeric: tabular-nums; }
+.match-toast-bar {
+	height: 0.45rem;
+	background: rgba(99, 102, 241, 0.10);
+	border-radius: 0.25rem;
+	overflow: hidden;
+}
+.match-toast-bar-fill {
+	display: block; height: 100%;
+	background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+	border-radius: 0.25rem;
+	transition: width 0.3s ease;
+	width: 0%;
+}
+.match-toast-counts {
+	margin-top: 0.45rem;
+	font-size: 0.78rem; color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
