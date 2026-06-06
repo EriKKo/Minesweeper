@@ -38,10 +38,12 @@ function initSourcesFromBranches(branches, sink, seen) {
 }
 
 // Collect the init source clue cells that fed a single move (handles
-// both trivial-derivation and case-split-with-branches shapes).
+// both trivial-derivation and case-split-with-branches shapes). The
+// move's `method` field marks case-split bundles; everything else
+// carries the derivation chain directly.
 function initsForMove(move) {
 	var sink = [], seen = {};
-	if (move.action === "case") {
+	if (move.method === "case") {
 		initSourcesFromBranches(move.branches, sink, seen);
 	} else if (move.derivation) {
 		initSourcesFromDerivation(move.derivation, sink, seen);
@@ -79,47 +81,34 @@ function extractFirstDeductionPattern(board, state) {
 	var result = cspSolver.analyzeBoard(board, stateCopy, {});
 	if (!result.moves.length) return null;
 
-	var firstMove = result.moves[0];
-	var firstInits = initsForMove(firstMove);
-	var firstKey = initsKey(firstInits);
+	// The solver returns bundled moves: a single overlap operation
+	// that produces both safes and mines is already one move with
+	// both lists populated, and `method` is already set.
+	var move = result.moves[0];
+	var inits = initsForMove(move);
 
-	// Bundle move 0 plus subsequent moves that share the same init
-	// source set. As soon as a move pulls in a different clue cell
-	// (a new init source or one previously unused), stop.
-	var bundled = [firstMove];
-	for (var idx = 1; idx < result.moves.length; idx++) {
-		var m = result.moves[idx];
-		if (initsKey(initsForMove(m)) !== firstKey) break;
-		bundled.push(m);
-	}
-
-	// Union of init sources across the bundle (all bundled moves
-	// share the same set, so the firstInits list already covers it).
-	var clueCells = firstInits.map(function(pos) {
+	var clueCells = inits.map(function(pos) {
 		return [pos[0], pos[1], board[pos[0]][pos[1]]];
 	}).filter(function(c) { return c[2] != null && c[2] > 0; });
 
-	// Deduced cells: union across bundled moves, tagged S or M.
 	var deducedCells = [];
 	var deducedKey = {};
-	function addDeduced(r, c, tag) {
-		var k = r + "," + c;
+	(move.revealed || []).forEach(function(c) {
+		var k = c[0] + "," + c[1];
 		if (deducedKey[k]) return;
 		deducedKey[k] = true;
-		deducedCells.push([r, c, tag]);
-	}
-	bundled.forEach(function(m) {
-		if (m.action === "reveal") (m.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
-		else if (m.action === "flag") (m.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
-		else if (m.action === "case") {
-			(m.revealed || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
-			(m.flagged || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
-		}
+		deducedCells.push([c[0], c[1], "S"]);
+	});
+	(move.flagged || []).forEach(function(c) {
+		var k = c[0] + "," + c[1];
+		if (deducedKey[k]) return;
+		deducedKey[k] = true;
+		deducedCells.push([c[0], c[1], "M"]);
 	});
 
 	// Constrained covered cells: UNKNOWN neighbours of input clues in
-	// the original state, minus cells the bundle already deduced. The
-	// splitCell of any case-split move is added explicitly in case it
+	// the original state, minus cells the move already deduced. The
+	// splitCell of a case-split move is added explicitly in case it
 	// wasn't a direct neighbour of an init source.
 	var rows = state.length, cols = state[0].length;
 	var coveredCells = [];
@@ -132,8 +121,8 @@ function extractFirstDeductionPattern(board, state) {
 		coveredKey[k] = true;
 		coveredCells.push([r, c, "?"]);
 	}
-	for (var j = 0; j < firstInits.length; j++) {
-		var p = firstInits[j];
+	for (var j = 0; j < inits.length; j++) {
+		var p = inits[j];
 		for (var dr = -1; dr <= 1; dr++) {
 			for (var dc = -1; dc <= 1; dc++) {
 				if (dr === 0 && dc === 0) continue;
@@ -141,40 +130,11 @@ function extractFirstDeductionPattern(board, state) {
 			}
 		}
 	}
-	bundled.forEach(function(m) {
-		if (m.action === "case" && m.splitCell) addCovered(m.splitCell[0], m.splitCell[1]);
-	});
-
-	// Method = derivation operation of the hardest move in the bundle.
-	// For trivial derivations the root step has source="initial"; we
-	// surface that as "trivial". Case-split and enum moves have their
-	// own labels. Whether the move happened to flag, reveal, or do
-	// both falls out of the cells; we don't separate "mixed" because
-	// an overlap operation that yields cells of both kinds is still
-	// the same operation type.
-	function methodFor(m) {
-		if (m.action === "case") return "case";
-		if (m.action === "enum") return "enum";
-		if (m.derivation && m.derivation.length) {
-			var root = m.derivation[m.derivation.length - 1];
-			if (root.source === "initial") return "trivial";
-			return root.source; // "subset" | "union" | "intersect"
-		}
-		return "trivial";
-	}
-	var hardest = bundled[0];
-	for (var b = 1; b < bundled.length; b++) {
-		if (bundled[b].complexity > hardest.complexity) hardest = bundled[b];
-	}
-	var method = methodFor(hardest);
-	var maxComplexity = hardest.complexity;
-	for (var b2 = 0; b2 < bundled.length; b2++) {
-		if (bundled[b2].complexity > maxComplexity) maxComplexity = bundled[b2].complexity;
-	}
+	if (move.method === "case" && move.splitCell) addCovered(move.splitCell[0], move.splitCell[1]);
 
 	return {
-		method: method,
-		complexity: maxComplexity,
+		method: move.method || "trivial",
+		complexity: move.complexity,
 		clueCells: clueCells,
 		deducedCells: deducedCells,
 		coveredCells: coveredCells

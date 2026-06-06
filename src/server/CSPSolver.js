@@ -625,11 +625,100 @@ function analyzeBoard(board, state, opts) {
 	for (var m = 0; m < moves.length; m++) { totalC += moves[m].complexity; if (moves[m].complexity > maxC) maxC = moves[m].complexity; }
 	return {
 		solved: safeCovered === 0,
-		moves: moves,
+		moves: bundleMoves(moves),
 		maxComplexity: maxC,
 		totalComplexity: totalC,
 		safeCovered: safeCovered
 	};
+}
+
+// Group consecutive moves that draw their conclusions from the exact
+// same set of initial clue cells into one logical step. A single
+// overlap operation (subset / union / intersect) sometimes produces
+// several trivial derivations off the same input clues — one
+// flagging a cell, another revealing one. Those are conclusions of
+// the same deductive idea, so the solver reports them as one move
+// with both `revealed` and `flagged` populated, rather than as two
+// adjacent moves that the caller has to stitch together. Case-split
+// and enum moves never merge with anything else.
+function bundleMoves(moves) {
+	function initsKey(mv) {
+		var seen = {}, keys = [];
+		function visit(d) {
+			if (!d) return;
+			for (var i = 0; i < d.length; i++) {
+				if (d[i].source === "initial" && d[i].from) {
+					var k = d[i].from[0] + "," + d[i].from[1];
+					if (!seen[k]) { seen[k] = true; keys.push(k); }
+				}
+			}
+		}
+		visit(mv.derivation);
+		if (mv.action === "case" && mv.branches) {
+			["safe", "mine"].forEach(function(side) {
+				var br = mv.branches[side];
+				if (br && br.moves) br.moves.forEach(function(m) { visit(m.derivation); });
+			});
+		}
+		return keys.sort().join("|");
+	}
+	function methodOf(mv) {
+		if (mv.action === "case") return "case";
+		if (mv.action === "enum") return "enum";
+		if (mv.derivation && mv.derivation.length) {
+			var root = mv.derivation[mv.derivation.length - 1];
+			if (root.source === "initial") return "trivial";
+			return root.source;
+		}
+		return "trivial";
+	}
+	var bundles = [];
+	var i = 0;
+	while (i < moves.length) {
+		var head = moves[i];
+		var group = [head];
+		var j = i + 1;
+		if (head.action !== "case" && head.action !== "enum") {
+			var key = initsKey(head);
+			while (j < moves.length
+				&& moves[j].action !== "case"
+				&& moves[j].action !== "enum"
+				&& initsKey(moves[j]) === key) {
+				group.push(moves[j]);
+				j++;
+			}
+		}
+		var revealed = [], flagged = [];
+		var maxC = 0, hardest = group[0];
+		for (var g = 0; g < group.length; g++) {
+			var mv = group[g];
+			if (mv.complexity > maxC) { maxC = mv.complexity; hardest = mv; }
+			if (mv.action === "reveal") (mv.cells || []).forEach(function(c) { revealed.push(c); });
+			else if (mv.action === "flag") (mv.cells || []).forEach(function(c) { flagged.push(c); });
+			else if (mv.action === "case" || mv.action === "enum") {
+				(mv.revealed || []).forEach(function(c) { revealed.push(c); });
+				(mv.flagged || []).forEach(function(c) { flagged.push(c); });
+			}
+		}
+		bundles.push({
+			method: methodOf(hardest),
+			complexity: maxC,
+			revealed: revealed,
+			flagged: flagged,
+			cells: revealed.concat(flagged),
+			changed: revealed.concat(flagged),
+			derivation: hardest.derivation,
+			branches: hardest.branches,
+			splitCell: hardest.splitCell,
+			componentSize: hardest.componentSize,
+			depth: hardest.depth,
+			lo: hardest.lo,
+			hi: hardest.hi,
+			subMoves: group
+		});
+		i = j;
+	}
+	return bundles;
 }
 
 module.exports = {
