@@ -23,8 +23,17 @@
 		</nav>
 		<div class="topbar-right">
 			<div class="audio-control">
-				<button id="mute_button" class="btn btn-ghost" type="button" aria-label="Toggle sound">🔊</button>
-				<input id="volume_slider" type="range" min="0" max="100" aria-label="Volume">
+				<button id="mute_button" class="btn btn-ghost" type="button" aria-label="Sound settings">🔊</button>
+				<div id="audio_panel" class="audio-panel" hidden>
+					<label class="audio-panel-row">
+						<span class="audio-panel-label">Music</span>
+						<input id="music_slider" type="range" min="0" max="100" aria-label="Music volume">
+					</label>
+					<label class="audio-panel-row">
+						<span class="audio-panel-label">Effects</span>
+						<input id="volume_slider" type="range" min="0" max="100" aria-label="Effects volume">
+					</label>
+				</div>
 			</div>
 			<div id="user_badge" class="user-badge" style="display:none">
 				<span>Playing as <strong id="user_badge_name"></strong></span>
@@ -889,6 +898,8 @@ var roundTimer = document.getElementById("round_timer");
 var gameProgressText = document.getElementById("game_progress_text");
 var muteButton = document.getElementById("mute_button");
 var volumeSlider = document.getElementById("volume_slider");
+var musicSlider = document.getElementById("music_slider");
+var audioPanel = document.getElementById("audio_panel");
 var readyButton = document.getElementById("ready_button");
 var readyStatus = document.getElementById("ready_status");
 var gameCountSelect = document.getElementById("game_count_select");
@@ -940,21 +951,45 @@ var lastFinished = {};         // playerId -> whether they had cleared, to cue r
 // Name form + sign-in/out button bindings live in Auth.js.
 
 function refreshMuteIcon() {
-	muteButton.textContent = sound.isMuted() ? "🔇" : "🔊";
+	// Speaker icon reflects the OVERALL state — silent only when both
+	// channels are muted (mute toggle or volume at 0).
+	var sfxOff = sound.isMuted() || sound.getVolume() === 0;
+	var musOff = !music || music.isMuted() || music.getVolume() === 0;
+	muteButton.textContent = (sfxOff && musOff) ? "🔇" : "🔊";
 }
 volumeSlider.value = String(Math.round(sound.getVolume() * 100));
+if (typeof music !== "undefined") musicSlider.value = String(Math.round(music.getVolume() * 100));
 refreshMuteIcon();
-muteButton.addEventListener("click", function() {
+
+function setAudioPanelOpen(open) {
+	if (open) audioPanel.removeAttribute("hidden");
+	else audioPanel.setAttribute("hidden", "");
+}
+muteButton.addEventListener("click", function(e) {
+	e.stopPropagation();
 	sound.unlock();
 	if (typeof music !== "undefined") music.start();
-	var next = !sound.isMuted();
-	sound.setMuted(next);
-	if (typeof music !== "undefined") music.setMuted(next);
-	refreshMuteIcon();
+	setAudioPanelOpen(audioPanel.hasAttribute("hidden"));
+});
+document.addEventListener("click", function(e) {
+	if (audioPanel.hasAttribute("hidden")) return;
+	if (audioPanel.contains(e.target) || muteButton.contains(e.target)) return;
+	setAudioPanelOpen(false);
 });
 volumeSlider.addEventListener("input", function() {
 	sound.unlock();
-	sound.setVolume(parseInt(volumeSlider.value, 10) / 100);
+	var v = parseInt(volumeSlider.value, 10) / 100;
+	sound.setVolume(v);
+	sound.setMuted(v === 0);
+	refreshMuteIcon();
+});
+musicSlider.addEventListener("input", function() {
+	if (typeof music === "undefined") return;
+	music.start();
+	var v = parseInt(musicSlider.value, 10) / 100;
+	music.setVolume(v);
+	music.setMuted(v === 0);
+	refreshMuteIcon();
 });
 
 document.getElementById("open_custom_button").addEventListener("click", function() {

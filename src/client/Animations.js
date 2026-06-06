@@ -186,6 +186,14 @@ function queueRevealAnimations(newState) {
 	if (hitMine) sound.mine();
 	if (newlyFlagged > 0) sound.flag();
 	if (newlyUnflagged > 0) sound.unflag();
+	// Drive the music's adaptive intensity: any player action counts as
+	// a pulse, with cascade reveals scaled by how many cells opened.
+	if (typeof music !== "undefined") {
+		var pulses = (safeRevealed > 0 ? Math.min(safeRevealed, 4) : 0)
+			+ (newlyFlagged > 0 ? 1 : 0)
+			+ (newlyUnflagged > 0 ? 1 : 0);
+		for (var pi = 0; pi < pulses; pi++) music.pulse();
+	}
 	startAnimLoop();
 }
 

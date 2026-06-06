@@ -2699,3 +2699,22 @@ body.touch .find-next-arrow { display: inline-flex; }
 @media (max-width: 768px) {
 	.puzzles-stats-body { grid-template-columns: 1fr; }
 }
+
+/* Audio settings popover (music + effects volume sliders). */
+.audio-control { position: relative; }
+.audio-panel {
+	position: absolute;
+	top: calc(100% + 0.4rem); right: 0;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 0.5rem;
+	box-shadow: var(--shadow);
+	padding: 0.6rem 0.8rem;
+	display: flex; flex-direction: column; gap: 0.4rem;
+	min-width: 14rem;
+	z-index: 50;
+}
+.audio-panel[hidden] { display: none; }
+.audio-panel-row { display: flex; align-items: center; gap: 0.6rem; }
+.audio-panel-label { min-width: 4.2rem; font-size: 0.82rem; color: var(--muted); }
+.audio-panel-row input[type="range"] { flex: 1; }

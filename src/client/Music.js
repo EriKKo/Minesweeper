@@ -1,37 +1,45 @@
-// Procedural ambient music for MSBattle. A slow chord progression with
-// soft sine/triangle pads — meant to sit under everything without
-// competing with the SFX in Sound.js. No external assets; generated
-// live by the Web Audio API.
+// Procedural music for MSBattle — a layered, adaptive engine generated
+// live by the Web Audio API. The base groove (pad + bass) always plays;
+// arpeggio, kick, and shaker layers fade in as the player's activity
+// rises so the soundtrack feels like it's reacting to how fast you're
+// playing.
 //
-// Mute state piggybacks on the existing `ms_muted` flag so the topbar
-// 🔊/🔇 button controls both SFX and music together. Browsers block
-// autoplay until the first user gesture, so `start()` is wired into
-// the same click/keydown unlock as the rest of the audio.
+// Game code calls `music.pulse()` whenever the player does something
+// (reveal, flag, chord). We track those over a short window and turn
+// that rate into a 0..1 "intensity" that drives the layer mix.
+//
+// No external assets. Mute and volume persist via localStorage; both
+// the topbar 🔊/🔇 button and a per-channel slider in the audio popover
+// can drive them.
 
 var music = (function() {
 	var ctx = null, master = null;
-	var muted = localStorage.getItem("ms_muted") === "1";
+	var muted = localStorage.getItem("ms_music_muted") === "1";
 	var volume = parseFloat(localStorage.getItem("ms_music_volume"));
-	if (isNaN(volume)) volume = 0.18; // sit well below SFX
+	if (isNaN(volume)) volume = 0.22;
 	var started = false;
-	var nextChordTime = 0;
+	var nextBarTime = 0;
 	var chordIdx = 0;
 	var schedulerHandle = null;
+	var activity = [];
 
-	// I-vi-IV-V in C major, voiced as seventh chords for a calm, jazzy feel.
-	// Pitches are in Hz (rounded equal-tempered). Each entry is the chord's
-	// {root, third, fifth, seventh} from low to high.
+	// Tempo: 100 BPM gives a beat at 0.6s — peppy without being frantic.
+	var BPM = 100;
+	var BEAT_S = 60 / BPM;
+	var BAR_BEATS = 4;
+	var BAR_DUR = BEAT_S * BAR_BEATS; // one chord per bar
+	var LOOKAHEAD_S = 1.0;
+	var ACTIVITY_WINDOW_MS = 4000;
+	var ACTIVITY_FULL_RATE = 3; // events/sec ≈ "fast play"
+
+	// I-vi-IV-V in C major, voiced as seventh chords. Each chord exposes
+	// its root, the pad tones, and a scale to draw arpeggio notes from.
 	var CHORDS = [
-		[130.81, 164.81, 196.00, 246.94], // Cmaj7 (C E G B), root C3
-		[110.00, 130.81, 164.81, 196.00], // Am7   (A C E G), root A2
-		[ 87.31, 110.00, 130.81, 164.81], // Fmaj7 (F A C E), root F2
-		[ 98.00, 123.47, 146.83, 174.61]  // G7    (G B D F), root G2
+		{ root: 130.81, pad: [130.81, 164.81, 196.00, 246.94], scale: [261.63, 293.66, 329.63, 392.00, 493.88] }, // Cmaj7
+		{ root: 110.00, pad: [110.00, 130.81, 164.81, 196.00], scale: [220.00, 261.63, 293.66, 329.63, 440.00] }, // Am7
+		{ root:  87.31, pad: [ 87.31, 110.00, 130.81, 164.81], scale: [174.61, 220.00, 261.63, 329.63, 349.23] }, // Fmaj7
+		{ root:  98.00, pad: [ 98.00, 123.47, 146.83, 174.61], scale: [196.00, 246.94, 293.66, 349.23, 392.00] }  // G7
 	];
-	// Melody pool drawn from the C major scale (one octave above root).
-	var MELODY_HZ = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
-	var CHORD_DUR = 6.0;             // seconds per chord
-	var LOOKAHEAD_S = 1.5;           // schedule this far ahead
-	var MELODY_PROB = 0.55;          // chance of a melody note per chord
 
 	function ensure() {
 		if (ctx) return ctx;
@@ -40,52 +48,141 @@ var music = (function() {
 		ctx = new AC();
 		master = ctx.createGain();
 		master.gain.value = muted ? 0 : volume;
-		// Gentle low-pass keeps the upper harmonics from being harsh.
 		var lp = ctx.createBiquadFilter();
 		lp.type = "lowpass";
-		lp.frequency.value = 2200;
+		lp.frequency.value = 4500;
 		master.connect(lp);
 		lp.connect(ctx.destination);
 		return ctx;
 	}
 
-	function envelopedOsc(type, freq, startTime, dur, attack, release, gain) {
+	function pulse() {
+		var t = (ctx ? ctx.currentTime * 1000 : performance.now());
+		activity.push(t);
+		if (activity.length > 200) activity.shift();
+	}
+
+	function intensity() {
+		var now = (ctx ? ctx.currentTime * 1000 : performance.now());
+		while (activity.length && now - activity[0] > ACTIVITY_WINDOW_MS) activity.shift();
+		var rate = activity.length / (ACTIVITY_WINDOW_MS / 1000);
+		var raw = Math.min(1, rate / ACTIVITY_FULL_RATE);
+		return raw;
+	}
+
+	function padTone(type, freq, t, dur, gain) {
 		var osc = ctx.createOscillator();
 		osc.type = type;
 		osc.frequency.value = freq;
 		var g = ctx.createGain();
-		g.gain.setValueAtTime(0, startTime);
-		g.gain.linearRampToValueAtTime(gain, startTime + attack);
-		g.gain.setValueAtTime(gain, startTime + dur - release);
-		g.gain.linearRampToValueAtTime(0, startTime + dur);
-		osc.connect(g);
-		g.connect(master);
-		osc.start(startTime);
-		osc.stop(startTime + dur + 0.05);
+		var attack = 0.4, release = 0.4;
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + attack);
+		g.gain.setValueAtTime(gain, t + dur - release);
+		g.gain.linearRampToValueAtTime(0.0001, t + dur);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + dur + 0.05);
 	}
 
-	function playChord(freqs, startTime) {
-		// Voices overlap a touch with the next chord for a smooth transition.
-		var dur = CHORD_DUR + 1.6;
-		// Bass + tenor pad: triangle on the root, sine on the upper voices.
-		envelopedOsc("triangle", freqs[0] * 0.5, startTime, dur, 1.5, 1.8, 0.18);
-		envelopedOsc("sine",     freqs[1],       startTime, dur, 1.2, 1.6, 0.10);
-		envelopedOsc("sine",     freqs[2],       startTime, dur, 1.0, 1.4, 0.09);
-		envelopedOsc("sine",     freqs[3],       startTime, dur, 1.0, 1.4, 0.07);
-		// Occasional sparkly melody note in the second half of the chord.
-		if (Math.random() < MELODY_PROB) {
-			var note = MELODY_HZ[Math.floor(Math.random() * MELODY_HZ.length)];
-			var delay = CHORD_DUR * (0.35 + Math.random() * 0.4);
-			envelopedOsc("triangle", note, startTime + delay, 1.6, 0.05, 1.3, 0.06);
+	function pluck(freq, t, dur, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "triangle";
+		osc.frequency.value = freq;
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.005);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + dur + 0.02);
+	}
+
+	function bass(freq, t, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "triangle";
+		osc.frequency.setValueAtTime(freq, t);
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.01);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + 0.4);
+	}
+
+	function kick(t, gain) {
+		var osc = ctx.createOscillator();
+		osc.type = "sine";
+		osc.frequency.setValueAtTime(140, t);
+		osc.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+		var g = ctx.createGain();
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(gain, t + 0.005);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+		osc.connect(g); g.connect(master);
+		osc.start(t); osc.stop(t + 0.2);
+	}
+
+	function shaker(t, gain) {
+		var dur = 0.06;
+		var samples = Math.floor(ctx.sampleRate * dur);
+		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < samples; i++) {
+			data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2.5);
+		}
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6000;
+		var g = ctx.createGain(); g.gain.value = gain;
+		src.connect(hp); hp.connect(g); g.connect(master);
+		src.start(t);
+	}
+
+	function scheduleBar(chord, t, intens) {
+		// Pad — always present, fairly soft.
+		var padDur = BAR_DUR + 0.5;
+		padTone("triangle", chord.pad[0] * 0.5, t, padDur, 0.16);
+		padTone("sine",     chord.pad[1],       t, padDur, 0.07);
+		padTone("sine",     chord.pad[2],       t, padDur, 0.07);
+		padTone("sine",     chord.pad[3],       t, padDur, 0.05);
+
+		// Walking bass on beats 1 and 3 — always there but louder with intensity.
+		var bassGain = 0.10 + 0.06 * intens;
+		bass(chord.root, t, bassGain);
+		bass(chord.root, t + 2 * BEAT_S, bassGain);
+
+		// 8th-note arpeggio that grows with intensity (silent when idle).
+		if (intens > 0.05) {
+			for (var i = 0; i < 8; i++) {
+				var note = chord.scale[(i + chordIdx) % chord.scale.length];
+				// Occasional octave jump for sparkle when intensity is high.
+				if (intens > 0.6 && (i % 2 === 0)) note *= 2;
+				pluck(note, t + i * 0.5 * BEAT_S, 0.22, 0.025 + 0.06 * intens);
+			}
+		}
+
+		// Soft kick — fades in past intensity 0.25.
+		if (intens > 0.25) {
+			var kickGain = 0.05 + 0.10 * (intens - 0.25);
+			kick(t, kickGain);
+			kick(t + 2 * BEAT_S, kickGain);
+			// Extra back-beat kick at high intensity.
+			if (intens > 0.7) kick(t + 3 * BEAT_S, kickGain * 0.7);
+		}
+
+		// Shaker — joins at higher intensity, 8th notes.
+		if (intens > 0.45) {
+			var shakerGain = 0.015 + 0.025 * (intens - 0.45);
+			for (var s = 0; s < 8; s++) {
+				shaker(t + s * 0.5 * BEAT_S, shakerGain * (s % 2 === 1 ? 1 : 0.6));
+			}
 		}
 	}
 
 	function scheduleAhead() {
 		if (!ctx) return;
-		while (nextChordTime < ctx.currentTime + LOOKAHEAD_S) {
-			playChord(CHORDS[chordIdx], nextChordTime);
+		while (nextBarTime < ctx.currentTime + LOOKAHEAD_S) {
+			scheduleBar(CHORDS[chordIdx], nextBarTime, intensity());
 			chordIdx = (chordIdx + 1) % CHORDS.length;
-			nextChordTime += CHORD_DUR;
+			nextBarTime += BAR_DUR;
 		}
 	}
 
@@ -95,14 +192,14 @@ var music = (function() {
 		if (ctx.state === "suspended") ctx.resume();
 		if (started) return;
 		started = true;
-		nextChordTime = ctx.currentTime + 0.4;
+		nextBarTime = ctx.currentTime + 0.3;
 		scheduleAhead();
-		schedulerHandle = setInterval(scheduleAhead, 1000);
+		schedulerHandle = setInterval(scheduleAhead, 500);
 	}
 
 	function setMuted(m) {
 		muted = m;
-		localStorage.setItem("ms_muted", m ? "1" : "0");
+		localStorage.setItem("ms_music_muted", m ? "1" : "0");
 		if (master) master.gain.linearRampToValueAtTime(m ? 0 : volume, (ctx ? ctx.currentTime : 0) + 0.2);
 	}
 	function setVolume(v) {
@@ -113,6 +210,8 @@ var music = (function() {
 
 	return {
 		start: start,
+		pulse: pulse,
+		intensity: intensity,
 		setMuted: setMuted,
 		isMuted: function() { return muted; },
 		setVolume: setVolume,
