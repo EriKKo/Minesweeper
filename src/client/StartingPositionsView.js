@@ -246,6 +246,14 @@ function outsideIndex(r, c) {
 	return -1;
 }
 
+var STARTING_POS_CELL_PX = 28;
+
+// Render a starting position with the standard board canvas renderer
+// so the cells look the same as in a live game. Inner 3x3 cells get
+// revealed-with-clue rendering, forced-mine outer cells render as
+// flagged covered cells, and the rest stay covered blue. On top of
+// the covered base we draw a small marker on forced-safe cells so
+// the player can see what the analyzer has determined.
 function renderStartingPosCard(pos) {
 	var card = document.createElement("div");
 	card.className = "starting-pos-card";
@@ -263,49 +271,11 @@ function renderStartingPosCard(pos) {
 	head.appendChild(action);
 	card.appendChild(head);
 
-	// 5x5 grid: inner 3x3 cascade + 16 outer cells.
-	var grid = document.createElement("div");
-	grid.className = "starting-pos-grid";
-	var clues = pos.pattern.split(".").map(function(x) { return parseInt(x, 10); });
-	var boundary = {
-		"1,1": clues[0], "1,2": clues[1], "1,3": clues[2],
-		"2,3": clues[3], "3,3": clues[4], "3,2": clues[5],
-		"3,1": clues[6], "2,1": clues[7]
-	};
-	var safeMask = pos.forced_safe_mask || 0;
-	var mineMask = pos.forced_mine_mask || 0;
-	for (var r = 0; r < 5; r++) {
-		for (var c = 0; c < 5; c++) {
-			var cell = document.createElement("div");
-			cell.className = "starting-pos-cell";
-			if (r >= 1 && r <= 3 && c >= 1 && c <= 3) {
-				// Inner 3x3 cascade
-				if (r === 2 && c === 2) {
-					cell.classList.add("sp-cell-clue", "sp-clue-0");
-				} else {
-					var v = boundary[r + "," + c];
-					cell.classList.add("sp-cell-clue", "sp-clue-" + v);
-					cell.textContent = String(v);
-				}
-			} else {
-				// Outer ring — what the analyzer can deduce
-				var idx = outsideIndex(r, c);
-				var bit = (idx >= 0) ? (1 << idx) : 0;
-				if (safeMask & bit) {
-					cell.classList.add("sp-cell-safe");
-				} else if (mineMask & bit) {
-					cell.classList.add("sp-cell-mine");
-					cell.textContent = "⚑";
-				} else {
-					cell.classList.add("sp-cell-covered");
-				}
-			}
-			grid.appendChild(cell);
-		}
-	}
-	card.appendChild(grid);
+	// 5x5 canvas — drawn with the shared board renderer.
+	var canvas = buildStartingPosCanvas();
+	card.appendChild(canvas);
+	paintStartingPosCanvas(canvas, pos);
 
-	// Footer: pattern, solution count, deducible counts.
 	var details = document.createElement("div");
 	details.className = "starting-pos-details";
 	details.textContent = pos.solutions + " soln · " + pos.forced_safe + " safe · " + pos.forced_mine + " mine";
@@ -316,6 +286,106 @@ function renderStartingPosCard(pos) {
 	card.appendChild(patternRow);
 
 	return card;
+}
+
+function buildStartingPosCanvas() {
+	var canvas = document.createElement("canvas");
+	canvas.className = "starting-pos-canvas";
+	var dpr = window.devicePixelRatio || 1;
+	canvas.width = Math.round(5 * STARTING_POS_CELL_PX * dpr);
+	canvas.height = Math.round(5 * STARTING_POS_CELL_PX * dpr);
+	canvas.style.width = (5 * STARTING_POS_CELL_PX) + "px";
+	canvas.style.height = (5 * STARTING_POS_CELL_PX) + "px";
+	return canvas;
+}
+
+function paintStartingPosCanvas(canvas, pos) {
+	var clues = pos.pattern.split(".").map(function(x) { return parseInt(x, 10); });
+	// Boundary clue lookup table for the inner 3x3 (clockwise from (1,1)).
+	var boundary = {
+		"1,1": clues[0], "1,2": clues[1], "1,3": clues[2],
+		"2,3": clues[3], "3,3": clues[4], "3,2": clues[5],
+		"3,1": clues[6], "2,1": clues[7]
+	};
+	var safeMask = pos.forced_safe_mask || 0;
+	var mineMask = pos.forced_mine_mask || 0;
+
+	// Build the per-cell grids the renderer's view interface expects.
+	var R = 5, C = 5;
+	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
+	var state = [], isMine = [], clueValue = [];
+	for (var r = 0; r < R; r++) {
+		state.push(new Array(C).fill(COVERED));
+		isMine.push(new Array(C).fill(false));
+		clueValue.push(new Array(C).fill(0));
+	}
+	// Inner 3x3 cascade: REVEALED with the right clue values.
+	for (var rr = 1; rr <= 3; rr++) {
+		for (var cc = 1; cc <= 3; cc++) {
+			state[rr][cc] = REVEALED;
+			if (rr === 2 && cc === 2) clueValue[rr][cc] = 0;
+			else clueValue[rr][cc] = boundary[rr + "," + cc];
+		}
+	}
+	// Outer ring: FLAGGED for cells the analyzer proves are mines,
+	// COVERED for everything else (forced-safe markers go on top).
+	for (var r2 = 0; r2 < R; r2++) {
+		for (var c2 = 0; c2 < C; c2++) {
+			if (r2 >= 1 && r2 <= 3 && c2 >= 1 && c2 <= 3) continue;
+			var idx = outsideIndex(r2, c2);
+			if (idx < 0) continue;
+			var bit = 1 << idx;
+			if (mineMask & bit) {
+				state[r2][c2] = FLAGGED_S;
+				isMine[r2][c2] = true;
+			}
+		}
+	}
+
+	var view = {
+		rows: R, cols: C,
+		isCovered: function(r, c) { return state[r][c] === COVERED; },
+		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
+		isMine: function(r, c) { return isMine[r][c]; },
+		getClue: function(r, c) { return clueValue[r][c]; },
+		xray: false
+	};
+
+	var ctx = canvas.getContext("2d");
+	var sw = canvas.width / C, sh = canvas.height / R;
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	for (var r3 = 0; r3 < R; r3++) {
+		for (var c3 = 0; c3 < C; c3++) drawCell(ctx, r3, c3, view, sw, sh, null);
+	}
+
+	// Overlay the "safe" marker on covered cells the analyzer can
+	// prove are safe. A small green dot keeps it close to the
+	// look of a flagged cell while staying clearly distinct.
+	for (var r4 = 0; r4 < R; r4++) {
+		for (var c4 = 0; c4 < C; c4++) {
+			var idx2 = outsideIndex(r4, c4);
+			if (idx2 < 0) continue;
+			var bit2 = 1 << idx2;
+			if (!(safeMask & bit2)) continue;
+			if (state[r4][c4] !== COVERED) continue;
+			drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
+		}
+	}
+}
+
+function drawSafeMarker(ctx, x, y, sw, sh) {
+	var cx = x + sw / 2, cy = y + sh / 2;
+	var r = Math.min(sw, sh) * 0.18;
+	ctx.save();
+	ctx.beginPath();
+	ctx.arc(cx, cy, r, 0, Math.PI * 2);
+	ctx.fillStyle = "#4ade80";
+	ctx.fill();
+	ctx.strokeStyle = "rgba(15, 23, 42, 0.7)";
+	ctx.lineWidth = Math.max(1, r * 0.18);
+	ctx.stroke();
+	ctx.restore();
 }
 
 function ratingTier(rating) {
