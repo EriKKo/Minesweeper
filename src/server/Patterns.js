@@ -39,6 +39,16 @@ function initSourcesFromBranches(branches, sink, seen) {
 
 // Build the pattern object for the analyzer's first move on (board, state).
 // Returns null if the analyzer can't move at all.
+//
+// The pattern carries three kinds of cells:
+//   * clueCells   — revealed clue cells with their values; the inputs
+//                   the analyzer's first move actually consumed.
+//   * deducedCells — the cells the move forces ("S" safe / "M" mine).
+//   * coveredCells — the rest of the cells those clues *constrain*
+//                   (UNKNOWN neighbours of the input clues that aren't
+//                   in the deduced set). They're geometrically part of
+//                   the pattern even though this single move doesn't
+//                   decide them.
 function extractFirstDeductionPattern(board, state) {
 	var stateCopy = state.map(function(row) { return row.slice(); });
 	var result = cspSolver.analyzeBoard(board, stateCopy, {});
@@ -63,20 +73,56 @@ function extractFirstDeductionPattern(board, state) {
 
 	// Deduced cells: revealed (becomes safe) or flagged (becomes mine).
 	var deducedCells = [];
+	var deducedKey = {};
+	function addDeduced(r, c, tag) {
+		var k = r + "," + c;
+		if (deducedKey[k]) return;
+		deducedKey[k] = true;
+		deducedCells.push([r, c, tag]);
+	}
 	if (move.action === "reveal") {
-		(move.cells || []).forEach(function(c) { deducedCells.push([c[0], c[1], "S"]); });
+		(move.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
 	} else if (move.action === "flag") {
-		(move.cells || []).forEach(function(c) { deducedCells.push([c[0], c[1], "M"]); });
+		(move.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
 	} else if (move.action === "case") {
-		(move.revealed || []).forEach(function(c) { deducedCells.push([c[0], c[1], "S"]); });
-		(move.flagged || []).forEach(function(c) { deducedCells.push([c[0], c[1], "M"]); });
+		(move.revealed || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
+		(move.flagged || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
+	}
+
+	// Constrained covered cells: UNKNOWN neighbours of every input clue
+	// cell, minus the ones already in the deduced set. For case-split
+	// moves the splitCell is also part of the pattern even if it
+	// happens not to be in the neighbour set of an init source.
+	var rows = state.length, cols = state[0].length;
+	var coveredCells = [];
+	var coveredKey = {};
+	function addCovered(r, c) {
+		if (r < 0 || c < 0 || r >= rows || c >= cols) return;
+		if (state[r][c] !== UNKNOWN) return;
+		var k = r + "," + c;
+		if (coveredKey[k] || deducedKey[k]) return;
+		coveredKey[k] = true;
+		coveredCells.push([r, c, "?"]);
+	}
+	for (var j = 0; j < clueCellList.length; j++) {
+		var p = clueCellList[j];
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				addCovered(p[0] + dr, p[1] + dc);
+			}
+		}
+	}
+	if (move.action === "case" && move.splitCell) {
+		addCovered(move.splitCell[0], move.splitCell[1]);
 	}
 
 	return {
 		action: move.action,
 		complexity: move.complexity,
 		clueCells: clueCells,
-		deducedCells: deducedCells
+		deducedCells: deducedCells,
+		coveredCells: coveredCells
 	};
 }
 
@@ -98,22 +144,23 @@ function transform(r, c, t) {
 }
 
 function transformAndNormalize(pattern, t) {
-	var clues = pattern.clueCells.map(function(x) {
+	function tx(x) {
 		var p = transform(x[0], x[1], t);
 		return [p[0], p[1], x[2]];
-	});
-	var deduced = pattern.deducedCells.map(function(x) {
-		var p = transform(x[0], x[1], t);
-		return [p[0], p[1], x[2]];
-	});
+	}
+	var clues = pattern.clueCells.map(tx);
+	var deduced = pattern.deducedCells.map(tx);
+	var covered = (pattern.coveredCells || []).map(tx);
 	var minR = Infinity, minC = Infinity;
-	clues.concat(deduced).forEach(function(c) {
+	clues.concat(deduced, covered).forEach(function(c) {
 		if (c[0] < minR) minR = c[0];
 		if (c[1] < minC) minC = c[1];
 	});
+	function shift(c) { return [c[0] - minR, c[1] - minC, c[2]]; }
 	return {
-		clueCells: clues.map(function(c) { return [c[0] - minR, c[1] - minC, c[2]]; }),
-		deducedCells: deduced.map(function(c) { return [c[0] - minR, c[1] - minC, c[2]]; }),
+		clueCells: clues.map(shift),
+		deducedCells: deduced.map(shift),
+		coveredCells: covered.map(shift),
 		action: pattern.action,
 		complexity: pattern.complexity
 	};
@@ -121,11 +168,14 @@ function transformAndNormalize(pattern, t) {
 
 // Canonical key — the lex-smallest serialization over all 8 dihedral
 // variants. Cells in each variant are sorted before joining so the
-// ordering of the inputs doesn't influence the key.
+// ordering of the inputs doesn't influence the key. Each cell-kind
+// prefix (C/D/X) keeps clue, deduced, and ambiguous covered cells
+// distinct in the key.
 function patternKey(pattern) {
 	var parts = [];
 	pattern.clueCells.forEach(function(c) { parts.push("C" + c[0] + "," + c[1] + ":" + c[2]); });
 	pattern.deducedCells.forEach(function(c) { parts.push("D" + c[0] + "," + c[1] + ":" + c[2]); });
+	(pattern.coveredCells || []).forEach(function(c) { parts.push("X" + c[0] + "," + c[1]); });
 	parts.sort();
 	return parts.join(";");
 }
@@ -147,7 +197,7 @@ function canonicalize(pattern) {
 
 function patternBoundingBox(pattern) {
 	var maxR = 0, maxC = 0;
-	pattern.clueCells.concat(pattern.deducedCells).forEach(function(c) {
+	pattern.clueCells.concat(pattern.deducedCells, pattern.coveredCells || []).forEach(function(c) {
 		if (c[0] > maxR) maxR = c[0];
 		if (c[1] > maxC) maxC = c[1];
 	});

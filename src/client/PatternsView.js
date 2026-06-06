@@ -232,13 +232,12 @@ function buildPatternCanvas(width, height) {
 function paintPatternCanvas(canvas, pat) {
 	var cells;
 	try { cells = JSON.parse(pat.cells_json); } catch (e) { return; }
-	var clueCells = cells.clues || [];      // [[r, c, value], ...]
-	var deducedCells = cells.deduced || []; // [[r, c, "S"|"M"], ...]
+	var clueCells = cells.clues || [];        // [[r, c, value], ...]
+	var deducedCells = cells.deduced || [];   // [[r, c, "S"|"M"], ...]
+	var coveredCells = cells.covered || [];   // [[r, c, "?"], ...]  ambiguous covered cells
 	var R = pat.height, C = pat.width;
 	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
 
-	// Construct a flag/clue lookup per cell. Cells not mentioned in the
-	// pattern stay "absent" — we draw nothing there.
 	var inPattern = [];
 	var state = [];
 	var isMine = [];
@@ -251,6 +250,9 @@ function paintPatternCanvas(canvas, pat) {
 		clueValue.push(new Array(C).fill(0));
 		safeOverlay.push(new Array(C).fill(false));
 	}
+	// Ambiguous covered cells first — drawn as plain blue covered tiles
+	// with no marker. They establish the pattern's footprint.
+	coveredCells.forEach(function(c) { inPattern[c[0]][c[1]] = true; });
 	clueCells.forEach(function(c) {
 		state[c[0]][c[1]] = REVEALED;
 		clueValue[c[0]][c[1]] = c[2];
@@ -262,7 +264,6 @@ function paintPatternCanvas(canvas, pat) {
 			state[c[0]][c[1]] = FLAGGED_S;
 			isMine[c[0]][c[1]] = true;
 		} else {
-			// Stay COVERED, paint a checkmark on top after the cell draws.
 			safeOverlay[c[0]][c[1]] = true;
 		}
 	});
