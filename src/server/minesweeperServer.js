@@ -640,8 +640,10 @@ function servePuzzles(req, res, url) {
 	var diffFilter = (diff >= 1 && diff <= 6) ? diff : null;
 	var scoreBandRaw = url.searchParams.get("score");
 	var scoreBand = (scoreBandRaw && /^(\d+(\.\d+)?-\d+(\.\d+)?|\d+(\.\d+)?\+)$/.test(scoreBandRaw)) ? scoreBandRaw : null;
-	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, page: page, pageSize: pageSize, sort: sort });
-	var total = db.puzzleCount(diffFilter, method, scoreBand);
+	var listSourceRaw = url.searchParams.get("source");
+	var listSource = (listSourceRaw === "random" || listSourceRaw === "inside_out") ? listSourceRaw : null;
+	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, source: listSource, page: page, pageSize: pageSize, sort: sort });
+	var total = db.puzzleCount(diffFilter, method, scoreBand, listSource);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({
 		puzzles: puzzles,

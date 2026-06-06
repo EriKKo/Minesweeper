@@ -371,6 +371,11 @@ function methodClause(method) {
 	return null;
 }
 
+function sourceClause(source) {
+	if (source === "random" || source === "inside_out") return { sql: "source = ?", param: source };
+	return null;
+}
+
 function listPuzzles(opts) {
 	opts = opts || {};
 	var clauses = [];
@@ -386,6 +391,8 @@ function listPuzzles(opts) {
 		clauses.push(band.sql);
 		band.params.forEach(function(p) { params.push(p); });
 	}
+	var src = sourceClause(opts.source);
+	if (src) { clauses.push(src.sql); params.push(src.param); }
 	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
 	var pageSize = Math.max(1, Math.min(200, opts.pageSize || 50));
 	var page = Math.max(0, opts.page || 0);
@@ -397,7 +404,7 @@ function listPuzzles(opts) {
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
 }
 
-function puzzleCount(difficulty, method, scoreBand) {
+function puzzleCount(difficulty, method, scoreBand, source) {
 	var clauses = [];
 	var params = [];
 	if (difficulty >= 1 && difficulty <= 6) {
@@ -411,6 +418,8 @@ function puzzleCount(difficulty, method, scoreBand) {
 		clauses.push(b.sql);
 		b.params.forEach(function(p) { params.push(p); });
 	}
+	var src = sourceClause(source);
+	if (src) { clauses.push(src.sql); params.push(src.param); }
 	var sql = "SELECT COUNT(*) AS n FROM puzzles";
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
 	var stmt = db.prepare(sql);

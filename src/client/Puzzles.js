@@ -5,7 +5,13 @@
 // the puzzle DB exists this page is the natural place to swap the fetch over
 // to it; the rest of the UI stays unchanged.
 
-var puzzleListState = { sort: "score-asc", diff: null, method: null, scoreBand: null, page: 0, pageSize: 50 };
+var puzzleListState = { sort: "score-asc", diff: null, method: null, scoreBand: null, source: null, page: 0, pageSize: 50 };
+
+var SOURCE_OPTIONS = [
+	{ key: null, label: "Any" },
+	{ key: "random", label: "Random" },
+	{ key: "inside_out", label: "Inside-out" }
+];
 
 // Complexity bands shown in the All Puzzles filter. The score column
 // already carries CSP maxComplexity + total/20, so these map directly to
@@ -40,6 +46,8 @@ function readPuzzleListStateFromHash() {
 	var score = params.get("score");
 	var validBand = SCORE_BANDS.some(function(b) { return b.key === score; });
 	puzzleListState.scoreBand = (validBand && score) ? score : null;
+	var source = params.get("source");
+	puzzleListState.source = (source === "random" || source === "inside_out") ? source : null;
 	var page = parseInt(params.get("page"), 10);
 	puzzleListState.page = (page > 0) ? page : 0;
 }
@@ -50,6 +58,7 @@ function writePuzzleListStateToHash() {
 	if (puzzleListState.diff) bits.push("diff=" + puzzleListState.diff);
 	if (puzzleListState.method) bits.push("method=" + puzzleListState.method);
 	if (puzzleListState.scoreBand) bits.push("score=" + puzzleListState.scoreBand);
+	if (puzzleListState.source) bits.push("source=" + puzzleListState.source);
 	if (puzzleListState.page) bits.push("page=" + puzzleListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
 	var newHash = "#/admin/puzzles" + qs;
@@ -186,6 +195,29 @@ function renderPuzzlesList() {
 	});
 	toolbar.appendChild(bandRow);
 
+	var sourceRow = document.createElement("div");
+	sourceRow.className = "puzzles-filter";
+	var sourceLabel = document.createElement("span");
+	sourceLabel.className = "puzzles-filter-label";
+	sourceLabel.textContent = "Source";
+	sourceRow.appendChild(sourceLabel);
+	SOURCE_OPTIONS.forEach(function(opt) {
+		var btn = document.createElement("button");
+		btn.className = "puzzles-filter-chip";
+		btn.dataset.source = opt.key == null ? "any" : opt.key;
+		btn.textContent = opt.label;
+		if (opt.key === puzzleListState.source) btn.classList.add("active");
+		btn.addEventListener("click", function() {
+			puzzleListState.source = opt.key;
+			puzzleListState.page = 0;
+			writePuzzleListStateToHash();
+			updatePuzzleListSourceChips();
+			refreshPuzzleList();
+		});
+		sourceRow.appendChild(btn);
+	});
+	toolbar.appendChild(sourceRow);
+
 	view.appendChild(toolbar);
 
 	var status = document.createElement("p");
@@ -223,6 +255,14 @@ function updatePuzzleListMethodChips() {
 	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip[data-method]").forEach(function(b) {
 		var m = b.dataset.method;
 		var match = (m === "any" && puzzleListState.method == null) || (m === puzzleListState.method);
+		b.classList.toggle("active", !!match);
+	});
+}
+
+function updatePuzzleListSourceChips() {
+	document.querySelectorAll("#puzzles_list_view .puzzles-filter-chip[data-source]").forEach(function(b) {
+		var s = b.dataset.source;
+		var match = (s === "any" && puzzleListState.source == null) || (s === puzzleListState.source);
 		b.classList.toggle("active", !!match);
 	});
 }
@@ -443,10 +483,12 @@ function refreshPuzzleList() {
 	var pageSize = puzzleListState.pageSize || 50;
 	var method = puzzleListState.method;
 	var band = puzzleListState.scoreBand;
+	var source = puzzleListState.source;
 	var qs = "page=" + page + "&pageSize=" + pageSize + "&sort=" + sort
 		+ (diff ? "&diff=" + diff : "")
 		+ (method ? "&method=" + method : "")
-		+ (band ? "&score=" + encodeURIComponent(band) : "");
+		+ (band ? "&score=" + encodeURIComponent(band) : "")
+		+ (source ? "&source=" + source : "");
 	var url = "/api/puzzles?" + qs;
 	fetch(url).then(function(r) { return r.json(); }).then(function(data) {
 		var puzzles = (data && data.puzzles) || [];
