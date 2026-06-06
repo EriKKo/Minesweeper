@@ -57,18 +57,68 @@ var sound = (function() {
 		for (var i = 0; i < freqs.length; i++) tone({ type: "triangle", freq: freqs[i], dur: dur, gain: gain, delay: i * step });
 	}
 
+	// SFX that scale up with how fast the player is going. We read the
+	// live music chord + intensity and step through a small ladder of
+	// timbres so the soundscape progressively "thickens" as activity
+	// climbs:
+	//   level 0 (idle, no music): generic ascending triangle clicks
+	//   level 1 (intensity < 0.5):  chord-scale climb, triangle
+	//   level 2 (intensity < 0.8):  chord-scale climb, square (brighter)
+	//   level 3 (intensity ≥ 0.8):  square + sub-octave triangle layer
+	function liveMusic() {
+		if (typeof music === "undefined" || music.isMuted()) return null;
+		var chord = music.currentChord && music.currentChord();
+		if (!chord) return null;
+		return { chord: chord, intensity: music.intensity ? music.intensity() : 0 };
+	}
+
 	return {
 		cascade: function(n) {
 			var ticks = Math.max(1, Math.min(n, 7));
-			for (var i = 0; i < ticks; i++) tone({ type: "triangle", freq: 560 + i * 70, dur: 0.045, gain: 0.05, delay: i * 0.028 });
+			var live = liveMusic();
+			for (var i = 0; i < ticks; i++) {
+				var delay = i * 0.028;
+				if (!live || live.intensity < 0.15) {
+					tone({ type: "triangle", freq: 560 + i * 70, dur: 0.045, gain: 0.05, delay: delay });
+					continue;
+				}
+				var scale = live.chord.scale;
+				var note = scale[i % scale.length];
+				if (i >= scale.length) note *= 2;
+				if (live.intensity < 0.5) {
+					tone({ type: "triangle", freq: note, dur: 0.05, gain: 0.055, delay: delay });
+				} else if (live.intensity < 0.8) {
+					tone({ type: "square", freq: note, dur: 0.05, gain: 0.06, delay: delay });
+				} else {
+					tone({ type: "square", freq: note, dur: 0.055, gain: 0.07, delay: delay });
+					tone({ type: "triangle", freq: note / 2, dur: 0.07, gain: 0.04, delay: delay });
+				}
+			}
 		},
 		opponentDone: function(n) {
 			var base = 720 + Math.min(n, 4) * 70;
 			tone({ type: "triangle", freq: base, dur: 0.09, gain: 0.06 });
 			tone({ type: "triangle", freq: base * 1.34, dur: 0.12, gain: 0.06, delay: 0.085 });
 		},
-		flag: function() { tone({ type: "square", freq: 420, toFreq: 300, dur: 0.06, gain: 0.06 }); },
-		unflag: function() { tone({ type: "square", freq: 300, dur: 0.04, gain: 0.04 }); },
+		flag: function() {
+			var live = liveMusic();
+			if (live && live.intensity > 0.15) {
+				// Flag = a punchy chord-root hit so it harmonizes with the loop.
+				var f = live.chord.bassRoot * 2;
+				tone({ type: "square", freq: f, toFreq: f * 0.75, dur: 0.08, gain: 0.07 });
+				if (live.intensity > 0.6) noise({ dur: 0.05, cutoff: 3500, gain: 0.05 });
+			} else {
+				tone({ type: "square", freq: 420, toFreq: 300, dur: 0.06, gain: 0.06 });
+			}
+		},
+		unflag: function() {
+			var live = liveMusic();
+			if (live && live.intensity > 0.15) {
+				tone({ type: "square", freq: live.chord.bassRoot * 1.5, dur: 0.04, gain: 0.05 });
+			} else {
+				tone({ type: "square", freq: 300, dur: 0.04, gain: 0.04 });
+			}
+		},
 		mine: function() {
 			noise({ dur: 0.35, cutoff: 500, gain: 0.5 });
 			tone({ type: "sine", freq: 150, toFreq: 50, dur: 0.4, gain: 0.22 });
@@ -88,9 +138,10 @@ var sound = (function() {
 
 function unlockAudio() {
 	sound.unlock();
-	// Ambient music starts here too — on first gesture and only if music is
-	// available (loaded after Sound.js via the index.html script tags).
-	if (typeof music !== "undefined") music.start();
+	// Just unlock the music's AudioContext on first gesture; whether
+	// it actually starts playing is controlled by the router (only on
+	// in-game views) and the per-mode start_game / series_ended hooks.
+	if (typeof music !== "undefined") music.unlock();
 }
 document.addEventListener("click", unlockAudio, { once: true });
 document.addEventListener("keydown", unlockAudio, { once: true });

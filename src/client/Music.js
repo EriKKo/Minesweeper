@@ -32,29 +32,29 @@ var music = (function() {
 
 	// Am - F - C - G ("axis of awesome") in A minor. Each bar exposes:
 	// * bassRoot — pulse-wave bass root frequency
-	// * arp — 4-note arpeggio pattern (one note per beat, looped 4×
-	//         to give 16 sixteenth-notes per bar via repetition)
-	// * lead — 8 note phrase across the bar for the melodic lead
+	// * arp — 4-note arpeggio pattern looped through the bar
+	// * scale — chord-locked pentatonic SFX can sample for harmonized
+	//           clicks/blips that "play along" with the loop
 	var BARS = [
 		{ // Am
 			bassRoot: 110.00,
-			arp:  [220.00, 261.63, 329.63, 440.00],            // A C E A
-			lead: [659.25, 587.33, 523.25, 587.33, 659.25, 659.25, 587.33, 523.25]
+			arp:   [220.00, 261.63, 329.63, 440.00],   // A C E A
+			scale: [220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25] // A minor pentatonic + 7th
 		},
 		{ // F
 			bassRoot:  87.31,
-			arp:  [174.61, 220.00, 261.63, 349.23],            // F A C F
-			lead: [523.25, 587.33, 698.46, 587.33, 523.25, 523.25, 440.00, 523.25]
+			arp:   [174.61, 220.00, 261.63, 349.23],   // F A C F
+			scale: [174.61, 220.00, 261.63, 293.66, 349.23, 440.00, 523.25] // F major pentatonic-ish
 		},
 		{ // C
 			bassRoot: 130.81,
-			arp:  [261.63, 329.63, 392.00, 523.25],            // C E G C
-			lead: [659.25, 698.46, 783.99, 698.46, 659.25, 587.33, 523.25, 587.33]
+			arp:   [261.63, 329.63, 392.00, 523.25],   // C E G C
+			scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 659.25] // C major pentatonic
 		},
 		{ // G
 			bassRoot:  98.00,
-			arp:  [196.00, 246.94, 293.66, 392.00],            // G B D G
-			lead: [587.33, 698.46, 783.99, 698.46, 587.33, 493.88, 440.00, 493.88]
+			arp:   [196.00, 246.94, 293.66, 392.00],   // G B D G
+			scale: [196.00, 246.94, 293.66, 369.99, 440.00, 493.88, 587.33] // G mixolydian-ish
 		}
 	];
 
@@ -101,29 +101,6 @@ var music = (function() {
 		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
 		osc.connect(filt); filt.connect(g); g.connect(master);
 		osc.start(t); osc.stop(t + dur + 0.02);
-	}
-
-	// Square-wave melodic voice — NES-style with a touch of vibrato
-	// at the tail for that "wavering" chiptune lead feel.
-	function squareLead(freq, t, dur, gain) {
-		var osc = ctx.createOscillator();
-		osc.type = "square";
-		osc.frequency.value = freq;
-		// Subtle vibrato kicking in after the attack.
-		var vib = ctx.createOscillator();
-		var vibGain = ctx.createGain();
-		vib.frequency.value = 6.5;
-		vibGain.gain.setValueAtTime(0, t);
-		vibGain.gain.linearRampToValueAtTime(freq * 0.012, t + dur * 0.4);
-		vib.connect(vibGain); vibGain.connect(osc.frequency);
-		var g = ctx.createGain();
-		g.gain.setValueAtTime(0.0001, t);
-		g.gain.linearRampToValueAtTime(gain, t + 0.01);
-		g.gain.linearRampToValueAtTime(gain * 0.75, t + dur * 0.6);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-		osc.connect(g); g.connect(master);
-		osc.start(t); osc.stop(t + dur + 0.02);
-		vib.start(t); vib.stop(t + dur + 0.02);
 	}
 
 	// Triangle-wave arpeggio — fast notes, very short. NES classic.
@@ -225,15 +202,6 @@ var music = (function() {
 			hihat(t + h * BEAT_S * 0.5, hatGain * (h % 2 === 1 ? 1.2 : 0.7));
 		}
 
-		// Square-wave lead — fades in past intensity 0.3. 8 notes
-		// spread across the bar (8th-note resolution).
-		if (intens > 0.3) {
-			var leadGain = 0.05 + 0.08 * (intens - 0.3);
-			for (var n = 0; n < 8; n++) {
-				squareLead(bar.lead[n], t + n * BEAT_S * 0.5, BEAT_S * 0.45, leadGain);
-			}
-		}
-
 		barIdx = (barIdx + 1) % BARS.length;
 	}
 
@@ -245,15 +213,47 @@ var music = (function() {
 		}
 	}
 
-	function start() {
-		ensure();
-		if (!ctx) return;
-		if (ctx.state === "suspended") ctx.resume();
+	// Music is only audible when (a) the AudioContext is unlocked (user
+	// has interacted with the page) AND (b) wantPlaying is true (we're
+	// on an in-game view). The router toggles wantPlaying; the first
+	// user gesture unlocks and starts immediately if wanted.
+	var wantPlaying = false;
+
+	function actuallyStart() {
+		if (!ctx || ctx.state === "suspended") return;
 		if (started) return;
 		started = true;
 		nextBarTime = ctx.currentTime + 0.25;
 		scheduleAhead();
 		schedulerHandle = setInterval(scheduleAhead, 400);
+	}
+
+	function unlock() {
+		ensure();
+		if (!ctx) return;
+		if (ctx.state === "suspended") ctx.resume().then(function() {
+			if (wantPlaying) actuallyStart();
+		});
+		else if (wantPlaying) actuallyStart();
+	}
+
+	function resume() {
+		wantPlaying = true;
+		actuallyStart();
+	}
+	function pause() {
+		wantPlaying = false;
+		if (schedulerHandle) { clearInterval(schedulerHandle); schedulerHandle = null; }
+		started = false;
+	}
+	// Backwards-compat alias used by the original audio-unlock wiring.
+	function start() { unlock(); resume(); }
+
+	// The current audible chord (used by SFX to harmonize). barIdx points
+	// to the NEXT bar we'll schedule, so the live one is one behind.
+	function currentChord() {
+		var liveIdx = (barIdx - 1 + BARS.length) % BARS.length;
+		return BARS[liveIdx];
 	}
 
 	function setMuted(m) {
@@ -269,8 +269,12 @@ var music = (function() {
 
 	return {
 		start: start,
+		unlock: unlock,
+		pause: pause,
+		resume: resume,
 		pulse: pulse,
 		intensity: intensity,
+		currentChord: currentChord,
 		setMuted: setMuted,
 		isMuted: function() { return muted; },
 		setVolume: setVolume,

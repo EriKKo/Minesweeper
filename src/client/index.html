@@ -968,7 +968,7 @@ function setAudioPanelOpen(open) {
 muteButton.addEventListener("click", function(e) {
 	e.stopPropagation();
 	sound.unlock();
-	if (typeof music !== "undefined") music.start();
+	if (typeof music !== "undefined") music.unlock();
 	setAudioPanelOpen(audioPanel.hasAttribute("hidden"));
 });
 document.addEventListener("click", function(e) {
@@ -985,7 +985,7 @@ volumeSlider.addEventListener("input", function() {
 });
 musicSlider.addEventListener("input", function() {
 	if (typeof music === "undefined") return;
-	music.start();
+	music.unlock();
 	var v = parseInt(musicSlider.value, 10) / 100;
 	music.setVolume(v);
 	music.setMuted(v === 0);
@@ -1189,6 +1189,7 @@ socket.on("room_state", function(state) {
 });
 
 socket.on("start_game", function(data) {
+	if (typeof music !== "undefined") music.resume();
 	// If we've been eliminated this tournament we stay in the room to spectate
 	// but skip the playable countdown. Re-show the elimination panel unless the
 	// player explicitly dismissed it via "Keep watching".
@@ -1255,6 +1256,7 @@ socket.on("series_ended", function(data) {
 	if (data.winnerId === id) sound.seriesWin(); else sound.lose();
 	gameProgressText.textContent = "";
 	stopRoundTimer();
+	if (typeof music !== "undefined") music.pause();
 });
 
 // Match-found reveal: server pauses for delayMs after forming a ranked match
