@@ -345,12 +345,17 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	else if (maxC <= 10.0) difficulty = 5;
 	else difficulty = 6;
 
+	var needsCaseSplit = false;
+	for (var mi = 0; mi < (cspResult.moves || []).length; mi++) {
+		if (cspResult.moves[mi].action === "case") { needsCaseSplit = true; break; }
+	}
 	return {
 		solved: solved,
 		difficulty: difficulty,
 		score: score,
 		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
 		maxEnumSize: maxEnumSize,
+		needsCaseSplit: needsCaseSplit,
 		cspMaxComplexity: Math.round(maxC * 10) / 10,
 		cspTotalComplexity: Math.round(totalC * 10) / 10
 	};

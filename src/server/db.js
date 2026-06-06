@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 14;
+var CURRENT_SCORING_VERSION = 15;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -91,6 +91,9 @@ addColumnIfMissing("users", "email", "TEXT");
 // value so their pass counts / difficulty / score reflect the new pass.
 addColumnIfMissing("puzzles", "overlap_passes", "INTEGER NOT NULL DEFAULT -1");
 addColumnIfMissing("puzzles", "chain_passes", "INTEGER NOT NULL DEFAULT 0");
+// Set to 1 when the CSP analyzer fell back to case-split for at least
+// one move — used by the All Puzzles "Case" filter.
+addColumnIfMissing("puzzles", "needs_case_split", "INTEGER NOT NULL DEFAULT 0");
 // Bumped whenever the scoring formula changes. The startup backfill picks
 // up rows whose stored version is below CURRENT_SCORING_VERSION and
 // re-analyzes them.
@@ -241,8 +244,9 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, " +
+		" needs_case_split, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -253,6 +257,7 @@ function insertPuzzle(p) {
 		(p.passes && p.passes.chain) || 0,
 		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
+		p.needsCaseSplit ? 1 : 0,
 		CURRENT_SCORING_VERSION,
 		Date.now()
 	);
@@ -314,6 +319,9 @@ function methodClause(method) {
 	if (method === "overlap") return "overlap_passes > 0 AND chain_passes = 0 AND enum_passes = 0";
 	if (method === "chain")   return "chain_passes > 0 AND enum_passes = 0";
 	if (method === "enum")    return "enum_passes > 0";
+	// "case" filter is orthogonal to the pass-tag classification — it's set
+	// when the CSP analyzer needed a case-split for at least one move.
+	if (method === "case")    return "needs_case_split = 1";
 	return null;
 }
 
@@ -537,7 +545,7 @@ function applyPuzzleClassification(id, analysis) {
 	db.prepare(
 		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
 		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, chain_passes = ?, enum_passes = ?, " +
-		"max_enum_size = ?, scoring_version = ? " +
+		"max_enum_size = ?, needs_case_split = ?, scoring_version = ? " +
 		"WHERE id = ?"
 	).run(
 		analysis.difficulty,
@@ -549,6 +557,7 @@ function applyPuzzleClassification(id, analysis) {
 		analysis.passes.chain || 0,
 		analysis.passes.enum || 0,
 		analysis.maxEnumSize || 0,
+		analysis.needsCaseSplit ? 1 : 0,
 		CURRENT_SCORING_VERSION,
 		id
 	);

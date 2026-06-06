@@ -36,7 +36,7 @@ function readPuzzleListStateFromHash() {
 	var diff = parseInt(params.get("diff"), 10);
 	puzzleListState.diff = (diff >= 1 && diff <= 6) ? diff : null;
 	var method = params.get("method");
-	puzzleListState.method = (method === "trivial" || method === "subset" || method === "overlap" || method === "chain" || method === "enum") ? method : null;
+	puzzleListState.method = (method === "trivial" || method === "subset" || method === "overlap" || method === "chain" || method === "enum" || method === "case") ? method : null;
 	var score = params.get("score");
 	var validBand = SCORE_BANDS.some(function(b) { return b.key === score; });
 	puzzleListState.scoreBand = (validBand && score) ? score : null;
@@ -138,7 +138,8 @@ function renderPuzzlesList() {
 		{ key: "subset", label: "Subset" },
 		{ key: "overlap", label: "Overlap" },
 		{ key: "chain", label: "Chain" },
-		{ key: "enum", label: "Enum required" }
+		{ key: "enum", label: "Enum required" },
+		{ key: "case", label: "Needs case-split" }
 	].forEach(function(opt) {
 		var btn = document.createElement("button");
 		btn.className = "puzzles-filter-chip";
