@@ -106,6 +106,7 @@ function handler (req, res) {
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
+	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
@@ -647,6 +648,13 @@ function servePuzzlesClear(req, res, url) {
 	puzzleJob = null;
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ ok: true }));
+}
+
+// Aggregate stats for the All-Puzzles dashboard.
+function servePuzzleStats(req, res) {
+	var stats = db.puzzleStats();
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(stats));
 }
 
 // CSP solver trace for a single puzzle. Used by the Analyze modal in

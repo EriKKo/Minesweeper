@@ -72,6 +72,12 @@ function renderPuzzlesList() {
 	sub.textContent = "Browse all puzzles in the pool. Sort by rating, filter by tier. Each puzzle's rating is calibrated from the solver and will move with human play once Rated mode is live.";
 	view.appendChild(sub);
 
+	var statsContainer = document.createElement("div");
+	statsContainer.id = "puzzles_list_stats";
+	statsContainer.className = "puzzles-stats";
+	view.appendChild(statsContainer);
+	renderPuzzleStatsPanel(statsContainer);
+
 	var toolbar = document.createElement("div");
 	toolbar.className = "puzzles-toolbar";
 
@@ -219,6 +225,207 @@ function updatePuzzleListMethodChips() {
 		var match = (m === "any" && puzzleListState.method == null) || (m === puzzleListState.method);
 		b.classList.toggle("active", !!match);
 	});
+}
+
+// Stats panel above the listing: rating histogram, tier breakdown, board-
+// size mix, density mix. Collapsed by default to keep the listing prime.
+var puzzleStatsExpanded = false;
+
+function renderPuzzleStatsPanel(container) {
+	container.innerHTML = "";
+	var head = document.createElement("button");
+	head.className = "puzzles-stats-toggle";
+	head.textContent = (puzzleStatsExpanded ? "▼" : "▶") + " Stats";
+	container.appendChild(head);
+	var body = document.createElement("div");
+	body.className = "puzzles-stats-body";
+	body.style.display = puzzleStatsExpanded ? "block" : "none";
+	container.appendChild(body);
+	head.addEventListener("click", function() {
+		puzzleStatsExpanded = !puzzleStatsExpanded;
+		head.textContent = (puzzleStatsExpanded ? "▼" : "▶") + " Stats";
+		body.style.display = puzzleStatsExpanded ? "block" : "none";
+		if (puzzleStatsExpanded && !body.dataset.loaded) {
+			body.dataset.loaded = "1";
+			loadPuzzleStatsInto(body);
+		}
+	});
+	if (puzzleStatsExpanded && !body.dataset.loaded) {
+		body.dataset.loaded = "1";
+		loadPuzzleStatsInto(body);
+	}
+}
+
+function loadPuzzleStatsInto(body) {
+	body.textContent = "Loading…";
+	fetch("/api/puzzles/stats").then(function(r) { return r.json(); }).then(function(data) {
+		body.innerHTML = "";
+		if (!data.total) {
+			body.textContent = "Pool empty.";
+			return;
+		}
+		body.appendChild(renderStatBlock("Rating distribution", buildRatingChart(data.ratingHistogram, data.total)));
+		body.appendChild(renderStatBlock("Tier breakdown", buildTierChart(data.tierBreakdown, data.total)));
+		body.appendChild(renderStatBlock("Board sizes", buildSizeChart(data.sizeMix, data.total)));
+		body.appendChild(renderStatBlock("Mine density", buildDensityChart(data.densityMix, data.total)));
+		if (data.needsCaseSplit > 0) {
+			var note = document.createElement("p");
+			note.className = "puzzles-stats-note";
+			note.textContent = data.needsCaseSplit + " puzzles need case-split (" + Math.round(100 * data.needsCaseSplit / data.total) + "% of pool)";
+			body.appendChild(note);
+		}
+	}).catch(function(e) {
+		body.textContent = "Error: " + e.message;
+	});
+}
+
+function renderStatBlock(title, contentEl) {
+	var wrap = document.createElement("div");
+	wrap.className = "puzzles-stats-block";
+	var h = document.createElement("h3");
+	h.className = "puzzles-stats-block-title";
+	h.textContent = title;
+	wrap.appendChild(h);
+	wrap.appendChild(contentEl);
+	return wrap;
+}
+
+function maxOf(arr, getter) {
+	var m = 0;
+	for (var i = 0; i < arr.length; i++) { var v = getter(arr[i]); if (v > m) m = v; }
+	return m || 1;
+}
+
+function buildRatingChart(buckets, total) {
+	var tbl = document.createElement("div");
+	tbl.className = "puzzles-stats-chart";
+	var max = maxOf(buckets, function(b) { return b.n; });
+	buckets.forEach(function(b) {
+		var row = document.createElement("div");
+		row.className = "puzzles-stats-row";
+		var lbl = document.createElement("span");
+		lbl.className = "puzzles-stats-label";
+		lbl.textContent = b.bucket + "–" + (b.bucket + 199);
+		row.appendChild(lbl);
+		var barBg = document.createElement("span");
+		barBg.className = "puzzles-stats-bar";
+		var bar = document.createElement("span");
+		bar.className = "puzzles-stats-bar-fill";
+		bar.style.width = Math.round(100 * b.n / max) + "%";
+		barBg.appendChild(bar);
+		row.appendChild(barBg);
+		var v = document.createElement("span");
+		v.className = "puzzles-stats-value";
+		v.textContent = b.n;
+		row.appendChild(v);
+		tbl.appendChild(row);
+	});
+	return tbl;
+}
+
+function buildTierChart(tiers, total) {
+	// Stacked bar per tier showing method composition (trivial/subset/overlap/chain/enum).
+	var tbl = document.createElement("div");
+	tbl.className = "puzzles-stats-chart";
+	var max = maxOf(tiers, function(t) { return t.n; });
+	var methodKeys = ["trivial", "subset", "overlap", "chain", "enum"];
+	tiers.forEach(function(t) {
+		var row = document.createElement("div");
+		row.className = "puzzles-stats-row";
+		var lbl = document.createElement("span");
+		lbl.className = "puzzles-stats-label";
+		lbl.textContent = "tier " + t.tier;
+		row.appendChild(lbl);
+		var barBg = document.createElement("span");
+		barBg.className = "puzzles-stats-bar";
+		var widthPct = (t.n / max) * 100;
+		var stack = document.createElement("span");
+		stack.className = "puzzles-stats-stack";
+		stack.style.width = widthPct + "%";
+		methodKeys.forEach(function(k) {
+			if (!t[k]) return;
+			var seg = document.createElement("span");
+			seg.className = "puzzles-stats-seg puzzles-stats-seg-" + k;
+			seg.style.width = Math.round(100 * t[k] / t.n) + "%";
+			seg.title = k + ": " + t[k];
+			stack.appendChild(seg);
+		});
+		barBg.appendChild(stack);
+		row.appendChild(barBg);
+		var v = document.createElement("span");
+		v.className = "puzzles-stats-value";
+		v.textContent = t.n;
+		row.appendChild(v);
+		tbl.appendChild(row);
+	});
+	var legend = document.createElement("div");
+	legend.className = "puzzles-stats-legend";
+	methodKeys.forEach(function(k) {
+		var item = document.createElement("span");
+		item.className = "puzzles-stats-legend-item";
+		var swatch = document.createElement("span");
+		swatch.className = "puzzles-stats-seg puzzles-stats-seg-" + k;
+		item.appendChild(swatch);
+		var lbl = document.createTextNode(" " + k);
+		item.appendChild(lbl);
+		legend.appendChild(item);
+	});
+	tbl.appendChild(legend);
+	return tbl;
+}
+
+function buildSizeChart(sizes, total) {
+	var tbl = document.createElement("div");
+	tbl.className = "puzzles-stats-chart";
+	var max = maxOf(sizes, function(s) { return s.n; });
+	sizes.forEach(function(s) {
+		var row = document.createElement("div");
+		row.className = "puzzles-stats-row";
+		var lbl = document.createElement("span");
+		lbl.className = "puzzles-stats-label";
+		lbl.textContent = s.size;
+		row.appendChild(lbl);
+		var barBg = document.createElement("span");
+		barBg.className = "puzzles-stats-bar";
+		var bar = document.createElement("span");
+		bar.className = "puzzles-stats-bar-fill";
+		bar.style.width = Math.round(100 * s.n / max) + "%";
+		barBg.appendChild(bar);
+		row.appendChild(barBg);
+		var v = document.createElement("span");
+		v.className = "puzzles-stats-value";
+		v.textContent = s.n;
+		row.appendChild(v);
+		tbl.appendChild(row);
+	});
+	return tbl;
+}
+
+function buildDensityChart(buckets, total) {
+	var tbl = document.createElement("div");
+	tbl.className = "puzzles-stats-chart";
+	var max = maxOf(buckets, function(b) { return b.n; });
+	buckets.forEach(function(b) {
+		var row = document.createElement("div");
+		row.className = "puzzles-stats-row";
+		var lbl = document.createElement("span");
+		lbl.className = "puzzles-stats-label";
+		lbl.textContent = b.bucket + "–" + (b.bucket + 4) + "%";
+		row.appendChild(lbl);
+		var barBg = document.createElement("span");
+		barBg.className = "puzzles-stats-bar";
+		var bar = document.createElement("span");
+		bar.className = "puzzles-stats-bar-fill";
+		bar.style.width = Math.round(100 * b.n / max) + "%";
+		barBg.appendChild(bar);
+		row.appendChild(barBg);
+		var v = document.createElement("span");
+		v.className = "puzzles-stats-value";
+		v.textContent = b.n;
+		row.appendChild(v);
+		tbl.appendChild(row);
+	});
+	return tbl;
 }
 
 function updatePuzzleListBandChips() {

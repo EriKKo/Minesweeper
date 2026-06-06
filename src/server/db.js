@@ -371,6 +371,44 @@ function puzzleCount(difficulty, method, scoreBand) {
 	return stmt.get.apply(stmt, params).n;
 }
 
+// Aggregate stats for the All-Puzzles dashboard. Single query per metric
+// keeps it cheap even on big pools.
+function puzzleStats() {
+	var total = db.prepare("SELECT COUNT(*) AS n FROM puzzles").get().n;
+	if (!total) return { total: 0 };
+	var ratingRows = db.prepare(
+		"SELECT (rating / 200) * 200 AS bucket, COUNT(*) AS n FROM puzzles GROUP BY bucket ORDER BY bucket"
+	).all();
+	var tierRows = db.prepare(
+		"SELECT difficulty AS tier, " +
+		"  SUM(CASE WHEN subset_passes = 0 AND overlap_passes <= 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS trivial, " +
+		"  SUM(CASE WHEN subset_passes > 0 AND overlap_passes <= 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS subset, " +
+		"  SUM(CASE WHEN overlap_passes > 0 AND chain_passes = 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS overlap, " +
+		"  SUM(CASE WHEN chain_passes > 0 AND enum_passes = 0 THEN 1 ELSE 0 END) AS chain, " +
+		"  SUM(CASE WHEN enum_passes > 0 THEN 1 ELSE 0 END) AS enum_, " +
+		"  COUNT(*) AS n " +
+		"FROM puzzles GROUP BY difficulty ORDER BY difficulty"
+	).all();
+	var sizeRows = db.prepare(
+		"SELECT rows || 'x' || cols AS size, COUNT(*) AS n FROM puzzles GROUP BY size ORDER BY rows, cols"
+	).all();
+	// Density bucketed at 5% intervals.
+	var densityRows = db.prepare(
+		"SELECT (CAST(json_array_length(mines) * 100 / (rows * cols) AS INTEGER) / 5) * 5 AS bucket, COUNT(*) AS n FROM puzzles GROUP BY bucket ORDER BY bucket"
+	).all();
+	var caseCount = db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE needs_case_split = 1").get().n;
+	return {
+		total: total,
+		ratingHistogram: ratingRows.map(function(r) { return { bucket: r.bucket, n: r.n }; }),
+		tierBreakdown: tierRows.map(function(r) {
+			return { tier: r.tier, n: r.n, trivial: r.trivial, subset: r.subset, overlap: r.overlap, chain: r.chain, enum: r.enum_ };
+		}),
+		sizeMix: sizeRows.map(function(r) { return { size: r.size, n: r.n }; }),
+		densityMix: densityRows.map(function(r) { return { bucket: r.bucket, n: r.n }; }),
+		needsCaseSplit: caseCount
+	};
+}
+
 function clearPuzzles() {
 	db.exec("DELETE FROM puzzles");
 }
@@ -578,6 +616,7 @@ module.exports = {
 	insertPuzzle: insertPuzzle,
 	listPuzzles: listPuzzles,
 	puzzleCount: puzzleCount,
+	puzzleStats: puzzleStats,
 	clearPuzzles: clearPuzzles,
 	getPuzzleById: getPuzzleById,
 	updatePuzzleRating: updatePuzzleRating,
