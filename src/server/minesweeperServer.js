@@ -110,6 +110,7 @@ function handler (req, res) {
 	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
+	if (pathname === "/api/patterns") return servePatterns(req, res, url);
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
@@ -696,6 +697,30 @@ function serveStartingPositions(req, res, url) {
 	var total = db.startingPositionCount(filterOpts);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ positions: positions, total: total, page: page, pageSize: pageSize }));
+}
+
+// Browse the deduction-pattern catalogue (first-move templates
+// extracted from every starting position). Sortable by occurrences or
+// rating, filterable by action and rating band.
+function servePatterns(req, res, url) {
+	var page = parseInt(url.searchParams.get("page"), 10) || 0;
+	var pageSize = parseInt(url.searchParams.get("pageSize"), 10) || 50;
+	var sort = url.searchParams.get("sort") === "asc" ? "asc" : "desc";
+	var orderByRaw = url.searchParams.get("orderBy");
+	var orderBy = (orderByRaw === "occurrences" || orderByRaw === "rating") ? orderByRaw : "rating";
+	var actionRaw = url.searchParams.get("action");
+	var action = (actionRaw === "reveal" || actionRaw === "flag" || actionRaw === "case") ? actionRaw : null;
+	var minRatingRaw = parseInt(url.searchParams.get("minRating"), 10);
+	var maxRatingRaw = parseInt(url.searchParams.get("maxRating"), 10);
+	var filterOpts = {
+		action: action,
+		minRating: !isNaN(minRatingRaw) ? minRatingRaw : null,
+		maxRating: !isNaN(maxRatingRaw) ? maxRatingRaw : null
+	};
+	var patterns = db.listPatterns(Object.assign({ page: page, pageSize: pageSize, sort: sort, orderBy: orderBy }, filterOpts));
+	var total = db.patternCount(filterOpts);
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ patterns: patterns, total: total, page: page, pageSize: pageSize }));
 }
 
 // Aggregate stats for the All-Puzzles dashboard.

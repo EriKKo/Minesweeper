@@ -78,6 +78,12 @@ function renderAdminLanding() {
 		"Browse positions",
 		"#/admin/starting-positions"
 	));
+	cards.appendChild(makeAdminCard(
+		"Deduction patterns",
+		"Minimal first-move templates extracted from starting positions.",
+		"Browse patterns",
+		"#/admin/patterns"
+	));
 	view.appendChild(cards);
 }
 

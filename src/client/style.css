@@ -1084,6 +1084,46 @@ main {
 	display: block;
 	border-radius: 4px;
 }
+.patterns-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 1rem;
+}
+.pattern-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 0.85rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.6rem;
+}
+.pattern-card-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	gap: 0.6rem;
+}
+.pattern-card-rating {
+	font-weight: 900;
+	font-size: 1.15rem;
+	padding: 0.18rem 0.6rem;
+	border-radius: 6px;
+	background: rgba(99, 102, 241, 0.18);
+	color: var(--accent-hover);
+}
+.pattern-card-rating.sp-rating-tier-trivial       { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
+.pattern-card-rating.sp-rating-tier-subset        { background: rgba(34, 211, 238, 0.18); color: #22d3ee; }
+.pattern-card-rating.sp-rating-tier-intersect     { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+.pattern-card-rating.sp-rating-tier-intersect-hard{ background: rgba(248, 113, 113, 0.18); color: #f87171; }
+.pattern-card-rating.sp-rating-tier-case          { background: rgba(192, 132, 252, 0.22); color: #c084fc; }
+.pattern-card-canvas {
+	display: block;
+}
+.pattern-card-details { color: var(--text); font-size: 0.85rem; font-weight: 700; }
+.pattern-card-uses { color: var(--muted); font-size: 0.75rem; }
 .starting-pos-details { color: var(--muted); font-size: 0.72rem; }
 .starting-pos-pattern { color: rgba(148, 163, 184, 0.7); font-size: 0.66rem; font-family: monospace; letter-spacing: 0.04em; }
 .puzzle-card {

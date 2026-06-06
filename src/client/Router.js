@@ -142,6 +142,13 @@ function showStartingPositionsView() {
 	renderStartingPositions();
 }
 
+function showPatternsView() {
+	hideAllViews();
+	document.getElementById("patterns_view").style.display = "";
+	setSiteNavActive("admin");
+	renderPatterns();
+}
+
 function showPuzzlePlayView() {
 	hideAllViews();
 	document.getElementById("puzzle_play_view").style.display = "";
@@ -270,6 +277,7 @@ function applyRouteFromHash() {
 	// (e.g. ?diff=3&method=overlap&sort=desc&page=2) so reloads persist.
 	if (hash === "/admin/puzzles" || hash.indexOf("/admin/puzzles?") === 0) return showPuzzlesListView();
 	if (hash === "/admin/starting-positions" || hash.indexOf("/admin/starting-positions?") === 0) return showStartingPositionsView();
+	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();
