@@ -37,41 +37,69 @@ function initSourcesFromBranches(branches, sink, seen) {
 	});
 }
 
-// Build the pattern object for the analyzer's first move on (board, state).
-// Returns null if the analyzer can't move at all.
+// Collect the init source clue cells that fed a single move (handles
+// both trivial-derivation and case-split-with-branches shapes).
+function initsForMove(move) {
+	var sink = [], seen = {};
+	if (move.action === "case") {
+		initSourcesFromBranches(move.branches, sink, seen);
+	} else if (move.derivation) {
+		initSourcesFromDerivation(move.derivation, sink, seen);
+	}
+	return sink;
+}
+
+// Stable serialization of an init-source set so we can compare across
+// moves. Two moves share a deduction context iff they have the same
+// sorted set of init source cells.
+function initsKey(inits) {
+	return inits.map(function(p) { return p[0] + "," + p[1]; }).sort().join("|");
+}
+
+// Build the pattern object for the analyzer's first deduction on
+// (board, state). The "first deduction" is the leading run of moves
+// that all draw from the same set of init source clues — typically
+// move 0 and any immediate follow-up moves that reuse the same clue
+// cells. Subsequent deductions that bring in new clue cells start a
+// different deduction shape and are not bundled here.
 //
 // The pattern carries three kinds of cells:
 //   * clueCells   — revealed clue cells with their values; the inputs
-//                   the analyzer's first move actually consumed.
-//   * deducedCells — the cells the move forces ("S" safe / "M" mine).
-//   * coveredCells — the rest of the cells those clues *constrain*
+//                   the bundled moves all consumed.
+//   * deducedCells — every cell the bundled moves forced ("S" safe,
+//                   "M" mine). A pattern can mix safes and mines if
+//                   the bundle spans a reveal *and* a flag.
+//   * coveredCells — the rest of the cells those clues constrain
 //                   (UNKNOWN neighbours of the input clues that aren't
 //                   in the deduced set). They're geometrically part of
-//                   the pattern even though this single move doesn't
+//                   the pattern even when the bundled moves don't
 //                   decide them.
 function extractFirstDeductionPattern(board, state) {
 	var stateCopy = state.map(function(row) { return row.slice(); });
 	var result = cspSolver.analyzeBoard(board, stateCopy, {});
 	if (!result.moves.length) return null;
-	var move = result.moves[0];
 
-	var clueCellList = [];
-	var seen = {};
-	if (move.action === "case") {
-		initSourcesFromBranches(move.branches, clueCellList, seen);
-	} else if (move.derivation) {
-		initSourcesFromDerivation(move.derivation, clueCellList, seen);
+	var firstMove = result.moves[0];
+	var firstInits = initsForMove(firstMove);
+	var firstKey = initsKey(firstInits);
+
+	// Bundle move 0 plus subsequent moves that share the same init
+	// source set. As soon as a move pulls in a different clue cell
+	// (a new init source or one previously unused), stop.
+	var bundled = [firstMove];
+	for (var idx = 1; idx < result.moves.length; idx++) {
+		var m = result.moves[idx];
+		if (initsKey(initsForMove(m)) !== firstKey) break;
+		bundled.push(m);
 	}
 
-	// Attach clue values from the board.
-	var clueCells = [];
-	for (var i = 0; i < clueCellList.length; i++) {
-		var pos = clueCellList[i];
-		var v = board[pos[0]][pos[1]];
-		if (v != null && v > 0) clueCells.push([pos[0], pos[1], v]);
-	}
+	// Union of init sources across the bundle (all bundled moves
+	// share the same set, so the firstInits list already covers it).
+	var clueCells = firstInits.map(function(pos) {
+		return [pos[0], pos[1], board[pos[0]][pos[1]]];
+	}).filter(function(c) { return c[2] != null && c[2] > 0; });
 
-	// Deduced cells: revealed (becomes safe) or flagged (becomes mine).
+	// Deduced cells: union across bundled moves, tagged S or M.
 	var deducedCells = [];
 	var deducedKey = {};
 	function addDeduced(r, c, tag) {
@@ -80,19 +108,19 @@ function extractFirstDeductionPattern(board, state) {
 		deducedKey[k] = true;
 		deducedCells.push([r, c, tag]);
 	}
-	if (move.action === "reveal") {
-		(move.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
-	} else if (move.action === "flag") {
-		(move.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
-	} else if (move.action === "case") {
-		(move.revealed || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
-		(move.flagged || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
-	}
+	bundled.forEach(function(m) {
+		if (m.action === "reveal") (m.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
+		else if (m.action === "flag") (m.cells || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
+		else if (m.action === "case") {
+			(m.revealed || []).forEach(function(c) { addDeduced(c[0], c[1], "S"); });
+			(m.flagged || []).forEach(function(c) { addDeduced(c[0], c[1], "M"); });
+		}
+	});
 
-	// Constrained covered cells: UNKNOWN neighbours of every input clue
-	// cell, minus the ones already in the deduced set. For case-split
-	// moves the splitCell is also part of the pattern even if it
-	// happens not to be in the neighbour set of an init source.
+	// Constrained covered cells: UNKNOWN neighbours of input clues in
+	// the original state, minus cells the bundle already deduced. The
+	// splitCell of any case-split move is added explicitly in case it
+	// wasn't a direct neighbour of an init source.
 	var rows = state.length, cols = state[0].length;
 	var coveredCells = [];
 	var coveredKey = {};
@@ -104,8 +132,8 @@ function extractFirstDeductionPattern(board, state) {
 		coveredKey[k] = true;
 		coveredCells.push([r, c, "?"]);
 	}
-	for (var j = 0; j < clueCellList.length; j++) {
-		var p = clueCellList[j];
+	for (var j = 0; j < firstInits.length; j++) {
+		var p = firstInits[j];
 		for (var dr = -1; dr <= 1; dr++) {
 			for (var dc = -1; dc <= 1; dc++) {
 				if (dr === 0 && dc === 0) continue;
@@ -113,13 +141,23 @@ function extractFirstDeductionPattern(board, state) {
 			}
 		}
 	}
-	if (move.action === "case" && move.splitCell) {
-		addCovered(move.splitCell[0], move.splitCell[1]);
-	}
+	bundled.forEach(function(m) {
+		if (m.action === "case" && m.splitCell) addCovered(m.splitCell[0], m.splitCell[1]);
+	});
+
+	// Action label: mixed if the bundle has both kinds of trivial
+	// outcomes, otherwise the single action (or "case" if any
+	// case-split is in the bundle).
+	var hasReveal = bundled.some(function(m) { return m.action === "reveal" || (m.action === "case" && (m.revealed || []).length); });
+	var hasFlag   = bundled.some(function(m) { return m.action === "flag"   || (m.action === "case" && (m.flagged   || []).length); });
+	var hasCase   = bundled.some(function(m) { return m.action === "case"; });
+	var action = hasCase ? "case" : (hasReveal && hasFlag ? "mixed" : (hasReveal ? "reveal" : "flag"));
+	var maxComplexity = 0;
+	bundled.forEach(function(m) { if (m.complexity > maxComplexity) maxComplexity = m.complexity; });
 
 	return {
-		action: move.action,
-		complexity: move.complexity,
+		action: action,
+		complexity: maxComplexity,
 		clueCells: clueCells,
 		deducedCells: deducedCells,
 		coveredCells: coveredCells

@@ -709,7 +709,7 @@ function servePatterns(req, res, url) {
 	var orderByRaw = url.searchParams.get("orderBy");
 	var orderBy = (orderByRaw === "occurrences" || orderByRaw === "rating") ? orderByRaw : "rating";
 	var actionRaw = url.searchParams.get("action");
-	var action = (actionRaw === "reveal" || actionRaw === "flag" || actionRaw === "case") ? actionRaw : null;
+	var action = (actionRaw === "reveal" || actionRaw === "flag" || actionRaw === "mixed" || actionRaw === "case") ? actionRaw : null;
 	var minRatingRaw = parseInt(url.searchParams.get("minRating"), 10);
 	var maxRatingRaw = parseInt(url.searchParams.get("maxRating"), 10);
 	var filterOpts = {

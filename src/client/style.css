@@ -1079,6 +1079,7 @@ main {
 }
 .starting-pos-action-reveal { background: rgba(74, 222, 128, 0.16); color: #4ade80; }
 .starting-pos-action-flag   { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+.starting-pos-action-mixed  { background: rgba(251, 191, 36, 0.16); color: #fbbf24; }
 .starting-pos-action-case   { background: rgba(192, 132, 252, 0.20); color: #c084fc; }
 .starting-pos-canvas {
 	display: block;

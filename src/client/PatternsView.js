@@ -21,6 +21,7 @@ var PATTERN_ACTION_OPTIONS = [
 	{ key: null,     label: "Any" },
 	{ key: "reveal", label: "Reveal" },
 	{ key: "flag",   label: "Flag" },
+	{ key: "mixed",  label: "Mixed" },
 	{ key: "case",   label: "Case" }
 ];
 
@@ -38,7 +39,7 @@ function readPatternsStateFromHash() {
 	var page = parseInt(params.get("page"), 10);
 	patternsListState.page = (page > 0) ? page : 0;
 	var action = params.get("action");
-	patternsListState.action = (action === "reveal" || action === "flag" || action === "case") ? action : null;
+	patternsListState.action = (action === "reveal" || action === "flag" || action === "mixed" || action === "case") ? action : null;
 }
 
 function writePatternsStateToHash() {
