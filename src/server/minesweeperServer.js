@@ -823,6 +823,7 @@ var botSpeedMs = {}; // botId -> ms between actions
 var botRating = {}; // botId -> Elo used for ranked rating math
 var botMistake = {}; // botId -> blunder rate (re-applied to the game each round)
 var botChord = {}; // botId -> chord rate (re-applied to the game each round)
+var botMaxTier = {}; // botId -> solver tier ceiling (re-applied each round)
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -1089,15 +1090,18 @@ function addBotToRoom(room, config, prechosenName) {
 		botRating[botId] = config.rating;
 		botMistake[botId] = config.mistakeRate;
 		botChord[botId] = (typeof config.chordRate === "number") ? config.chordRate : 0;
+		botMaxTier[botId] = config.maxTier || "trivial";
 	} else {
 		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
 		botMistake[botId] = botPlayer.mistakeRateFor(botDifficulty[botId]);
 		botChord[botId] = botPlayer.chordRateFor(botDifficulty[botId]);
+		botMaxTier[botId] = botPlayer.maxTierFor(botDifficulty[botId]);
 		botRating[botId] = RANKED_BOT_RATING;
 	}
 	games[botId].botMistakeRate = botMistake[botId];
 	games[botId].botChordRate = botChord[botId];
+	games[botId].botMaxTier = botMaxTier[botId];
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -1128,6 +1132,7 @@ function removeBotEntirely(botId) {
 	delete botRating[botId];
 	delete botMistake[botId];
 	delete botChord[botId];
+	delete botMaxTier[botId];
 	delete botLastClick[botId];
 }
 
@@ -1687,6 +1692,7 @@ function startGame(room) {
 		if (isBot(pid)) {
 			games[pid].botMistakeRate = botMistake[pid];
 			games[pid].botChordRate = botChord[pid];
+			games[pid].botMaxTier = botMaxTier[pid];
 		}
 		games[pid].init(template);
 	}
@@ -2490,9 +2496,11 @@ io.on("connection", function (socket) {
 		botSpeedMs[botId] = botPlayer.speedFor(difficulty);
 		botMistake[botId] = botPlayer.mistakeRateFor(difficulty);
 		botChord[botId] = botPlayer.chordRateFor(difficulty);
+		botMaxTier[botId] = botPlayer.maxTierFor(difficulty);
 		if (games[botId]) {
 			games[botId].botMistakeRate = botMistake[botId];
 			games[botId].botChordRate = botChord[botId];
+			games[botId].botMaxTier = botMaxTier[botId];
 		}
 		broadcastRoomState(room);
 	});

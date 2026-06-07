@@ -24,6 +24,11 @@ var DIFFICULTY_SPEEDS = { easy: 800, medium: 400, hard: 200 };
 // — the time saved (1 click vs N) is what makes them feel sharper, and it
 // roughly matches what a real player at that level does.
 var CHORD_RATES = { easy: 0.05, medium: 0.35, hard: 0.75 };
+// Solver tier ceilings — the highest deduction tier the bot can reach. Below
+// the ceiling, the bot uses the solver; above, it gives up and guesses (with
+// a thinking pause, since the bot still spent effort trying).
+var MAX_TIERS = { easy: "trivial", medium: "subset", hard: "chain" };
+var TIER_ORDER = ["trivial", "subset", "overlap", "chain", "enum"];
 
 function mistakeRateFor(difficulty) {
 	return MISTAKE_RATES.hasOwnProperty(difficulty) ? MISTAKE_RATES[difficulty] : MISTAKE_RATES[DEFAULT_DIFFICULTY];
@@ -35,6 +40,22 @@ function speedFor(difficulty) {
 
 function chordRateFor(difficulty) {
 	return CHORD_RATES.hasOwnProperty(difficulty) ? CHORD_RATES[difficulty] : CHORD_RATES[DEFAULT_DIFFICULTY];
+}
+
+function maxTierFor(difficulty) {
+	return MAX_TIERS.hasOwnProperty(difficulty) ? MAX_TIERS[difficulty] : MAX_TIERS[DEFAULT_DIFFICULTY];
+}
+
+// Map Elo to a solver tier ceiling.  Low-Elo bots can only see trivial
+// deductions and have to guess on anything harder; high-Elo bots reach
+// chain or enum.  Buckets are wide so a small Elo drift doesn't flip the
+// ceiling every match.
+function maxTierForElo(elo) {
+	if (elo < 800)  return "trivial";
+	if (elo < 1100) return "subset";
+	if (elo < 1400) return "overlap";
+	if (elo < 1700) return "chain";
+	return "enum";
 }
 
 // Elo range we map bot strength across.
@@ -74,6 +95,7 @@ function configForElo(elo) {
 		speedMs: speedMs,
 		mistakeRate: mistakeRate,
 		chordRate: chordRate,
+		maxTier: maxTierForElo(elo),
 		style: style,
 		reckless: style > 0
 	};
@@ -266,12 +288,13 @@ function computeBestMove(game) {
 		return pick;
 	}
 
-	// No trivial deduction available — escalate to the solver, which walks
-	// subset → overlap → chain → enum and returns the cheapest first.  This
-	// lets the bot keep playing accurately on dense boards instead of
-	// guessing, and tags the move with its difficulty tier so the per-move
-	// delay can budget thinking time appropriately (harder = slower).
-	var hint = puzzleSolver.findFirstSafeStep(board, state);
+	// Escalate to the solver — but only up to the bot's tier ceiling. Low-Elo
+	// bots that can't see overlap patterns will fail to find a deduction here
+	// and fall through to a "stuck" guess (with a thinking pause to represent
+	// the effort).  Higher-Elo bots reach deeper into the chain/enum tiers and
+	// keep playing accurately.
+	var maxTier = game.botMaxTier || "trivial";
+	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, maxTier);
 	if (hint) {
 		var tier = hint.kind ? hint.kind.replace("-flag", "") : "subset";
 		if (hint.safeCells && hint.safeCells.length) {
@@ -286,7 +309,11 @@ function computeBestMove(game) {
 		}
 	}
 
-	// Truly stuck — guess at a random frontier cell (or any unknown) and jump focus there.
+	// Solver returned nothing within ceiling: this position requires a tier
+	// the bot doesn't have access to.  Guess, but tag with the ceiling tier
+	// AND a "stuck" flag so computeMoveDelay can budget a "thought about it,
+	// gave up" pause — even trivial-only bots should pause briefly before
+	// committing to a guess instead of click-spamming.
 	var guess = pickFrontierGuess(game);
 	if (!guess) {
 		var candidates = [];
@@ -299,6 +326,8 @@ function computeBestMove(game) {
 		var p = candidates[Math.floor(Math.random() * candidates.length)];
 		guess = { type: "left", r: p[0], c: p[1], certain: false };
 	}
+	guess.tier = maxTier;
+	guess.stuck = true;
 	game.botFocus = { r: guess.r, c: guess.c };
 	return guess;
 }
@@ -341,6 +370,11 @@ function computeMoveDelay(baseMs, lastClick, move) {
 	// Max() against the existing thinkingTerm so we don't double-count for
 	// uncertain guesses (which already have their own pause).
 	var tierMs = (move.tier && TIER_THINKING_MS[move.tier]) || 0;
+	// A stuck guess: bot tried tiers up to its ceiling, found nothing, has to
+	// guess. Pause for at least ceiling-tier thinking time + 400ms so even a
+	// trivial-only bot pauses briefly before committing — they just looked at
+	// the board and realized they couldn't deduce anything.
+	if (move.stuck) tierMs = Math.max(tierMs + 400, 600);
 	if (tierMs > thinkingTerm) thinkingTerm = tierMs;
 	// average-of-three uniforms ≈ approximately normal, mean 0, range ~[-1, 1]
 	var n = (Math.random() + Math.random() + Math.random()) / 1.5 - 1;
@@ -357,4 +391,6 @@ exports.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY;
 exports.mistakeRateFor = mistakeRateFor;
 exports.speedFor = speedFor;
 exports.chordRateFor = chordRateFor;
+exports.maxTierFor = maxTierFor;
+exports.maxTierForElo = maxTierForElo;
 exports.configForElo = configForElo;

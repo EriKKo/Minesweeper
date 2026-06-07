@@ -384,30 +384,85 @@ function findFirstSafeStep(board, originalState) {
 		return { resolved: false, advanced: false };
 	}
 
-	// Prefer the simplest deduction at every chain step: exhaust trivial
-	// (safe or forced-mine) before considering subset; exhaust subset before
-	// considering enum. This way a trivial-flag-then-trivial-safe chain
-	// resolves at the trivial tier rather than escalating to enum just
-	// because enum happens to also see a safe cell.
+	return walkSolverTiers(board, state, "enum", tryLevel, function() { return firstFlagStep; });
+}
+
+// Tier-capped variant: the bot uses this so a 600-Elo player can't see
+// overlap deductions a 1700-Elo player would.  Same chain logic as
+// findFirstSafeStep, but stops escalating beyond `maxTier`.
+function findFirstSafeStepCapped(board, originalState, maxTier) {
+	var rows = board.length;
+	var state = new Array(rows);
+	for (var r = 0; r < rows; r++) state[r] = originalState[r].slice();
+
+	function mergeCells(a, b) {
+		var seen = {}, out = [];
+		for (var i = 0; i < a.length; i++) {
+			var k = a[i][0] + "," + a[i][1];
+			if (!seen[k]) { seen[k] = true; out.push(a[i]); }
+		}
+		for (var i = 0; i < b.length; i++) {
+			var k = b[i][0] + "," + b[i][1];
+			if (!seen[k]) { seen[k] = true; out.push(b[i]); }
+		}
+		return out;
+	}
+	var chainClues = [];
+	var firstFlagStep = null;
+	function firstSafe(steps) { for (var i = 0; i < steps.length; i++) if (steps[i].safeCells.length) return steps[i]; return null; }
+	function firstMine(steps) { for (var i = 0; i < steps.length; i++) if (steps[i].mineCells.length) return steps[i]; return null; }
+	function tryLevel(steps, kind) {
+		var safe = firstSafe(steps);
+		if (safe) return { resolved: true, hint: {
+			kind: kind,
+			clueCells: mergeCells(safe.clueCells, chainClues),
+			safeCells: safe.safeCells,
+			componentSize: safe.componentSize
+		} };
+		var mine = firstMine(steps);
+		if (mine) {
+			if (!firstFlagStep) {
+				firstFlagStep = { kind: kind + "-flag", clueCells: mine.clueCells.slice(), mineCells: mine.mineCells };
+			}
+			chainClues = mergeCells(chainClues, mine.clueCells);
+			applyStep(state, mine);
+			return { resolved: false, advanced: true };
+		}
+		return { resolved: false, advanced: false };
+	}
+	return walkSolverTiers(board, state, maxTier, tryLevel, function() { return firstFlagStep; });
+}
+
+// Shared loop body for findFirstSafeStep and findFirstSafeStepCapped.
+// Walks trivial → subset → overlap → chain → enum, stopping at `maxTier`.
+function walkSolverTiers(board, state, maxTier, tryLevel, getFlag) {
+	var TIER_ORDER = ["trivial", "subset", "overlap", "chain", "enum"];
+	var cap = TIER_ORDER.indexOf(maxTier);
+	if (cap < 0) cap = TIER_ORDER.length - 1; // unknown → no cap
 	while (true) {
 		var r1 = tryLevel(findTrivialSteps(board, state), "trivial");
 		if (r1.resolved) return r1.hint;
 		if (r1.advanced) continue;
+		if (cap < 1) break;
 		var r2 = tryLevel(findSubsetSteps(board, state), "subset");
 		if (r2.resolved) return r2.hint;
 		if (r2.advanced) continue;
+		if (cap < 2) break;
 		var r2o = tryLevel(findOverlapSteps(board, state), "overlap");
 		if (r2o.resolved) return r2o.hint;
 		if (r2o.advanced) continue;
+		if (cap < 3) break;
 		var r2c = tryLevel(findChainSteps(board, state), "chain");
 		if (r2c.resolved) return r2c.hint;
 		if (r2c.advanced) continue;
+		if (cap < 4) break;
 		var r3 = tryLevel(findEnumSteps(board, state), "enum");
 		if (r3.resolved) return r3.hint;
 		if (r3.advanced) continue;
 		break;
 	}
-	if (firstFlagStep) return firstFlagStep;
+	var ff = getFlag();
+	if (ff) return ff;
 	return null;
 }
 
@@ -557,6 +612,7 @@ module.exports = {
 	findChainSteps: findChainSteps,
 	findEnumSteps: findEnumSteps,
 	findFirstSafeStep: findFirstSafeStep,
+	findFirstSafeStepCapped: findFirstSafeStepCapped,
 	applyTrivialPass: applyTrivialPass,
 	applySubsetPass: applySubsetPass,
 	applyOverlapPass: applyOverlapPass,
