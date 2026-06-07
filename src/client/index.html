@@ -491,7 +491,6 @@
 						<div class="puzzle-side-head">
 							<span class="puzzle-side-back" id="puzzle_side_back" title="Back to lobby">←</span>
 							<span id="puzzle_side_title" class="puzzle-side-title">Rated puzzles</span>
-							<span class="puzzle-practice-badge" aria-hidden="true">Practice · no rating</span>
 						</div>
 
 						<!-- Rated mode: tier + progress bar + hint -->
@@ -808,11 +807,8 @@ function applyPuzzleBoard(data) {
 		startedAt: Date.now(),
 		finished: false,
 		mode: data.mode || "rated",
-		noRating: !!data.noRating,
 		run: data.run || null
 	};
-	var puzzleCardEl = document.getElementById("puzzle_card");
-	if (puzzleCardEl) puzzleCardEl.classList.toggle("practice", !!data.noRating);
 	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
 	puzzleHintCovered = [];

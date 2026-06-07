@@ -400,20 +400,6 @@ function showRatedFailPanel(result) {
 	header.textContent = "Mine hit";
 	panel.appendChild(header);
 
-	var line = document.createElement("div");
-	line.className = "tournament-place";
-	line.style.color = "#f87171";
-	var deltaStr = result.playerDelta < 0 ? String(result.playerDelta) : ("+" + result.playerDelta);
-	line.textContent = "Rating " + deltaStr + " · now " + result.playerAfter;
-	panel.appendChild(line);
-
-	var foot = document.createElement("div");
-	foot.className = "result-foot";
-	foot.textContent = result.noRating
-		? "Practice run — your rating is locked."
-		: "Replay the same puzzle (no rating change) or jump to a new one.";
-	panel.appendChild(foot);
-
 	var actions = document.createElement("div");
 	actions.className = "result-actions";
 
