@@ -406,6 +406,7 @@
 								<canvas id="game0" width="500" height="350"></canvas>
 							</div>
 							<div id="board_overlay" class="board-overlay" style="display:none"></div>
+							<div id="round_cut_preview" class="round-cut-preview" style="display:none"></div>
 							<div id="puzzle_flash" class="puzzle-flash" style="display:none"></div>
 							<button id="find_next_arrow" class="find-next-arrow" type="button" aria-label="Pan to next unrevealed area">
 								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
@@ -1240,6 +1241,11 @@ function playTournamentRoundEnd(data, onComplete) {
 		if (meCut) {
 			verdictEl.innerHTML = "Eliminated <span class=\"tro-verdict-sub\">Finished #" + meEntry.rank + "</span>";
 			verdictEl.classList.add("show", "eliminated");
+		} else if (survivorsTarget === 1) {
+			// Final round survivor — they won the tournament. The
+			// "close call" label would be silly here (it's literally
+			// the only seat left), and series_ended will follow up
+			// with the full championship panel anyway.  Skip verdict.
 		} else {
 			var rank = meEntry.rank;
 			var cushion = survivorsTarget - rank; // 0 means you were the lowest survivor
@@ -1538,10 +1544,37 @@ socket.on("start_game", function(data) {
 		installBoardDecoder(data.boardData, data.boardMask, data.rows || rows, data.cols || cols);
 	}
 	gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
+	showRoundCutPreview(data);
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
 });
+
+// Pre-round "X to be eliminated" banner. Floats above the countdown for
+// tournament rounds with a cut; auto-hides when the round starts.  Skipped
+// for the final round (2 → 1) since the round overlay's series_ended panel
+// already frames that as the championship.
+function showRoundCutPreview(data) {
+	var el = document.getElementById("round_cut_preview");
+	if (!el) return;
+	el.style.display = "none";
+	el.textContent = "";
+	var willCut = data.tournamentCutThisRound;
+	var survivors = data.tournamentSurvivorsThisRound;
+	if (!willCut || willCut <= 0) return;
+	if (survivors === 1) {
+		// Final round: keep it short and grand.
+		el.textContent = "Final · Winner takes the crown";
+	} else {
+		el.textContent = willCut + " will be eliminated this round";
+	}
+	el.style.display = "";
+	// Auto-clear once the countdown completes (COUNT_DOWN_TIME + 700ms GO hold).
+	setTimeout(function() {
+		el.style.display = "none";
+		el.textContent = "";
+	}, (data.time || 3) * 1000 + 700);
+}
 
 // Decode a XOR-masked board blob from the server. The decoded bytes never leave
 // this closure; outsiders only get the (r,c) accessor via boardCell().

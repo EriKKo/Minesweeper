@@ -1682,6 +1682,19 @@ function startGame(room) {
 		if (isBot(pid)) games[pid].botMistakeRate = botMistake[pid];
 		games[pid].init(template);
 	}
+	// For tournament rounds, compute how many will be cut this round so the
+	// client can show a "X to be eliminated" banner during the countdown.
+	// schedule[i] is the survivor target after round (i+1), so for the round
+	// about to start (gamesPlayed+1) we look up schedule[gamesPlayed].
+	var tournamentCutThisRound = null;
+	var tournamentSurvivorsThisRound = null;
+	if (room.ranked && room.rankedMode === "tournament" && room.tournamentSchedule) {
+		var thisRoundSurvivors = room.tournamentSchedule[room.gamesPlayed];
+		if (typeof thisRoundSurvivors === "number") {
+			tournamentSurvivorsThisRound = thisRoundSurvivors;
+			tournamentCutThisRound = Math.max(0, room.players.length - thisRoundSurvivors);
+		}
+	}
 	// Players share one shared no-guess map this round — obfuscate it once and
 	// hand the same blob to every client so reveals can be resolved locally.
 	var obf = obfuscateBoard(template.board, room.rows, room.cols);
@@ -1697,7 +1710,9 @@ function startGame(room) {
 				rows: room.rows,
 				cols: room.cols,
 				boardData: obf.data,
-				boardMask: obf.mask
+				boardMask: obf.mask,
+				tournamentCutThisRound: tournamentCutThisRound,
+				tournamentSurvivorsThisRound: tournamentSurvivorsThisRound
 			});
 		}
 	}
