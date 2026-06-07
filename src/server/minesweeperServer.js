@@ -822,6 +822,7 @@ var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
 var botSpeedMs = {}; // botId -> ms between actions
 var botRating = {}; // botId -> Elo used for ranked rating math
 var botMistake = {}; // botId -> blunder rate (re-applied to the game each round)
+var botChord = {}; // botId -> chord rate (re-applied to the game each round)
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -1087,13 +1088,16 @@ function addBotToRoom(room, config, prechosenName) {
 		botSpeedMs[botId] = config.speedMs;
 		botRating[botId] = config.rating;
 		botMistake[botId] = config.mistakeRate;
+		botChord[botId] = (typeof config.chordRate === "number") ? config.chordRate : 0;
 	} else {
 		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
 		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
 		botMistake[botId] = botPlayer.mistakeRateFor(botDifficulty[botId]);
+		botChord[botId] = botPlayer.chordRateFor(botDifficulty[botId]);
 		botRating[botId] = RANKED_BOT_RATING;
 	}
 	games[botId].botMistakeRate = botMistake[botId];
+	games[botId].botChordRate = botChord[botId];
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -1123,6 +1127,7 @@ function removeBotEntirely(botId) {
 	delete botSpeedMs[botId];
 	delete botRating[botId];
 	delete botMistake[botId];
+	delete botChord[botId];
 	delete botLastClick[botId];
 }
 
@@ -1679,7 +1684,10 @@ function startGame(room) {
 		var pid = room.players[i];
 		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
 		games[pid] = createPlayerGame(pid, room.rows, room.cols);
-		if (isBot(pid)) games[pid].botMistakeRate = botMistake[pid];
+		if (isBot(pid)) {
+			games[pid].botMistakeRate = botMistake[pid];
+			games[pid].botChordRate = botChord[pid];
+		}
 		games[pid].init(template);
 	}
 	// For tournament rounds, compute how many will be cut this round so the
@@ -2481,7 +2489,11 @@ io.on("connection", function (socket) {
 		botDifficulty[botId] = difficulty;
 		botSpeedMs[botId] = botPlayer.speedFor(difficulty);
 		botMistake[botId] = botPlayer.mistakeRateFor(difficulty);
-		if (games[botId]) games[botId].botMistakeRate = botMistake[botId];
+		botChord[botId] = botPlayer.chordRateFor(difficulty);
+		if (games[botId]) {
+			games[botId].botMistakeRate = botMistake[botId];
+			games[botId].botChordRate = botChord[botId];
+		}
 		broadcastRoomState(room);
 	});
 

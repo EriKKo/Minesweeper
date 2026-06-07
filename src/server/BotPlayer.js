@@ -18,6 +18,11 @@ var DIFFICULTIES = ["easy", "medium", "hard"];
 var DEFAULT_DIFFICULTY = "medium";
 var MISTAKE_RATES = { easy: 0.09, medium: 0.03, hard: 0.008 };
 var DIFFICULTY_SPEEDS = { easy: 800, medium: 400, hard: 200 };
+// Chord rates: probability that a bot, given a chord opportunity, will take
+// it instead of revealing one cell at a time.  Higher-skill bots chord more
+// — the time saved (1 click vs N) is what makes them feel sharper, and it
+// roughly matches what a real player at that level does.
+var CHORD_RATES = { easy: 0.05, medium: 0.35, hard: 0.75 };
 
 function mistakeRateFor(difficulty) {
 	return MISTAKE_RATES.hasOwnProperty(difficulty) ? MISTAKE_RATES[difficulty] : MISTAKE_RATES[DEFAULT_DIFFICULTY];
@@ -25,6 +30,10 @@ function mistakeRateFor(difficulty) {
 
 function speedFor(difficulty) {
 	return DIFFICULTY_SPEEDS.hasOwnProperty(difficulty) ? DIFFICULTY_SPEEDS[difficulty] : DIFFICULTY_SPEEDS[DEFAULT_DIFFICULTY];
+}
+
+function chordRateFor(difficulty) {
+	return CHORD_RATES.hasOwnProperty(difficulty) ? CHORD_RATES[difficulty] : CHORD_RATES[DEFAULT_DIFFICULTY];
 }
 
 // Elo range we map bot strength across.
@@ -54,10 +63,16 @@ function configForElo(elo) {
 	var speedSwing = baseMistake * STYLE_MISTAKE * MINE_PROB * PENALTY_MS;
 	var speedMs = Math.round(clamp(baseSpeed - style * speedSwing, 70, 1400));
 	var mistakeRate = clamp(baseMistake * (1 + STYLE_MISTAKE * style), 0, 0.4);
+	// Chording is a learned speed technique: most beginners click cells one
+	// by one; experienced players chord almost every time the geometry
+	// allows.  Curve from ~5% at the floor to ~85% at the ceiling; the
+	// resulting time savings naturally flow back into apparent skill.
+	var chordRate = clamp(lerp(0.05, 0.85, s), 0, 1);
 	return {
 		rating: Math.round(elo),
 		speedMs: speedMs,
 		mistakeRate: mistakeRate,
+		chordRate: chordRate,
 		style: style,
 		reckless: style > 0
 	};
@@ -195,7 +210,11 @@ function computeBestMove(game) {
 
 	// Collect *all* certain deductions (deduped by cell), then choose by locality so
 	// each bot roams the board in its own order rather than sweeping top-left first.
-	var safeSet = {}, mineSet = {};
+	// Also collect chord candidates: revealed number cells whose mine count is fully
+	// satisfied by flags AND that still have covered neighbours.  A left-click on
+	// any of these triggers the server's chord, revealing every uncovered neighbour
+	// in one go — much faster than revealing them one cell at a time.
+	var safeSet = {}, mineSet = {}, chordList = [];
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== KNOWN) continue;
@@ -210,9 +229,29 @@ function computeBestMove(game) {
 			var km = knownMineCount(nbrs);
 			if (km === n) {
 				for (var a = 0; a < unknownList.length; a++) safeSet[unknownList[a][0] + "," + unknownList[a][1]] = unknownList[a];
+				// Two-or-more covered neighbours is the break-even point: at 2
+				// covered cells, chord = 1 click vs 2 individual reveals.  At
+				// 1 covered cell, individual reveal is identical in cost so we
+				// don't bother — it'd only add noise to the action picker.
+				if (unknownList.length >= 2) chordList.push({ r: r, c: c, gain: unknownList.length });
 			} else if (km + unknownList.length === n) {
 				for (var b = 0; b < unknownList.length; b++) mineSet[unknownList[b][0] + "," + unknownList[b][1]] = unknownList[b];
 			}
+		}
+	}
+
+	// With probability chordRate, prefer a chord when one is available.  Locality
+	// still applies — pick the chord candidate nearest the current focus so the
+	// bot's path through the board feels continuous.
+	if (chordList.length > 0) {
+		var chordRate = typeof game.botChordRate === "number" ? game.botChordRate : 0;
+		if (chordRate > 0 && Math.random() < chordRate) {
+			var chordActions = chordList.map(function(x) {
+				return { type: "left", r: x.r, c: x.c, certain: true, chord: true };
+			});
+			var chordPick = pickByFocus(game, chordActions);
+			game.botFocus = { r: chordPick.r, c: chordPick.c };
+			return chordPick;
 		}
 	}
 
@@ -276,4 +315,5 @@ exports.DIFFICULTIES = DIFFICULTIES;
 exports.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY;
 exports.mistakeRateFor = mistakeRateFor;
 exports.speedFor = speedFor;
+exports.chordRateFor = chordRateFor;
 exports.configForElo = configForElo;
