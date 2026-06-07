@@ -76,6 +76,10 @@ function applyLocalLeftClick(r, c) {
 function performAction(r, c, asFlag) {
 	var mode = currentActionMode();
 	if (!mode) return;
+	// Spectators (tournament-eliminated) see opponents on slot-0 but can't
+	// affect their boards — drop clicks early so we don't corrupt local
+	// myState or emit illegal left_click events to the server.
+	if (iAmEliminated) return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
 	if (mode === "solo") soloOnBeforeAction();

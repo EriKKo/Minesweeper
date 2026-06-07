@@ -2381,6 +2381,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border-radius: 8px;
 	background: rgba(255, 255, 255, 0.02);
 	border: 1px solid transparent;
+	position: relative;
 }
 
 .score-row-gap {
@@ -2425,6 +2426,22 @@ body.touch .find-next-arrow { display: inline-flex; }
 .score-row-me {
 	background: rgba(99, 102, 241, 0.1);
 	border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* Spectator: rows become clickable to switch the big-board target. The
+   current target gets a teal outline + a small "watching" indicator. */
+.score-row-spectatable { cursor: pointer; }
+.score-row-spectatable:hover {
+	background: rgba(45, 212, 191, 0.08);
+	border-color: rgba(45, 212, 191, 0.3);
+}
+.score-row-watching {
+	background: rgba(45, 212, 191, 0.18) !important;
+	border-color: rgba(45, 212, 191, 0.55) !important;
+}
+.score-row-watching::before {
+	content: "▶"; position: absolute; left: -0.55rem;
+	color: #2dd4bf; font-size: 0.6rem;
 }
 
 .score-rank {

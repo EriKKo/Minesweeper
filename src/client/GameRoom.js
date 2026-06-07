@@ -233,6 +233,15 @@ function renderScoreboard() {
 		li.className = "score-row";
 		li.dataset.pid = p.id;
 		if (p.id === id) li.classList.add("score-row-me");
+		// Spectator: clickable rows that switch the big-board target.
+		// Mark the current target so it reads as "watching".  Skip your
+		// own row (already self-styled) and only enable during play.
+		if (iAmEliminated && playing && p.id !== id) {
+			li.classList.add("score-row-spectatable");
+			if (typeof spectatorTarget !== "undefined" && p.id === spectatorTarget) {
+				li.classList.add("score-row-watching");
+			}
+		}
 
 		var rank = document.createElement("span");
 		rank.className = "score-rank";

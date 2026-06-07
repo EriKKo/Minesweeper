@@ -1698,22 +1698,36 @@ function startGame(room) {
 	// Players share one shared no-guess map this round — obfuscate it once and
 	// hand the same blob to every client so reveals can be resolved locally.
 	var obf = obfuscateBoard(template.board, room.rows, room.cols);
+	function startPayload(forSpectator) {
+		return {
+			time: COUNT_DOWN_TIME,
+			gameNumber: room.gamesPlayed + 1,
+			gameCount: room.gameCount,
+			roundSeconds: room.roundSeconds,
+			deathPenalty: room.deathPenalty,
+			rows: room.rows,
+			cols: room.cols,
+			boardData: obf.data,
+			boardMask: obf.mask,
+			tournamentCutThisRound: tournamentCutThisRound,
+			tournamentSurvivorsThisRound: tournamentSurvivorsThisRound,
+			spectator: !!forSpectator
+		};
+	}
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
-		if (sockets[pid]) {
-			sockets[pid].emit("start_game", {
-				time: COUNT_DOWN_TIME,
-				gameNumber: room.gamesPlayed + 1,
-				gameCount: room.gameCount,
-				roundSeconds: room.roundSeconds,
-				deathPenalty: room.deathPenalty,
-				rows: room.rows,
-				cols: room.cols,
-				boardData: obf.data,
-				boardMask: obf.mask,
-				tournamentCutThisRound: tournamentCutThisRound,
-				tournamentSurvivorsThisRound: tournamentSurvivorsThisRound
-			});
+		if (sockets[pid]) sockets[pid].emit("start_game", startPayload(false));
+	}
+	// Tournament-eliminated players stay subscribed as spectators — they need
+	// the new round's boardData/boardMask so their decoder matches what the
+	// survivors are revealing, otherwise their slot-0 canvas would render
+	// the new state matrix against last round's mine layout (cells revealed
+	// to clue=0 would paint as mines, etc).
+	if (room.tournamentEliminated) {
+		var specIds = Object.keys(room.tournamentEliminated);
+		for (var si = 0; si < specIds.length; si++) {
+			var specSock = sockets[specIds[si]];
+			if (specSock) specSock.emit("start_game", startPayload(true));
 		}
 	}
 	setTimeout(function() {

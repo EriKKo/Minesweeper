@@ -1114,6 +1114,7 @@ var myState = null;
 var lastScores = {};           // playerId -> last rendered score, to flash gains
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
+var spectatorTarget = null;    // when iAmEliminated, the player id whose board is rendered on slot 0
 // soloSession / soloTimerHandle / soloSelectedSize live in Solo.js.
 var elimPanelDismissed = false;// player chose "Keep watching" — don't redraw the panel each round
 var roundStartTime = 0;        // ms timestamp when the current round actually went live (after GO!)
@@ -1347,6 +1348,20 @@ document.getElementById("puzzle_side_back").addEventListener("click", function()
 	location.hash = "#/";
 });
 
+// Spectator: click a scoreboard row to switch which player's board shows
+// on the big slot-0 canvas.  Delegated since the scoreboard re-renders on
+// every draw_board.  No-op when not eliminated; you can't redirect what
+// you yourself are playing.
+scoreboardEl.addEventListener("click", function(e) {
+	if (!iAmEliminated) return;
+	var row = e.target.closest("li.score-row");
+	if (!row || !row.dataset.pid) return;
+	if (row.dataset.pid === id) return;
+	if (spectatorTarget === row.dataset.pid) return;
+	spectatorTarget = row.dataset.pid;
+	renderScoreboard(); // refresh the .score-row-watching highlight
+});
+
 
 document.getElementById("create_room_button").addEventListener("click", function() {
 	socket.emit("create_room");
@@ -1513,12 +1528,27 @@ socket.on("room_state", function(state) {
 
 socket.on("start_game", function(data) {
 	if (typeof music !== "undefined") music.resume();
-	// If we've been eliminated this tournament we stay in the room to spectate
-	// but skip the playable countdown. Re-show the elimination panel unless the
-	// player explicitly dismissed it via "Keep watching".
+	// Eliminated spectators get start_game too (server emits it so their
+	// decoder + dims update), but they skip the playable countdown and the
+	// myState reset.  We DO install the new round's boardDecoder so the
+	// spectated player's reveals render against the correct mine layout —
+	// without this, slot-0 paints opponent state against last round's board.
 	if (iAmEliminated) {
 		hideReadyButton();
+		if (data.boardData && data.boardMask) {
+			installBoardDecoder(data.boardData, data.boardMask, data.rows || rows, data.cols || cols);
+			applyBoardDims(data.rows || rows, data.cols || cols);
+		}
+		// Reset spectator target so the new round picks a fresh leader on
+		// the first draw_board.  Leaving the previous round's target in
+		// place would briefly render a player who hasn't started yet.
+		spectatorTarget = null;
+		// Wipe slot-0 to avoid a one-frame flash of the previous round's
+		// final state while we wait for the first draw_board.
+		var pc = document.getElementById("game0");
+		if (pc) clearCanvas(pc);
 		gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
+		showRoundCutPreview(data);
 		if (elimPanelDismissed) hideOverlay();
 		else showTournamentEliminationPanel(iAmEliminated);
 		return;
@@ -1693,10 +1723,29 @@ socket.on("draw_board", function(data) {
 	// "reverts" until our click handler catches up.
 	var me = games[0];
 	if (!me && iAmEliminated) {
-		// Spectator view: clear slot 0 so the stale "your old board"
-		// doesn't sit there while the survivors play on.
-		document.getElementById("player_name0").textContent = "Eliminated";
-		clearCanvas(document.getElementById("game0"));
+		// Spectator: pick a player to render on the big board. The user can
+		// click any scoreboard row to switch; default to the current leader
+		// (top of live progress) on round start.
+		var liveGames = games.slice(1).filter(function(g) { return g; });
+		if (!spectatorTarget || !liveGames.some(function(g) { return g.id === spectatorTarget; })) {
+			liveGames.sort(function(a, b) {
+				if (a.finished !== b.finished) return a.finished ? -1 : 1;
+				if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+				return (b.progress || 0) - (a.progress || 0);
+			});
+			if (liveGames[0]) spectatorTarget = liveGames[0].id;
+		}
+		var target = spectatorTarget ? liveGames.find(function(g) { return g.id === spectatorTarget; }) : null;
+		var nameEl0 = document.getElementById("player_name0");
+		if (target) {
+			nameEl0.textContent = "Spectating " + target.playerName;
+			myState = target.state;
+			prevPlayerState = cloneState(target.state);
+			renderPlayerBoard();
+		} else {
+			nameEl0.textContent = "Eliminated";
+			clearCanvas(document.getElementById("game0"));
+		}
 	}
 	if (me) {
 		document.getElementById("player_name0").textContent = me.playerName;
@@ -1728,7 +1777,11 @@ socket.on("draw_board", function(data) {
 	// Slots 1-2 = top two opponents by live progress (finished outranks playing,
 	// then by % cleared). Other opponents stay hidden — large lobbies would be
 	// unreadable otherwise; the scoreboard surfaces everyone with progress bars.
-	var opponents = games.slice(1).filter(function(g) { return g; });
+	// When spectating, skip the target player here since they're already on
+	// the big board (showing the same player in both slots would be wasteful).
+	var opponents = games.slice(1).filter(function(g) {
+		return g && (!iAmEliminated || !spectatorTarget || g.id !== spectatorTarget);
+	});
 	opponents.sort(function(a, b) {
 		if (a.finished !== b.finished) return a.finished ? -1 : 1;
 		if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
