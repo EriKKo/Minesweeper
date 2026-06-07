@@ -64,6 +64,11 @@ function gameForBroadcast(g, pid) {
 
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
+// Tournament rounds run the elimination sequence (scrim → reorder → cut flashes
+// → survivor pulse → fade) over the same gap. The reveal lives in roughly
+// 3.6s, so we stretch the between-round delay to give players a beat to read
+// the survivor badge before the next countdown starts.
+var BETWEEN_GAMES_DELAY_TOURNAMENT_CUT = 4500;
 var SERIES_END_DELAY = 6000;
 var PROVISIONAL_GAMES = 5;
 
@@ -1451,6 +1456,13 @@ function endIndividualGame(room, reason) {
 		tournamentSurvivors = room.players.length;
 	}
 
+	// Pass the survivor cut so the client can draw the cutline divider on the
+	// round-end overlay. null for non-tournament rounds (no cut to render).
+	var roundSurvivorsTarget = null;
+	if (room.ranked && room.rankedMode === "tournament" && room.tournamentSchedule) {
+		var rIdx = room.gamesPlayed - 1;
+		roundSurvivorsTarget = room.tournamentSchedule[rIdx] || null;
+	}
 	// Ranked Elo is computed once at series end — see endSeries — so the rating
 	// shown to the player only moves when the whole match finishes.
 	io.to("room:" + room.id).emit("game_result", {
@@ -1461,6 +1473,8 @@ function endIndividualGame(room, reason) {
 		scoreTarget: room.scoreTarget || null,
 		tournamentRemaining: tournamentSurvivors,
 		tournamentEliminated: eliminatedThisRound,
+		tournamentSurvivorsTarget: roundSurvivorsTarget,
+		tournamentSchedule: room.tournamentSchedule || null,
 		reason: reason || "cleared",
 		standings: standings
 	});
@@ -1477,6 +1491,8 @@ function endIndividualGame(room, reason) {
 	if (seriesOver) {
 		endSeries(room);
 	} else {
+		var hadCut = eliminatedThisRound && eliminatedThisRound.length > 0;
+		var nextDelay = hadCut ? BETWEEN_GAMES_DELAY_TOURNAMENT_CUT : BETWEEN_GAMES_DELAY;
 		nextGameTimers[room.id] = setTimeout(function() {
 			delete nextGameTimers[room.id];
 			if (rooms[room.id] && room.phase === "playing" && room.players.length > 1) {
@@ -1484,7 +1500,7 @@ function endIndividualGame(room, reason) {
 			} else if (rooms[room.id] && room.players.length <= 1) {
 				endSeries(room);
 			}
-		}, BETWEEN_GAMES_DELAY);
+		}, nextDelay);
 	}
 }
 

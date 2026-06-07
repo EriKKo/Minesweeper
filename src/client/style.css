@@ -1187,6 +1187,175 @@ main {
 	80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 	100% { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
 }
+
+/* === Tournament round-end sequence ====================================
+   COTD-style overlay: scrim fades in, full standings list materialises,
+   eliminated rows flash red on a stagger, a glowing cutline divider
+   draws between survivors and cuts, then the local player gets a
+   "SURVIVED" / "ELIMINATED" verdict badge.  The board behind it stays
+   visible but dimmed so the next round still feels in-context. */
+.tournament-round-overlay {
+	position: fixed; inset: 0; z-index: 9000;
+	display: flex; align-items: center; justify-content: center;
+	background: rgba(8, 12, 24, 0); /* animated to dark */
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.28s ease, background-color 0.28s ease;
+}
+.tournament-round-overlay[hidden] { display: none; }
+.tournament-round-overlay.visible {
+	opacity: 1;
+	background: rgba(8, 12, 24, 0.78);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+}
+.tournament-round-overlay .tro-frame {
+	width: min(560px, 88vw);
+	max-height: 86vh;
+	display: flex; flex-direction: column; gap: 0.7rem;
+	padding: 1.1rem 1.4rem 1.3rem;
+	border-radius: 0.9rem;
+	background: linear-gradient(180deg, rgba(30, 41, 65, 0.95), rgba(15, 23, 42, 0.95));
+	border: 1px solid rgba(148, 163, 184, 0.18);
+	box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+	transform: translateY(14px);
+	transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.tournament-round-overlay.visible .tro-frame { transform: translateY(0); }
+
+.tro-header { display: flex; align-items: baseline; gap: 0.7rem; justify-content: space-between; }
+.tro-round {
+	font-size: 0.72rem; font-weight: 800; letter-spacing: 0.16em;
+	text-transform: uppercase; color: #cbd5e1;
+}
+.tro-sub { font-size: 0.7rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.06em; }
+
+.tro-rows {
+	display: flex; flex-direction: column; gap: 0.25rem;
+	max-height: 60vh; overflow: hidden;
+	position: relative;
+}
+.tro-row {
+	display: grid;
+	grid-template-columns: 2.1rem 1fr auto;
+	align-items: center;
+	padding: 0.42rem 0.65rem;
+	border-radius: 0.45rem;
+	background: rgba(30, 41, 59, 0.65);
+	border: 1px solid transparent;
+	font-size: 0.92rem;
+	opacity: 0;
+	transform: translateX(-12px);
+	animation: troRowIn 0.32s ease forwards;
+	transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.25, 1);
+	position: relative;
+}
+@keyframes troRowIn {
+	to { opacity: 1; transform: translateX(0); }
+}
+.tro-row .tro-rank { font-weight: 800; color: #94a3b8; }
+.tro-row .tro-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tro-row .tro-detail { font-size: 0.78rem; color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+/* The "you" row: stays subtly highlighted at neutral state so the eye
+   tracks your card through the reorder without it screaming. */
+.tro-row.tro-row-me {
+	background: rgba(99, 102, 241, 0.18);
+	border-color: rgba(129, 140, 248, 0.45);
+}
+
+/* Cut rows: triggered ~150ms apart from bottom up. Flash, then settle
+   to a muted red so the eye can still parse who was eliminated. */
+.tro-row.tro-cut {
+	animation: troRowIn 0.32s ease forwards, troCutFlash 0.6s ease forwards;
+}
+@keyframes troCutFlash {
+	0%   { background: rgba(248, 113, 113, 0.0); border-color: transparent; }
+	18%  { background: rgba(248, 113, 113, 0.55); border-color: rgba(252, 165, 165, 0.9); transform: translateX(2px); }
+	36%  { transform: translateX(-2px); }
+	60%  { transform: translateX(0); }
+	100% { background: rgba(127, 29, 29, 0.30); border-color: rgba(248, 113, 113, 0.35); }
+}
+.tro-row.tro-cut .tro-rank,
+.tro-row.tro-cut .tro-name,
+.tro-row.tro-cut .tro-detail { color: #fca5a5; }
+.tro-row.tro-cut .tro-name { text-decoration: line-through; text-decoration-color: rgba(252, 165, 165, 0.55); }
+
+/* Survivor highlight: fires once all cuts are flashed, single green
+   pulse on every surviving row. */
+.tro-row.tro-survive {
+	animation: troRowIn 0.32s ease forwards, troSurviveGlow 0.9s ease forwards;
+}
+@keyframes troSurviveGlow {
+	0%   { background: rgba(34, 197, 94, 0.0); }
+	35%  { background: rgba(34, 197, 94, 0.32); border-color: rgba(134, 239, 172, 0.7); }
+	100% { background: rgba(22, 101, 52, 0.22); border-color: rgba(74, 222, 128, 0.35); }
+}
+
+/* Cutline divider — animated horizontal rule between the last survivor
+   and the first cut. Glows briefly when drawn. */
+.tro-cutline {
+	position: relative;
+	height: 0; margin: 0;
+	border: 0;
+	border-top: 1px dashed rgba(248, 113, 113, 0.65);
+	opacity: 0;
+	transform: scaleX(0.5);
+	transition: opacity 0.3s ease, transform 0.4s ease;
+}
+.tro-cutline.visible { opacity: 1; transform: scaleX(1); }
+.tro-cutline::after {
+	content: "CUT"; position: absolute; right: 0; top: -0.6rem;
+	font-size: 0.6rem; font-weight: 900; letter-spacing: 0.18em;
+	color: #fca5a5; background: rgba(127, 29, 29, 0.7);
+	padding: 0.15rem 0.4rem; border-radius: 0.3rem;
+}
+
+/* Verdict badge: SURVIVED / ELIMINATED, slides in after the row work
+   is done.  The .close variant grows + shakes a little — used when the
+   player squeaked through within 1 rank of the cut. */
+.tro-verdict {
+	margin-top: 0.4rem;
+	text-align: center;
+	font-size: 1.4rem; font-weight: 900; letter-spacing: 0.18em;
+	text-transform: uppercase;
+	opacity: 0;
+	transform: translateY(8px);
+	transition: opacity 0.3s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.tro-verdict.show { opacity: 1; transform: translateY(0); }
+.tro-verdict.survived { color: #4ade80; text-shadow: 0 0 24px rgba(34, 197, 94, 0.6); }
+.tro-verdict.eliminated { color: #f87171; text-shadow: 0 0 22px rgba(239, 68, 68, 0.55); }
+.tro-verdict.close { animation: troClose 0.7s ease; font-size: 1.6rem; }
+.tro-verdict-sub {
+	display: block; font-size: 0.7rem; font-weight: 700;
+	letter-spacing: 0.08em; opacity: 0.8; margin-top: 0.3rem;
+	color: #cbd5e1;
+}
+@keyframes troClose {
+	0%   { transform: translateY(8px) scale(0.9); }
+	30%  { transform: translateY(0)   scale(1.08); }
+	60%  { transform: translateY(0)   scale(0.98); }
+	100% { transform: translateY(0)   scale(1); }
+}
+
+/* Escalation: later rounds (when the field is small) get a tighter,
+   redder frame so the stakes read visually. Driven by data-round on
+   the overlay element. */
+.tournament-round-overlay[data-stage="late"].visible {
+	background: rgba(20, 8, 12, 0.82);
+}
+.tournament-round-overlay[data-stage="late"] .tro-frame {
+	border-color: rgba(248, 113, 113, 0.35);
+	box-shadow: 0 30px 80px rgba(127, 29, 29, 0.45);
+}
+.tournament-round-overlay[data-stage="final"].visible {
+	background: rgba(28, 6, 10, 0.86);
+}
+.tournament-round-overlay[data-stage="final"] .tro-frame {
+	border-color: rgba(248, 113, 113, 0.55);
+	box-shadow: 0 30px 90px rgba(127, 29, 29, 0.55), 0 0 0 1px rgba(248, 113, 113, 0.25) inset;
+}
 .pattern-card-method {
 	font-size: 0.65rem;
 	letter-spacing: 0.08em;

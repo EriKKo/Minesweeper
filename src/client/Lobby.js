@@ -171,7 +171,13 @@ function applyBoardDims(newRows, newCols) {
 function formatGameProgress(gameNumber, gameCount, scoreTarget) {
 	if (currentRoom && currentRoom.rankedMode === "tournament") {
 		var remaining = currentRoom.players ? currentRoom.players.length : 0;
-		return "Round " + gameNumber + " of " + gameCount + " · " + remaining + " remaining";
+		// "X cut" is the COTD-style danger counter: at a glance you know how
+		// many heads are about to roll without scanning the standings.
+		var schedule = currentRoom.tournamentSchedule || [];
+		var nextSurvivors = schedule[gameNumber - 1];
+		var willCut = (typeof nextSurvivors === "number") ? Math.max(0, remaining - nextSurvivors) : 0;
+		var cutPart = willCut > 0 ? " · " + willCut + " cut" : "";
+		return "Round " + gameNumber + " of " + gameCount + " · " + remaining + " alive" + cutPart;
 	}
 	if (scoreTarget) return "Game " + gameNumber + " · First to " + scoreTarget;
 	if (gameCount === 1) {

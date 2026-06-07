@@ -586,6 +586,21 @@
 		</div>
 	</div>
 
+	<!-- Tournament round-end sequence: full-screen scrim with the round
+		 standings, cutline divider, staggered elimination flashes, then a
+		 survival/elimination badge on the local player's row. Built and
+		 torn down per round by playTournamentRoundEnd(). -->
+	<div id="tournament_round_overlay" class="tournament-round-overlay" hidden>
+		<div class="tro-frame">
+			<div class="tro-header">
+				<span class="tro-round" id="tro_round_label">Round</span>
+				<span class="tro-sub" id="tro_sub_label"></span>
+			</div>
+			<div class="tro-rows" id="tro_rows"></div>
+			<div class="tro-verdict" id="tro_verdict"></div>
+		</div>
+	</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script src="/BoardLogic.js"></script>
 <script src="/BoardRender.js"></script>
@@ -1106,36 +1121,158 @@ var DANGER_GRACE_MS = 10000;   // don't warn within the first N ms of a round
 var dangerTarget = null;       // lazily resolved .player-board element to flash
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
-// Pulse every DOM node (board slot + scoreboard row) tagged with an
-// eliminated player's id, and float a centered banner naming the cuts.
-// Survivors and the cut player(s) all see the same animation so the
-// elimination reads as a clear event, not a silent disappearance.
-function playTournamentEliminationAnim(eliminated) {
-	if (!eliminated || !eliminated.length) return;
-	eliminated.forEach(function(p) {
-		var nodes = document.querySelectorAll('[data-pid="' + p.id + '"]');
-		nodes.forEach(function(n) {
-			n.classList.remove("elim-flash");
-			void n.offsetWidth; // restart the keyframes
-			n.classList.add("elim-flash");
-			setTimeout(function() { n.classList.remove("elim-flash"); }, 2400);
-		});
+// Tournament round-end sequence — the COTD-flavoured reveal.
+//
+// Beats (rough timing budget, ~3.6s total to stay under the 4.5s
+// BETWEEN_GAMES_DELAY_TOURNAMENT_CUT on the server):
+//   0      scrim + frame fade in (~300ms)
+//   200    rows slide in top→bottom (~50ms stagger, ~600ms total)
+//   900    cutline divider draws between survivors and cuts (~300ms)
+//   1100   eliminated rows flash red bottom→top (~140ms stagger)
+//   1100+  survivor rows pulse green together (~700ms)
+//   2200   verdict badge on the local player's row slides in
+//   3400   scrim fades out, panel cleanup
+// onComplete fires at 3400ms.  Returns the timeout id so callers can
+// cancel if the room state changes mid-sequence (e.g. series_ended).
+function playTournamentRoundEnd(data, onComplete) {
+	var overlay = document.getElementById("tournament_round_overlay");
+	var rowsEl = document.getElementById("tro_rows");
+	var roundLabel = document.getElementById("tro_round_label");
+	var subLabel = document.getElementById("tro_sub_label");
+	var verdictEl = document.getElementById("tro_verdict");
+	if (!overlay || !rowsEl) { if (onComplete) onComplete(); return null; }
+
+	rowsEl.innerHTML = "";
+	verdictEl.textContent = "";
+	verdictEl.className = "tro-verdict";
+
+	var standings = data.standings || [];
+	var eliminated = data.tournamentEliminated || [];
+	var elimIds = {};
+	eliminated.forEach(function(e) { elimIds[e.id] = true; });
+
+	var survivorsTarget = (typeof data.tournamentSurvivorsTarget === "number")
+		? data.tournamentSurvivorsTarget
+		: Math.max(0, standings.length - eliminated.length);
+	var totalRounds = (currentRoom && currentRoom.tournamentSchedule)
+		? currentRoom.tournamentSchedule.length : null;
+
+	// Stage for the escalation skin: early / late / final.
+	var stage = "early";
+	if (survivorsTarget <= 1) stage = "final";
+	else if (survivorsTarget <= 4) stage = "late";
+	overlay.dataset.stage = stage;
+
+	roundLabel.textContent = "Round " + data.gameNumber + (totalRounds ? " of " + totalRounds : "");
+	subLabel.textContent = eliminated.length + " cut · " + survivorsTarget + " advance";
+
+	// Build rows (already in rank order). Insert the cutline divider
+	// after the last survivor row so we can animate it in mid-sequence.
+	var rowNodes = []; // parallel array for later highlight passes
+	var cutlineEl = null;
+	standings.forEach(function(s, idx) {
+		// Slide-in stagger keyed off rank so the top of the leaderboard
+		// fills first (feels like a results screen, not a list dump).
+		if (idx === survivorsTarget && idx > 0) {
+			cutlineEl = document.createElement("div");
+			cutlineEl.className = "tro-cutline";
+			rowsEl.appendChild(cutlineEl);
+		}
+		var row = document.createElement("div");
+		row.className = "tro-row";
+		if (s.id === id) row.classList.add("tro-row-me");
+		row.style.animationDelay = (200 + idx * 55) + "ms";
+
+		var rankEl = document.createElement("div");
+		rankEl.className = "tro-rank";
+		rankEl.textContent = "#" + (s.rank || idx + 1);
+		row.appendChild(rankEl);
+
+		var nameEl = document.createElement("div");
+		nameEl.className = "tro-name";
+		nameEl.textContent = (s.id === id) ? "You" : (s.name || "Unknown");
+		row.appendChild(nameEl);
+
+		var detailEl = document.createElement("div");
+		detailEl.className = "tro-detail";
+		if (s.finished && typeof s.finishMs === "number") {
+			detailEl.textContent = (s.finishMs / 1000).toFixed(2) + "s";
+		} else {
+			detailEl.textContent = (s.safeCount || 0) + " safe";
+		}
+		row.appendChild(detailEl);
+
+		rowsEl.appendChild(row);
+		rowNodes.push({ row: row, entry: s });
 	});
-	var banner = document.createElement("div");
-	banner.className = "elim-banner";
-	var label = document.createElement("div");
-	label.className = "elim-banner-label";
-	label.textContent = eliminated.length === 1 ? "Eliminated" : eliminated.length + " eliminated";
-	banner.appendChild(label);
-	var names = document.createElement("div");
-	names.className = "elim-banner-names";
-	names.textContent = eliminated.map(function(p) {
-		var nm = (p.id === id) ? "You" : (p.name || "Unknown");
-		return nm + " #" + p.place;
-	}).join("  ·  ");
-	banner.appendChild(names);
-	document.body.appendChild(banner);
-	setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 2600);
+
+	overlay.hidden = false;
+	// next frame so the .visible transition actually runs
+	requestAnimationFrame(function() { overlay.classList.add("visible"); });
+
+	var timers = [];
+	function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+	// Cutline reveal
+	later(900, function() { if (cutlineEl) cutlineEl.classList.add("visible"); });
+
+	// Eliminated flashes — bottom-up so the last-place cut hits first
+	// (cleaner read than top-down which would highlight #5 before #16).
+	var cutRows = rowNodes.filter(function(rn) { return elimIds[rn.entry.id]; });
+	cutRows.sort(function(a, b) { return (b.entry.rank || 0) - (a.entry.rank || 0); });
+	cutRows.forEach(function(rn, i) {
+		later(1100 + i * 140, function() { rn.row.classList.add("tro-cut"); });
+	});
+
+	// Survivor pulse — fires once, on everyone above the cut, after the
+	// cuts have all flashed. The local "you" row gets its verdict on top.
+	var survivorRows = rowNodes.filter(function(rn) { return !elimIds[rn.entry.id]; });
+	var lastCutDelay = 1100 + Math.max(0, cutRows.length - 1) * 140;
+	later(lastCutDelay + 100, function() {
+		survivorRows.forEach(function(rn) { rn.row.classList.add("tro-survive"); });
+	});
+
+	// Verdict badge — what happened to the local player.
+	var meEntry = standings.find(function(s) { return s.id === id; });
+	var meCut = meEntry && elimIds[id];
+	later(lastCutDelay + 700, function() {
+		if (!meEntry) return; // pure spectator (already eliminated previous round)
+		if (meCut) {
+			verdictEl.innerHTML = "Eliminated <span class=\"tro-verdict-sub\">Finished #" + meEntry.rank + "</span>";
+			verdictEl.classList.add("show", "eliminated");
+		} else {
+			var rank = meEntry.rank;
+			var cushion = survivorsTarget - rank; // 0 means you were the lowest survivor
+			var label = "Survived";
+			var sub;
+			if (cushion === 0) {
+				label = "Close call";
+				sub = "Last survivor — by one place";
+				verdictEl.classList.add("close");
+			} else if (cushion === 1) {
+				sub = "By one place";
+				verdictEl.classList.add("close");
+			} else {
+				sub = "Safe — " + cushion + " places clear";
+			}
+			verdictEl.innerHTML = label + " <span class=\"tro-verdict-sub\">" + sub + "</span>";
+			verdictEl.classList.add("show", "survived");
+		}
+	});
+
+	// Tear-down: fade scrim, hide after transition, then notify.
+	var totalMs = lastCutDelay + 2200;
+	later(totalMs - 300, function() { overlay.classList.remove("visible"); });
+	later(totalMs, function() {
+		overlay.hidden = true;
+		rowsEl.innerHTML = "";
+		verdictEl.textContent = "";
+		verdictEl.className = "tro-verdict";
+		overlay.dataset.stage = "";
+		if (onComplete) onComplete();
+	});
+
+	return timers;
 }
 
 // Name form + sign-in/out button bindings live in Auth.js.
@@ -1412,29 +1549,46 @@ socket.on("start_game", function(data) {
 socket.on("game_result", function(data) {
 	roundResultShown = true;
 	setDanger(false);
-	// Animate eliminations across every player's slot before the round
-	// panel takes over the overlay — fires for everyone so survivors see
-	// who got cut, not just the eliminated player.
-	if (data.tournamentEliminated && data.tournamentEliminated.length) {
-		playTournamentEliminationAnim(data.tournamentEliminated);
-	}
-	// For the player who just got eliminated, the tournament_eliminated
-	// event already opened the rich elim panel (with rating delta +
-	// spectate option). Don't overwrite it with the round result.
+	clearFreeze();
+	stopRoundTimer();
 	var eliminatedNow = iAmEliminated && iAmEliminated.round === data.gameNumber;
-	if (!eliminatedNow) {
-		showRoundResultPanel(data);
-	}
-	// Skip the round win/lose sting when the series sting is about to play.
 	var target = (currentRoom && currentRoom.scoreTarget) || data.scoreTarget;
 	var seriesOver = target
 		? (currentRoom && currentRoom.players.some(function(p) { return (p.score || 0) >= target; }))
 		: data.gameNumber >= data.gameCount;
+
+	// Tournament rounds with a cut get the full COTD-style sequence —
+	// scrim, standings, cutline draw, staggered red flashes, survivor
+	// pulse, verdict badge. The just-eliminated player's elim panel is
+	// held until after the reveal so they actually see the moment they
+	// got cut, not a panel that obscures it.
+	if (data.tournamentEliminated && data.tournamentEliminated.length) {
+		if (eliminatedNow) hideOverlay();
+		playTournamentRoundEnd(data, function() {
+			// For the just-eliminated player, open the rich elim panel
+			// *after* the reveal — unless the series is also ending this
+			// round, in which case series_ended will already have shown
+			// its own panel and we don't want to fight it.
+			if (eliminatedNow && !seriesOver) {
+				showTournamentEliminationPanel(iAmEliminated);
+			}
+		});
+		// Survivors don't get a round-result panel mid-tournament; the
+		// next round starts inside the BETWEEN_GAMES_DELAY budget.
+		if (!seriesOver) {
+			if (data.winnerId === id) sound.win(); else sound.lose();
+		}
+		return;
+	}
+
+	// Non-tournament (or tournament round with no cut — round 1 if
+	// schedule[0] == 16): fall through to the existing round panel.
+	if (!eliminatedNow) {
+		showRoundResultPanel(data);
+	}
 	if (!seriesOver) {
 		if (data.winnerId === id) sound.win(); else sound.lose();
 	}
-	clearFreeze();
-	stopRoundTimer();
 });
 
 socket.on("mine_hit", function(data) {
@@ -1475,8 +1629,10 @@ socket.on("tournament_eliminated", function(data) {
 			provisional: data.provisional
 		}]);
 	}
-	showTournamentEliminationPanel(data);
-	sound.lose();
+	// Don't open the elim panel here — game_result is about to fire and
+	// will run the round-end reveal sequence; the panel pops afterwards
+	// (via onComplete) so the player actually witnesses the moment they
+	// got cut instead of an immediate panel covering the board.
 	stopRoundTimer();
 });
 
