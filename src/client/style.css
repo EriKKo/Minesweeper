@@ -1357,30 +1357,26 @@ main {
 	box-shadow: 0 30px 90px rgba(127, 29, 29, 0.55), 0 0 0 1px rgba(248, 113, 113, 0.25) inset;
 }
 
-/* Pre-round preview: "X will be eliminated this round" — overlaid above
-   the countdown digits so the stakes register before the board reveals. */
+/* Pre-round preview: "N eliminations this round" — a quiet label that
+   floats above the countdown digits.  Muted by design; the round overlay
+   sequence already does the loud talking. */
 .round-cut-preview {
 	position: absolute;
-	left: 50%; top: 15%;
+	left: 50%; top: 12%;
 	transform: translate(-50%, 0);
-	padding: 0.5rem 1rem;
-	border-radius: 0.5rem;
-	background: rgba(127, 29, 29, 0.55);
-	border: 1px solid rgba(248, 113, 113, 0.55);
-	color: #fecaca;
-	font-size: 0.95rem; font-weight: 700;
-	letter-spacing: 0.06em;
+	padding: 0.3rem 0.7rem;
+	color: rgba(203, 213, 225, 0.7);
+	font-size: 0.78rem; font-weight: 600;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	white-space: nowrap;
-	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 	animation: roundCutIn 0.45s cubic-bezier(0.2, 0.8, 0.25, 1);
 	z-index: 5;
 	pointer-events: none;
 }
 @keyframes roundCutIn {
-	0%   { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
-	100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+	0%   { opacity: 0; transform: translate(-50%, -6px); }
+	100% { opacity: 1; transform: translate(-50%, 0); }
 }
 .pattern-card-method {
 	font-size: 0.65rem;
