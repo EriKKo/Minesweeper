@@ -351,7 +351,8 @@ function endPuzzleRun(socket, playerID, reason) {
 	});
 }
 
-function startPuzzlePlay(socket, playerID, user, puzzle, run) {
+function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
+	opts = opts || {};
 	// Build the full board: -1 (MINE sentinel) where the puzzle's mine list
 	// says, otherwise a clue count.
 	var board = puzzleGen.buildBoard(puzzle.rows, puzzle.cols, puzzle.mines);
@@ -375,7 +376,8 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run) {
 		playerBefore: user.puzzle_rating,
 		puzzleBefore: puzzle.rating,
 		hintUsed: false,
-		startedAt: Date.now()
+		startedAt: Date.now(),
+		noRating: !!opts.noRating
 	};
 
 	var obf = obfuscateBoard(board, puzzle.rows, puzzle.cols);
@@ -392,6 +394,7 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run) {
 		playerRating: user.puzzle_rating,
 		solved: user.puzzles_solved,
 		attempted: user.puzzles_attempted,
+		noRating: !!opts.noRating,
 		run: run ? Object.assign({
 			mode: run.mode,
 			targetRating: run.targetRating || null,
@@ -502,6 +505,23 @@ function finalizePuzzle(socket, playerID, solved) {
 	}
 
 	delete puzzlePlay[playerID];
+	// Retry attempts (after a failure on the same puzzle) are practice — no
+	// Elo exchange, no DB write. The original failure already moved the
+	// rating; replaying for closure shouldn't be either rewarded or punished.
+	if (pp.noRating) {
+		socket.emit("puzzle_result", {
+			puzzleId: pp.puzzleId,
+			solved: solved,
+			hintUsed: pp.hintUsed,
+			noRating: true,
+			playerBefore: pp.playerBefore,
+			playerAfter: pp.playerBefore,
+			playerDelta: 0,
+			puzzleBefore: pp.puzzleBefore,
+			puzzleAfter: pp.puzzleBefore
+		});
+		return;
+	}
 	// Hinted solves earn half the rating exchange — same Elo math with the
 	// actual score set to 0.5 (a "draw" against the puzzle) instead of 1.
 	// A hinted failure is still a full loss; hint affects only the win.
@@ -2186,6 +2206,24 @@ io.on("connection", function (socket) {
 		if (!u) { socket.emit("puzzle_error", { reason: "auth_required" }); return null; }
 		return u;
 	}
+
+	// Practice replay of a puzzle the player just failed. Re-serves the same
+	// board with noRating set — the rating exchange already happened when
+	// the original attempt finalised, so the retry is purely for closure /
+	// learning. Client tells us the puzzleId; we just verify it exists.
+	socket.on("puzzle_retry", function(data) {
+		var u = authedUserForPuzzle(); if (!u) return;
+		var puzzleId = data && data.puzzleId;
+		if (!puzzleId) { socket.emit("puzzle_error", { reason: "no_puzzle" }); return; }
+		var puzzle = db.getPuzzleById(puzzleId);
+		if (!puzzle) { socket.emit("puzzle_error", { reason: "no_puzzle" }); return; }
+		delete puzzlePlay[playerID];
+		if (puzzleRun[playerID]) {
+			clearStormTimer(playerID);
+			delete puzzleRun[playerID];
+		}
+		startPuzzlePlay(socket, playerID, u, puzzle, null, { noRating: true });
+	});
 
 	socket.on("puzzle_streak_start", function() {
 		var u = authedUserForPuzzle(); if (!u) return;

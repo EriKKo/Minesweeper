@@ -377,8 +377,66 @@ function flashPuzzleDelta(delta) {
 }
 
 function showPuzzleOutcome(result) {
-	// Replaces the old modal panel with the inline flash + auto-advance.
+	// A solve auto-advances via the inline flash. A failure stops to ask
+	// "try this one again, or move on?" — retries don't affect rating, but
+	// give the player a chance to actually finish the puzzle they just lost.
+	if (!result.solved) {
+		flashPuzzleDelta(result.playerDelta);
+		showRatedFailPanel(result);
+		return;
+	}
 	flashPuzzleResult(result);
+}
+
+// Modal-style fail panel: two buttons, no auto-advance. Player picks whether
+// to replay the same puzzle as practice (no rating exchange) or skip to a
+// fresh one (which costs nothing — the loss already finalised).
+function showRatedFailPanel(result) {
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	header.textContent = "Mine hit";
+	panel.appendChild(header);
+
+	var line = document.createElement("div");
+	line.className = "tournament-place";
+	line.style.color = "#f87171";
+	var deltaStr = result.playerDelta < 0 ? String(result.playerDelta) : ("+" + result.playerDelta);
+	line.textContent = "Rating " + deltaStr + " · now " + result.playerAfter;
+	panel.appendChild(line);
+
+	var foot = document.createElement("div");
+	foot.className = "result-foot";
+	foot.textContent = result.noRating
+		? "Practice run — your rating is locked."
+		: "Replay the same puzzle (no rating change) or jump to a new one.";
+	panel.appendChild(foot);
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Try again";
+	again.addEventListener("click", function() {
+		hideOverlay();
+		socket.emit("puzzle_retry", { puzzleId: result.puzzleId });
+	});
+	actions.appendChild(again);
+
+	var next = document.createElement("button");
+	next.className = "btn btn-secondary";
+	next.textContent = "Next puzzle";
+	next.addEventListener("click", function() {
+		hideOverlay();
+		socket.emit("puzzle_next");
+	});
+	actions.appendChild(next);
+
+	panel.appendChild(actions);
+	presentPanel(panel, "lose");
 }
 
 // Daily puzzle result panel — shown after the one allowed attempt, or

@@ -491,6 +491,7 @@
 						<div class="puzzle-side-head">
 							<span class="puzzle-side-back" id="puzzle_side_back" title="Back to lobby">←</span>
 							<span id="puzzle_side_title" class="puzzle-side-title">Rated puzzles</span>
+							<span class="puzzle-practice-badge" aria-hidden="true">Practice · no rating</span>
 						</div>
 
 						<!-- Rated mode: tier + progress bar + hint -->
@@ -807,8 +808,11 @@ function applyPuzzleBoard(data) {
 		startedAt: Date.now(),
 		finished: false,
 		mode: data.mode || "rated",
+		noRating: !!data.noRating,
 		run: data.run || null
 	};
+	var puzzleCardEl = document.getElementById("puzzle_card");
+	if (puzzleCardEl) puzzleCardEl.classList.toggle("practice", !!data.noRating);
 	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
 	puzzleHintCovered = [];
@@ -873,14 +877,19 @@ socket.on("puzzle_result", function(data) {
 	if (puzzleSession.mode === "streak" || puzzleSession.mode === "storm") return;
 	puzzleSession.finished = true;
 	puzzleSession.result = data;
-	puzzleSession.playerRating = data.playerAfter;
-	if (data.solved) puzzleStreak++;
-	else puzzleStreak = 0;
-	if (account) {
-		account.puzzleRating = data.playerAfter;
-		account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
-		if (data.solved) account.puzzlesSolved = (account.puzzlesSolved || 0) + 1;
-		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	// Retry attempts (noRating) leave rating + counters + streak untouched —
+	// the original attempt already moved them. Skip account mutation so a
+	// practice solve doesn't double-count or revive a broken streak.
+	if (!data.noRating) {
+		puzzleSession.playerRating = data.playerAfter;
+		if (data.solved) puzzleStreak++;
+		else puzzleStreak = 0;
+		if (account) {
+			account.puzzleRating = data.playerAfter;
+			account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
+			if (data.solved) account.puzzlesSolved = (account.puzzlesSolved || 0) + 1;
+			if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+		}
 	}
 	updatePuzzleHud();
 	showPuzzleOutcome(data);
