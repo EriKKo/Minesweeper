@@ -1359,6 +1359,11 @@ scoreboardEl.addEventListener("click", function(e) {
 	if (row.dataset.pid === id) return;
 	if (spectatorTarget === row.dataset.pid) return;
 	spectatorTarget = row.dataset.pid;
+	// Repaint slot 0 + the small opponent slots immediately from the last
+	// cached frame — without this the big board only switches when the
+	// new target makes their next move (which can be many seconds away,
+	// or never if they've already finished), so it feels stuck.
+	if (latestSpectatorGames) repaintSpectatorView(latestSpectatorGames);
 	renderScoreboard(); // refresh the .score-row-watching highlight
 });
 
@@ -1699,8 +1704,69 @@ socket.on("tournament_eliminated", function(data) {
 	stopRoundTimer();
 });
 
+var latestSpectatorGames = null; // last draw_board.games while iAmEliminated — used to repaint slot 0 on a target switch
+
+// Paint the big slot-0 canvas with the currently-spectated player's state.
+// If spectatorTarget is unset / stale, default to the live leader.
+function paintSpectatorBigBoard(games) {
+	var liveGames = games.slice(1).filter(function(g) { return g; });
+	if (!spectatorTarget || !liveGames.some(function(g) { return g.id === spectatorTarget; })) {
+		var sorted = liveGames.slice().sort(function(a, b) {
+			if (a.finished !== b.finished) return a.finished ? -1 : 1;
+			if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+			return (b.progress || 0) - (a.progress || 0);
+		});
+		if (sorted[0]) spectatorTarget = sorted[0].id;
+	}
+	var target = spectatorTarget ? liveGames.find(function(g) { return g.id === spectatorTarget; }) : null;
+	var nameEl0 = document.getElementById("player_name0");
+	if (target) {
+		nameEl0.textContent = "Spectating " + target.playerName;
+		myState = target.state;
+		prevPlayerState = cloneState(target.state);
+		renderPlayerBoard();
+	} else {
+		nameEl0.textContent = "Eliminated";
+		clearCanvas(document.getElementById("game0"));
+	}
+}
+
+// Click-triggered refresh: rerun the whole spectator view (big board +
+// small opponent slots) against the last cached frame so a switch is
+// instant instead of waiting on the next server tick.
+function repaintSpectatorView(games) {
+	paintSpectatorBigBoard(games);
+	// Mirror the slot 1-2 logic from draw_board so the small slots also
+	// drop the new target out of their list immediately.
+	var opponents = games.slice(1).filter(function(g) {
+		return g && (!iAmEliminated || !spectatorTarget || g.id !== spectatorTarget);
+	});
+	opponents.sort(function(a, b) {
+		if (a.finished !== b.finished) return a.finished ? -1 : 1;
+		if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+		return (b.progress || 0) - (a.progress || 0);
+	});
+	var slots = document.querySelectorAll('[data-slot]');
+	for (var i = 1; i <= 5; i++) {
+		var nameEl = document.getElementById("player_name" + i);
+		var canvasEl = document.getElementById("game" + i);
+		var slot = slots[i - 1];
+		var opp = i <= 2 ? opponents[i - 1] : null;
+		if (opp) {
+			nameEl.textContent = opp.playerName;
+			drawBoardStatic(opp.state, canvasEl);
+			if (slot) { slot.style.display = ""; slot.dataset.pid = opp.id || ""; }
+		} else {
+			nameEl.textContent = "";
+			clearCanvas(canvasEl);
+			if (slot) { slot.style.display = "none"; delete slot.dataset.pid; }
+		}
+	}
+}
+
 socket.on("draw_board", function(data) {
 	var games = data.games;
+	if (iAmEliminated) latestSpectatorGames = games;
 	var slots = document.querySelectorAll('[data-slot]');
 	// Cache live progress per player so the scoreboard can show "% cleared" in
 	// real time and rank players by it.
@@ -1723,29 +1789,7 @@ socket.on("draw_board", function(data) {
 	// "reverts" until our click handler catches up.
 	var me = games[0];
 	if (!me && iAmEliminated) {
-		// Spectator: pick a player to render on the big board. The user can
-		// click any scoreboard row to switch; default to the current leader
-		// (top of live progress) on round start.
-		var liveGames = games.slice(1).filter(function(g) { return g; });
-		if (!spectatorTarget || !liveGames.some(function(g) { return g.id === spectatorTarget; })) {
-			liveGames.sort(function(a, b) {
-				if (a.finished !== b.finished) return a.finished ? -1 : 1;
-				if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
-				return (b.progress || 0) - (a.progress || 0);
-			});
-			if (liveGames[0]) spectatorTarget = liveGames[0].id;
-		}
-		var target = spectatorTarget ? liveGames.find(function(g) { return g.id === spectatorTarget; }) : null;
-		var nameEl0 = document.getElementById("player_name0");
-		if (target) {
-			nameEl0.textContent = "Spectating " + target.playerName;
-			myState = target.state;
-			prevPlayerState = cloneState(target.state);
-			renderPlayerBoard();
-		} else {
-			nameEl0.textContent = "Eliminated";
-			clearCanvas(document.getElementById("game0"));
-		}
+		paintSpectatorBigBoard(games);
 	}
 	if (me) {
 		document.getElementById("player_name0").textContent = me.playerName;
