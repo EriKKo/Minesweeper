@@ -251,7 +251,7 @@ function applyRouteFromHash() {
 	// Music only plays in actual play views — lobby/menu/admin stay quiet.
 	// Active ranked / 1v1 / tournament matches start music separately
 	// from the game-state event handlers.
-	var inGameRoutes = ["/custom", "/practice", "/puzzles/play", "/puzzles/streak", "/puzzles/storm", "/puzzles/daily"];
+	var inGameRoutes = ["/custom", "/practice"];
 	var inGame = inGameRoutes.indexOf(hash) !== -1;
 	if (typeof music !== "undefined") {
 		if (inGame) music.resume(); else music.pause();
