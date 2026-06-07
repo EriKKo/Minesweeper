@@ -1,5 +1,6 @@
 var gameCreator = require("./GameCreator");
 var BoardLogic = require("../common/BoardLogic");
+var puzzleSolver = require("./PuzzleSolver");
 
 var MINE = BoardLogic.MINE;
 var FLAGGED = BoardLogic.FLAGGED;
@@ -247,7 +248,7 @@ function computeBestMove(game) {
 		var chordRate = typeof game.botChordRate === "number" ? game.botChordRate : 0;
 		if (chordRate > 0 && Math.random() < chordRate) {
 			var chordActions = chordList.map(function(x) {
-				return { type: "left", r: x.r, c: x.c, certain: true, chord: true };
+				return { type: "left", r: x.r, c: x.c, certain: true, chord: true, tier: "trivial" };
 			});
 			var chordPick = pickByFocus(game, chordActions);
 			game.botFocus = { r: chordPick.r, c: chordPick.c };
@@ -256,8 +257,8 @@ function computeBestMove(game) {
 	}
 
 	var actions = [];
-	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true });
-	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true });
+	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, tier: "trivial" });
+	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, tier: "trivial" });
 
 	if (actions.length) {
 		var pick = pickByFocus(game, actions);
@@ -265,7 +266,27 @@ function computeBestMove(game) {
 		return pick;
 	}
 
-	// Stuck — guess at a random frontier cell (or any unknown) and jump focus there.
+	// No trivial deduction available — escalate to the solver, which walks
+	// subset → overlap → chain → enum and returns the cheapest first.  This
+	// lets the bot keep playing accurately on dense boards instead of
+	// guessing, and tags the move with its difficulty tier so the per-move
+	// delay can budget thinking time appropriately (harder = slower).
+	var hint = puzzleSolver.findFirstSafeStep(board, state);
+	if (hint) {
+		var tier = hint.kind ? hint.kind.replace("-flag", "") : "subset";
+		if (hint.safeCells && hint.safeCells.length) {
+			var s = hint.safeCells[Math.floor(Math.random() * hint.safeCells.length)];
+			game.botFocus = { r: s[0], c: s[1] };
+			return { type: "left", r: s[0], c: s[1], certain: true, tier: tier };
+		}
+		if (hint.mineCells && hint.mineCells.length) {
+			var m = hint.mineCells[Math.floor(Math.random() * hint.mineCells.length)];
+			game.botFocus = { r: m[0], c: m[1] };
+			return { type: "right", r: m[0], c: m[1], certain: true, tier: tier };
+		}
+	}
+
+	// Truly stuck — guess at a random frontier cell (or any unknown) and jump focus there.
 	var guess = pickFrontierGuess(game);
 	if (!guess) {
 		var candidates = [];
@@ -286,8 +307,23 @@ function computeBestMove(game) {
 // room's bot-speed setting (a baseline "thinking" pace). The model:
 //   - log-scaled distance term (a saccade/refocus tax — farther = slower)
 //   - thinking pause when guessing (no certain deduction)
+//   - thinking pause when the deduction was hard (subset → enum), so the bot
+//     visibly hesitates on tough boards instead of click-spamming through
+//     deductions a human would pause on
 //   - extra pause on the very first move of a round (planning the opening)
 //   - small Gaussian-ish jitter so two consecutive ticks never look identical
+//
+// The tier-based pause is what keeps high-density boards from feeling unfair.
+// On a 25%-mine board the bot still needs to chain subset/overlap/enum like a
+// real player; without this, it'd power through them at trivial pace.
+var TIER_THINKING_MS = {
+	trivial: 0,
+	subset: 450,
+	overlap: 800,
+	chain: 1200,
+	enum: 1800
+};
+
 function computeMoveDelay(baseMs, lastClick, move) {
 	var distance = 0;
 	if (lastClick) {
@@ -301,6 +337,11 @@ function computeMoveDelay(baseMs, lastClick, move) {
 	var thinkingTerm = 0;
 	if (move.opening) thinkingTerm = Math.max(250, baseMs * 0.6);
 	else if (!move.certain) thinkingTerm = Math.max(150, baseMs * 0.4);
+	// Tier-based thinking pause: harder deductions take longer to spot.
+	// Max() against the existing thinkingTerm so we don't double-count for
+	// uncertain guesses (which already have their own pause).
+	var tierMs = (move.tier && TIER_THINKING_MS[move.tier]) || 0;
+	if (tierMs > thinkingTerm) thinkingTerm = tierMs;
 	// average-of-three uniforms ≈ approximately normal, mean 0, range ~[-1, 1]
 	var n = (Math.random() + Math.random() + Math.random()) / 1.5 - 1;
 	var jitter = n * baseMs * 0.18;
