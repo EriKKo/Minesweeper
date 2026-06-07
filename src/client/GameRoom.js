@@ -231,6 +231,7 @@ function renderScoreboard() {
 		}
 		var p = row.p;
 		li.className = "score-row";
+		li.dataset.pid = p.id;
 		if (p.id === id) li.classList.add("score-row-me");
 
 		var rank = document.createElement("span");

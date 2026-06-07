@@ -1041,6 +1041,38 @@ var DANGER_GRACE_MS = 10000;   // don't warn within the first N ms of a round
 var dangerTarget = null;       // lazily resolved .player-board element to flash
 var lastFinished = {};         // playerId -> whether they had cleared, to cue rival finishes
 
+// Pulse every DOM node (board slot + scoreboard row) tagged with an
+// eliminated player's id, and float a centered banner naming the cuts.
+// Survivors and the cut player(s) all see the same animation so the
+// elimination reads as a clear event, not a silent disappearance.
+function playTournamentEliminationAnim(eliminated) {
+	if (!eliminated || !eliminated.length) return;
+	eliminated.forEach(function(p) {
+		var nodes = document.querySelectorAll('[data-pid="' + p.id + '"]');
+		nodes.forEach(function(n) {
+			n.classList.remove("elim-flash");
+			void n.offsetWidth; // restart the keyframes
+			n.classList.add("elim-flash");
+			setTimeout(function() { n.classList.remove("elim-flash"); }, 2400);
+		});
+	});
+	var banner = document.createElement("div");
+	banner.className = "elim-banner";
+	var label = document.createElement("div");
+	label.className = "elim-banner-label";
+	label.textContent = eliminated.length === 1 ? "Eliminated" : eliminated.length + " eliminated";
+	banner.appendChild(label);
+	var names = document.createElement("div");
+	names.className = "elim-banner-names";
+	names.textContent = eliminated.map(function(p) {
+		var nm = (p.id === id) ? "You" : (p.name || "Unknown");
+		return nm + " #" + p.place;
+	}).join("  ·  ");
+	banner.appendChild(names);
+	document.body.appendChild(banner);
+	setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 2600);
+}
+
 // Name form + sign-in/out button bindings live in Auth.js.
 
 function refreshMuteIcon() {
@@ -1322,7 +1354,19 @@ socket.on("start_game", function(data) {
 socket.on("game_result", function(data) {
 	roundResultShown = true;
 	setDanger(false);
-	showRoundResultPanel(data);
+	// Animate eliminations across every player's slot before the round
+	// panel takes over the overlay — fires for everyone so survivors see
+	// who got cut, not just the eliminated player.
+	if (data.tournamentEliminated && data.tournamentEliminated.length) {
+		playTournamentEliminationAnim(data.tournamentEliminated);
+	}
+	// For the player who just got eliminated, the tournament_eliminated
+	// event already opened the rich elim panel (with rating delta +
+	// spectate option). Don't overwrite it with the round result.
+	var eliminatedNow = iAmEliminated && iAmEliminated.round === data.gameNumber;
+	if (!eliminatedNow) {
+		showRoundResultPanel(data);
+	}
 	// Skip the round win/lose sting when the series sting is about to play.
 	var target = (currentRoom && currentRoom.scoreTarget) || data.scoreTarget;
 	var seriesOver = target
@@ -1401,6 +1445,12 @@ socket.on("draw_board", function(data) {
 	// carries our pre-click state. Without this, the first click visibly
 	// "reverts" until our click handler catches up.
 	var me = games[0];
+	if (!me && iAmEliminated) {
+		// Spectator view: clear slot 0 so the stale "your old board"
+		// doesn't sit there while the survivors play on.
+		document.getElementById("player_name0").textContent = "Eliminated";
+		clearCanvas(document.getElementById("game0"));
+	}
 	if (me) {
 		document.getElementById("player_name0").textContent = me.playerName;
 		if (myState) {
@@ -1446,11 +1496,17 @@ socket.on("draw_board", function(data) {
 		if (opp) {
 			nameEl.textContent = opp.playerName;
 			drawBoardStatic(opp.state, canvasEl);
-			if (slot) slot.style.display = "";
+			if (slot) {
+				slot.style.display = "";
+				slot.dataset.pid = opp.id || "";
+			}
 		} else {
 			nameEl.textContent = "";
 			clearCanvas(canvasEl);
-			if (slot) slot.style.display = "none";
+			if (slot) {
+				slot.style.display = "none";
+				delete slot.dataset.pid;
+			}
 		}
 	}
 

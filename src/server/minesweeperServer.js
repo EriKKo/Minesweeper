@@ -1158,6 +1158,23 @@ function updateDraw(room) {
 			sockets[playerID].emit("draw_board", {games: stripped});
 		}
 	}
+	// Tournament spectators: players who were cut earlier in this match
+	// still want to watch the bracket play out. Send them a frame where
+	// slot 0 is intentionally empty (they no longer have a "me" board)
+	// and slots 1+ carry the surviving players' games.
+	if (room.tournamentEliminated) {
+		var elimIds = Object.keys(room.tournamentEliminated);
+		if (elimIds.length) {
+			var spectatorGames = [null];
+			for (var sp = 0; sp < room.players.length; sp++) {
+				spectatorGames.push(gameForBroadcast(games[room.players[sp]], room.players[sp]));
+			}
+			for (var e = 0; e < elimIds.length; e++) {
+				var elimSock = sockets[elimIds[e]];
+				if (elimSock) elimSock.emit("draw_board", { games: spectatorGames });
+			}
+		}
+	}
 }
 
 function computeSeriesWinner(room) {
@@ -1379,15 +1396,18 @@ function endIndividualGame(room, reason) {
 	// removed from the room. Their final tournament place is just their rank
 	// in the standings of the round they were eliminated in.
 	var tournamentSurvivors = null;
+	var eliminatedThisRound = null;
 	if (room.ranked && room.rankedMode === "tournament" && room.tournamentSchedule) {
 		var roundIdx = room.gamesPlayed - 1;
 		var survivorsTarget = room.tournamentSchedule[roundIdx] || 1;
+		eliminatedThisRound = [];
 		// Walk highest rank → lowest so each .deletePlayer doesn't shift indices we care about.
 		if (!room.tournamentElo) room.tournamentElo = {};
 		for (var ei = standings.length - 1; ei >= survivorsTarget; ei--) {
 			var sCut = standings[ei];
 			var place = ei + 1;
 			room.tournamentEliminated[sCut.id] = { round: room.gamesPlayed, place: place };
+			eliminatedThisRound.push({ id: sCut.id, name: names[sCut.id] || sCut.name, place: place });
 			// Apply this player's Elo immediately against the current snapshot —
 			// survivors are pinned at rank 1 (they outranked this player) and the
 			// already-eliminated keep their fixed places, so the pairwise math
@@ -1420,6 +1440,7 @@ function endIndividualGame(room, reason) {
 		gameCount: room.gameCount,
 		scoreTarget: room.scoreTarget || null,
 		tournamentRemaining: tournamentSurvivors,
+		tournamentEliminated: eliminatedThisRound,
 		reason: reason || "cleared",
 		standings: standings
 	});

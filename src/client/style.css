@@ -1123,6 +1123,62 @@ main {
 .pattern-card-canvas {
 	display: block;
 }
+/* Tournament elimination — pulse on every DOM node tagged with the
+ * cut player's id (board slots + scoreboard rows), plus a centered
+ * banner with names and final places. Pure CSS animation, removed
+ * after ~2.4s so the survivors' board view returns to normal. */
+@keyframes elimFlash {
+	0%   { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.0); background: transparent; }
+	15%  { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.85); background: rgba(248, 113, 113, 0.22); }
+	60%  { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.65); background: rgba(248, 113, 113, 0.18); }
+	100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.0); background: transparent; opacity: 0.55; }
+}
+.elim-flash { animation: elimFlash 2.4s ease-out forwards; position: relative; }
+.elim-flash::after {
+	content: "ELIMINATED";
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fecaca;
+	font-weight: 900;
+	letter-spacing: 0.18em;
+	font-size: 0.9rem;
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+	pointer-events: none;
+	animation: elimFlashLabel 2.4s ease-out forwards;
+}
+@keyframes elimFlashLabel {
+	0%   { opacity: 0; transform: scale(0.85); }
+	20%  { opacity: 1; transform: scale(1.05); }
+	80%  { opacity: 1; transform: scale(1); }
+	100% { opacity: 0; transform: scale(1); }
+}
+.elim-banner {
+	position: fixed;
+	left: 50%;
+	top: 28%;
+	transform: translate(-50%, -50%);
+	background: rgba(248, 113, 113, 0.92);
+	color: #1f2937;
+	padding: 0.9rem 1.6rem;
+	border-radius: 12px;
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+	z-index: 9999;
+	text-align: center;
+	font-family: var(--ui-font, system-ui, sans-serif);
+	animation: elimBanner 2.6s ease-out forwards;
+}
+.elim-banner-label { font-size: 0.85rem; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.85; }
+.elim-banner-names { font-size: 1.2rem; font-weight: 800; margin-top: 0.3rem; }
+@keyframes elimBanner {
+	0%   { opacity: 0; transform: translate(-50%, -60%) scale(0.85); }
+	15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+	30%  { transform: translate(-50%, -50%) scale(1); }
+	80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+	100% { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+}
 .pattern-card-method {
 	font-size: 0.65rem;
 	letter-spacing: 0.08em;
@@ -1810,11 +1866,14 @@ main {
 .tournament-place {
 	text-align: center;
 	font-weight: 800;
-	font-size: 2.4rem;
+	font-size: 1.5rem;
 	color: var(--accent-hover);
 	margin: 0.5rem 0;
 	letter-spacing: 0.02em;
 }
+.tournament-delta { text-align: center; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.6rem; }
+.tournament-delta-up   { color: #4ade80; }
+.tournament-delta-down { color: #f87171; }
 
 /* Result panel body: rank-swap column on the left, standings on the right. */
 .result-body {

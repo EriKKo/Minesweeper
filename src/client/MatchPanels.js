@@ -137,25 +137,34 @@ function showTournamentEliminationPanel(data) {
 
 	var header = document.createElement("div");
 	header.className = "result-header";
-	header.textContent = "Eliminated in round " + data.round;
+	header.textContent = "You're out — round " + data.round + " of " + (data.totalRounds || "?");
 	panel.appendChild(header);
 
 	var place = document.createElement("div");
 	place.className = "tournament-place";
-	place.textContent = "#" + data.place + " / " + data.totalParticipants;
+	place.textContent = "Final place #" + data.place + " / " + data.totalParticipants;
 	panel.appendChild(place);
+
+	if (typeof data.ratingDelta === "number") {
+		var delta = document.createElement("div");
+		delta.className = "tournament-delta " + (data.ratingDelta >= 0 ? "tournament-delta-up" : "tournament-delta-down");
+		delta.textContent = (data.ratingDelta >= 0 ? "▲ +" : "▼ ") + data.ratingDelta + " rating";
+		panel.appendChild(delta);
+	}
 
 	var foot = document.createElement("div");
 	foot.className = "result-foot";
-	foot.textContent = "Final standings + rating change when the tournament ends.";
+	foot.textContent = "Spectate the rest of the tournament, or bounce.";
 	panel.appendChild(foot);
 
 	var actions = document.createElement("div");
 	actions.className = "result-actions";
 
+	// Primary CTA = spectate. Most players want to watch the bracket play
+	// out, especially after an early elimination.
 	var watch = document.createElement("button");
-	watch.className = "btn btn-secondary";
-	watch.textContent = "Keep watching";
+	watch.className = "btn btn-primary";
+	watch.textContent = "Spectate";
 	watch.addEventListener("click", function() {
 		elimPanelDismissed = true;
 		hideOverlay();
@@ -163,7 +172,7 @@ function showTournamentEliminationPanel(data) {
 	actions.appendChild(watch);
 
 	var again = document.createElement("button");
-	again.className = "btn btn-primary";
+	again.className = "btn btn-secondary";
 	again.textContent = "Find new match";
 	again.addEventListener("click", function() {
 		socket.emit("leave_room");
@@ -181,7 +190,7 @@ function showTournamentEliminationPanel(data) {
 
 	panel.appendChild(actions);
 
-	// No auto-hide — replaced when series_ended fires, dismissed via Keep watching, or when the player leaves.
+	// No auto-hide — replaced when series_ended fires, dismissed via Spectate, or when the player leaves.
 	presentPanel(panel, "lose");
 }
 function resultRow(rankLabel, nameText, detailText, pointsText, opts) {
