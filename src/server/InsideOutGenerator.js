@@ -29,6 +29,7 @@ var cspSolver = require("./CSPSolver");
 var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;
 var FLAGGED = BoardLogic.FLAGGED;
+var MINE = BoardLogic.MINE;
 
 function randInt(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
 
@@ -400,9 +401,33 @@ function generatePuzzles(opts) {
 	for (var a = 0; a < attempts && out.length < count; a++) {
 		var raw = tryConstruct(subOpts);
 		if (!raw) continue;
+		var board = puzzleGen.buildBoard(raw.rows, raw.cols, raw.mines);
+		// Cascade-complete the revealed set against the final board.
+		// The construction's startRevealed covers the chosen cascade +
+		// its boundary, but mine placement decided afterwards can leave
+		// other cells with clue=0 — those would otherwise ship as
+		// covered tiles next to a 0-cell, which is impossible in
+		// Minesweeper because clicking a 0 cascades through. cascadeReveal
+		// bails when called on an already-revealed cell, so kick the
+		// recursion from each neighbour of every 0-clue starting cell.
+		var revealedSet = {};
+		raw.revealed.forEach(function(rc) { revealedSet[rc[0] + "," + rc[1]] = true; });
+		for (var ri = 0; ri < raw.revealed.length; ri++) {
+			var rc = raw.revealed[ri];
+			if (board[rc[0]][rc[1]] !== 0) continue;
+			for (var dr = -1; dr <= 1; dr++) {
+				for (var dc = -1; dc <= 1; dc++) {
+					if (dr === 0 && dc === 0) continue;
+					BoardLogic.cascadeReveal(rc[0] + dr, rc[1] + dc, raw.rows, raw.cols,
+						function(rr, cc) { return !revealedSet[rr + "," + cc] && board[rr][cc] !== MINE; },
+						function(rr, cc) { revealedSet[rr + "," + cc] = true; raw.revealed.push([rr, cc]); return false; },
+						function(rr, cc) { return board[rr][cc]; }
+					);
+				}
+			}
+		}
 		var coveredSafe = raw.rows * raw.cols - raw.mines.length - raw.revealed.length;
 		if (coveredSafe < 1) continue;
-		var board = puzzleGen.buildBoard(raw.rows, raw.cols, raw.mines);
 		var analysis = puzzleGen.analyzeWithTracking(board, raw.revealed, raw.mines.length);
 		if (!analysis.solved) continue;
 		if (targetRating != null) {

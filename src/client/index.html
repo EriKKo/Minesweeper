@@ -786,7 +786,27 @@ function applyPuzzleBoard(data) {
 		myState[r] = new Array(cols);
 		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
 	}
+	// Mark the server-provided revealed cells, then cascade-reveal from
+	// the neighbours of any 0-clue starting cell. The server SHOULD send
+	// a cascade-complete set, but a few legacy inside-out puzzles in
+	// the pool slipped through with bare cascade origins. (We can't
+	// recurse cascadeReveal on the 0-cell itself — it bails when the
+	// cell is already known — so we kick the recursion from each
+	// covered neighbour.)
 	(data.knownCells || []).forEach(function(rc) { myState[rc[0]][rc[1]] = KNOWN; });
+	(data.knownCells || []).forEach(function(rc) {
+		if (boardCell(rc[0], rc[1]) !== 0) return;
+		for (var dr = -1; dr <= 1; dr++) {
+			for (var dc = -1; dc <= 1; dc++) {
+				if (dr === 0 && dc === 0) continue;
+				BoardLogic.cascadeReveal(rc[0] + dr, rc[1] + dc, rows, cols,
+					function(rr, cc) { return myState[rr][cc] === UNKNOWN; },
+					function(rr, cc) { myState[rr][cc] = KNOWN; return false; },
+					function(rr, cc) { return boardCell(rr, cc); }
+				);
+			}
+		}
+	});
 	prevPlayerState = cloneState(myState);
 	frozenUntil = 0;
 	roundResultShown = false;
