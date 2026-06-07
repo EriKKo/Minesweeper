@@ -134,53 +134,88 @@
 					</div>
 
 					<h3 class="lobby-modes-heading">Casual</h3>
-					<ul class="lobby-mode-list">
-						<li class="lobby-mode" data-mode="custom">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">Custom</span>
-								<span class="lobby-mode-sub">Casual rooms with friends.</span>
+					<div class="mode-card-list">
+						<a class="mode-card mode-card-custom" href="#/custom" data-style="custom" aria-label="Open Custom rooms">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<circle cx="150" cy="50" r="45" fill="#34d399" opacity="0.16"/>
+								<circle cx="180" cy="100" r="30" fill="#10b981" opacity="0.20"/>
+								<circle cx="130" cy="120" r="22" fill="#6ee7b7" opacity="0.18"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2" fill="currentColor"/><circle cx="16" cy="9" r="3.2" fill="currentColor"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5v.5h-11V19zm8 0c0-3 2.5-5 5.5-5s5.5 2 5.5 5v.5h-11V19z" fill="currentColor"/></svg>
 							</div>
-							<span class="lobby-mode-stat lobby-mode-stat-tag">CASUAL</span>
-							<button id="open_custom_button" class="btn btn-primary lobby-mode-action">Open</button>
-						</li>
-					</ul>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Custom</h4>
+								<p class="mode-card-tag">Casual · invite friends</p>
+								<p class="mode-card-pitch">Pick a size, share the link, race anyone you want.</p>
+							</div>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-pill">CASUAL</span>
+							</div>
+						</a>
+					</div>
 
 					<h3 class="lobby-modes-heading">Solo puzzles</h3>
-					<ul class="lobby-mode-list">
-						<li class="lobby-mode" data-mode="puzzles">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">Puzzles</span>
-								<span class="lobby-mode-sub">Climb the puzzle ladder.</span>
+					<div class="mode-card-list">
+						<a class="mode-card mode-card-puzzles" href="#/puzzles/play" data-style="puzzles" aria-label="Play Puzzles">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<rect x="120" y="20" width="22" height="22" rx="3" fill="#60a5fa" opacity="0.22"/>
+								<rect x="150" y="20" width="22" height="22" rx="3" fill="#3b82f6" opacity="0.22"/>
+								<rect x="120" y="50" width="22" height="22" rx="3" fill="#3b82f6" opacity="0.32"/>
+								<rect x="150" y="50" width="22" height="22" rx="3" fill="#60a5fa" opacity="0.18"/>
+								<rect x="135" y="80" width="22" height="22" rx="3" fill="#93c5fd" opacity="0.22"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-rating" id="puzzle_rating_value">—</span>
-								<span class="lobby-mode-stat-tier" id="puzzle_solved_count"></span>
-							</span>
-							<button id="open_puzzles_button" class="btn btn-primary lobby-mode-action">Play</button>
-						</li>
-						<li class="lobby-mode" data-mode="streak">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">Streak</span>
-								<span class="lobby-mode-sub">One mistake ends the run.</span>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Puzzles</h4>
+								<p class="mode-card-tag">Solo · climb the ladder</p>
+								<p class="mode-card-pitch">One puzzle at a time. Every solve moves your rating.</p>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-label">Best</span>
-								<span class="lobby-mode-stat-rating" id="puzzle_streak_best">—</span>
-							</span>
-							<button id="open_streak_button" class="btn btn-primary lobby-mode-action">Start</button>
-						</li>
-						<li class="lobby-mode" data-mode="storm">
-							<div class="lobby-mode-main">
-								<span class="lobby-mode-title">Storm</span>
-								<span class="lobby-mode-sub">Three-minute marathon.</span>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-tier" id="puzzle_rating_value">—</span>
+								<span class="mode-card-rank-rating" id="puzzle_solved_count"></span>
 							</div>
-							<span class="lobby-mode-stat">
-								<span class="lobby-mode-stat-label">Best</span>
-								<span class="lobby-mode-stat-rating" id="puzzle_storm_best">—</span>
-							</span>
-							<button id="open_storm_button" class="btn btn-primary lobby-mode-action">Start</button>
-						</li>
-					</ul>
+						</a>
+						<a class="mode-card mode-card-streak" href="#/puzzles/streak" data-style="streak" aria-label="Play Streak">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<path d="M150 0 L120 90 L160 90 L130 200 L195 70 L155 70 z" fill="#fb923c" opacity="0.20"/>
+								<path d="M105 40 L90 90 L115 90 L100 150 L150 80 L120 80 z" fill="#f97316" opacity="0.28"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
+							</div>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Streak</h4>
+								<p class="mode-card-tag">Solo · one mistake ends it</p>
+								<p class="mode-card-pitch">Chain solves without slipping. How far can you push?</p>
+							</div>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-label">Best</span>
+								<span class="mode-card-rank-tier" id="puzzle_streak_best">—</span>
+							</div>
+						</a>
+						<a class="mode-card mode-card-storm" href="#/puzzles/storm" data-style="storm" aria-label="Play Storm">
+							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
+								<circle cx="160" cy="60" r="50" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.22"/>
+								<line x1="160" y1="60" x2="160" y2="30" stroke="#67e8f9" stroke-width="3" opacity="0.55" stroke-linecap="round"/>
+								<line x1="160" y1="60" x2="185" y2="65" stroke="#22d3ee" stroke-width="3" opacity="0.65" stroke-linecap="round"/>
+							</svg>
+							<div class="mode-card-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+							</div>
+							<div class="mode-card-body">
+								<h4 class="mode-card-title">Storm</h4>
+								<p class="mode-card-tag">Solo · three minutes</p>
+								<p class="mode-card-pitch">Crack as many puzzles as you can before time runs out.</p>
+							</div>
+							<div class="mode-card-rank">
+								<span class="mode-card-rank-label">Best</span>
+								<span class="mode-card-rank-tier" id="puzzle_storm_best">—</span>
+							</div>
+						</a>
+					</div>
 				</aside>
 
 				<div class="lobby-daily-hero">
@@ -1135,22 +1170,6 @@ musicSlider.addEventListener("input", function() {
 	music.setVolume(v);
 	music.setMuted(v === 0);
 	refreshMuteIcon();
-});
-
-document.getElementById("open_custom_button").addEventListener("click", function() {
-	location.hash = "#/custom";
-});
-
-document.getElementById("open_puzzles_button").addEventListener("click", function() {
-	location.hash = "#/puzzles/play";
-});
-
-document.getElementById("open_streak_button").addEventListener("click", function() {
-	location.hash = "#/puzzles/streak";
-});
-
-document.getElementById("open_storm_button").addEventListener("click", function() {
-	location.hash = "#/puzzles/storm";
 });
 
 document.getElementById("open_daily_button").addEventListener("click", function() {

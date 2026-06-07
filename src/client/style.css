@@ -3148,6 +3148,21 @@ body.touch .find-next-arrow { display: inline-flex; }
 .mode-card-standard:hover { border-color: rgba(167, 139, 250, 0.55); box-shadow: 0 12px 32px rgba(124, 58, 237, 0.18); }
 .mode-card-tournament .mode-card-icon { background: linear-gradient(135deg, #f87171, #b91c1c); color: white; }
 .mode-card-tournament:hover { border-color: rgba(248, 113, 113, 0.55); box-shadow: 0 12px 32px rgba(239, 68, 68, 0.18); }
+.mode-card-custom .mode-card-icon { background: linear-gradient(135deg, #34d399, #059669); color: #07261c; }
+.mode-card-custom:hover { border-color: rgba(52, 211, 153, 0.55); box-shadow: 0 12px 32px rgba(16, 185, 129, 0.18); }
+.mode-card-puzzles .mode-card-icon { background: linear-gradient(135deg, #60a5fa, #2563eb); color: white; }
+.mode-card-puzzles:hover { border-color: rgba(96, 165, 250, 0.55); box-shadow: 0 12px 32px rgba(37, 99, 235, 0.18); }
+.mode-card-streak .mode-card-icon { background: linear-gradient(135deg, #fb923c, #ea580c); color: white; }
+.mode-card-streak:hover { border-color: rgba(251, 146, 60, 0.55); box-shadow: 0 12px 32px rgba(234, 88, 12, 0.20); }
+.mode-card-storm .mode-card-icon { background: linear-gradient(135deg, #22d3ee, #0891b2); color: #052029; }
+.mode-card-storm:hover { border-color: rgba(34, 211, 238, 0.55); box-shadow: 0 12px 32px rgba(8, 145, 178, 0.20); }
+
+.mode-card-rank-label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.mode-card-rank-pill {
+	display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px;
+	font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+	background: rgba(148, 163, 184, 0.15); color: var(--muted);
+}
 
 /* === Ranked picker page ============================================= */
 .ranked-picker-head {
