@@ -377,52 +377,26 @@ function flashPuzzleDelta(delta) {
 }
 
 function showPuzzleOutcome(result) {
-	// A solve auto-advances via the inline flash. A failure stops to ask
-	// "try this one again, or move on?" — retries don't affect rating, but
-	// give the player a chance to actually finish the puzzle they just lost.
+	// A solve auto-advances via the inline flash. A failure swaps the
+	// Hint button on the side card for "Try again" / "Next puzzle" — the
+	// player picks; the same hint-button slot keeps the actions in a
+	// stable location instead of dropping a modal over the board.
 	if (!result.solved) {
 		flashPuzzleDelta(result.playerDelta);
-		showRatedFailPanel(result);
+		setRatedFailActions(true);
 		return;
 	}
 	flashPuzzleResult(result);
 }
 
-// Modal-style fail panel: two buttons, no auto-advance. Player picks whether
-// to replay the same puzzle as practice (no rating exchange) or skip to a
-// fresh one (which costs nothing — the loss already finalised).
-function showRatedFailPanel(result) {
-	var panel = document.createElement("div");
-	panel.className = "result-panel";
-
-	var header = document.createElement("div");
-	header.className = "result-header";
-	header.textContent = "Mine hit";
-	panel.appendChild(header);
-
-	var actions = document.createElement("div");
-	actions.className = "result-actions";
-
-	var again = document.createElement("button");
-	again.className = "btn btn-primary";
-	again.textContent = "Try again";
-	again.addEventListener("click", function() {
-		hideOverlay();
-		socket.emit("puzzle_retry", { puzzleId: result.puzzleId });
-	});
-	actions.appendChild(again);
-
-	var next = document.createElement("button");
-	next.className = "btn btn-secondary";
-	next.textContent = "Next puzzle";
-	next.addEventListener("click", function() {
-		hideOverlay();
-		socket.emit("puzzle_next");
-	});
-	actions.appendChild(next);
-
-	panel.appendChild(actions);
-	presentPanel(panel, "lose");
+// Swap the hint button for retry/next buttons (or back). Called with `true`
+// after a rated miss, `false` whenever a fresh puzzle_board arrives so the
+// hint comes back for the next attempt.
+function setRatedFailActions(failed) {
+	var hint = document.getElementById("puzzle_hint_btn");
+	var actions = document.getElementById("puzzle_fail_actions");
+	if (hint) hint.style.display = failed ? "none" : "";
+	if (actions) actions.style.display = failed ? "" : "none";
 }
 
 // Daily puzzle result panel — shown after the one allowed attempt, or

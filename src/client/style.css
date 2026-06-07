@@ -1012,6 +1012,14 @@ main {
 	/* Still clickable, but visually marked so the Elo penalty is obvious. */
 	opacity: 0.75;
 }
+.puzzle-fail-actions {
+	margin-top: auto;
+	display: flex; flex-direction: column; gap: 0.5rem;
+}
+.puzzle-fail-actions .btn {
+	padding: 0.8rem 1rem;
+	font-size: 1rem; font-weight: 700;
+}
 .puzzle-hint-icon { font-size: 1.2rem; line-height: 1; }
 .puzzles-filter { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }
 .puzzles-filter-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 0.25rem; }

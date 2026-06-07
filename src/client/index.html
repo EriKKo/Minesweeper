@@ -514,6 +514,10 @@
 								<span class="puzzle-hint-icon">💡</span>
 								<span>Hint</span>
 							</button>
+							<div id="puzzle_fail_actions" class="puzzle-fail-actions" style="display:none">
+								<button id="puzzle_retry_btn" class="btn btn-primary" type="button">Try again</button>
+								<button id="puzzle_skip_btn" class="btn btn-secondary" type="button">Next puzzle</button>
+							</div>
 						</div>
 
 						<!-- Run modes: solves + level (streak) or time (storm) -->
@@ -861,6 +865,7 @@ function applyPuzzleBoard(data) {
 	gameView.style.display = "";
 	gameView.classList.add("puzzle");
 	togglePuzzleChrome(true, puzzleSession.mode);
+	if (typeof setRatedFailActions === "function") setRatedFailActions(false);
 	updatePuzzleHud();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
@@ -1184,6 +1189,15 @@ document.getElementById("open_daily_button").addEventListener("click", function(
 document.getElementById("puzzle_hint_btn").addEventListener("click", function() {
 	if (!puzzleSession || puzzleSession.finished) return;
 	socket.emit("puzzle_hint");
+});
+
+document.getElementById("puzzle_retry_btn").addEventListener("click", function() {
+	if (!puzzleSession) return;
+	socket.emit("puzzle_retry", { puzzleId: puzzleSession.puzzleId });
+});
+
+document.getElementById("puzzle_skip_btn").addEventListener("click", function() {
+	socket.emit("puzzle_next");
 });
 
 document.getElementById("puzzle_side_back").addEventListener("click", function() {
