@@ -1923,6 +1923,89 @@ main {
 .board-overlay-lose .result-header { color: var(--text); }
 .result-header-series { font-size: 1.35rem; }
 
+/* === Tournament champion panel ====================================
+   Single-subject celebration shown after the final round.  No ladder,
+   just the winner, their tier, and the rating bump.  Trophy gets a
+   gentle bounce-in + slow rotation; the champion's name uses a gold
+   gradient so it pops without needing confetti effects. */
+.champion-panel {
+	align-items: center;
+	gap: 0.45rem;
+	padding: 1.4rem 1.4rem 1.1rem;
+	text-align: center;
+	position: relative;
+	overflow: hidden;
+}
+.champion-panel::before {
+	content: "";
+	position: absolute; inset: 0;
+	background: radial-gradient(ellipse at top, rgba(251, 191, 36, 0.22), transparent 65%);
+	pointer-events: none;
+	z-index: 0;
+}
+.champion-panel > * { position: relative; z-index: 1; }
+.champion-trophy {
+	font-size: 5rem;
+	line-height: 1;
+	animation: championTrophyIn 0.8s cubic-bezier(0.2, 0.8, 0.25, 1.4);
+	filter: drop-shadow(0 6px 18px rgba(251, 191, 36, 0.55));
+}
+@keyframes championTrophyIn {
+	0%   { opacity: 0; transform: scale(0.4) rotate(-18deg); }
+	60%  { opacity: 1; transform: scale(1.15) rotate(4deg); }
+	100% { opacity: 1; transform: scale(1)   rotate(0); }
+}
+.champion-tagline {
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: #fbbf24;
+	opacity: 0;
+	animation: championFadeUp 0.45s ease 0.35s forwards;
+}
+.champion-name {
+	font-size: 2.2rem;
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: -0.01em;
+	background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #fbbf24);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	opacity: 0;
+	animation: championFadeUp 0.55s ease 0.5s forwards;
+	text-shadow: 0 0 32px rgba(251, 191, 36, 0.35);
+}
+.champion-rating {
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--text);
+	opacity: 0;
+	animation: championFadeUp 0.45s ease 0.75s forwards;
+}
+.champion-tier { font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.champion-delta.up   { color: #4ade80; font-weight: 800; }
+.champion-delta.down { color: #f87171; font-weight: 800; }
+.champion-yours {
+	margin-top: 0.4rem;
+	font-size: 0.82rem;
+	color: var(--muted);
+	letter-spacing: 0.04em;
+	opacity: 0;
+	animation: championFadeUp 0.45s ease 0.9s forwards;
+}
+.champion-actions {
+	margin-top: 0.7rem;
+	display: flex; gap: 0.6rem; justify-content: center;
+	opacity: 0;
+	animation: championFadeUp 0.4s ease 1.05s forwards;
+}
+@keyframes championFadeUp {
+	from { opacity: 0; transform: translateY(8px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
 .result-list {
 	list-style: none;
 	margin: 0;

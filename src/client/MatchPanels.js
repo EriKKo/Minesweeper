@@ -353,6 +353,12 @@ function showRankChangeBanner(promoted, tier) {
 }
 
 function showSeriesResultPanel(data) {
+	// Tournament gets its own panel — just the champion, no full ladder.
+	// The round-by-round eliminations already gave you the whole story.
+	if (data.mode === "tournament") {
+		showTournamentChampionPanel(data);
+		return;
+	}
 	// Prefer the new `standings` (with Elo deltas + tiers); fall back to plain
 	// `scores` for casual rooms that don't produce standings.
 	var entries = (data.standings && data.standings.length)
@@ -436,4 +442,88 @@ function showSeriesResultPanel(data) {
 	} else {
 		presentPanel(panel, won ? "win" : "lose", 5500);
 	}
+}
+
+// Tournament championship panel — focused entirely on the winner.  No
+// ladder, no per-row deltas; the round overlay already showed who got
+// cut each round.  The win moment deserves a quiet, single-subject
+// celebration: big trophy, the champion's name, their rating bump
+// (if ranked), and a couple of CTAs.
+function showTournamentChampionPanel(data) {
+	var won = data.winnerId === id;
+	var entries = (data.standings || []);
+	var winnerEntry = entries.find(function(s) { return s.id === data.winnerId; })
+		|| { id: data.winnerId, name: data.winnerName };
+	var meEntry = entries.find(function(s) { return s.id === id; });
+
+	var panel = document.createElement("div");
+	panel.className = "result-panel champion-panel" + (won ? " champion-panel-mine" : "");
+
+	var trophy = document.createElement("div");
+	trophy.className = "champion-trophy";
+	trophy.textContent = "🏆";
+	panel.appendChild(trophy);
+
+	var tagline = document.createElement("div");
+	tagline.className = "champion-tagline";
+	tagline.textContent = won ? "Tournament Champion" : "Tournament Champion";
+	panel.appendChild(tagline);
+
+	var nameLine = document.createElement("div");
+	nameLine.className = "champion-name";
+	nameLine.textContent = won ? "You" : (winnerEntry.name || "Unknown");
+	panel.appendChild(nameLine);
+
+	if (typeof winnerEntry.rating === "number") {
+		var tier = tierFor(winnerEntry.rating, winnerEntry.provisional);
+		var rating = document.createElement("div");
+		rating.className = "champion-rating";
+		rating.innerHTML = '<span class="champion-tier" style="color:' + tier.color + '">'
+			+ tier.name + "</span> · " + (winnerEntry.provisional ? "~" : "") + winnerEntry.rating;
+		if (typeof winnerEntry.ratingDelta === "number" && winnerEntry.ratingDelta !== 0) {
+			var d = document.createElement("span");
+			d.className = "champion-delta " + (winnerEntry.ratingDelta > 0 ? "up" : "down");
+			d.textContent = (winnerEntry.ratingDelta > 0 ? " ▲+" : " ▼") + Math.abs(winnerEntry.ratingDelta);
+			rating.appendChild(d);
+		}
+		panel.appendChild(rating);
+	}
+
+	// Sub-line for the player who didn't win — surfaces their own outcome
+	// in one line without dragging the whole leaderboard back in.
+	if (!won && meEntry) {
+		var yourLine = document.createElement("div");
+		yourLine.className = "champion-yours";
+		var deltaStr = "";
+		if (typeof meEntry.ratingDelta === "number" && meEntry.ratingDelta !== 0) {
+			deltaStr = " · " + (meEntry.ratingDelta > 0 ? "▲+" : "▼") + Math.abs(meEntry.ratingDelta);
+		}
+		yourLine.textContent = "You finished #" + (meEntry.rank || "?") + deltaStr;
+		panel.appendChild(yourLine);
+	}
+
+	// Apply ranked rating updates from standings (same as the series flow).
+	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true });
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions champion-actions";
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Play another";
+	again.addEventListener("click", function() {
+		socket.emit("leave_room");
+		findRanked("tournament");
+	});
+	actions.appendChild(again);
+	var back = document.createElement("button");
+	back.className = "btn btn-secondary";
+	back.textContent = "Back to menu";
+	back.addEventListener("click", function() {
+		socket.emit("leave_room");
+	});
+	actions.appendChild(back);
+	panel.appendChild(actions);
+
+	presentPanel(panel, won ? "win" : "lose");
+	try { again.focus(); } catch (e) {}
 }
