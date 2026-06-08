@@ -62,7 +62,10 @@ Source is split into three trees under `src/`:
   rings, and wall/corner add 3 *easier* (cx ≤ 2.7) edge patterns (a wall removes neighbours). Hard
   patterns (chain/enum) live mid-solve, not at a fresh opening — starting positions aren't a source
   of hard building blocks. (4×4-open ≈ 6 min; ring grows with block size, so ~4×4 is the practical
-  brute-force limit — see the `StartPatterns.js` ring≤24 guard.)
+  brute-force limit — see the `StartPatterns.js` ring≤24 guard.) 4×5/5×5 are too big to fully
+  enumerate, so the script only spot-checks two named rings each (all-1s, corners-4/edges-2): both
+  force *nothing* at those sizes (13–17 consistent arrangements, 0 forced cells) — the all-1s ring
+  only pins cells at small sizes, becoming ambiguous as the block grows.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):

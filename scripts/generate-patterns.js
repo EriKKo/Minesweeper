@@ -70,6 +70,49 @@ RUNS.forEach(function(run) {
 	log("  " + label + ": " + res.positions + " positions → " + keys.length + " unique patterns (" + newToCatalog + " new) in " + ((Date.now() - t0) / 1000).toFixed(1) + "s");
 });
 
+// Merge a single extracted pattern into the catalogue under `label`. Returns true if new.
+function mergeOne(pat, label, count) {
+	var rec = catalog[pat.key];
+	if (!rec) {
+		catalog[pat.key] = {
+			key: pat.key, method: pat.method,
+			complexity: Math.round(pat.complexity * 100) / 100, rating: pat.rating,
+			width: pat.width, height: pat.height,
+			clueCells: pat.clueCells, deducedCells: pat.deducedCells,
+			coveredCells: pat.coveredCells, wallCells: pat.wallCells || [],
+			foundIn: [label], counts: {}
+		};
+		catalog[pat.key].counts[label] = count;
+		return true;
+	}
+	if (rec.foundIn.indexOf(label) < 0) rec.foundIn.push(label);
+	rec.counts[label] = (rec.counts[label] || 0) + count;
+	return false;
+}
+
+// Curiosity: larger blocks (4x5, 5x5) are too big to fully enumerate (rings of 22/24), so
+// just try two named open-block clue rings each — all-1s, and 4s in the corners with 2s along
+// the edges — and see what their first deduction is.
+function popcountJS(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
+var CURIOSITY = [[4, 5], [5, 5]];
+CURIOSITY.forEach(function(sz) {
+	var geo = SP.geometry(sz[0], sz[1]); // open
+	[
+		{ name: "all-1s", fn: function() { return 1; } },
+		{ name: "corners4-edges2", fn: function(deg) { return deg === 5 ? 4 : 2; } }
+	].forEach(function(spec) {
+		var clues = geo.masks.map(function(m) { return spec.fn(popcountJS(m)); });
+		var label = sz[0] + "x" + sz[1] + " " + spec.name;
+		log("Trying " + label + " (single tuple, ring=" + geo.ring + ")…");
+		var t0 = Date.now();
+		var pat = SP.extractPattern(geo, clues);
+		var secs = ((Date.now() - t0) / 1000).toFixed(1);
+		if (!pat) { log("  " + label + ": no forced deduction (or inconsistent) in " + secs + "s"); return; }
+		var isNew = mergeOne(pat, label, 1);
+		log("  " + label + ": " + pat.method + " cx=" + pat.complexity + " rating=" + pat.rating + " (" + (isNew ? "new" : "already catalogued") + ") in " + secs + "s");
+	});
+});
+
 var patterns = Object.keys(catalog).map(function(k) { return catalog[k]; });
 patterns.sort(function(a, b) { return b.complexity - a.complexity; }); // hardest first
 
