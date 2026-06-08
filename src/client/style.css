@@ -261,6 +261,44 @@ body {
 	.profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* Controls / keybindings section (Profile page) */
+.controls-title { font-size: 1.2rem; font-weight: 800; margin: 0 0 0.4rem; }
+.keybind-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin: 0.9rem 0;
+}
+.keybind-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.45rem 0.7rem;
+	border: 1px solid var(--border);
+	border-radius: 0.5rem;
+}
+.keybind-label { font-size: 0.95rem; }
+.keybind-key {
+	min-width: 5.5rem;
+	padding: 0.35rem 0.7rem;
+	border: 1px solid var(--border);
+	border-radius: 0.45rem;
+	background: var(--bg);
+	color: inherit;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+.keybind-key:hover { border-color: var(--accent); }
+.keybind-key.capturing {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #fff;
+	font-weight: 600;
+}
+.keybind-reset { margin-top: 0.3rem; }
+
 .profile-stat {
 	background: rgba(255, 255, 255, 0.03);
 	border: 1px solid var(--border);

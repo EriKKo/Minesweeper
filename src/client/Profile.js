@@ -6,6 +6,9 @@
 
 // Profile renders from the account cache plus the most recent leaderboard snapshot.
 function renderProfile() {
+	// Keybindings are local (not tied to an account), so render the Controls section
+	// regardless of sign-in state.
+	if (typeof renderKeybindings === "function") renderKeybindings();
 	var card = document.getElementById("profile_card");
 	if (!card) return;
 	if (!account) {

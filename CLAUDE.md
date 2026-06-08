@@ -62,7 +62,10 @@ Source is split into three trees under `src/`:
 - `style.css` — all styles.
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
-- `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors.
+- `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors. Keyboard
+  actions are resolved through `keybindings.actionFor()`.
+- `Keybindings.js` — rebindable in-game keyboard controls (persisted to `ms_keybinds`),
+  the Controls section rendered on the Profile page, and the dynamic in-game hint line.
 - `BotsAdmin.js` — admin bot browser (`#/admin/bots`): paginated/sortable/Elo-filterable
   view of the pool via `GET /api/bots`, plus the server-driven "watch a bot play" modal
   (`bot_demo_start`/`stop` → `bot_demo_board`/`move` sockets; renders frames with `drawCell`).

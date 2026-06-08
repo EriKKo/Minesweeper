@@ -221,21 +221,23 @@ document.addEventListener("keydown", function(e) {
 	var tag = (e.target && e.target.tagName) || "";
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 	if (e.ctrlKey || e.metaKey || e.altKey) return;
-	var key = e.key;
-	var skip = e.shiftKey;
+	// Keys are user-rebindable (see Keybindings.js); map the event to an action.
+	var action = (typeof keybindings !== "undefined") ? keybindings.actionFor(e) : null;
+	if (!action) return;
+	var skip = e.shiftKey; // Shift held with movement skips already-revealed cells
 	var moved = false;
-	if (key === "ArrowUp") {
+	if (action === "up") {
 		moved = stepFocus(-1, 0, skip);
-	} else if (key === "ArrowDown") {
+	} else if (action === "down") {
 		moved = stepFocus(1, 0, skip);
-	} else if (key === "ArrowLeft") {
+	} else if (action === "left") {
 		moved = stepFocus(0, -1, skip);
-	} else if (key === "ArrowRight") {
+	} else if (action === "right") {
 		moved = stepFocus(0, 1, skip);
-	} else if (key === "Tab") {
+	} else if (action === "next") {
 		e.preventDefault();
 		moved = jumpToNextUnknown(!e.shiftKey);
-	} else if (key === " " || key === "x" || key === "X") {
+	} else if (action === "reveal") {
 		e.preventDefault();
 		// Browser key-repeat fires keydown ~30/sec when a key is held; each tick
 		// would toggle/re-emit, so reveal/flag are one-press-one-action.
@@ -243,7 +245,7 @@ document.addEventListener("keydown", function(e) {
 		focusVisible = true;
 		performAction(focusedR, focusedC, false);
 		return;
-	} else if (key === "z" || key === "Z") {
+	} else if (action === "flag") {
 		e.preventDefault();
 		if (e.repeat) return;
 		focusVisible = true;
