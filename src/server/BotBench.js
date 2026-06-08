@@ -26,8 +26,9 @@ var DENSITIES = [0.10, 0.15, 0.20];
 var ROUND_MS = 120 * 1000;            // round cap; a board not solved in time is a DNF
 var PENALTY_MS = botPlayer.PENALTY_MS || 5000;
 
-// Calibration grid: configForElo bots sampled across the playable range.
-var ELO_GRID = [600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800];
+// Calibration grid: configForElo bots sampled across the full range. Extends below
+// 600 (configForElo extrapolates there) so the curve — and the pool — reach 0 Elo.
+var ELO_GRID = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800];
 
 function densityKey(d) { return d.toFixed(2); }
 

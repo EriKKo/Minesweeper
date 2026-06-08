@@ -59,8 +59,11 @@ function maxTierForElo(elo) {
 	return "enum";
 }
 
-// Elo range we map bot strength across.
-var ELO_MIN = 600, ELO_MAX = 1800;
+// Anchor points the bot-strength curve is calibrated to: configForElo(600) is the
+// weak reference, configForElo(1800) the strong one. The curve extrapolates below
+// 600 (down to ELO_FLOOR) toward an even slower, sloppier bot, so the pool can cover
+// near-helpless play all the way to 0 Elo; output for elo in [600,1800] is unchanged.
+var ELO_MIN = 600, ELO_MAX = 1800, ELO_FLOOR = 0;
 
 function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -82,7 +85,9 @@ var MINE_PROB = 0.3;       // ~chance a blunder actually uncovers a mine
 var PENALTY_MS = 5000;     // ranked death-penalty freeze
 
 function configForElo(elo) {
-	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), 0, 1);
+	// Allow s below 0 (down to ELO_FLOOR) so the curve extrapolates to weaker-than-600
+	// reference bots; the speed/mistake/chord clamps below keep the extrapolation sane.
+	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), (ELO_FLOOR - ELO_MIN) / (ELO_MAX - ELO_MIN), 1);
 	var baseSpeed = lerp(950, 130, s);       // ms between actions; faster as s rises
 	var baseMistake = lerp(0.06, 0.002, s);  // blunder chance; lower as s rises
 	var style = Math.random() * 2 - 1;        // -1 = slow & safe, +1 = fast & reckless

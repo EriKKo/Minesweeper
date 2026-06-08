@@ -24,7 +24,7 @@ var POOL_SIZE = parseInt(process.env.POOL_SIZE, 10) || 1200;
 var BOARDS = parseInt(process.env.BOARDS, 10) || 24;       // boards per density (shared by all bots)
 var CAL_SAMPLES = parseInt(process.env.CAL_SAMPLES, 10) || 6; // configForElo samples per grid point
 
-var ELO_MIN = 600, ELO_MAX = 1800, BUCKET = 100;
+var ELO_MIN = 0, ELO_MAX = 1800, BUCKET = 100;
 var MIN_PER_BUCKET = 8, MAX_PER_BUCKET = 40;
 var FILL_MAX_EXTRA = POOL_SIZE * 3; // cap on top-up generation so we can't loop forever
 
