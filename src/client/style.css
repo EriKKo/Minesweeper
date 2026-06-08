@@ -1218,6 +1218,21 @@ main {
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 	gap: 1rem;
 }
+.start-pattern-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+	margin-top: 0.5rem;
+}
+.start-pattern-tag {
+	font-size: 0.7rem;
+	font-weight: 700;
+	padding: 0.15rem 0.45rem;
+	border-radius: 0.4rem;
+	background: rgba(99, 102, 241, 0.15);
+	color: var(--accent);
+	font-variant-numeric: tabular-nums;
+}
 .pattern-card {
 	background: var(--surface);
 	border: 1px solid var(--border);

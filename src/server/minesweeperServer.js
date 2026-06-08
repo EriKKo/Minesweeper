@@ -117,6 +117,7 @@ function handler (req, res) {
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
 	if (pathname === "/api/patterns") return servePatterns(req, res, url);
+	if (pathname === "/api/start-patterns") return serveStartPatterns(req, res);
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
@@ -778,6 +779,30 @@ function serveStartingPositions(req, res, url) {
 	var total = db.startingPositionCount(filterOpts);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ positions: positions, total: total, page: page, pageSize: pageSize }));
+}
+
+// The start-pattern catalogue (scripts/generate-patterns.js → deduction-patterns.json):
+// unique first-deduction patterns from 3x3/3x4 starting cascades. Tiny file, read once and
+// cached; re-read if it changes on disk (so a regenerate shows up without a restart).
+var START_PATTERNS_PATH = process.env.START_PATTERNS_PATH || path.join(__dirname, "..", "..", "deduction-patterns.json");
+var startPatternsCache = null, startPatternsMtime = 0;
+function loadStartPatterns() {
+	try {
+		var mtime = fs.statSync(START_PATTERNS_PATH).mtimeMs;
+		if (!startPatternsCache || mtime !== startPatternsMtime) {
+			startPatternsCache = JSON.parse(fs.readFileSync(START_PATTERNS_PATH, "utf8"));
+			startPatternsMtime = mtime;
+		}
+	} catch (e) {
+		startPatternsCache = { patterns: [], sizes: [], error: e.message };
+	}
+	return startPatternsCache;
+}
+
+function serveStartPatterns(req, res) {
+	var data = loadStartPatterns();
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(data));
 }
 
 // Browse the deduction-pattern catalogue (first-move templates

@@ -388,6 +388,7 @@
 		<section id="bots_view" class="view section-view" style="display:none"></section>
 		<section id="starting_positions_view" class="view section-view" style="display:none"></section>
 		<section id="patterns_view" class="view section-view" style="display:none"></section>
+		<section id="start_patterns_view" class="view section-view" style="display:none"></section>
 		<section id="puzzle_play_view" class="view section-view" style="display:none"></section>
 
 		<section id="game_view" class="view game-view" style="display:none">
@@ -630,6 +631,7 @@
 <script src="/BotsAdmin.js"></script>
 <script src="/StartingPositionsView.js"></script>
 <script src="/PatternsView.js"></script>
+<script src="/StartPatternsView.js"></script>
 <script src="/PuzzlePlay.js"></script>
 <script src="/Overlay.js"></script>
 <script src="/RoundTimer.js"></script>
@@ -1892,7 +1894,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "puzzle_play_view", "ranked_picker_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "puzzle_play_view", "ranked_picker_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

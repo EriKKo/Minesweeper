@@ -52,7 +52,9 @@ Source is split into three trees under `src/`:
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
   canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues 3×3 + 3×4 into
-  `deduction-patterns.json` tagged by source size. Spike finding: starting cascades yield only
+  `deduction-patterns.json` tagged by source size. Served by `GET /api/start-patterns` and
+  shown on the **Start patterns** admin page (`#/admin/start-patterns`, `StartPatternsView.js`,
+  reusing `PatternsView.js`'s board renderers). Spike finding: starting cascades yield only
   ~5 unique, subset-tier patterns (3×4 adds 1 easy one) — hard patterns live mid-solve, not at
   the opening, so this isn't a rich source of hard building blocks.
 

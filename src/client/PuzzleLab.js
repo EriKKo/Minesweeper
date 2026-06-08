@@ -90,6 +90,12 @@ function renderAdminLanding() {
 		"Browse patterns",
 		"#/admin/patterns"
 	));
+	cards.appendChild(makeAdminCard(
+		"Start patterns",
+		"Unique first-deduction building blocks enumerated from 3×3 / 3×4 starting cascades.",
+		"Browse start patterns",
+		"#/admin/start-patterns"
+	));
 	view.appendChild(cards);
 }
 

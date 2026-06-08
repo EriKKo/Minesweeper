@@ -156,6 +156,13 @@ function showPatternsView() {
 	renderPatterns();
 }
 
+function showStartPatternsView() {
+	hideAllViews();
+	document.getElementById("start_patterns_view").style.display = "";
+	setSiteNavActive("admin");
+	renderStartPatterns();
+}
+
 function showPuzzlePlayView() {
 	hideAllViews();
 	document.getElementById("puzzle_play_view").style.display = "";
@@ -286,6 +293,7 @@ function applyRouteFromHash() {
 	if (hash === "/admin/bots" || hash.indexOf("/admin/bots?") === 0) return showBotsView();
 	if (hash === "/admin/starting-positions" || hash.indexOf("/admin/starting-positions?") === 0) return showStartingPositionsView();
 	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
+	if (hash === "/admin/start-patterns") return showStartPatternsView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();
