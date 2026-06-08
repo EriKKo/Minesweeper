@@ -28,16 +28,26 @@ Source is split into three trees under `src/`:
   OAuth/dev auth endpoints, bot orchestration. Also serves static client assets
   out of `src/client/` and `src/common/`.
 - `GameCreator.js` — board/game state factory + mine placement.
-- `NoGuessGenerator.js` — `createNoGuessTemplate` + the deduction solver
-  (`analyzeSolvability`).
+- `NoGuessGenerator.js` — `createNoGuessTemplate` + `analyzeSolvability`, which verifies
+  no-guess solvability by running the **capped CSP solver** (`GEN_MAX_COMPLEXITY`, kept
+  below the case-split threshold so generation stays fast) and, from that same solve,
+  bakes a per-cell **difficulty map** (`template.difficultyByCell`, CSP complexity per cell).
 - `RoomCreator.js` — room and best-of-N series state.
-- `BotPlayer.js` — bot AI (deduction + blunders), casual difficulty presets, the
-  random-knob bot generator (`randomBotConfig`), and the ranked pool loader/picker
-  (`loadPool` / `pickBotFromPool`). `configForElo` survives only as the offline
+- `BotPlayer.js` — bot AI. Each bot has six per-move variables (`speedMs`, `difficultyMs`,
+  `distanceMult`, `maxDifficulty`, `mistakeRate`, `chordRate`); `computeMoveDelay` scales the
+  pause by the move's actual numeric difficulty (from the board's difficulty map) and the bot
+  guesses when the easiest available move exceeds `maxDifficulty`. Also the random-knob
+  generator (`randomBotConfig`), pool loader/picker (`loadPool` / `pickBotFromPool`), and
+  casual presets (`configForDifficulty`). `configForElo` survives only as the offline
   calibration anchor — nothing at runtime calls it.
 - `BotBench.js` — headless bot benchmarking: replays a bot's real decision loop on a
   virtual clock to measure solve time, calibrates time→Elo against the `configForElo`
-  curve, and ratings a config. Used by `scripts/generate-bot-pool.js`; no I/O of its own.
+  curve, and rates a config. Reads each board's difficulty map off the template. Used by
+  `scripts/generate-bot-pool.js`; no I/O of its own.
+- `CSPSolver.js` — constraint solver: `analyzeBoard(board, state, {revealCell, maxComplexity})`
+  returns per-move numeric `complexity` and `solved`. The `maxComplexity` cap prunes the
+  search and skips case-splits below 8 — it's both the generation difficulty ceiling and the
+  model for a bot's skill ceiling.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
@@ -91,10 +101,13 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
   10% mines), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
   lobby's average rating and trickle into the queue like real players.
 - Ranked filler bots come from a **pre-benchmarked pool** (`bots-pool.json`, committed),
-  not synthesized on the fly. Each pool bot is a random set of knobs (speed, mistake rate,
-  chord rate, solver-tier ceiling) whose Elo was *measured* by simulating it solving boards
-  at the three ranked densities (10/15/20%) and mapping its solve times onto the
-  `configForElo` calibration curve. Matchmaking calls `botPlayer.pickBotFromPool(targetElo)`.
-  Regenerate the pool with `node scripts/generate-bot-pool.js` (takes a few minutes; tune
-  with `POOL_SIZE` / `BOARDS` / `CAL_SAMPLES` env vars — lower them for a quick smoke run).
-  Re-run it whenever bot AI, the solver, or the Elo curve changes.
+  not synthesized on the fly. Each pool bot is a random point in the six-variable space
+  (speed, per-difficulty thinking, distance multiplier, max-difficulty ceiling, mistake
+  rate, chord rate) whose Elo was *measured* by simulating it solving boards at the three
+  ranked densities (10/15/20%) and mapping its solve times onto the `configForElo`
+  calibration curve. Distinct play styles can land at the same Elo (a fast guesser vs a
+  slow, thorough solver). Matchmaking calls `botPlayer.pickBotFromPool(targetElo)`.
+  Regenerate with `node scripts/generate-bot-pool.js` (a few minutes; tune with
+  `POOL_SIZE` / `BOARDS` / `CAL_SAMPLES` env vars). **Re-run it whenever bot AI, the CSP
+  solver/complexity costs, `GEN_MAX_COMPLEXITY`, or the Elo curve changes** — the measured
+  ratings depend on all of them.
