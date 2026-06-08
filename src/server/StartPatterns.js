@@ -58,8 +58,9 @@ function boundaryIndexOf(geo, r, c) {
 // Single pass over all 2^ring mine arrangements: derive each arrangement's boundary clue
 // tuple and bucket by it, accumulating per-ring-cell mine occurrences. Arrangements with
 // any boundary clue 0 are skipped (a 0-clue boundary would cascade further, so it isn't a
-// real edge of the opening). Returns positions whose full clue set forces at least one safe
-// AND one mine cell — the only ones that can yield a two-sided pattern.
+// real edge of the opening). Returns positions whose full clue set forces at least one cell
+// (safe or mine) — single-sided deductions count too (e.g. the all-1s ring forces only safes
+// via a case-split, which is a legitimate hard building block).
 function enumeratePositions(geo) {
 	var ring = geo.ring, nb = geo.boundary.length, masks = geo.masks;
 	var total = 1 << ring;
@@ -87,7 +88,7 @@ function enumeratePositions(geo) {
 			if (bk.orCounts[j] === 0) hasSafe = true;
 			else if (bk.orCounts[j] === bk.solCount) hasMine = true;
 		}
-		if (hasSafe && hasMine) out.push({ clues: bk.clues, solCount: bk.solCount });
+		if (hasSafe || hasMine) out.push({ clues: bk.clues, solCount: bk.solCount });
 	}
 	return out;
 }
@@ -171,9 +172,8 @@ function extractPattern(geo, clues) {
 		if (bf.safeMask & bit) { deducedCells.push([cell[0], cell[1], "S"]); deducedKey[cell[0] + "," + cell[1]] = true; }
 		else if (bf.mineMask & bit) { deducedCells.push([cell[0], cell[1], "M"]); deducedKey[cell[0] + "," + cell[1]] = true; }
 	}
-	var hasMine = false, hasSafe = false;
-	for (var d = 0; d < deducedCells.length; d++) { if (deducedCells[d][2] === "M") hasMine = true; else hasSafe = true; }
-	if (!hasMine || !hasSafe) return null;
+	// Keep any deduction with at least one forced cell (single-sided included).
+	if (deducedCells.length === 0) return null;
 
 	// Covered context: UNKNOWN ring neighbours of the active clue cells the move didn't decide
 	// (interior block cells are revealed, so they're never covered).
