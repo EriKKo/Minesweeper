@@ -54,9 +54,13 @@ Source is split into three trees under `src/`:
   canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues 3×3 + 3×4 into
   `deduction-patterns.json` tagged by source size. Served by `GET /api/start-patterns` and
   shown on the **Start patterns** admin page (`#/admin/start-patterns`, `StartPatternsView.js`,
-  reusing `PatternsView.js`'s board renderers). Spike finding: starting cascades yield only
-  ~5 unique, subset-tier patterns (3×4 adds 1 easy one) — hard patterns live mid-solve, not at
-  the opening, so this isn't a rich source of hard building blocks.
+  reusing `PatternsView.js`'s board renderers). Finding: starting cascades yield very few unique
+  patterns (13 across 3×3/3×4/4×4 — 8, +3, +2 new) and the complexity **ceilings at ~8**
+  (case-split rings + one subset at 8.44) *regardless of block size* — bigger blocks only add
+  larger versions of the same rings. Hard patterns (chain/enum) live mid-solve, not at a fresh
+  opening, so starting positions aren't a source of hard building blocks. (4×4 ≈ 6 min to run;
+  ring grows with block size, so ~4×4 is the practical brute-force limit — see `StartPatterns.js`
+  ring≤24 guard.)
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):

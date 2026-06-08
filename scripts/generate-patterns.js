@@ -13,7 +13,7 @@ var fs = require("fs");
 var path = require("path");
 var SP = require("../src/server/StartPatterns");
 
-var SIZES = [[3, 3], [3, 4]];
+var SIZES = [[3, 3], [3, 4], [4, 4]];
 
 function ts() { return new Date().toISOString(); }
 function log(m) { console.log("[" + ts() + "] " + m); }
