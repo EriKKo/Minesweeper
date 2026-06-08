@@ -15,7 +15,7 @@ var keybindings = (function() {
 		{ id: "flag", label: "Flag / unflag" },
 		{ id: "next", label: "Jump to next unsolved area" }
 	];
-	var DEFAULTS = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", reveal: " ", flag: "z", next: "Tab" };
+	var DEFAULTS = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", reveal: "x", flag: "z", next: "Tab" };
 
 	function freshDefaults() {
 		var out = {};
