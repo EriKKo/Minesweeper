@@ -49,9 +49,22 @@ function makeTemplates(density, count, rows, cols) {
 	return templates;
 }
 
-// Simulate one bot solving one board on a virtual clock. Returns { ms, solved }.
+// Smallest cleared fraction we'll extrapolate from, so a bot that barely touched
+// the board doesn't produce an absurd (near-infinite) derived time. Anything this
+// stuck is floor-Elo regardless.
+var MIN_CLEARED_FRACTION = 0.02;
+
+// Simulate one bot solving one board on a virtual clock, stopping at the round cap
+// (the real 2-minute ranked round). Returns { ms, solved, clearedFraction }.
+//
+// If the bot clears the board before the round ends, `ms` is its true solve time.
+// If the round ends first, we don't flat-line it at the cap — that would make every
+// slow bot indistinguishable. Instead we extrapolate an effective solve time from how
+// much of the board it cleared (linear model: time ≈ cap / fractionCleared), so a bot
+// stuck at 30% rates far slower than one that reached 85%.
 function simulateSolveTime(config, template, opts) {
 	opts = opts || {};
+	var capMs = opts.capMs || ROUND_MS;
 	var rows = template.rows, cols = template.cols;
 	var game = gameCreator.createGame(template.numMines, rows, cols);
 
@@ -72,7 +85,7 @@ function simulateSolveTime(config, template, opts) {
 	var baseMs = config.speedMs;
 	var lastClick = null;
 	var maxIters = rows * cols * 6; // safety backstop against a non-terminating loop
-	for (var iter = 0; iter < maxIters && !game.finished; iter++) {
+	for (var iter = 0; iter < maxIters && !game.finished && virtualMs < capMs; iter++) {
 		var move = botPlayer.decideMove(game);
 		if (!move) break;
 		virtualMs += botPlayer.computeMoveDelay(baseMs, lastClick, move);
@@ -80,19 +93,24 @@ function simulateSolveTime(config, template, opts) {
 		else game.handleLeftClick(move.r, move.c);
 		lastClick = { r: move.r, c: move.c };
 	}
-	return { ms: virtualMs, solved: !!game.finished };
+
+	if (game.finished) {
+		// Solved within the round. Clamp the rare buzzer-beater that a final mine
+		// penalty pushed just past the cap, so solved time is always <= cap < any DNF.
+		return { ms: Math.min(virtualMs, capMs), solved: true, clearedFraction: 1 };
+	}
+	var frac = game.revealedSafeCount() / game.totalSafeSquares;
+	if (frac < MIN_CLEARED_FRACTION) frac = MIN_CLEARED_FRACTION;
+	return { ms: capMs / frac, solved: false, clearedFraction: frac };
 }
 
-// Average solve time of a config over a fixed set of templates. A board the bot
-// fails to finish (DNF) counts at the round cap so weak bots get a finite,
-// comparable number instead of dragging the mean to infinity.
+// Average effective solve time of a config over a fixed set of templates. DNF boards
+// already carry an extrapolated time from simulateSolveTime, so this is a plain mean.
 function avgSolveTime(config, templates, opts) {
 	opts = opts || {};
-	var cap = opts.capMs || ROUND_MS;
 	var total = 0;
 	for (var i = 0; i < templates.length; i++) {
-		var r = simulateSolveTime(config, templates[i], opts);
-		total += r.solved ? Math.min(r.ms, cap) : cap;
+		total += simulateSolveTime(config, templates[i], opts).ms;
 	}
 	return total / templates.length;
 }
