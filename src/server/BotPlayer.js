@@ -197,7 +197,11 @@ function neighbors(r, c, rows, cols) {
 	return BoardLogic.neighbours(r, c, rows, cols);
 }
 
-var LOCAL_RADIUS = 4; // bots work cells within this distance of their focus before jumping
+// How many board-cells of extra travel a unit of move difficulty is "worth" when the
+// bot chooses its next move. Small, so distance dominates: the bot strongly prefers the
+// nearest available move and only takes a harder one when it's meaningfully closer.
+var DIFFICULTY_DISTANCE_WEIGHT = 0.5;
+var FOCUS_JITTER = 0.3; // tiny random tiebreak so equally-close moves vary a little
 
 function decideMove(game) {
 	var best = computeBestMove(game);
@@ -215,22 +219,27 @@ function decideMove(game) {
 	return best;
 }
 
-// Choose among equally-certain actions by locality: stay within LOCAL_RADIUS of the
-// bot's current focus (picking randomly within it, so order varies), and when that
-// neighbourhood is exhausted, jump to a random action elsewhere. Gives each bot a
-// random starting area and organic, varied jumps between sections.
+// Choose the next action by a distance-dominated cost from the bot's current focus:
+//   cost = distance + DIFFICULTY_DISTANCE_WEIGHT * difficulty + small jitter
+// so the bot works its local area tightly — picking the nearest move, and preferring a
+// closer-but-harder move over a farther easier one — rather than jumping around. Each
+// move's `difficulty` is its CSP complexity (harder-to-count cells cost a little more).
 function pickByFocus(game, actions) {
 	if (!game.botFocus) {
 		var seed = actions[Math.floor(Math.random() * actions.length)];
 		game.botFocus = { r: seed.r, c: seed.c };
 	}
 	var f = game.botFocus;
-	var local = actions.filter(function(a) {
+	var best = null, bestCost = Infinity;
+	for (var i = 0; i < actions.length; i++) {
+		var a = actions[i];
 		var dr = a.r - f.r, dc = a.c - f.c;
-		return Math.sqrt(dr * dr + dc * dc) <= LOCAL_RADIUS;
-	});
-	var pool = local.length ? local : actions;
-	return pool[Math.floor(Math.random() * pool.length)];
+		var dist = Math.sqrt(dr * dr + dc * dc);
+		var diff = (typeof a.difficulty === "number") ? a.difficulty : TRIVIAL_DIFFICULTY;
+		var cost = dist + DIFFICULTY_DISTANCE_WEIGHT * diff + Math.random() * FOCUS_JITTER;
+		if (cost < bestCost) { bestCost = cost; best = a; }
+	}
+	return best;
 }
 
 // Pick a random unknown cell that borders a revealed number — where a hasty human
@@ -310,7 +319,12 @@ function computeBestMove(game) {
 				// covered cells, chord = 1 click vs 2 individual reveals.  At
 				// 1 covered cell, individual reveal is identical in cost so we
 				// don't bother — it'd only add noise to the action picker.
-				if (unknownList.length >= 2) chordList.push({ r: r, c: c, gain: unknownList.length });
+				// A chord's difficulty is the hardest of the cells it reveals.
+				if (unknownList.length >= 2) {
+					var chordDiff = 0;
+					for (var cd = 0; cd < unknownList.length; cd++) chordDiff = Math.max(chordDiff, cellDifficulty(game, unknownList[cd][0], unknownList[cd][1]));
+					chordList.push({ r: r, c: c, gain: unknownList.length, difficulty: chordDiff });
+				}
 			} else if (km + unknownList.length === n) {
 				for (var b = 0; b < unknownList.length; b++) mineSet[unknownList[b][0] + "," + unknownList[b][1]] = unknownList[b];
 			}
@@ -324,7 +338,7 @@ function computeBestMove(game) {
 		var chordRate = typeof game.botChordRate === "number" ? game.botChordRate : 0;
 		if (chordRate > 0 && Math.random() < chordRate) {
 			var chordActions = chordList.map(function(x) {
-				return { type: "left", r: x.r, c: x.c, certain: true, chord: true, difficulty: TRIVIAL_DIFFICULTY };
+				return { type: "left", r: x.r, c: x.c, certain: true, chord: true, difficulty: x.difficulty };
 			});
 			var chordPick = pickByFocus(game, chordActions);
 			game.botFocus = { r: chordPick.r, c: chordPick.c };
@@ -332,9 +346,12 @@ function computeBestMove(game) {
 		}
 	}
 
+	// Even trivial counting moves carry their real CSP difficulty: counting against more
+	// covered cells / mines is genuinely harder, so those cells cost a little more and the
+	// locality picker treats them as slightly less attractive.
 	var actions = [];
-	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, difficulty: TRIVIAL_DIFFICULTY });
-	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, difficulty: TRIVIAL_DIFFICULTY });
+	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, difficulty: cellDifficulty(game, safeSet[ks][0], safeSet[ks][1]) });
+	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, difficulty: cellDifficulty(game, mineSet[ms][0], mineSet[ms][1]) });
 
 	if (actions.length) {
 		var pick = pickByFocus(game, actions);
@@ -431,8 +448,9 @@ function computeMoveDelay(game, lastClick, move) {
 	if (lastClick) {
 		distance = Math.max(Math.abs(lastClick.r - move.r), Math.abs(lastClick.c - move.c));
 	}
-	// log scaling: ~30ms per square for short hops, levelling off for long ones
-	var distanceTerm = distance === 0 ? 0 : 40 + 55 * Math.log2(distance + 1);
+	// log scaling, with a bigger per-hop tax than before so moving across the board
+	// genuinely costs time and the bot is rewarded for staying local.
+	var distanceTerm = distance === 0 ? 0 : 70 + 110 * Math.log2(distance + 1);
 
 	// Difficulty-scaled thinking. The opening has no difficulty value, so give it a
 	// flat planning beat instead. Guesses (stuck/blunder) carry a difficulty too —
