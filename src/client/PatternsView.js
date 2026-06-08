@@ -239,6 +239,7 @@ function paintPatternCanvas(canvas, pat) {
 	var clueCells = cells.clues || [];        // [[r, c, value], ...]
 	var deducedCells = cells.deduced || [];   // [[r, c, "S"|"M"], ...]
 	var coveredCells = cells.covered || [];   // [[r, c, "?"], ...]  ambiguous covered cells
+	var wallCells = cells.walls || [];        // [[r, c, "W"], ...]  off-board (board edge)
 	var R = pat.height, C = pat.width;
 	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
 
@@ -247,13 +248,17 @@ function paintPatternCanvas(canvas, pat) {
 	var isMine = [];
 	var clueValue = [];
 	var safeOverlay = [];
+	var isWall = [];
 	for (var r = 0; r < R; r++) {
 		inPattern.push(new Array(C).fill(false));
 		state.push(new Array(C).fill(COVERED));
 		isMine.push(new Array(C).fill(false));
 		clueValue.push(new Array(C).fill(0));
 		safeOverlay.push(new Array(C).fill(false));
+		isWall.push(new Array(C).fill(false));
 	}
+	// Wall cells mark the board edge — drawn as solid dark tiles, not via the cell renderer.
+	wallCells.forEach(function(c) { if (c[0] >= 0 && c[0] < R && c[1] >= 0 && c[1] < C) isWall[c[0]][c[1]] = true; });
 	// Ambiguous covered cells first — drawn as plain blue covered tiles
 	// with no marker. They establish the pattern's footprint.
 	coveredCells.forEach(function(c) { inPattern[c[0]][c[1]] = true; });
@@ -285,6 +290,14 @@ function paintPatternCanvas(canvas, pat) {
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	var sw = canvas.width / C, sh = canvas.height / R;
+	// Board-edge (wall) cells: solid dark tiles so wall/corner patterns read as bounded.
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+	for (var wr = 0; wr < R; wr++) {
+		for (var wc = 0; wc < C; wc++) {
+			if (isWall[wr][wc]) ctx.fillRect(wc * sw + gap / 2, wr * sh + gap / 2, sw - gap, sh - gap);
+		}
+	}
 	for (var rr = 0; rr < R; rr++) {
 		for (var cc = 0; cc < C; cc++) {
 			if (!inPattern[rr][cc]) continue;

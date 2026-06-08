@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-06-08T15:35:02.274Z",
+	"generatedAt": "2026-06-08T15:57:01.969Z",
 	"sizes": [
 		"3x3",
 		"3x4",
@@ -71,14 +71,14 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x4 open",
+				"4x4 open"
 			],
 			"counts": {
-				"3x3": 185,
-				"3x4": 185,
-				"4x4": 185
+				"3x3 open": 185,
+				"3x4 open": 185,
+				"4x4 open": 185
 			}
 		},
 		{
@@ -216,10 +216,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3"
+				"3x3 open"
 			],
 			"counts": {
-				"3x3": 1
+				"3x3 open": 1
 			}
 		},
 		{
@@ -357,10 +357,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3"
+				"3x3 open"
 			],
 			"counts": {
-				"3x3": 1
+				"3x3 open": 1
 			}
 		},
 		{
@@ -518,10 +518,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x4"
+				"3x4 open"
 			],
 			"counts": {
-				"3x4": 1
+				"3x4 open": 1
 			}
 		},
 		{
@@ -679,10 +679,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x4"
+				"3x4 open"
 			],
 			"counts": {
-				"3x4": 1
+				"3x4 open": 1
 			}
 		},
 		{
@@ -860,10 +860,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"4x4"
+				"4x4 open"
 			],
 			"counts": {
-				"4x4": 1
+				"4x4 open": 1
 			}
 		},
 		{
@@ -1041,10 +1041,10 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"4x4"
+				"4x4 open"
 			],
 			"counts": {
-				"4x4": 1
+				"4x4 open": 1
 			}
 		},
 		{
@@ -1112,14 +1112,14 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x4 open",
+				"4x4 open"
 			],
 			"counts": {
-				"3x3": 185,
-				"3x4": 185,
-				"4x4": 185
+				"3x3 open": 185,
+				"3x4 open": 185,
+				"4x4 open": 185
 			}
 		},
 		{
@@ -1177,14 +1177,14 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x4 open",
+				"4x4 open"
 			],
 			"counts": {
-				"3x3": 774,
-				"3x4": 774,
-				"4x4": 774
+				"3x3 open": 774,
+				"3x4 open": 774,
+				"4x4 open": 774
 			}
 		},
 		{
@@ -1242,14 +1242,14 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x4 open",
+				"4x4 open"
 			],
 			"counts": {
-				"3x3": 774,
-				"3x4": 774,
-				"4x4": 774
+				"3x3 open": 774,
+				"3x4 open": 774,
+				"4x4 open": 774
 			}
 		},
 		{
@@ -1297,12 +1297,156 @@
 			],
 			"wallCells": [],
 			"foundIn": [
-				"3x4",
-				"4x4"
+				"3x4 open",
+				"4x4 open"
 			],
 			"counts": {
-				"3x4": 5880,
-				"4x4": 27362
+				"3x4 open": 5880,
+				"4x4 open": 27362
+			}
+		},
+		{
+			"key": "C1,1:1;C1,2:1;D0,0:S;W0,3;W1,3;W2,3",
+			"method": "subset",
+			"complexity": 2.69,
+			"rating": 526,
+			"width": 4,
+			"height": 3,
+			"clueCells": [
+				[
+					1,
+					2,
+					1
+				],
+				[
+					1,
+					1,
+					1
+				]
+			],
+			"deducedCells": [
+				[
+					0,
+					0,
+					"S"
+				]
+			],
+			"coveredCells": [
+				[
+					0,
+					2,
+					"?"
+				],
+				[
+					0,
+					1,
+					"?"
+				]
+			],
+			"wallCells": [
+				[
+					0,
+					3,
+					"W"
+				],
+				[
+					1,
+					3,
+					"W"
+				],
+				[
+					2,
+					3,
+					"W"
+				]
+			],
+			"foundIn": [
+				"3x3 wall",
+				"3x3 corner",
+				"3x4 wall",
+				"3x4 corner",
+				"4x4 wall",
+				"4x4 corner"
+			],
+			"counts": {
+				"3x3 wall": 48,
+				"3x3 corner": 7,
+				"3x4 wall": 253,
+				"3x4 corner": 13,
+				"4x4 wall": 305,
+				"4x4 corner": 23
+			}
+		},
+		{
+			"key": "C1,1:1;C1,2:2;D0,3:M;W0,0;W1,0;W2,0",
+			"method": "subset",
+			"complexity": 2.69,
+			"rating": 526,
+			"width": 4,
+			"height": 3,
+			"clueCells": [
+				[
+					1,
+					1,
+					1
+				],
+				[
+					1,
+					2,
+					2
+				]
+			],
+			"deducedCells": [
+				[
+					0,
+					3,
+					"M"
+				]
+			],
+			"coveredCells": [
+				[
+					0,
+					1,
+					"?"
+				],
+				[
+					0,
+					2,
+					"?"
+				]
+			],
+			"wallCells": [
+				[
+					0,
+					0,
+					"W"
+				],
+				[
+					1,
+					0,
+					"W"
+				],
+				[
+					2,
+					0,
+					"W"
+				]
+			],
+			"foundIn": [
+				"3x3 wall",
+				"3x3 corner",
+				"3x4 wall",
+				"3x4 corner",
+				"4x4 wall",
+				"4x4 corner"
+			],
+			"counts": {
+				"3x3 wall": 48,
+				"3x3 corner": 7,
+				"3x4 wall": 253,
+				"3x4 corner": 13,
+				"4x4 wall": 305,
+				"4x4 corner": 23
 			}
 		},
 		{
@@ -1349,14 +1493,26 @@
 			"coveredCells": [],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x3 wall",
+				"3x3 corner",
+				"3x4 open",
+				"3x4 wall",
+				"3x4 corner",
+				"4x4 open",
+				"4x4 wall",
+				"4x4 corner"
 			],
 			"counts": {
-				"3x3": 456,
-				"3x4": 1608,
-				"4x4": 5630
+				"3x3 open": 456,
+				"3x3 wall": 12,
+				"3x3 corner": 1,
+				"3x4 open": 1608,
+				"3x4 wall": 42,
+				"3x4 corner": 1,
+				"4x4 open": 5630,
+				"4x4 wall": 38,
+				"4x4 corner": 1
 			}
 		},
 		{
@@ -1393,14 +1549,85 @@
 			"coveredCells": [],
 			"wallCells": [],
 			"foundIn": [
-				"3x3",
-				"3x4",
-				"4x4"
+				"3x3 open",
+				"3x3 wall",
+				"3x4 open",
+				"3x4 wall",
+				"3x4 corner",
+				"4x4 open",
+				"4x4 wall",
+				"4x4 corner"
 			],
 			"counts": {
-				"3x3": 5040,
-				"3x4": 26052,
-				"4x4": 128952
+				"3x3 open": 5040,
+				"3x3 wall": 36,
+				"3x4 open": 26052,
+				"3x4 wall": 416,
+				"3x4 corner": 6,
+				"4x4 open": 128952,
+				"4x4 wall": 742,
+				"4x4 corner": 22
+			}
+		},
+		{
+			"key": "C1,1:2;D0,0:M;D0,1:M;W0,2;W1,2;W2,2",
+			"method": "trivial",
+			"complexity": 0.3,
+			"rating": 0,
+			"width": 3,
+			"height": 3,
+			"clueCells": [
+				[
+					1,
+					1,
+					2
+				]
+			],
+			"deducedCells": [
+				[
+					0,
+					1,
+					"M"
+				],
+				[
+					0,
+					0,
+					"M"
+				]
+			],
+			"coveredCells": [],
+			"wallCells": [
+				[
+					2,
+					2,
+					"W"
+				],
+				[
+					1,
+					2,
+					"W"
+				],
+				[
+					0,
+					2,
+					"W"
+				]
+			],
+			"foundIn": [
+				"3x3 wall",
+				"3x3 corner",
+				"3x4 wall",
+				"3x4 corner",
+				"4x4 wall",
+				"4x4 corner"
+			],
+			"counts": {
+				"3x3 wall": 296,
+				"3x3 corner": 32,
+				"3x4 wall": 1824,
+				"3x4 corner": 63,
+				"4x4 wall": 2528,
+				"4x4 corner": 125
 			}
 		}
 	]

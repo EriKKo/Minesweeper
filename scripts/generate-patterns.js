@@ -18,13 +18,27 @@ var SIZES = [[3, 3], [3, 4], [4, 4]];
 function ts() { return new Date().toISOString(); }
 function log(m) { console.log("[" + ts() + "] " + m); }
 
+// Each block size is enumerated in three placement categories: open (interior, ring on all
+// sides), wall (flush against one board edge), and corner (flush against two adjacent edges).
+// Walls remove ring cells and add wall cells to the pattern, so wall/corner positions yield
+// distinct patterns. For non-square blocks the two wall orientations differ, so both run under
+// the same "wall" category. All four corners are equivalent up to symmetry, so one suffices.
+var RUNS = [];
+SIZES.forEach(function(sz) {
+	var H = sz[0], W = sz[1];
+	RUNS.push({ H: H, W: W, cat: "open", walls: {} });
+	RUNS.push({ H: H, W: W, cat: "wall", walls: { top: true } });
+	if (H !== W) RUNS.push({ H: H, W: W, cat: "wall", walls: { left: true } });
+	RUNS.push({ H: H, W: W, cat: "corner", walls: { top: true, left: true } });
+});
+
 var catalog = {}; // key -> record
 
-SIZES.forEach(function(sz) {
-	var label = sz[0] + "x" + sz[1];
+RUNS.forEach(function(run) {
+	var label = run.H + "x" + run.W + " " + run.cat;
 	log("Enumerating " + label + " starting positions…");
 	var t0 = Date.now();
-	var res = SP.enumeratePatterns(sz[0], sz[1]);
+	var res = SP.enumeratePatterns(run.H, run.W, run.walls);
 	var keys = Object.keys(res.patterns);
 	var newToCatalog = 0;
 	keys.forEach(function(key) {
@@ -50,10 +64,10 @@ SIZES.forEach(function(sz) {
 			newToCatalog++;
 		} else {
 			if (rec.foundIn.indexOf(label) < 0) rec.foundIn.push(label);
-			rec.counts[label] = e.count;
+			rec.counts[label] = (rec.counts[label] || 0) + e.count; // accumulate across wall orientations
 		}
 	});
-	log("  " + label + ": " + res.positions + " positions → " + keys.length + " unique patterns (" + newToCatalog + " new to catalogue) in " + ((Date.now() - t0) / 1000).toFixed(1) + "s");
+	log("  " + label + ": " + res.positions + " positions → " + keys.length + " unique patterns (" + newToCatalog + " new) in " + ((Date.now() - t0) / 1000).toFixed(1) + "s");
 });
 
 var patterns = Object.keys(catalog).map(function(k) { return catalog[k]; });

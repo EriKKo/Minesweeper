@@ -62,7 +62,7 @@ function renderStartPatternCard(rec) {
 		height: rec.height,
 		rating: rec.rating,
 		method: rec.method,
-		cells_json: JSON.stringify({ clues: rec.clueCells, deduced: rec.deducedCells, covered: rec.coveredCells })
+		cells_json: JSON.stringify({ clues: rec.clueCells, deduced: rec.deducedCells, covered: rec.coveredCells, walls: rec.wallCells })
 	};
 	var canvas = buildPatternCanvas(rec.width, rec.height);
 	card.appendChild(canvas);

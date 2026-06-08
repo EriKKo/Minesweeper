@@ -17,23 +17,30 @@ function popcount(x) {
 }
 
 // Geometry for an H×W revealed block at rows 1..H, cols 1..W of an (H+2)×(W+2) board.
-// The "outer ring" is the padded border; boundary block cells touch it (their clues are
-// set by ring mines); interior block cells are surrounded entirely by the block (clue 0).
-function geometry(H, W) {
-	var BR = H + 2, BC = W + 2;
+// `walls` (optional) marks board edges the block sits flush against: { top, bottom, left,
+// right } booleans. A walled side has no padding (the board ends there, so cells against it
+// have fewer neighbours and the cascade is bounded by the wall, not by ring clues); non-walled
+// sides get one row/col of outer ring. So "open" = no walls (ring on all 4 sides), "wall" =
+// one side, "corner" = two adjacent sides. The block sits at offset (r0, c0); the ring is the
+// in-board cells outside the block; boundary block cells touch the ring; interior cells (clue 0)
+// don't (cells against a wall with no ring neighbour are interior).
+function geometry(H, W, walls) {
+	walls = walls || {};
+	var padTop = walls.top ? 0 : 1, padBottom = walls.bottom ? 0 : 1;
+	var padLeft = walls.left ? 0 : 1, padRight = walls.right ? 0 : 1;
+	var BR = H + padTop + padBottom, BC = W + padLeft + padRight;
+	var r0 = padTop, c0 = padLeft;
+	function inBlock(r, c) { return r >= r0 && r < r0 + H && c >= c0 && c < c0 + W; }
 	var ringCells = [], ringIndexAt = {};
 	for (var r = 0; r < BR; r++) {
 		for (var c = 0; c < BC; c++) {
-			if (r === 0 || r === BR - 1 || c === 0 || c === BC - 1) {
-				ringIndexAt[r + "," + c] = ringCells.length;
-				ringCells.push([r, c]);
-			}
+			if (!inBlock(r, c)) { ringIndexAt[r + "," + c] = ringCells.length; ringCells.push([r, c]); }
 		}
 	}
 	if (ringCells.length > 24) throw new Error("ring too large to brute-force: " + ringCells.length + " cells");
 	var boundary = [], masks = [];
-	for (var br = 1; br <= H; br++) {
-		for (var bc = 1; bc <= W; bc++) {
+	for (var br = r0; br < r0 + H; br++) {
+		for (var bc = c0; bc < c0 + W; bc++) {
 			var mask = 0, touches = 0;
 			for (var dr = -1; dr <= 1; dr++) {
 				for (var dc = -1; dc <= 1; dc++) {
@@ -45,7 +52,7 @@ function geometry(H, W) {
 			if (touches > 0) { boundary.push([br, bc]); masks.push(mask); }
 		}
 	}
-	return { H: H, W: W, BR: BR, BC: BC, ring: ringCells.length, ringCells: ringCells, boundary: boundary, masks: masks };
+	return { H: H, W: W, BR: BR, BC: BC, r0: r0, c0: c0, ring: ringCells.length, ringCells: ringCells, boundary: boundary, masks: masks, walls: walls };
 }
 
 function boundaryIndexOf(geo, r, c) {
@@ -133,8 +140,8 @@ function buildBoardState(geo, clues) {
 		board.push(new Array(geo.BC).fill(null));
 		state.push(new Array(geo.BC).fill(UNKNOWN));
 	}
-	for (var br = 1; br <= geo.H; br++) {
-		for (var bc = 1; bc <= geo.W; bc++) { state[br][bc] = KNOWN; board[br][bc] = 0; }
+	for (var br = geo.r0; br < geo.r0 + geo.H; br++) {
+		for (var bc = geo.c0; bc < geo.c0 + geo.W; bc++) { state[br][bc] = KNOWN; board[br][bc] = 0; }
 	}
 	for (var i = 0; i < geo.boundary.length; i++) {
 		board[geo.boundary[i][0]][geo.boundary[i][1]] = clues[i];
@@ -185,11 +192,29 @@ function extractPattern(geo, clues) {
 				if (ddr === 0 && ddc === 0) continue;
 				var nr = cp[0] + ddr, nc = cp[1] + ddc;
 				if (nr < 0 || nc < 0 || nr >= geo.BR || nc >= geo.BC) continue;
-				if (nr >= 1 && nr <= geo.H && nc >= 1 && nc <= geo.W) continue; // revealed block cell
+				if (nr >= geo.r0 && nr < geo.r0 + geo.H && nc >= geo.c0 && nc < geo.c0 + geo.W) continue; // revealed block cell
 				var ck = nr + "," + nc;
 				if (deducedKey[ck] || coveredKey[ck]) continue;
 				coveredKey[ck] = true;
 				coveredCells.push([nr, nc, "?"]);
+			}
+		}
+	}
+
+	// Walls: off-board positions adjacent to the active clue cells. These make a clue against a
+	// board edge canonically distinct from the same clue in the open (the wall removes neighbours).
+	var wallCells = [], wallKey = {};
+	for (var wi = 0; wi < clueCellsForPattern.length; wi++) {
+		var wp = clueCellsForPattern[wi];
+		for (var wdr = -1; wdr <= 1; wdr++) {
+			for (var wdc = -1; wdc <= 1; wdc++) {
+				if (wdr === 0 && wdc === 0) continue;
+				var wnr = wp[0] + wdr, wnc = wp[1] + wdc;
+				if (wnr >= 0 && wnr < geo.BR && wnc >= 0 && wnc < geo.BC) continue; // in-board
+				var wk = wnr + "," + wnc;
+				if (wallKey[wk]) continue;
+				wallKey[wk] = true;
+				wallCells.push([wnr, wnc, "W"]);
 			}
 		}
 	}
@@ -199,7 +224,8 @@ function extractPattern(geo, clues) {
 		complexity: raw.complexity,
 		clueCells: clueCellsForPattern,
 		deducedCells: deducedCells,
-		coveredCells: coveredCells
+		coveredCells: coveredCells,
+		wallCells: wallCells
 	});
 	var maxR = 0, maxC = 0;
 	canon.clueCells.concat(canon.deducedCells, canon.coveredCells || [], canon.wallCells || []).forEach(function(c) {
@@ -215,8 +241,8 @@ function extractPattern(geo, clues) {
 // Enumerate every starting position for an H×W block and return its unique deduction
 // patterns, deduped by canonical key. Each entry: { key, pattern, count } where count is how
 // many distinct positions produced that pattern.
-function enumeratePatterns(H, W) {
-	var geo = geometry(H, W);
+function enumeratePatterns(H, W, walls) {
+	var geo = geometry(H, W, walls);
 	var positions = enumeratePositions(geo);
 	var byKey = {};
 	for (var i = 0; i < positions.length; i++) {
