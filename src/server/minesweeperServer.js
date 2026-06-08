@@ -118,6 +118,9 @@ function handler (req, res) {
 	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
 	if (pathname === "/api/patterns") return servePatterns(req, res, url);
 	if (pathname === "/api/start-patterns") return serveStartPatterns(req, res);
+	if (pathname === "/api/combined-puzzles") return serveCombinedPuzzles(req, res);
+	var combinedAnalyzeMatch = pathname.match(/^\/api\/combined-puzzles\/(\d+)\/analyze$/);
+	if (combinedAnalyzeMatch) return serveCombinedPuzzleAnalyze(req, res, parseInt(combinedAnalyzeMatch[1], 10));
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
@@ -837,16 +840,9 @@ function servePuzzleStats(req, res) {
 	res.end(JSON.stringify(stats));
 }
 
-// CSP solver trace for a single puzzle. Used by the Analyze modal in
-// the admin All-Puzzles view to compare the new solver's complexity
-// scoring against the existing pass-based tier on a per-board basis.
-function servePuzzleAnalyze(req, res, puzzleId) {
-	var puzzle = db.getPuzzleById(puzzleId);
-	if (!puzzle) {
-		res.writeHead(404, { "Content-Type": "application/json" });
-		res.end(JSON.stringify({ error: "Puzzle not found" }));
-		return;
-	}
+// Run the CSP analyzer on a puzzle ({rows,cols,mines,revealed}) and return the trace payload
+// the Analyze modal expects. Shared by the pool's analyze endpoint and the combined-puzzles one.
+function analyzePuzzleBoard(puzzle) {
 	var board = puzzleGen.buildBoard(puzzle.rows, puzzle.cols, puzzle.mines);
 	var state = [];
 	for (var r = 0; r < puzzle.rows; r++) {
@@ -862,15 +858,67 @@ function servePuzzleAnalyze(req, res, puzzleId) {
 		);
 	}
 	var result = cspSolver.analyzeBoard(board, state, { revealCell: cascade });
-	res.writeHead(200, { "Content-Type": "application/json" });
-	res.end(JSON.stringify({
-		puzzleId: puzzleId,
+	return {
 		solved: result.solved,
 		maxComplexity: result.maxComplexity,
 		totalComplexity: result.totalComplexity,
 		safeCovered: result.safeCovered,
 		moves: result.moves
-	}));
+	};
+}
+
+// CSP solver trace for a single puzzle. Used by the Analyze modal in
+// the admin All-Puzzles view to compare the new solver's complexity
+// scoring against the existing pass-based tier on a per-board basis.
+function servePuzzleAnalyze(req, res, puzzleId) {
+	var puzzle = db.getPuzzleById(puzzleId);
+	if (!puzzle) {
+		res.writeHead(404, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Puzzle not found" }));
+		return;
+	}
+	var payload = analyzePuzzleBoard(puzzle);
+	payload.puzzleId = puzzleId;
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(payload));
+}
+
+// Combined-puzzle catalogue (scripts/combine-patterns.js -> combined-puzzles.json): starting
+// patterns composed at a shared seam, emitted as real {rows,cols,mines,revealed} boards. Served
+// to the "Combined puzzles" admin page, which reuses the All-Puzzles card + Analyze modal.
+var COMBINED_PUZZLES_PATH = process.env.COMBINED_PUZZLES_PATH || path.join(__dirname, "..", "..", "combined-puzzles.json");
+var combinedPuzzlesCache = null, combinedPuzzlesMtime = 0;
+function loadCombinedPuzzles() {
+	try {
+		var mtime = fs.statSync(COMBINED_PUZZLES_PATH).mtimeMs;
+		if (!combinedPuzzlesCache || mtime !== combinedPuzzlesMtime) {
+			combinedPuzzlesCache = JSON.parse(fs.readFileSync(COMBINED_PUZZLES_PATH, "utf8"));
+			combinedPuzzlesMtime = mtime;
+		}
+	} catch (e) {
+		combinedPuzzlesCache = { puzzles: [], unsatisfiable: [], error: e.message };
+	}
+	return combinedPuzzlesCache;
+}
+
+function serveCombinedPuzzles(req, res) {
+	var data = loadCombinedPuzzles();
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(data));
+}
+
+function serveCombinedPuzzleAnalyze(req, res, puzzleId) {
+	var data = loadCombinedPuzzles();
+	var puzzle = (data.puzzles || []).filter(function(p) { return p.id === puzzleId; })[0];
+	if (!puzzle) {
+		res.writeHead(404, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Puzzle not found" }));
+		return;
+	}
+	var payload = analyzePuzzleBoard(puzzle);
+	payload.puzzleId = puzzleId;
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(payload));
 }
 
 function puzzleJobStatus() {

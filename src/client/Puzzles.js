@@ -577,7 +577,7 @@ function renderPuzzleListPager(total, page, pageSize) {
 	addBtn("Next →", page + 1, { disabled: page >= totalPages - 1 });
 }
 
-function renderPuzzleListCard(p) {
+function renderPuzzleListCard(p, analyzeBase) {
 	var card = document.createElement("div");
 	card.className = "puzzle-card puzzle-diff-" + p.difficulty;
 
@@ -595,9 +595,17 @@ function renderPuzzleListCard(p) {
 	var analyzeBtn = document.createElement("button");
 	analyzeBtn.className = "puzzle-card-analyze";
 	analyzeBtn.textContent = "Analyze";
-	analyzeBtn.addEventListener("click", function(e) { e.stopPropagation(); openAnalyzeModal(p); });
+	analyzeBtn.addEventListener("click", function(e) { e.stopPropagation(); openAnalyzeModal(p, analyzeBase); });
 	head.appendChild(analyzeBtn);
 	card.appendChild(head);
+
+	// Combined puzzles carry a human label (e.g. "#15 ⊕ #16 — shared seam"); show it + solvability.
+	if (p.label) {
+		var lbl = document.createElement("div");
+		lbl.className = "puzzle-card-label";
+		lbl.textContent = p.label + (p.solved === false ? " · partial" : "");
+		card.appendChild(lbl);
+	}
 
 	var pseudoPuzzle = {
 		title: "",
@@ -615,7 +623,8 @@ function renderPuzzleListCard(p) {
 // the CSP solver's move trace is fetched and displayed alongside. Each
 // move row shows the action (reveal/flag), affected cells, and the
 // complexity the solver assigned to the deduction.
-function openAnalyzeModal(p) {
+function openAnalyzeModal(p, analyzeBase) {
+	var base = analyzeBase || "/api/puzzles";
 	var prev = document.getElementById("analyze_modal");
 	if (prev) prev.remove();
 
@@ -630,7 +639,7 @@ function openAnalyzeModal(p) {
 	var head = document.createElement("div");
 	head.className = "analyze-modal-head";
 	var title = document.createElement("h2");
-	title.textContent = "Analyze · puzzle " + p.id;
+	title.textContent = p.label ? ("Analyze · " + p.label) : ("Analyze · puzzle " + p.id);
 	head.appendChild(title);
 	var sub = document.createElement("span");
 	sub.className = "analyze-modal-sub";
@@ -705,7 +714,7 @@ function openAnalyzeModal(p) {
 		}
 	}
 
-	fetch("/api/puzzles/" + p.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
+	fetch(base + "/" + p.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
 		if (!document.getElementById("analyze_modal")) return;
 		if (data && data.error) {
 			traceStatus.textContent = "Error: " + data.error;

@@ -163,6 +163,13 @@ function showStartPatternsView() {
 	renderStartPatterns();
 }
 
+function showCombinedPuzzlesView() {
+	hideAllViews();
+	document.getElementById("combined_puzzles_view").style.display = "";
+	setSiteNavActive("admin");
+	renderCombinedPuzzles();
+}
+
 function showPuzzlePlayView() {
 	hideAllViews();
 	document.getElementById("puzzle_play_view").style.display = "";
@@ -294,6 +301,7 @@ function applyRouteFromHash() {
 	if (hash === "/admin/starting-positions" || hash.indexOf("/admin/starting-positions?") === 0) return showStartingPositionsView();
 	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
 	if (hash === "/admin/start-patterns") return showStartPatternsView();
+	if (hash === "/admin/combined-puzzles") return showCombinedPuzzlesView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	showLobbyView();

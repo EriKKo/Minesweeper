@@ -96,6 +96,12 @@ function renderAdminLanding() {
 		"Browse start patterns",
 		"#/admin/start-patterns"
 	));
+	cards.appendChild(makeAdminCard(
+		"Combined puzzles",
+		"Script-generated boards that compose two start patterns at a shared seam. Play and analyze each.",
+		"Browse combined puzzles",
+		"#/admin/combined-puzzles"
+	));
 	view.appendChild(cards);
 }
 

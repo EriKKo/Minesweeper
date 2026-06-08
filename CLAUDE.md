@@ -70,6 +70,19 @@ Source is split into three trees under `src/`:
   corners-4/edges-2 rings force a deduction (always a cx-8 case-split) **iff neither H nor W ≡ 2
   (mod 3)**; otherwise the ring is fully ambiguous and forces nothing. This holds out to 9×9 — the
   difficulty never rises above 8, so larger blocks never mean harder building blocks.
+- `scripts/combine-patterns.js` — composes two start patterns into one board to test whether
+  *combining* building blocks beats the single-opening ~cx-8 ceiling. It lays two blocks side by
+  side so their unknown rings either share a seam column or sit a gap apart, solves for a concrete
+  mine layout (backtracking) so each is a real `{rows,cols,mines,revealed}` board, and scores it
+  with `PuzzleGenerator.analyzeWithTracking`. Writes `combined-puzzles.json`; served by
+  `GET /api/combined-puzzles` (+ `/:id/analyze`) and shown on the **Combined puzzles** admin page
+  (`#/admin/combined-puzzles`, `CombinedPuzzlesView.js`), which reuses the All-Puzzles
+  `renderPuzzleListCard` / `openAnalyzeModal` (both now take an analyze-endpoint base arg) so each
+  card is playable and Analyze shows the solver trace. Findings: composing genuinely helps — a
+  `#15⊕#16` 1-column-gap board is fully solvable at cx 5.9 (vs 2.69 alone), and two heavy
+  `corners4-edges2` rings sharing a seam reach cx 9.7 (past 8, though it stalls before a full
+  solve). Some pairs (`#15⊕#16`, `#16⊕#16` at a shared seam) have **no consistent mine layout** —
+  the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):
@@ -93,7 +106,8 @@ Source is split into three trees under `src/`:
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
-  `MatchPanels.js`, `GameRoom.js`, `Solo.js`, `Learn.js` — one feature each.
+  `MatchPanels.js`, `GameRoom.js`, `Solo.js`, `Learn.js`,
+  `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
 
 The Learn page is an interactive deduction trainer (`LEARN_COURSES` data
 array, ~16 puzzles + ~10 demos). No mine-count deductions — the game

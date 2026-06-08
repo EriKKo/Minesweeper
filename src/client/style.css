@@ -1559,7 +1559,13 @@ main {
 .puzzle-card.puzzle-diff-5 .puzzle-diff-badge { background: rgba(248, 113, 113, 0.18); color: #f87171; }
 .puzzle-card.puzzle-diff-6 .puzzle-diff-badge { background: rgba(192, 132, 252, 0.22); color: #c084fc; }
 .puzzle-card-meta { font-size: 0.75rem; color: var(--muted); }
+.puzzle-card-label { font-size: 0.8rem; font-weight: 600; margin: 0.45rem 0 0.1rem; }
 .puzzle-card .learn-puzzle { padding: 0; }
+
+/* Combined-puzzles page: group headings + the seam-conflict note. */
+.section-page-subtitle { font-size: 1rem; margin: 1.6rem 0 0.7rem; color: var(--text); }
+.combined-unsat-note { margin-top: 1.8rem; }
+.combined-unsat-list { color: var(--muted); font-size: 0.85rem; line-height: 1.6; margin: 0; padding-left: 1.2rem; }
 .puzzle-card .learn-puzzle-title { display: none; }
 .puzzle-card .learn-controls { margin-top: 0.4rem; }
 

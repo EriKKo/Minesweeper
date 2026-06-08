@@ -1,0 +1,1217 @@
+{
+	"generatedAt": "2026-06-08T20:50:15.510Z",
+	"puzzles": [
+		{
+			"id": 1,
+			"label": "#15 alone — 1·1 wall → safe",
+			"group": "Reference",
+			"rows": 4,
+			"cols": 5,
+			"mines": [
+				[
+					0,
+					4
+				],
+				[
+					1,
+					0
+				],
+				[
+					3,
+					3
+				]
+			],
+			"revealed": [
+				[
+					0,
+					1
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				]
+			],
+			"coveredSafe": 8,
+			"difficulty": 5,
+			"score": 10.1,
+			"rating": 2304,
+			"solved": false,
+			"cspMethod": "subset",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 8.8,
+			"passes": {
+				"trivial": 0,
+				"subset": 2,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		},
+		{
+			"id": 2,
+			"label": "#16 alone — 1·2 wall → mine",
+			"group": "Reference",
+			"rows": 4,
+			"cols": 5,
+			"mines": [
+				[
+					0,
+					4
+				],
+				[
+					1,
+					0
+				],
+				[
+					2,
+					0
+				],
+				[
+					3,
+					3
+				]
+			],
+			"revealed": [
+				[
+					0,
+					1
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				]
+			],
+			"coveredSafe": 7,
+			"difficulty": 5,
+			"score": 10,
+			"rating": 2280,
+			"solved": false,
+			"cspMethod": "subset",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 8.7,
+			"passes": {
+				"trivial": 0,
+				"subset": 2,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		},
+		{
+			"id": 3,
+			"label": "3×3 corners4-edges2 ring alone",
+			"group": "Reference",
+			"rows": 5,
+			"cols": 5,
+			"mines": [
+				[
+					0,
+					0
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					4
+				],
+				[
+					1,
+					0
+				],
+				[
+					2,
+					0
+				],
+				[
+					2,
+					4
+				],
+				[
+					3,
+					4
+				],
+				[
+					4,
+					0
+				],
+				[
+					4,
+					1
+				],
+				[
+					4,
+					2
+				],
+				[
+					4,
+					4
+				]
+			],
+			"revealed": [
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					3,
+					1
+				],
+				[
+					3,
+					2
+				],
+				[
+					3,
+					3
+				]
+			],
+			"coveredSafe": 4,
+			"difficulty": 5,
+			"score": 11.2,
+			"rating": 2568,
+			"solved": false,
+			"cspMethod": "trivial",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 8,
+			"passes": {
+				"trivial": 0,
+				"subset": 0,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 1
+			}
+		},
+		{
+			"id": 4,
+			"label": "#15 ⊕ #16 — 1-column gap",
+			"group": "Wall pair",
+			"rows": 4,
+			"cols": 10,
+			"mines": [
+				[
+					0,
+					4
+				],
+				[
+					0,
+					9
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					5
+				],
+				[
+					2,
+					5
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					8
+				]
+			],
+			"revealed": [
+				[
+					0,
+					1
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					6
+				],
+				[
+					0,
+					7
+				],
+				[
+					0,
+					8
+				],
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					6
+				],
+				[
+					1,
+					7
+				],
+				[
+					1,
+					8
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					6
+				],
+				[
+					2,
+					7
+				],
+				[
+					2,
+					8
+				]
+			],
+			"coveredSafe": 15,
+			"difficulty": 4,
+			"score": 7.3,
+			"rating": 1632,
+			"solved": true,
+			"cspMethod": "subset",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 5.9,
+			"passes": {
+				"trivial": 6,
+				"subset": 2,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 1
+			}
+		},
+		{
+			"id": 5,
+			"label": "#15 ⊕ #16 — 2-column gap",
+			"group": "Wall pair",
+			"rows": 4,
+			"cols": 11,
+			"mines": [
+				[
+					0,
+					4
+				],
+				[
+					0,
+					10
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					6
+				],
+				[
+					2,
+					6
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					9
+				]
+			],
+			"revealed": [
+				[
+					0,
+					1
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					7
+				],
+				[
+					0,
+					8
+				],
+				[
+					0,
+					9
+				],
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					7
+				],
+				[
+					1,
+					8
+				],
+				[
+					1,
+					9
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					7
+				],
+				[
+					2,
+					8
+				],
+				[
+					2,
+					9
+				]
+			],
+			"coveredSafe": 19,
+			"difficulty": 3,
+			"score": 4.7,
+			"rating": 1008,
+			"solved": true,
+			"cspMethod": "subset",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 3.4,
+			"passes": {
+				"trivial": 5,
+				"subset": 3,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		},
+		{
+			"id": 6,
+			"label": "#15 ⊕ #15 — shared seam column",
+			"group": "Wall pair",
+			"rows": 4,
+			"cols": 9,
+			"mines": [
+				[
+					0,
+					4
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					8
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					5
+				]
+			],
+			"revealed": [
+				[
+					0,
+					1
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					5
+				],
+				[
+					0,
+					6
+				],
+				[
+					0,
+					7
+				],
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					5
+				],
+				[
+					1,
+					6
+				],
+				[
+					1,
+					7
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					5
+				],
+				[
+					2,
+					6
+				],
+				[
+					2,
+					7
+				]
+			],
+			"coveredSafe": 13,
+			"difficulty": 2,
+			"score": 4,
+			"rating": 840,
+			"solved": true,
+			"cspMethod": "subset",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 3,
+			"passes": {
+				"trivial": 3,
+				"subset": 3,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		},
+		{
+			"id": 7,
+			"label": "two 3×3 cx-8 rings — shared seam",
+			"group": "cx-8 rings",
+			"rows": 5,
+			"cols": 9,
+			"mines": [
+				[
+					0,
+					0
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					4
+				],
+				[
+					0,
+					5
+				],
+				[
+					0,
+					6
+				],
+				[
+					0,
+					8
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					8
+				],
+				[
+					2,
+					0
+				],
+				[
+					2,
+					4
+				],
+				[
+					2,
+					8
+				],
+				[
+					3,
+					4
+				],
+				[
+					4,
+					0
+				],
+				[
+					4,
+					1
+				],
+				[
+					4,
+					2
+				],
+				[
+					4,
+					4
+				],
+				[
+					4,
+					6
+				],
+				[
+					4,
+					7
+				],
+				[
+					4,
+					8
+				]
+			],
+			"revealed": [
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					5
+				],
+				[
+					1,
+					6
+				],
+				[
+					1,
+					7
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					5
+				],
+				[
+					2,
+					6
+				],
+				[
+					2,
+					7
+				],
+				[
+					3,
+					1
+				],
+				[
+					3,
+					2
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					5
+				],
+				[
+					3,
+					6
+				],
+				[
+					3,
+					7
+				]
+			],
+			"coveredSafe": 7,
+			"difficulty": 5,
+			"score": 13.2,
+			"rating": 3048,
+			"solved": false,
+			"cspMethod": "trivial",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 8,
+			"passes": {
+				"trivial": 0,
+				"subset": 0,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		},
+		{
+			"id": 8,
+			"label": "two 3×3 cx-8 rings — 1-column gap",
+			"group": "cx-8 rings",
+			"rows": 5,
+			"cols": 10,
+			"mines": [
+				[
+					0,
+					0
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					4
+				],
+				[
+					0,
+					5
+				],
+				[
+					0,
+					7
+				],
+				[
+					0,
+					8
+				],
+				[
+					0,
+					9
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					5
+				],
+				[
+					2,
+					0
+				],
+				[
+					2,
+					4
+				],
+				[
+					2,
+					5
+				],
+				[
+					2,
+					9
+				],
+				[
+					3,
+					4
+				],
+				[
+					3,
+					9
+				],
+				[
+					4,
+					0
+				],
+				[
+					4,
+					1
+				],
+				[
+					4,
+					2
+				],
+				[
+					4,
+					4
+				],
+				[
+					4,
+					5
+				],
+				[
+					4,
+					6
+				],
+				[
+					4,
+					7
+				],
+				[
+					4,
+					9
+				]
+			],
+			"revealed": [
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					6
+				],
+				[
+					1,
+					7
+				],
+				[
+					1,
+					8
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					6
+				],
+				[
+					2,
+					7
+				],
+				[
+					2,
+					8
+				],
+				[
+					3,
+					1
+				],
+				[
+					3,
+					2
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					6
+				],
+				[
+					3,
+					7
+				],
+				[
+					3,
+					8
+				]
+			],
+			"coveredSafe": 8,
+			"difficulty": 5,
+			"score": 14.4,
+			"rating": 3336,
+			"solved": false,
+			"cspMethod": "trivial",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 8,
+			"passes": {
+				"trivial": 0,
+				"subset": 0,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 2
+			}
+		},
+		{
+			"id": 9,
+			"label": "3×3 ⊕ 3×4 cx-8 rings — shared seam",
+			"group": "cx-8 rings",
+			"rows": 5,
+			"cols": 10,
+			"mines": [
+				[
+					0,
+					0
+				],
+				[
+					0,
+					2
+				],
+				[
+					0,
+					3
+				],
+				[
+					0,
+					4
+				],
+				[
+					0,
+					5
+				],
+				[
+					0,
+					6
+				],
+				[
+					0,
+					8
+				],
+				[
+					0,
+					9
+				],
+				[
+					1,
+					0
+				],
+				[
+					1,
+					9
+				],
+				[
+					2,
+					0
+				],
+				[
+					2,
+					4
+				],
+				[
+					2,
+					9
+				],
+				[
+					3,
+					4
+				],
+				[
+					4,
+					0
+				],
+				[
+					4,
+					1
+				],
+				[
+					4,
+					2
+				],
+				[
+					4,
+					4
+				],
+				[
+					4,
+					5
+				],
+				[
+					4,
+					7
+				],
+				[
+					4,
+					8
+				],
+				[
+					4,
+					9
+				]
+			],
+			"revealed": [
+				[
+					1,
+					1
+				],
+				[
+					1,
+					2
+				],
+				[
+					1,
+					3
+				],
+				[
+					1,
+					5
+				],
+				[
+					1,
+					6
+				],
+				[
+					1,
+					7
+				],
+				[
+					1,
+					8
+				],
+				[
+					2,
+					1
+				],
+				[
+					2,
+					2
+				],
+				[
+					2,
+					3
+				],
+				[
+					2,
+					5
+				],
+				[
+					2,
+					6
+				],
+				[
+					2,
+					7
+				],
+				[
+					2,
+					8
+				],
+				[
+					3,
+					1
+				],
+				[
+					3,
+					2
+				],
+				[
+					3,
+					3
+				],
+				[
+					3,
+					5
+				],
+				[
+					3,
+					6
+				],
+				[
+					3,
+					7
+				],
+				[
+					3,
+					8
+				]
+			],
+			"coveredSafe": 7,
+			"difficulty": 5,
+			"score": 14.6,
+			"rating": 3384,
+			"solved": false,
+			"cspMethod": "trivial",
+			"needsCaseSplit": false,
+			"cspMaxComplexity": 9.7,
+			"passes": {
+				"trivial": 0,
+				"subset": 0,
+				"overlap": 0,
+				"chain": 0,
+				"enum": 0
+			}
+		}
+	],
+	"unsatisfiable": [
+		{
+			"label": "#15 ⊕ #16 — shared seam column",
+			"group": "Wall pair"
+		},
+		{
+			"label": "#16 ⊕ #16 — shared seam column",
+			"group": "Wall pair"
+		}
+	]
+}
