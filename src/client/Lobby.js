@@ -135,8 +135,13 @@ function formatPenaltyOption(s) {
 // Mirror of the server's board presets, for option labels.
 var BOARD_DIMS = { small: [10, 13], medium: [15, 20], large: [16, 30] };
 
+// Low / Medium / High map to 10 / 15 / 20% mines. Keyed by integer percent to
+// dodge float-equality issues; anything else just shows the raw percentage.
+var DENSITY_LABELS = { 10: "Low", 15: "Medium", 20: "High" };
 function formatMineDensity(d) {
-	return Math.round(d * 100) + "%";
+	var pct = Math.round(d * 100);
+	var label = DENSITY_LABELS[pct];
+	return label ? label + " (" + pct + "%)" : pct + "%";
 }
 
 function formatBoardSize(size) {

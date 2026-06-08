@@ -556,6 +556,11 @@
 							<button class="btn btn-secondary solo-size-btn active" data-size="medium" type="button">Medium</button>
 							<button class="btn btn-secondary solo-size-btn" data-size="large" type="button">Large</button>
 						</div>
+						<div class="solo-density-picker">
+							<button class="btn btn-secondary solo-density-btn active" data-density="0.1" type="button">Low</button>
+							<button class="btn btn-secondary solo-density-btn" data-density="0.15" type="button">Medium</button>
+							<button class="btn btn-secondary solo-density-btn" data-density="0.2" type="button">High</button>
+						</div>
 						<button id="solo_restart" class="btn btn-primary" type="button">New board</button>
 					</div>
 				</aside>
@@ -1393,6 +1398,17 @@ document.getElementById("solo_restart").addEventListener("click", function() {
 			soloSelectedSize = size;
 			for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j] === e.currentTarget);
 			startSolo(size);
+		});
+	}
+})();
+
+(function wireSoloDensityButtons() {
+	var btns = document.querySelectorAll(".solo-density-btn");
+	for (var i = 0; i < btns.length; i++) {
+		btns[i].addEventListener("click", function(e) {
+			soloSelectedDensity = parseFloat(e.currentTarget.getAttribute("data-density"));
+			for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j] === e.currentTarget);
+			startSolo(soloSelectedSize);
 		});
 	}
 })();

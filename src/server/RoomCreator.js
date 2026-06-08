@@ -7,7 +7,8 @@ var DEFAULT_DEATH_PENALTY = 5;
 var DEATH_PENALTY_OPTIONS = [0, 3, 5, 10];
 // Mines are a fraction of the board so density stays consistent across sizes.
 var DEFAULT_MINE_DENSITY = 0.10;
-var MINE_DENSITY_OPTIONS = [0.07, 0.10, 0.15, 0.20];
+// Low / Medium / High — the same three densities the ranked modes use.
+var MINE_DENSITY_OPTIONS = [0.10, 0.15, 0.20];
 var BOARD_SIZES = {
 	small: { rows: 10, cols: 13 },
 	medium: { rows: 15, cols: 20 },

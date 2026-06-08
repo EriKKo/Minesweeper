@@ -10,6 +10,7 @@
 var soloSession = null;        // { size, totalSafe, totalMines, startTime, finished, finishTime } when in single-player Free play
 var soloTimerHandle = null;
 var soloSelectedSize = "medium";
+var soloSelectedDensity = 0.10; // Low; Medium = 0.15, High = 0.20
 
 // Solo mode hooks. performAction (in Input.js) drives the board for every
 // mode; these hooks plug in the solo-specific bits — start the timer on
@@ -52,7 +53,7 @@ function countSoloSafeRevealed() {
 
 function startSolo(size) {
 	soloSelectedSize = size || soloSelectedSize || "medium";
-	socket.emit("request_solo_board", { size: soloSelectedSize });
+	socket.emit("request_solo_board", { size: soloSelectedSize, density: soloSelectedDensity });
 }
 
 function exitSolo() {

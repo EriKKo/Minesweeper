@@ -223,16 +223,20 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
-.solo-size-picker {
+.solo-size-picker,
+.solo-density-picker {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
 	gap: 0.4rem;
 	margin-bottom: 0.6rem;
 }
 
-.solo-size-btn { padding: 0.4rem 0.4rem; font-size: 0.85rem; }
-.solo-size-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.solo-size-btn.active:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.solo-size-btn,
+.solo-density-btn { padding: 0.4rem 0.4rem; font-size: 0.85rem; }
+.solo-size-btn.active,
+.solo-density-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.solo-size-btn.active:hover,
+.solo-density-btn.active:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 #solo_restart { width: 100%; }
 
