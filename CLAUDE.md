@@ -63,6 +63,9 @@ Source is split into three trees under `src/`:
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
 - `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors.
+- `BotsAdmin.js` — admin bot browser (`#/admin/bots`): paginated/sortable/Elo-filterable
+  view of the pool via `GET /api/bots`, plus the server-driven "watch a bot play" modal
+  (`bot_demo_start`/`stop` → `bot_demo_board`/`move` sockets; renders frames with `drawCell`).
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
