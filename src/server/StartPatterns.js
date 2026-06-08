@@ -10,6 +10,11 @@ var patterns = require("./Patterns");
 var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;
 
+// Largest ring (or active-clue neighbourhood) we'll brute-force for the complete forced set.
+// Beyond this — or beyond the 32-bit bitmask limit — extractPattern falls back to the
+// analyzer's own deduced cells, so any block size still works (just without re-derivation).
+var BRUTE_LIMIT = 24;
+
 function popcount(x) {
 	x = x - ((x >>> 1) & 0x55555555);
 	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
@@ -37,8 +42,10 @@ function geometry(H, W, walls) {
 			if (!inBlock(r, c)) { ringIndexAt[r + "," + c] = ringCells.length; ringCells.push([r, c]); }
 		}
 	}
-	if (ringCells.length > 24) throw new Error("ring too large to brute-force: " + ringCells.length + " cells");
-	var boundary = [], masks = [];
+	// Bitmasks over ring cells only work up to 31 bits; bigger blocks (e.g. 9×9, ring 40) skip
+	// them and can't be brute-forced — extractPattern uses the analyzer's deduced cells there.
+	var canMask = ringCells.length <= 31;
+	var boundary = [], masks = [], degrees = [];
 	for (var br = r0; br < r0 + H; br++) {
 		for (var bc = c0; bc < c0 + W; bc++) {
 			var mask = 0, touches = 0;
@@ -46,13 +53,13 @@ function geometry(H, W, walls) {
 				for (var dc = -1; dc <= 1; dc++) {
 					if (dr === 0 && dc === 0) continue;
 					var idx = ringIndexAt[(br + dr) + "," + (bc + dc)];
-					if (idx !== undefined) { mask |= (1 << idx); touches++; }
+					if (idx !== undefined) { if (canMask) mask |= (1 << idx); touches++; }
 				}
 			}
-			if (touches > 0) { boundary.push([br, bc]); masks.push(mask); }
+			if (touches > 0) { boundary.push([br, bc]); masks.push(mask); degrees.push(touches); }
 		}
 	}
-	return { H: H, W: W, BR: BR, BC: BC, r0: r0, c0: c0, ring: ringCells.length, ringCells: ringCells, boundary: boundary, masks: masks, walls: walls };
+	return { H: H, W: W, BR: BR, BC: BC, r0: r0, c0: c0, ring: ringCells.length, ringCells: ringCells, boundary: boundary, masks: canMask ? masks : null, degrees: degrees, walls: walls };
 }
 
 function boundaryIndexOf(geo, r, c) {
@@ -170,14 +177,25 @@ function extractPattern(geo, clues) {
 			if (bi >= 0) activeMask |= (1 << bi);
 		}
 	}
-	var bf = bruteForceWithMask(geo, clues, activeMask);
-	if (!bf) return null;
-
+	// Forced set: on small rings, brute-force the active clues for the COMPLETE forced set
+	// (canonical, matches the legacy 3×3). On big rings (no bitmask, or the active-clue
+	// neighbourhood is too wide to brute-force) fall back to the analyzer's own deduced cells.
 	var deducedCells = [], deducedKey = {};
-	for (var k = 0; k < geo.ring; k++) {
-		var bit = 1 << k, cell = geo.ringCells[k];
-		if (bf.safeMask & bit) { deducedCells.push([cell[0], cell[1], "S"]); deducedKey[cell[0] + "," + cell[1]] = true; }
-		else if (bf.mineMask & bit) { deducedCells.push([cell[0], cell[1], "M"]); deducedKey[cell[0] + "," + cell[1]] = true; }
+	var relevant = 0, canBrute = false;
+	if (geo.masks) {
+		for (var rc = 0; rc < geo.masks.length; rc++) if (activeMask & (1 << rc)) relevant |= geo.masks[rc];
+		canBrute = popcount(relevant) <= BRUTE_LIMIT;
+	}
+	if (canBrute) {
+		var bf = bruteForceWithMask(geo, clues, activeMask);
+		if (!bf) return null;
+		for (var k = 0; k < geo.ring; k++) {
+			var bit = 1 << k, cell = geo.ringCells[k];
+			if (bf.safeMask & bit) { deducedCells.push([cell[0], cell[1], "S"]); deducedKey[cell[0] + "," + cell[1]] = true; }
+			else if (bf.mineMask & bit) { deducedCells.push([cell[0], cell[1], "M"]); deducedKey[cell[0] + "," + cell[1]] = true; }
+		}
+	} else {
+		(raw.deducedCells || []).forEach(function(c) { deducedCells.push([c[0], c[1], c[2]]); deducedKey[c[0] + "," + c[1]] = true; });
 	}
 	// Keep any deduction with at least one forced cell (single-sided included).
 	if (deducedCells.length === 0) return null;

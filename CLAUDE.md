@@ -51,21 +51,25 @@ Source is split into three trees under `src/`:
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
-  canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues 3×3 + 3×4 into
+  canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues into
   `deduction-patterns.json` tagged by source size. Served by `GET /api/start-patterns` and
   shown on the **Start patterns** admin page (`#/admin/start-patterns`, `StartPatternsView.js`,
   reusing `PatternsView.js`'s board renderers). `geometry(H,W,walls)` also enumerates blocks flush
   against board edges — open / wall / corner placements (walls remove ring cells and add `wallCells`
-  to the pattern, drawn as dark tiles). Finding: starting cascades yield very few unique patterns
-  (16 across 3×3/3×4/4×4 × open/wall/corner) and the complexity **ceilings at ~8** (case-split rings
-  + one subset at 8.44) regardless of block size; bigger blocks add only larger versions of the same
-  rings, and wall/corner add 3 *easier* (cx ≤ 2.7) edge patterns (a wall removes neighbours). Hard
-  patterns (chain/enum) live mid-solve, not at a fresh opening — starting positions aren't a source
-  of hard building blocks. (4×4-open ≈ 6 min; ring grows with block size, so ~4×4 is the practical
-  brute-force limit — see the `StartPatterns.js` ring≤24 guard.) 4×5/5×5 are too big to fully
-  enumerate, so the script only spot-checks two named rings each (all-1s, corners-4/edges-2): both
-  force *nothing* at those sizes (13–17 consistent arrangements, 0 forced cells) — the all-1s ring
-  only pins cells at small sizes, becoming ambiguous as the block grows.
+  to the pattern, drawn as dark tiles). The script has **two passes**: (1) exhaustive enumeration of
+  every ring arrangement for **3×3 + 3×4** (open/wall/corner), and (2) a **curiosity sweep** of two
+  named clue rings — all-1s, and 4s-in-corners/2s-along-edges — for every block size **3×3 up to 9×9**.
+  Exhaustive enumeration is only viable up to ~4×4 (ring grows with block size; 4×4-open alone ≈ 6 min,
+  see the ring≤24 / `BRUTE_LIMIT` guards), so the sweep builds just those two tuples and runs the same
+  extractor; rings past the brute-force limit fall back to the analyzer-deduced forced set.
+  Findings: starting cascades yield very few unique patterns (40 total) and the complexity
+  **ceilings at ~8** (case-split rings + one 3×4-open subset at 8.44) regardless of block size;
+  bigger blocks add only larger versions of the same case rings, and wall/corner add 3 *easier*
+  (cx ≤ 2.7) edge patterns. Hard patterns (chain/enum) live mid-solve, not at a fresh opening —
+  starting positions aren't a source of hard building blocks. **mod-3 parity law:** the all-1s and
+  corners-4/edges-2 rings force a deduction (always a cx-8 case-split) **iff neither H nor W ≡ 2
+  (mod 3)**; otherwise the ring is fully ambiguous and forces nothing. This holds out to 9×9 — the
+  difficulty never rises above 8, so larger blocks never mean harder building blocks.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):

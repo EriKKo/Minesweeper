@@ -13,7 +13,10 @@ var fs = require("fs");
 var path = require("path");
 var SP = require("../src/server/StartPatterns");
 
-var SIZES = [[3, 3], [3, 4], [4, 4]];
+// Exhaustively enumerated sizes (every ring arrangement, every placement). 4×4-open alone is
+// ~6 min and adds only larger versions of the same case rings the curiosity sweep already finds,
+// so 4×4 lives in the curiosity sweep below rather than here.
+var SIZES = [[3, 3], [3, 4]];
 
 function ts() { return new Date().toISOString(); }
 function log(m) { console.log("[" + ts() + "] " + m); }
@@ -34,43 +37,8 @@ SIZES.forEach(function(sz) {
 
 var catalog = {}; // key -> record
 
-RUNS.forEach(function(run) {
-	var label = run.H + "x" + run.W + " " + run.cat;
-	log("Enumerating " + label + " starting positions…");
-	var t0 = Date.now();
-	var res = SP.enumeratePatterns(run.H, run.W, run.walls);
-	var keys = Object.keys(res.patterns);
-	var newToCatalog = 0;
-	keys.forEach(function(key) {
-		var e = res.patterns[key];
-		var rec = catalog[key];
-		if (!rec) {
-			var p = e.pattern;
-			catalog[key] = {
-				key: key,
-				method: p.method,
-				complexity: Math.round(p.complexity * 100) / 100,
-				rating: p.rating,
-				width: p.width,
-				height: p.height,
-				clueCells: p.clueCells,
-				deducedCells: p.deducedCells,
-				coveredCells: p.coveredCells,
-				wallCells: p.wallCells || [],
-				foundIn: [label],
-				counts: {}
-			};
-			catalog[key].counts[label] = e.count;
-			newToCatalog++;
-		} else {
-			if (rec.foundIn.indexOf(label) < 0) rec.foundIn.push(label);
-			rec.counts[label] = (rec.counts[label] || 0) + e.count; // accumulate across wall orientations
-		}
-	});
-	log("  " + label + ": " + res.positions + " positions → " + keys.length + " unique patterns (" + newToCatalog + " new) in " + ((Date.now() - t0) / 1000).toFixed(1) + "s");
-});
-
-// Merge a single extracted pattern into the catalogue under `label`. Returns true if new.
+// Merge an extracted canonical pattern into the catalogue under `label` (returns true if the
+// pattern was new). The single path used for every pattern — enumerated or named-tuple.
 function mergeOne(pat, label, count) {
 	var rec = catalog[pat.key];
 	if (!rec) {
@@ -90,27 +58,42 @@ function mergeOne(pat, label, count) {
 	return false;
 }
 
-// Curiosity: larger blocks (4x5, 5x5) are too big to fully enumerate (rings of 22/24), so
-// just try two named open-block clue rings each — all-1s, and 4s in the corners with 2s along
-// the edges — and see what their first deduction is.
-function popcountJS(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
-var CURIOSITY = [[4, 5], [5, 5]];
-CURIOSITY.forEach(function(sz) {
-	var geo = SP.geometry(sz[0], sz[1]); // open
-	[
-		{ name: "all-1s", fn: function() { return 1; } },
-		{ name: "corners4-edges2", fn: function(deg) { return deg === 5 ? 4 : 2; } }
-	].forEach(function(spec) {
-		var clues = geo.masks.map(function(m) { return spec.fn(popcountJS(m)); });
-		var label = sz[0] + "x" + sz[1] + " " + spec.name;
-		log("Trying " + label + " (single tuple, ring=" + geo.ring + ")…");
-		var t0 = Date.now();
-		var pat = SP.extractPattern(geo, clues);
-		var secs = ((Date.now() - t0) / 1000).toFixed(1);
-		if (!pat) { log("  " + label + ": no forced deduction (or inconsistent) in " + secs + "s"); return; }
-		var isNew = mergeOne(pat, label, 1);
-		log("  " + label + ": " + pat.method + " cx=" + pat.complexity + " rating=" + pat.rating + " (" + (isNew ? "new" : "already catalogued") + ") in " + secs + "s");
+RUNS.forEach(function(run) {
+	var label = run.H + "x" + run.W + " " + run.cat;
+	log("Enumerating " + label + " starting positions…");
+	var t0 = Date.now();
+	var res = SP.enumeratePatterns(run.H, run.W, run.walls);
+	var keys = Object.keys(res.patterns);
+	var newToCatalog = 0;
+	keys.forEach(function(key) {
+		var e = res.patterns[key];
+		if (mergeOne(e.pattern, label, e.count)) newToCatalog++;
 	});
+	log("  " + label + ": " + res.positions + " positions → " + keys.length + " unique patterns (" + newToCatalog + " new) in " + ((Date.now() - t0) / 1000).toFixed(1) + "s");
+});
+
+// Curiosity: try two named open-block clue rings — all-1s, and 4s in the corners with 2s along
+// the edges — for every block size up to 9x9. Big blocks can't be fully enumerated (rings beyond
+// the brute-force limit), so we build just these two tuples and ask extractPattern (the same
+// extractor used above) for the first deduction. Corner boundary cells have ring-degree 5, edges 3.
+var MAX_DIM = 9;
+[
+	{ name: "all-1s", fn: function() { return 1; } },
+	{ name: "corners4-edges2", fn: function(deg) { return deg === 5 ? 4 : 2; } }
+].forEach(function(spec) {
+	for (var H = 3; H <= MAX_DIM; H++) {
+		for (var W = H; W <= MAX_DIM; W++) {
+			var geo = SP.geometry(H, W); // open
+			var clues = geo.degrees.map(spec.fn);
+			var label = H + "x" + W + " " + spec.name;
+			var t0 = Date.now();
+			var pat = SP.extractPattern(geo, clues);
+			var secs = ((Date.now() - t0) / 1000).toFixed(1);
+			if (!pat) { log(label + ": forces nothing (ring=" + geo.ring + ", " + secs + "s)"); continue; }
+			var isNew = mergeOne(pat, label, 1);
+			log(label + ": " + pat.method + " cx=" + pat.complexity + " (" + (isNew ? "NEW" : "already catalogued") + ", ring=" + geo.ring + ", " + secs + "s)");
+		}
+	}
 });
 
 var patterns = Object.keys(catalog).map(function(k) { return catalog[k]; });
