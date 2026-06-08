@@ -1,3 +1,4 @@
+var fs = require("fs");
 var gameCreator = require("./GameCreator");
 var BoardLogic = require("../common/BoardLogic");
 var puzzleSolver = require("./PuzzleSolver");
@@ -69,6 +70,13 @@ function lerp(a, b, t) { return a + (b - a) * t; }
 // (slow & safe ⇄ fast & reckless). To keep style roughly strength-neutral, the
 // per-move speed bonus a reckless bot gets is derived from the expected penalty
 // cost of its extra blunders, so the time saved ≈ the time lost to mines.
+//
+// NOTE: nothing at runtime calls configForElo any more — ranked filler bots are
+// drawn from a pre-benchmarked pool (see pickBotFromPool / scripts/generate-bot-pool.js).
+// It is retained solely as the *calibration anchor* for that pool: the offline
+// generator benchmarks configForElo(600..1800) to learn the solve-time↔Elo curve,
+// then maps each random pool bot's measured times back onto the same scale so the
+// ranked ladder's Elo numbers keep their existing meaning.
 var STYLE_MISTAKE = 1.0;   // reckless doubles blunders; safe drops them to ~0
 var MINE_PROB = 0.3;       // ~chance a blunder actually uncovers a mine
 var PENALTY_MS = 5000;     // ranked death-penalty freeze
@@ -99,6 +107,67 @@ function configForElo(elo) {
 		style: style,
 		reckless: style > 0
 	};
+}
+
+// Knob ranges for randomly-generated pool bots. Deliberately wider than the
+// configForElo curve's span so the random pool covers — and slightly overshoots —
+// the playable strength range; the offline benchmark then measures where each
+// random bot actually lands and the coverage pass trims/fills to span 600–1800.
+var RAND_SPEED_MIN = 70, RAND_SPEED_MAX = 1400;   // ms between actions
+var RAND_MISTAKE_MIN = 0, RAND_MISTAKE_MAX = 0.12; // blunder chance
+var RAND_CHORD_MIN = 0, RAND_CHORD_MAX = 1;        // chord-when-possible chance
+
+// A pool bot is just a random point in knob-space. Unlike configForElo, the four
+// knobs vary independently — speed, accuracy, chording, and solver depth are not
+// tied to a single strength dial — so the pool contains genuinely different play
+// styles that happen to benchmark to similar Elos. `rating`/`times` are filled in
+// later by the benchmark (scripts/generate-bot-pool.js); here they're left absent.
+function randomBotConfig() {
+	return {
+		speedMs: Math.round(lerp(RAND_SPEED_MIN, RAND_SPEED_MAX, Math.random())),
+		mistakeRate: lerp(RAND_MISTAKE_MIN, RAND_MISTAKE_MAX, Math.random()),
+		chordRate: lerp(RAND_CHORD_MIN, RAND_CHORD_MAX, Math.random()),
+		maxTier: TIER_ORDER[Math.floor(Math.random() * TIER_ORDER.length)]
+	};
+}
+
+// The benchmarked bot pool, loaded once from bots-pool.json. Each entry already
+// carries the config fields addBotToRoom consumes (speedMs/mistakeRate/chordRate/
+// maxTier) plus a measured `rating`.
+var botPool = null;
+
+function loadPool(poolPath) {
+	try {
+		var raw = fs.readFileSync(poolPath, "utf8");
+		var parsed = JSON.parse(raw);
+		botPool = (parsed && Array.isArray(parsed.bots)) ? parsed.bots : null;
+	} catch (e) {
+		botPool = null;
+		console.error("BotPlayer.loadPool failed for " + poolPath + ":", e.message);
+	}
+	return botPool ? botPool.length : 0;
+}
+
+// Pick a ranked filler bot whose measured rating sits near `targetElo`. Selecting
+// at random within a ±window gives the natural rating spread that jitterBotElo used
+// to add by hand. If the window is empty (sparse pool edge) it widens; if the pool
+// is missing entirely (bots-pool.json absent), it falls back to the configForElo
+// curve so matchmaking can never fail to fill a seat.
+function pickBotFromPool(targetElo, window) {
+	if (!botPool || !botPool.length) return configForElo(targetElo);
+	var w = window > 0 ? window : 60;
+	for (var widen = 0; widen < 24; widen++) {
+		var lo = targetElo - w, hi = targetElo + w;
+		var inRange = botPool.filter(function(b) { return b.rating >= lo && b.rating <= hi; });
+		if (inRange.length) return inRange[Math.floor(Math.random() * inRange.length)];
+		w += 60;
+	}
+	// Whole pool somehow outside the widened window — return the nearest bot.
+	var nearest = botPool[0];
+	for (var i = 1; i < botPool.length; i++) {
+		if (Math.abs(botPool[i].rating - targetElo) < Math.abs(nearest.rating - targetElo)) nearest = botPool[i];
+	}
+	return nearest;
 }
 
 // Pools for generating player-looking handles (so ranked bots blend in).
@@ -394,3 +463,8 @@ exports.chordRateFor = chordRateFor;
 exports.maxTierFor = maxTierFor;
 exports.maxTierForElo = maxTierForElo;
 exports.configForElo = configForElo;
+exports.randomBotConfig = randomBotConfig;
+exports.loadPool = loadPool;
+exports.pickBotFromPool = pickBotFromPool;
+exports.PENALTY_MS = PENALTY_MS;
+exports.TIER_ORDER = TIER_ORDER;

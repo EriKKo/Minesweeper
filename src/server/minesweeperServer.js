@@ -818,6 +818,10 @@ var roundTimers = {};
 var roundDeadlines = {};
 var roundStarts = {}; // roomId -> ms timestamp when the current round's play began
 var bots = {}; // botId -> true
+// Ranked filler bots are drawn from a pre-benchmarked pool (scripts/generate-bot-pool.js).
+// Load it once at boot; pickBotFromPool falls back to the configForElo curve if absent.
+var BOT_POOL_PATH = process.env.BOT_POOL_PATH || path.join(__dirname, "..", "..", "bots-pool.json");
+console.log("Loaded " + botPlayer.loadPool(BOT_POOL_PATH) + " ranked bots from pool (" + BOT_POOL_PATH + ")");
 var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
 var botSpeedMs = {}; // botId -> ms between actions
 var botRating = {}; // botId -> Elo used for ranked rating math
@@ -1841,15 +1845,6 @@ function clearRankedFill(mode) {
 	if (rankedFillTimers[mode]) { clearTimeout(rankedFillTimers[mode]); rankedFillTimers[mode] = null; }
 }
 
-// Spread bot ratings around the target so the lobby looks like real matchmaking
-// instead of N copies of the player's rating. Clamped to the bot strength curve.
-function jitterBotElo(targetElo) {
-	var jittered = targetElo + Math.round((Math.random() - 0.5) * 100);  // ±50
-	if (jittered < 600) jittered = 600;
-	if (jittered > 1800) jittered = 1800;
-	return jittered;
-}
-
 // How many bots "arrive" on this trickle tick. Mostly one, but occasionally a
 // pair or a small cluster — feels more like real players spawning in.
 function pickBotBatchSize() {
@@ -1872,7 +1867,7 @@ function scheduleBotArrival(mode) {
 			var taken = pendingBotsLists[mode].map(function(p) { return p.name; });
 			pendingBotsLists[mode].push({
 				name: botPlayer.pickBotName(taken),
-				config: botPlayer.configForElo(jitterBotElo(rankedTargetElo(mode)))
+				config: botPlayer.pickBotFromPool(rankedTargetElo(mode))
 			});
 		}
 		if (rankedCount(mode) >= modeSize(mode)) {
@@ -1978,7 +1973,7 @@ function formRankedMatch(mode) {
 		}
 		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
 		while (room.players.length < matchSize && botCount(room) < MAX_BOTS_PER_ROOM) {
-			if (!addBotToRoom(room, botPlayer.configForElo(jitterBotElo(targetElo)))) break;
+			if (!addBotToRoom(room, botPlayer.pickBotFromPool(targetElo))) break;
 		}
 	}
 

@@ -31,7 +31,13 @@ Source is split into three trees under `src/`:
 - `NoGuessGenerator.js` — `createNoGuessTemplate` + the deduction solver
   (`analyzeSolvability`).
 - `RoomCreator.js` — room and best-of-N series state.
-- `BotPlayer.js` — bot AI (deduction + blunders), difficulty, `configForElo`.
+- `BotPlayer.js` — bot AI (deduction + blunders), casual difficulty presets, the
+  random-knob bot generator (`randomBotConfig`), and the ranked pool loader/picker
+  (`loadPool` / `pickBotFromPool`). `configForElo` survives only as the offline
+  calibration anchor — nothing at runtime calls it.
+- `BotBench.js` — headless bot benchmarking: replays a bot's real decision loop on a
+  virtual clock to measure solve time, calibrates time→Elo against the `configForElo`
+  curve, and ratings a config. Used by `scripts/generate-bot-pool.js`; no I/O of its own.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
@@ -84,3 +90,11 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
 - Ranked uses a fixed ruleset (Best of 5, 2 min rounds, 5s mine penalty, medium board,
   10% mines), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
   lobby's average rating and trickle into the queue like real players.
+- Ranked filler bots come from a **pre-benchmarked pool** (`bots-pool.json`, committed),
+  not synthesized on the fly. Each pool bot is a random set of knobs (speed, mistake rate,
+  chord rate, solver-tier ceiling) whose Elo was *measured* by simulating it solving boards
+  at the three ranked densities (10/15/20%) and mapping its solve times onto the
+  `configForElo` calibration curve. Matchmaking calls `botPlayer.pickBotFromPool(targetElo)`.
+  Regenerate the pool with `node scripts/generate-bot-pool.js` (takes a few minutes; tune
+  with `POOL_SIZE` / `BOARDS` / `CAL_SAMPLES` env vars — lower them for a quick smoke run).
+  Re-run it whenever bot AI, the solver, or the Elo curve changes.
