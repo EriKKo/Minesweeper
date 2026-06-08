@@ -384,6 +384,7 @@
 		<section id="admin_view" class="view section-view" style="display:none"></section>
 		<section id="puzzles_view" class="view section-view" style="display:none"></section>
 		<section id="puzzles_list_view" class="view section-view" style="display:none"></section>
+		<section id="bots_view" class="view section-view" style="display:none"></section>
 		<section id="starting_positions_view" class="view section-view" style="display:none"></section>
 		<section id="patterns_view" class="view section-view" style="display:none"></section>
 		<section id="puzzle_play_view" class="view section-view" style="display:none"></section>
@@ -624,6 +625,7 @@
 <script src="/Music.js"></script>
 <script src="/PuzzleLab.js"></script>
 <script src="/Puzzles.js"></script>
+<script src="/BotsAdmin.js"></script>
 <script src="/StartingPositionsView.js"></script>
 <script src="/PatternsView.js"></script>
 <script src="/PuzzlePlay.js"></script>
@@ -996,6 +998,12 @@ socket.on("puzzle_error", function(data) {
 	);
 	exitPuzzle();
 });
+
+// Admin bot-demo frames — routed to the open bot-demo modal (BotsAdmin.js), which
+// renders them on its own canvas without touching the live-game globals.
+socket.on("bot_demo_board", function(data) { if (typeof onBotDemoBoard === "function") onBotDemoBoard(data); });
+socket.on("bot_demo_move", function(data) { if (typeof onBotDemoMove === "function") onBotDemoMove(data); });
+socket.on("bot_demo_rejected", function(data) { if (typeof onBotDemoRejected === "function") onBotDemoRejected(data); });
 
 socket.on("solo_board", function(data) {
 	rows = data.rows;
@@ -1882,7 +1890,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "starting_positions_view", "patterns_view", "puzzle_play_view", "ranked_picker_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "puzzle_play_view", "ranked_picker_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

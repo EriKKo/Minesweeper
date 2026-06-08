@@ -108,22 +108,28 @@ function randomBotConfig() {
 	};
 }
 
-// The benchmarked bot pool, loaded once from bots-pool.json. Each entry already
-// carries the config fields addBotToRoom consumes (speedMs/mistakeRate/chordRate/
-// maxTier) plus a measured `rating`.
+// The benchmarked bot pool, loaded once from bots-pool.json. Each entry carries the
+// six per-move variables addBotToRoom consumes plus measured `rating`/`ratings`/`times`.
 var botPool = null;
+var botPoolMeta = null; // { densities, board, generatedAt, roundMs } — for the admin browser
 
 function loadPool(poolPath) {
 	try {
 		var raw = fs.readFileSync(poolPath, "utf8");
 		var parsed = JSON.parse(raw);
 		botPool = (parsed && Array.isArray(parsed.bots)) ? parsed.bots : null;
+		botPoolMeta = parsed ? { densities: parsed.densities, board: parsed.board, generatedAt: parsed.generatedAt, roundMs: parsed.roundMs } : null;
 	} catch (e) {
 		botPool = null;
+		botPoolMeta = null;
 		console.error("BotPlayer.loadPool failed for " + poolPath + ":", e.message);
 	}
 	return botPool ? botPool.length : 0;
 }
+
+// Read access for the admin bot browser.
+function getPool() { return botPool || []; }
+function getPoolMeta() { return botPoolMeta || {}; }
 
 // Pick a ranked filler bot whose measured rating sits near `targetElo`. Selecting
 // at random within a ±window gives the natural rating spread that jitterBotElo used
@@ -452,4 +458,6 @@ exports.configForElo = configForElo;
 exports.randomBotConfig = randomBotConfig;
 exports.loadPool = loadPool;
 exports.pickBotFromPool = pickBotFromPool;
+exports.getPool = getPool;
+exports.getPoolMeta = getPoolMeta;
 exports.PENALTY_MS = PENALTY_MS;

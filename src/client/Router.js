@@ -135,6 +135,13 @@ function showPuzzlesListView() {
 	renderPuzzlesList();
 }
 
+function showBotsView() {
+	hideAllViews();
+	document.getElementById("bots_view").style.display = "";
+	setSiteNavActive("admin");
+	renderBotsList();
+}
+
 function showStartingPositionsView() {
 	hideAllViews();
 	document.getElementById("starting_positions_view").style.display = "";
@@ -276,6 +283,7 @@ function applyRouteFromHash() {
 	// /admin/puzzles can carry filter state as a query string
 	// (e.g. ?diff=3&method=overlap&sort=desc&page=2) so reloads persist.
 	if (hash === "/admin/puzzles" || hash.indexOf("/admin/puzzles?") === 0) return showPuzzlesListView();
+	if (hash === "/admin/bots" || hash.indexOf("/admin/bots?") === 0) return showBotsView();
 	if (hash === "/admin/starting-positions" || hash.indexOf("/admin/starting-positions?") === 0) return showStartingPositionsView();
 	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
 	if (hash === "/leaderboard") return showLeaderboardView();

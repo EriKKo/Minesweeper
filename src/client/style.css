@@ -1056,6 +1056,74 @@ main {
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 	gap: 1rem;
 }
+
+/* Admin bot browser */
+.bots-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 1rem;
+}
+.bot-card {
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 0.9rem;
+	background: var(--surface);
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+.bot-card-head { display: flex; align-items: center; gap: 0.5rem; }
+.bot-rating-badge {
+	font-weight: 800;
+	background: var(--accent);
+	color: #fff;
+	padding: 0.2rem 0.55rem;
+	border-radius: 0.5rem;
+	font-size: 0.95rem;
+}
+.bot-card-id { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.bot-vars {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.35rem;
+}
+.bot-var { display: flex; flex-direction: column; gap: 0.05rem; }
+.bot-var-key { font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.bot-var-val { font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bot-mode-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding-top: 0.45rem;
+	border-top: 1px solid var(--border);
+}
+.bot-mode-name { font-size: 0.85rem; font-weight: 600; flex: 1 1 auto; }
+.bot-mode-elo { font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.bot-watch-btn {
+	border: 1px solid var(--accent);
+	background: transparent;
+	color: var(--accent);
+	border-radius: 0.45rem;
+	padding: 0.25rem 0.55rem;
+	font-size: 0.8rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+.bot-watch-btn:hover { background: var(--accent); color: #fff; }
+.bots-elo-input {
+	width: 64px;
+	padding: 0.3rem 0.4rem;
+	border: 1px solid var(--border);
+	border-radius: 0.4rem;
+	background: var(--bg);
+	color: inherit;
+}
+.bots-elo-dash { color: var(--muted); }
+.bot-demo-body { justify-content: center; }
+.bot-demo-board { display: flex; align-items: center; justify-content: center; }
+.bot-demo-title { font-weight: 800; }
+.bot-demo-status { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 0.8rem; }
+.bot-demo-new { margin-left: auto; }
 .starting-positions-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

@@ -73,6 +73,12 @@ function renderAdminLanding() {
 		"#/admin/puzzles"
 	));
 	cards.appendChild(makeAdminCard(
+		"Ranked bots",
+		"Browse the benchmarked bot pool, inspect variables and per-mode Elo, and watch any bot play.",
+		"Browse bots",
+		"#/admin/bots"
+	));
+	cards.appendChild(makeAdminCard(
 		"Starting positions",
 		"Enumerated cascade patterns rated by analyzer difficulty.",
 		"Browse positions",

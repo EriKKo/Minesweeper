@@ -111,6 +111,7 @@ function handler (req, res) {
 	if (pathname === "/auth/google/login") return authGoogleLogin(req, res);
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
+	if (pathname === "/api/bots") return serveBots(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
 	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
@@ -622,6 +623,61 @@ function isPuzzleAdmin(req) {
 	if (!token) return false;
 	var user = db.getUserByToken(token);
 	return !!(user && user.is_admin);
+}
+
+// Admin bot browser: list the benchmarked pool, sorted/filtered/paginated in JS (the
+// pool is ~500 entries, in memory). Each returned bot carries its pool index so the
+// demo modal can request it back. Density keys map to ranked modes (10/15/20%).
+var BOT_SORT_FIELDS = {
+	rating: function(b) { return b.rating; },
+	r10: function(b) { return b.ratings ? b.ratings["0.10"] : 0; },
+	r15: function(b) { return b.ratings ? b.ratings["0.15"] : 0; },
+	r20: function(b) { return b.ratings ? b.ratings["0.20"] : 0; },
+	speedMs: function(b) { return b.speedMs; },
+	difficultyMs: function(b) { return b.difficultyMs; },
+	distanceMult: function(b) { return b.distanceMult; },
+	maxDifficulty: function(b) { return b.maxDifficulty; },
+	mistakeRate: function(b) { return b.mistakeRate; },
+	chordRate: function(b) { return b.chordRate; }
+};
+
+function serveBots(req, res, url) {
+	if (!isPuzzleAdmin(req)) {
+		res.writeHead(403, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Admin token required." }));
+		return;
+	}
+	var q = url.searchParams;
+	var sortKey = BOT_SORT_FIELDS[q.get("sort")] ? q.get("sort") : "rating";
+	var keyFn = BOT_SORT_FIELDS[sortKey];
+	var dir = q.get("dir") === "asc" ? 1 : -1;
+	var page = Math.max(0, parseInt(q.get("page"), 10) || 0);
+	var pageSize = Math.max(1, Math.min(200, parseInt(q.get("pageSize"), 10) || 30));
+	var minRating = q.get("minRating") !== null ? parseFloat(q.get("minRating")) : null;
+	var maxRating = q.get("maxRating") !== null ? parseFloat(q.get("maxRating")) : null;
+
+	// Tag each bot with its pool index, then filter by overall-Elo range.
+	var all = botPlayer.getPool().map(function(b, i) {
+		var o = {};
+		for (var k in b) o[k] = b[k];
+		o.index = i;
+		return o;
+	});
+	if (minRating !== null && !isNaN(minRating)) all = all.filter(function(b) { return b.rating >= minRating; });
+	if (maxRating !== null && !isNaN(maxRating)) all = all.filter(function(b) { return b.rating <= maxRating; });
+	all.sort(function(a, b) { return (keyFn(a) - keyFn(b)) * dir; });
+
+	var total = all.length;
+	var pageBots = all.slice(page * pageSize, page * pageSize + pageSize);
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({
+		bots: pageBots,
+		total: total,
+		pool: botPlayer.getPool().length,
+		page: page,
+		pageSize: pageSize,
+		densities: botPlayer.getPoolMeta().densities || [0.10, 0.15, 0.20]
+	}));
 }
 
 function servePuzzles(req, res, url) {
@@ -2136,6 +2192,69 @@ function removePlayerFromRoom(playerID) {
 	return leaveEloInfo;
 }
 
+// Admin bot-play demos: one standalone (room-less) bot game per socket, streamed move
+// by move at the bot's real cadence. Keyed by socket id.
+var botDemos = {}; // socketId -> { game, lastClick, timer, moves }
+
+function isSocketAdmin(playerID) {
+	if (DEV_AUTH) return true;
+	var acc = accounts[playerID];
+	if (!acc) return false;
+	var u = db.getUserById(acc.userId);
+	return !!(u && u.is_admin);
+}
+
+function stopBotDemo(playerID) {
+	var d = botDemos[playerID];
+	if (d && d.timer) clearTimeout(d.timer);
+	delete botDemos[playerID];
+}
+
+// Full board grid (numbers, -1 for mine) for the demo — admin only, no obfuscation.
+function fullBoardGrid(board) {
+	return board.map(function(row) { return row.slice(); });
+}
+
+// Step the demo bot once, scheduling the next step after its real move delay (and
+// honouring the 5s mine-hit freeze). Emits a frame to the watching socket per move.
+function tickBotDemo(socket, playerID) {
+	var d = botDemos[playerID];
+	if (!d) return;
+	var game = d.game;
+	if (!game.playing || game.finished || d.moves > game.rows * game.cols * 8) {
+		socket.emit("bot_demo_move", { state: game.state, finished: true, done: true, progress: game.revealedSafeCount() / game.totalSafeSquares });
+		return;
+	}
+	var now = Date.now();
+	if (now < game.frozenUntil) {
+		d.timer = setTimeout(function() { tickBotDemo(socket, playerID); }, game.frozenUntil - now + 50);
+		return;
+	}
+	var move;
+	try { move = botPlayer.decideMove(game); } catch (e) { console.error("bot_demo decideMove", e); return; }
+	if (!move) { socket.emit("bot_demo_move", { state: game.state, finished: true, done: true, progress: game.revealedSafeCount() / game.totalSafeSquares }); return; }
+	var delay = botPlayer.computeMoveDelay(game, d.lastClick, move);
+	d.timer = setTimeout(function() {
+		if (!botDemos[playerID]) return;
+		var hitBefore = game.mineHitCount || 0;
+		try {
+			if (move.type === "right") game.handleRightClick(move.r, move.c);
+			else game.handleLeftClick(move.r, move.c);
+		} catch (e) { console.error("bot_demo move", e); }
+		d.lastClick = { r: move.r, c: move.c };
+		d.moves++;
+		socket.emit("bot_demo_move", {
+			state: game.state,
+			move: { r: move.r, c: move.c, type: move.type, difficulty: move.difficulty, stuck: !!move.stuck },
+			mineHit: (game.mineHitCount || 0) > hitBefore,
+			finished: !!game.finished,
+			progress: game.revealedSafeCount() / game.totalSafeSquares
+		});
+		if (game.finished) { stopBotDemo(playerID); return; }
+		tickBotDemo(socket, playerID);
+	}, delay);
+}
+
 io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
@@ -2397,6 +2516,46 @@ io.on("connection", function (socket) {
 		});
 	});
 
+	// Admin: start (or restart) a bot-play demo. Builds a fresh medium no-guess board at
+	// the requested density, configures a standalone game with the pool bot's variables,
+	// and streams its play. The full board is sent (admin only — no anti-cheat needed).
+	socket.on("bot_demo_start", function(data) {
+		if (!isSocketAdmin(playerID)) return;
+		var pool = botPlayer.getPool();
+		var bot = pool[data && data.botIndex];
+		if (!bot) return;
+		var density = (data && typeof data.density === "number") ? data.density : 0.10;
+		if (density < 0.04) density = 0.04;
+		if (density > 0.30) density = 0.30;
+		var dims = roomCreator.BOARD_SIZES.medium;
+		var rows = dims.rows, cols = dims.cols;
+		var mines = Math.round(density * rows * cols);
+		var template = noGuess.createNoGuessTemplate(Math.floor(rows / 2), Math.floor(cols / 2), mines, undefined, rows, cols);
+		if (!template) { socket.emit("bot_demo_rejected", { reason: "Couldn't generate a board, try again." }); return; }
+
+		stopBotDemo(playerID);
+		var game = gameCreator.createGame(mines, rows, cols);
+		game.botSpeedMs = bot.speedMs;
+		game.botDifficultyMs = bot.difficultyMs;
+		game.botDistanceMult = bot.distanceMult;
+		game.botMaxDifficulty = bot.maxDifficulty;
+		game.botMistakeRate = bot.mistakeRate;
+		game.botChordRate = bot.chordRate;
+		game.botDifficultyByCell = template.difficultyByCell || null;
+		game.mineHitCount = 0;
+		game.win = function() { game.finished = true; };
+		game.mineHit = function() { game.mineHitCount++; game.frozenUntil = Date.now() + RANKED_RULES.deathPenalty * 1000; };
+		game.init(template);
+		game.playing = true;
+		game.frozenUntil = 0;
+
+		botDemos[playerID] = { game: game, lastClick: null, timer: null, moves: 0 };
+		socket.emit("bot_demo_board", { rows: rows, cols: cols, board: fullBoardGrid(game.board), state: game.state, mines: mines, density: density });
+		tickBotDemo(socket, playerID);
+	});
+
+	socket.on("bot_demo_stop", function() { stopBotDemo(playerID); });
+
 	socket.on("create_room", function() {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
@@ -2589,6 +2748,7 @@ io.on("connection", function (socket) {
 		// in-memory game state. Active runs end (no resume — runs are
 		// session-only by design); score is recorded if it's a new best.
 		if (puzzleRun[playerID]) endPuzzleRun(socket, playerID, "disconnect");
+		stopBotDemo(playerID);
 		delete puzzlePlay[playerID];
 		delete sockets[playerID];
 		delete names[playerID];
