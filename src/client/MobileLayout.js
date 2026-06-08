@@ -23,6 +23,24 @@ var PUZZLE_BOARD_PX_MOBILE = 320;
 var PUZZLE_CELL_MAX = 75;
 var PUZZLE_CELL_MAX_MOBILE = 56;
 
+// Largest cell size that lets a rows×cols board fit the available board area on
+// desktop, clamped to [DESKTOP_CELL_MIN, DESKTOP_CELL_MAX]. Scaling to fit means a
+// big board grows to use the screen instead of sitting at a fixed small size, and a
+// wide board uses the full column width. Falls back to PLAYER_CELL if the layout
+// can't be measured yet (e.g. called before the game view is visible).
+function fitDesktopCellPx() {
+	var gameLeft = document.querySelector(".game-left");
+	// .game-left has min-width:0 and lives in a minmax(0,1fr) track, so its width is
+	// the available column width regardless of the canvas's current size.
+	var availW = gameLeft ? gameLeft.clientWidth - 42 : 0; // minus .player-board padding + border
+	var top = playerCanvas.getBoundingClientRect().top;
+	var availH = window.innerHeight - top - 24;            // leave a small bottom gap
+	if (!(availW > 0)) availW = cols * PLAYER_CELL;
+	if (!(availH > 0)) availH = rows * PLAYER_CELL;
+	var cell = Math.floor(Math.min(availW / cols, availH / rows));
+	return Math.max(DESKTOP_CELL_MIN, Math.min(DESKTOP_CELL_MAX, cell));
+}
+
 function sizePlayerCanvas() {
 	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession;
 	var cellPx;
@@ -31,7 +49,7 @@ function sizePlayerCanvas() {
 		var cap = mobileLayout ? PUZZLE_CELL_MAX_MOBILE : PUZZLE_CELL_MAX;
 		cellPx = Math.min(cap, Math.floor(target / Math.max(rows, cols)));
 	} else {
-		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : PLAYER_CELL;
+		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : fitDesktopCellPx();
 	}
 	playerCanvas.width = Math.round(cols * cellPx * DPR);
 	playerCanvas.height = Math.round(rows * cellPx * DPR);
@@ -166,3 +184,24 @@ if (mobileMQL) {
 	if (typeof mobileMQL.addEventListener === "function") mobileMQL.addEventListener("change", onMobileLayoutChange);
 	else if (typeof mobileMQL.addListener === "function") mobileMQL.addListener(onMobileLayoutChange);
 }
+
+// Rescale the player board when the window resizes, so the fit-to-space sizing
+// tracks the available area. Re-sizing the canvas clears its backing store, so we
+// redraw after. Coalesced into one rAF tick to avoid thrashing during a drag.
+function refreshPlayerBoardSize() {
+	if (typeof myState === "undefined" || !myState) return; // only while a board is active
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	if (typeof redrawOwnBoardWithFocus === "function") redrawOwnBoardWithFocus();
+}
+var playerBoardResizeRaf = null;
+window.addEventListener("resize", function() {
+	if (playerBoardResizeRaf) return;
+	playerBoardResizeRaf = requestAnimationFrame(function() {
+		playerBoardResizeRaf = null;
+		refreshPlayerBoardSize();
+	});
+});

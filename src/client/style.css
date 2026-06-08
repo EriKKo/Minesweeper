@@ -223,6 +223,16 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+.solo-picker-label {
+	display: block;
+	font-size: 0.65rem;
+	letter-spacing: 0.14em;
+	color: var(--muted);
+	text-transform: uppercase;
+	font-weight: 700;
+	margin-bottom: 0.3rem;
+}
+
 .solo-size-picker,
 .solo-density-picker {
 	display: grid;

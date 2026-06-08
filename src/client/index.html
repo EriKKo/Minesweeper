@@ -551,11 +551,13 @@
 								<span id="solo_mines" class="solo-stat-value">0 / 0</span>
 							</div>
 						</div>
+						<span class="solo-picker-label">Board size</span>
 						<div class="solo-size-picker">
 							<button class="btn btn-secondary solo-size-btn" data-size="small" type="button">Small</button>
 							<button class="btn btn-secondary solo-size-btn active" data-size="medium" type="button">Medium</button>
 							<button class="btn btn-secondary solo-size-btn" data-size="large" type="button">Large</button>
 						</div>
+						<span class="solo-picker-label">Mine density</span>
 						<div class="solo-density-picker">
 							<button class="btn btn-secondary solo-density-btn active" data-density="0.1" type="button">Low</button>
 							<button class="btn btn-secondary solo-density-btn" data-density="0.15" type="button">Medium</button>
@@ -644,9 +646,13 @@ var KNOWN = BoardLogic.KNOWN;
 var rows = 15;
 var cols = 20;
 
-var PLAYER_CELL = 34;          // desktop player cell CSS px
+var PLAYER_CELL = 34;          // desktop player cell CSS px (fallback when the board area can't be measured)
 var MOBILE_PLAYER_CELL = 42;   // mobile cell CSS px — finger-friendly, board may exceed viewport
 var OPP_CELL = 13;             // smaller cells for opponent boards
+// Desktop board scales to fill the available board area between these bounds, so a
+// big board uses the screen instead of sitting at a fixed small size (see sizePlayerCanvas).
+var DESKTOP_CELL_MIN = 22;
+var DESKTOP_CELL_MAX = 54;
 // DPR lives in BoardRender.js so canvas factories there can use it too.
 // Mobile layout helpers + canvas sizing moved to MobileLayout.js.
 
