@@ -1865,8 +1865,9 @@ var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_
 // Profile view rendering moved to Profile.js.
 
 function showGameView() {
-	nameView.style.display = "none";
-	lobbyView.style.display = "none";
+	// Hide every other top-level view, not just name/lobby — entering a room from
+	// the custom lobby (or any page) must replace it, not stack on top of it.
+	hideAllViews();
 	gameView.style.display = "";
 }
 
