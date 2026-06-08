@@ -19,6 +19,7 @@ var path = require("path");
 var SP = require("../src/server/StartPatterns");
 var puzzleGen = require("../src/server/PuzzleGenerator");
 var CSP = require("../src/server/CSPSolver");
+var RingSeed = require("../src/server/RingSeedGenerator");
 var BoardLogic = require("../src/common/BoardLogic");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN;
 
@@ -184,6 +185,23 @@ console.log("\nHeavy cx-8 ring pairs (corners4-edges2):");
 add(makePuzzle("two 3×3 cx-8 rings — shared seam", "cx-8 rings", mergeBlocks(ring33, ring33, 0)));
 add(makePuzzle("two 3×3 cx-8 rings — 1-column gap", "cx-8 rings", mergeBlocks(ring33, ring33, 1)));
 add(makePuzzle("3×3 ⊕ 3×4 cx-8 rings — shared seam", "cx-8 rings", mergeBlocks(ring33, ring34, 0)));
+
+// Ring starts made solvable: take the corners4-edges2 ring, change the fewest clues needed to
+// break its two-fold symmetry (one change provably can't — it has exactly 2 solutions), pick the
+// hardest reveal-producing change-set, and finish into a full puzzle via the inside-out generator.
+console.log("\nRing starts made solvable (perturb fewest clues + inside-out finish):");
+[[3, 3], [3, 4]].forEach(function(d) {
+	var t0 = Date.now();
+	var rp = RingSeed.generateFromRing(d[0], d[1], {});
+	var secs = ((Date.now() - t0) / 1000).toFixed(1);
+	if (!rp) { console.log("  " + d[0] + "x" + d[1] + " corners4-edges2: no solvable variant found (" + secs + "s)"); return; }
+	var chDesc = rp.perturbation.changes.map(function(c) { return c.from + "→" + c.to; }).join(", ");
+	rp.id = nextId++;
+	rp.group = "Ring → solvable";
+	rp.label = d[0] + "×" + d[1] + " corners4-edges2 → solvable (" + rp.perturbation.changes.length + " clues " + chDesc + ", inside-out)";
+	puzzles.push(rp);
+	console.log("  " + rp.label.padEnd(54) + " " + rp.rows + "x" + rp.cols + "  cx " + rp.cspMaxComplexity.toFixed(2) + "  t" + rp.difficulty + "  r" + rp.rating + "  solvable  (" + secs + "s)");
+});
 
 var outPath = path.join(__dirname, "..", "combined-puzzles.json");
 fs.writeFileSync(outPath, JSON.stringify({ generatedAt: new Date().toISOString(), puzzles: puzzles, unsatisfiable: unsatisfiable }, null, "\t"));

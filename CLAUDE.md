@@ -83,6 +83,20 @@ Source is split into three trees under `src/`:
   `corners4-edges2` rings sharing a seam reach cx 9.7 (past 8, though it stalls before a full
   solve). Some pairs (`#15⊕#16`, `#16⊕#16` at a shared seam) have **no consistent mine layout** —
   the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
+- `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
+  puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
+  change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of
+  increasing size (fewest first), keeps the ones that force a reveal, ranks by deduction complexity,
+  and from the hardest down hands the seed to the inside-out generator to finish — keeping the first
+  that comes out faithful (block clues still the ring values) and fully solvable. Two top-corner
+  4→2 changes break the symmetry and grow into a solvable ~cx-7.9 board (rating ~2400). Driven by
+  `combine-patterns.js` (group "Ring → solvable").
+- `InsideOutGenerator.js` — deduction-driven generator: from a seed it asks the analyzer for the next
+  forced move, commits each revealed cell's clue to the value that maximises full-solve complexity,
+  and keeps only fully-classified (solvable-by-construction) boards. `constructFromSeed` is the shared
+  loop, used by its own random-cascade `tryConstruct` and by `RingSeedGenerator`. NB: `analyzeBoard`
+  returns *bundled* moves with `revealed`/`flagged` arrays and a `method` (no `action`); `applyMove`
+  reads those — switching on `action` made it a silent no-op that produced zero puzzles.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):

@@ -161,41 +161,25 @@ function chooseClueValue(cell, board, state, rows, cols, opts) {
 // Apply a move from the analyzer to our construction state. Cells
 // revealed by the move become KNOWN with their clue values still
 // uncommitted (added to `pending`); cells flagged become FLAGGED with
-// board=-1.
+// board=-1. analyzeBoard returns *bundled* moves which expose `revealed`
+// and `flagged` arrays (and a `method`, not an `action`) for every move
+// type — reveal, flag, case-split, and enum alike — so we read those
+// directly rather than branching on a move action that bundling drops.
 function applyMove(move, board, state, pending) {
 	if (!move) return;
-	if (move.action === "reveal") {
-		var cells = move.cells || [];
-		for (var i = 0; i < cells.length; i++) {
-			var c = cells[i];
-			if (state[c[0]][c[1]] !== UNKNOWN) continue;
-			state[c[0]][c[1]] = KNOWN;
-			pending.push(c);
-		}
-	} else if (move.action === "flag") {
-		var fcells = move.cells || [];
-		for (var j = 0; j < fcells.length; j++) {
-			var c2 = fcells[j];
-			if (state[c2[0]][c2[1]] !== UNKNOWN) continue;
-			state[c2[0]][c2[1]] = FLAGGED;
-			board[c2[0]][c2[1]] = -1;
-		}
-	} else if (move.action === "case") {
-		// Case-split move: revealed[] and flagged[] are separate.
-		var revs = move.revealed || [];
-		for (var k = 0; k < revs.length; k++) {
-			var rc = revs[k];
-			if (state[rc[0]][rc[1]] !== UNKNOWN) continue;
-			state[rc[0]][rc[1]] = KNOWN;
-			pending.push(rc);
-		}
-		var fls = move.flagged || [];
-		for (var m = 0; m < fls.length; m++) {
-			var fc = fls[m];
-			if (state[fc[0]][fc[1]] !== UNKNOWN) continue;
-			state[fc[0]][fc[1]] = FLAGGED;
-			board[fc[0]][fc[1]] = -1;
-		}
+	var revs = move.revealed || [];
+	for (var k = 0; k < revs.length; k++) {
+		var rc = revs[k];
+		if (state[rc[0]][rc[1]] !== UNKNOWN) continue;
+		state[rc[0]][rc[1]] = KNOWN;
+		pending.push(rc);
+	}
+	var fls = move.flagged || [];
+	for (var m = 0; m < fls.length; m++) {
+		var fc = fls[m];
+		if (state[fc[0]][fc[1]] !== UNKNOWN) continue;
+		state[fc[0]][fc[1]] = FLAGGED;
+		board[fc[0]][fc[1]] = -1;
 	}
 }
 
@@ -325,13 +309,21 @@ function tryConstruct(opts) {
 		chosen = picks[Math.floor(Math.random() * picks.length)];
 	}
 
-	var board = chosen.init.board;
-	var state = chosen.init.state;
-	var startRevealed = chosen.init.startRevealed;
+	return constructFromSeed(chosen.init.board, chosen.init.state, chosen.init.startRevealed, rows, cols, opts);
+}
 
-	// Main loop: drive construction from the analyzer's deductions.
-	// Each "reveal" move adds cells to `pending`, which then get clue
-	// values via search before the next analyzer probe runs.
+// Drive construction from the analyzer's deductions starting from a fully
+// prepared seed (board with some committed clues, state marking KNOWN/UNKNOWN,
+// and the starting revealed set the player will see). Each forced reveal adds
+// cells to `pending`, which then get clue values via search before the next
+// analyzer probe runs; forced flags are recorded as mines. Returns a puzzle
+// { rows, cols, mines, revealed } only if the analyzer fully classifies every
+// cell (KNOWN or FLAGGED) — otherwise null, since a leftover UNKNOWN means the
+// board isn't uniquely solvable. Shared by tryConstruct (cascade seed) and the
+// ring-seed generator (corners4-edges2 seed).
+function constructFromSeed(board, state, startRevealed, rows, cols, opts) {
+	opts = opts || {};
+	var density = typeof opts.density === "number" ? opts.density : 0.20;
 	var pending = [];
 	var maxIters = 4 * rows * cols;
 	while (maxIters-- > 0) {
@@ -361,10 +353,9 @@ function tryConstruct(opts) {
 		}
 	}
 
-	// Build output. `revealed` is the *starting* cascade only — the
-	// cells the player sees before making any move. Everything else
-	// the analyzer derived stays covered (mines flagged, safes to be
-	// re-deduced).
+	// Build output. `revealed` is the *starting* set only — the cells the
+	// player sees before making any move. Everything else the analyzer
+	// derived stays covered (mines flagged, safes to be re-deduced).
 	var mines = [];
 	for (var r2 = 0; r2 < rows; r2++) {
 		for (var c2 = 0; c2 < cols; c2++) {
@@ -456,5 +447,6 @@ function generatePuzzles(opts) {
 
 module.exports = {
 	generatePuzzles: generatePuzzles,
-	tryConstruct: tryConstruct
+	tryConstruct: tryConstruct,
+	constructFromSeed: constructFromSeed
 };
