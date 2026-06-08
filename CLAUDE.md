@@ -49,6 +49,12 @@ Source is split into three trees under `src/`:
   search and skips case-splits below 8 — it's both the generation difficulty ceiling and the
   model for a bot's skill ceiling.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
+- `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
+  block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
+  canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues 3×3 + 3×4 into
+  `deduction-patterns.json` tagged by source size. Spike finding: starting cascades yield only
+  ~5 unique, subset-tier patterns (3×4 adds 1 easy one) — hard patterns live mid-solve, not at
+  the opening, so this isn't a rich source of hard building blocks.
 
 **`src/common/`** — modules required by both runtimes (loaded via plain
 `<script>` tag in the browser and `require()` on the server):
