@@ -69,9 +69,15 @@ function simulateSolveTime(config, template, opts) {
 	var rows = template.rows, cols = template.cols;
 	var game = gameCreator.createGame(template.numMines, rows, cols);
 
+	// All six per-bot variables, plus the board's precomputed difficulty map — the
+	// same fields the server sets on a bot's game at round start.
+	game.botSpeedMs = config.speedMs;
+	game.botDifficultyMs = config.difficultyMs || 0;
+	game.botDistanceMult = (typeof config.distanceMult === "number") ? config.distanceMult : 1;
+	game.botMaxDifficulty = (typeof config.maxDifficulty === "number") ? config.maxDifficulty : 1;
 	game.botMistakeRate = config.mistakeRate || 0;
 	game.botChordRate = (typeof config.chordRate === "number") ? config.chordRate : 0;
-	game.botMaxTier = config.maxTier || "trivial";
+	game.botDifficultyByCell = template.difficultyByCell || null;
 
 	var virtualMs = 0;
 	game.win = function() { game.finished = true; };
@@ -83,13 +89,12 @@ function simulateSolveTime(config, template, opts) {
 	game.playing = true;
 	game.frozenUntil = 0;
 
-	var baseMs = config.speedMs;
 	var lastClick = null;
 	var maxIters = rows * cols * 6; // safety backstop against a non-terminating loop
 	for (var iter = 0; iter < maxIters && !game.finished && virtualMs < capMs; iter++) {
 		var move = botPlayer.decideMove(game);
 		if (!move) break;
-		virtualMs += botPlayer.computeMoveDelay(baseMs, lastClick, move);
+		virtualMs += botPlayer.computeMoveDelay(game, lastClick, move);
 		if (move.type === "right") game.handleRightClick(move.r, move.c);
 		else game.handleLeftClick(move.r, move.c);
 		lastClick = { r: move.r, c: move.c };

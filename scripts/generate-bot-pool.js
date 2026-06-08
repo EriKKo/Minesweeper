@@ -59,11 +59,15 @@ bench.DENSITIES.forEach(function(d) {
 function benchmarkRandomBot() {
 	var config = botPlayer.randomBotConfig();
 	var res = bench.ratingForConfig(config, templatesByDensity, curves);
+	// Carry every per-move variable through verbatim (addBotToRoom reads them), plus
+	// the measured benchmark results.
 	return {
 		speedMs: config.speedMs,
-		mistakeRate: Math.round(config.mistakeRate * 10000) / 10000,
-		chordRate: Math.round(config.chordRate * 1000) / 1000,
-		maxTier: config.maxTier,
+		difficultyMs: config.difficultyMs,
+		distanceMult: config.distanceMult,
+		maxDifficulty: config.maxDifficulty,
+		mistakeRate: config.mistakeRate,
+		chordRate: config.chordRate,
 		times: res.times,
 		ratings: res.ratings,
 		rating: res.rating

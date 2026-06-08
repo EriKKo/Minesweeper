@@ -823,11 +823,13 @@ var bots = {}; // botId -> true
 var BOT_POOL_PATH = process.env.BOT_POOL_PATH || path.join(__dirname, "..", "..", "bots-pool.json");
 console.log("Loaded " + botPlayer.loadPool(BOT_POOL_PATH) + " ranked bots from pool (" + BOT_POOL_PATH + ")");
 var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
-var botSpeedMs = {}; // botId -> ms between actions
+var botSpeedMs = {}; // botId -> flat per-move pace (ms)
+var botDifficultyMs = {}; // botId -> ms of thinking per unit of move difficulty
+var botDistanceMult = {}; // botId -> multiplier on the mouse-travel term
+var botMaxDifficulty = {}; // botId -> hardest move (CSP difficulty) the bot can deduce
 var botRating = {}; // botId -> Elo used for ranked rating math
 var botMistake = {}; // botId -> blunder rate (re-applied to the game each round)
 var botChord = {}; // botId -> chord rate (re-applied to the game each round)
-var botMaxTier = {}; // botId -> solver tier ceiling (re-applied each round)
 var botTickHandles = {}; // botId -> setTimeout handle
 var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
@@ -1012,8 +1014,7 @@ function scheduleBotTick(room, botId) {
 	}
 	if (!move) return;
 
-	var baseMs = botSpeedMs[botId] || botPlayer.speedFor(botDifficulty[botId]);
-	var delay = botPlayer.computeMoveDelay(baseMs, botLastClick[botId] || null, move);
+	var delay = botPlayer.computeMoveDelay(game, botLastClick[botId] || null, move);
 	botTickHandles[botId] = setTimeout(function() {
 		delete botTickHandles[botId];
 		runBotMove(room, botId, move);
@@ -1079,6 +1080,20 @@ function getRoomBotNames(room) {
 	return ret;
 }
 
+// Copy a bot's stored per-move variables onto its current game object (decideMove /
+// computeMoveDelay read them from there). The per-board difficulty map is set
+// separately at round start (it comes from the template, not the bot).
+function applyBotConfigToGame(botId) {
+	var g = games[botId];
+	if (!g) return;
+	g.botSpeedMs = botSpeedMs[botId];
+	g.botDifficultyMs = botDifficultyMs[botId];
+	g.botDistanceMult = botDistanceMult[botId];
+	g.botMaxDifficulty = botMaxDifficulty[botId];
+	g.botMistakeRate = botMistake[botId];
+	g.botChordRate = botChord[botId];
+}
+
 function addBotToRoom(room, config, prechosenName) {
 	if (room.phase !== "planning") return false;
 	if (room.isFull()) return false;
@@ -1088,24 +1103,22 @@ function addBotToRoom(room, config, prechosenName) {
 	names[botId] = prechosenName || botPlayer.pickBotName(getRoomBotNames(room));
 	games[botId] = createPlayerGame(botId, room.rows, room.cols);
 	if (config) {
-		// Elo-tuned bot (ranked): explicit speed, mistake rate, and rating.
+		// Elo-tuned bot (ranked, from the pool): explicit per-move variables + rating.
 		botDifficulty[botId] = null;
-		botSpeedMs[botId] = config.speedMs;
-		botRating[botId] = config.rating;
-		botMistake[botId] = config.mistakeRate;
-		botChord[botId] = (typeof config.chordRate === "number") ? config.chordRate : 0;
-		botMaxTier[botId] = config.maxTier || "trivial";
 	} else {
+		// Casual room: derive the variable set from the difficulty preset.
 		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
-		botSpeedMs[botId] = botPlayer.speedFor(botDifficulty[botId]);
-		botMistake[botId] = botPlayer.mistakeRateFor(botDifficulty[botId]);
-		botChord[botId] = botPlayer.chordRateFor(botDifficulty[botId]);
-		botMaxTier[botId] = botPlayer.maxTierFor(botDifficulty[botId]);
-		botRating[botId] = RANKED_BOT_RATING;
+		config = botPlayer.configForDifficulty(botDifficulty[botId]);
+		config.rating = RANKED_BOT_RATING;
 	}
-	games[botId].botMistakeRate = botMistake[botId];
-	games[botId].botChordRate = botChord[botId];
-	games[botId].botMaxTier = botMaxTier[botId];
+	botSpeedMs[botId] = config.speedMs;
+	botDifficultyMs[botId] = config.difficultyMs;
+	botDistanceMult[botId] = config.distanceMult;
+	botMaxDifficulty[botId] = config.maxDifficulty;
+	botMistake[botId] = config.mistakeRate;
+	botChord[botId] = (typeof config.chordRate === "number") ? config.chordRate : 0;
+	botRating[botId] = config.rating || RANKED_BOT_RATING;
+	applyBotConfigToGame(botId);
 	roomMapping[botId] = room;
 	room.addPlayer(botId);
 	room.playerReady(botId);
@@ -1133,10 +1146,12 @@ function removeBotEntirely(botId) {
 	delete bots[botId];
 	delete botDifficulty[botId];
 	delete botSpeedMs[botId];
+	delete botDifficultyMs[botId];
+	delete botDistanceMult[botId];
+	delete botMaxDifficulty[botId];
 	delete botRating[botId];
 	delete botMistake[botId];
 	delete botChord[botId];
-	delete botMaxTier[botId];
 	delete botLastClick[botId];
 }
 
@@ -1694,9 +1709,10 @@ function startGame(room) {
 		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
 		games[pid] = createPlayerGame(pid, room.rows, room.cols);
 		if (isBot(pid)) {
-			games[pid].botMistakeRate = botMistake[pid];
-			games[pid].botChordRate = botChord[pid];
-			games[pid].botMaxTier = botMaxTier[pid];
+			applyBotConfigToGame(pid);
+			// The board's per-cell difficulty map (computed once at generation) drives
+			// each bot's pacing and its max-difficulty skill gate.
+			games[pid].botDifficultyByCell = template.difficultyByCell || null;
 		}
 		games[pid].init(template);
 	}
@@ -2488,15 +2504,14 @@ io.on("connection", function (socket) {
 		if (!isBot(botId) || roomMapping[botId] !== room) return;
 		if (botPlayer.DIFFICULTIES.indexOf(difficulty) === -1) return;
 		botDifficulty[botId] = difficulty;
-		botSpeedMs[botId] = botPlayer.speedFor(difficulty);
-		botMistake[botId] = botPlayer.mistakeRateFor(difficulty);
-		botChord[botId] = botPlayer.chordRateFor(difficulty);
-		botMaxTier[botId] = botPlayer.maxTierFor(difficulty);
-		if (games[botId]) {
-			games[botId].botMistakeRate = botMistake[botId];
-			games[botId].botChordRate = botChord[botId];
-			games[botId].botMaxTier = botMaxTier[botId];
-		}
+		var cfg = botPlayer.configForDifficulty(difficulty);
+		botSpeedMs[botId] = cfg.speedMs;
+		botDifficultyMs[botId] = cfg.difficultyMs;
+		botDistanceMult[botId] = cfg.distanceMult;
+		botMaxDifficulty[botId] = cfg.maxDifficulty;
+		botMistake[botId] = cfg.mistakeRate;
+		botChord[botId] = cfg.chordRate;
+		applyBotConfigToGame(botId);
 		broadcastRoomState(room);
 	});
 

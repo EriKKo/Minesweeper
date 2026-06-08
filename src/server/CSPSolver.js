@@ -44,6 +44,10 @@ var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
 var INTERSECT_COST = 2.5;
+// Base complexity of a 1-cell case split (added to the hardest branch's cost).
+// Also the floor: when a maxComplexity cap is below this, case analysis is skipped
+// entirely (the user-facing speedup for capped solves).
+var CASE_BASE = 8;
 // Per-cell surcharge added to each initial clue. Counting against five
 // covered cells is harder than against two; the surcharge propagates
 // through every derivation since parent complexities sum.
@@ -232,11 +236,17 @@ function findBestTrivialClue(initialClues, opts) {
 	var maxCells = opts.maxCells || DEFAULT_MAX_CELLS;
 	var maxBbox = opts.maxBbox != null ? opts.maxBbox : DEFAULT_MAX_BBOX;
 	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
+	var maxComplexity = opts.maxComplexity != null ? opts.maxComplexity : Infinity;
 	var seen = {}, keys = [], heap = [];
 
 	function admit(clue) {
 		if (!clue) return;
 		if (clue.cells.length > maxCells) return;
+		// Derivations only get more complex (children >= parent complexity + a
+		// positive op cost), so anything already over the cap can be pruned — its
+		// descendants would exceed it too. This both enforces the skill ceiling and
+		// is the main speedup for capped solves.
+		if (clue.complexity > maxComplexity) return;
 		if (!bboxOk(clue.cells, maxBbox)) return;
 		var prev = seen[clue.key];
 		if (prev && prev.complexity <= clue.complexity) return;
@@ -412,7 +422,7 @@ function findCaseSplitStep(board, state, opts) {
 		}
 		if (!revealed.length && !flagged.length) continue;
 		var branchMax = Math.max(okA ? resA.maxC : 0, okB ? resB.maxC : 0);
-		var complexity = 8 + branchMax;
+		var complexity = CASE_BASE + branchMax;
 		var yieldCount = revealed.length + flagged.length;
 		if (!best
 			|| complexity < best.complexity
@@ -515,6 +525,7 @@ function applyTrivialClue(board, state, clue, revealCell) {
 // boards.
 function analyzeBoard(board, state, opts) {
 	opts = opts || {};
+	var maxComplexity = opts.maxComplexity != null ? opts.maxComplexity : Infinity;
 	var moves = [];
 	while (true) {
 		var initial = buildInitialClues(board, state);
@@ -528,7 +539,7 @@ function analyzeBoard(board, state, opts) {
 			}
 		}
 		var best = directTrivial || findBestTrivialClue(initial, opts);
-		if (best) {
+		if (best && best.complexity <= maxComplexity) {
 			// Snapshot the cells the move actually changed (reveal or flag)
 			// before applying, so the UI can highlight them on the board.
 			var changed = [];
@@ -550,8 +561,10 @@ function analyzeBoard(board, state, opts) {
 			continue;
 		}
 		// CSP search exhausted — try 1-cell case analysis (cheaper than enum).
-		var caseStep = findCaseSplitStep(board, state, opts);
-		if (caseStep) {
+		// A case split costs at least CASE_BASE, so skip it entirely when the cap is
+		// below that (never pay for case analysis a capped solver isn't allowed to do).
+		var caseStep = (maxComplexity >= CASE_BASE) ? findCaseSplitStep(board, state, opts) : null;
+		if (caseStep && caseStep.complexity <= maxComplexity) {
 			var caseRevealed = [], caseFlagged = [];
 			for (var csi = 0; csi < caseStep.revealed.length; csi++) {
 				var crc = caseStep.revealed[csi];
@@ -583,7 +596,7 @@ function analyzeBoard(board, state, opts) {
 		// Even case analysis can't progress — final fallback is brute-force enum
 		// on the smallest yielding frontier component.
 		var enumStep = findSmallestEnumStep(board, state);
-		if (!enumStep) break;
+		if (!enumStep || enumComplexity(enumStep.componentSize) > maxComplexity) break;
 		var revealed = [], flagged = [];
 		for (var si = 0; si < enumStep.safeCells.length; si++) {
 			var sr = enumStep.safeCells[si];

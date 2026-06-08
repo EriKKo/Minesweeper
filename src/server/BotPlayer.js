@@ -9,55 +9,40 @@ var UNKNOWN = BoardLogic.UNKNOWN;
 var KNOWN = BoardLogic.KNOWN;
 // Board dimensions are derived per game from game.board (boards can vary in size).
 
-// Per-bot skill bundles both pace and accuracy:
-//  - speed is the baseline "thinking" pace (ms between actions); lower = faster.
-//  - mistake rate is the chance that, on a turn where the bot *could* play a
-//    guaranteed-safe move, it instead misreads the board and guesses at a frontier
-//    cell (which may be a mine).
-// Tuned so easy bots are slow and blunder into a few mines per game, while hard
-// bots are fast and almost never err.
+// Every bot is parameterised by six variables, set on the game object by the server
+// (per round) and the headless benchmark, and consumed by decideMove/computeMoveDelay:
+//  - speedMs:      flat per-move pace (ms); lower = faster.
+//  - difficultyMs: ms of "thinking" added per unit of a move's numeric difficulty
+//                  (the CSP complexity of the deduction). Harder move → longer pause.
+//  - distanceMult: per-bot multiplier on the mouse-travel term (refocus speed).
+//  - maxDifficulty: hardest move (same difficulty scale) the bot can deduce; beyond
+//                   it, it can't see the move and has to guess.
+//  - mistakeRate:  chance of misclicking a guaranteed-safe move into a frontier guess.
+//  - chordRate:    chance of chording when the board geometry allows it.
+// The difficulty scale is the CSP solver's complexity, capped at GEN_MAX_COMPLEXITY (7)
+// at board generation; trivial counting moves sit at ~1.
 var DIFFICULTIES = ["easy", "medium", "hard"];
 var DEFAULT_DIFFICULTY = "medium";
-var MISTAKE_RATES = { easy: 0.09, medium: 0.03, hard: 0.008 };
-var DIFFICULTY_SPEEDS = { easy: 800, medium: 400, hard: 200 };
-// Chord rates: probability that a bot, given a chord opportunity, will take
-// it instead of revealing one cell at a time.  Higher-skill bots chord more
-// — the time saved (1 click vs N) is what makes them feel sharper, and it
-// roughly matches what a real player at that level does.
-var CHORD_RATES = { easy: 0.05, medium: 0.35, hard: 0.75 };
-// Solver tier ceilings — the highest deduction tier the bot can reach. Below
-// the ceiling, the bot uses the solver; above, it gives up and guesses (with
-// a thinking pause, since the bot still spent effort trying).
-var MAX_TIERS = { easy: "trivial", medium: "subset", hard: "chain" };
-var TIER_ORDER = ["trivial", "subset", "overlap", "chain", "enum"];
+// Casual-room difficulty presets on the new variable set: easy bots are slow, think
+// hard, can only do near-trivial moves, and blunder; hard bots are fast, think little,
+// solve anything, and rarely err.
+var DIFFICULTY_PRESETS = {
+	easy:   { speedMs: 800, difficultyMs: 350, distanceMult: 1.3, maxDifficulty: 1.5, mistakeRate: 0.09,  chordRate: 0.05 },
+	medium: { speedMs: 400, difficultyMs: 180, distanceMult: 1.0, maxDifficulty: 4,   mistakeRate: 0.03,  chordRate: 0.35 },
+	hard:   { speedMs: 200, difficultyMs: 80,  distanceMult: 0.8, maxDifficulty: 8,   mistakeRate: 0.008, chordRate: 0.75 }
+};
 
-function mistakeRateFor(difficulty) {
-	return MISTAKE_RATES.hasOwnProperty(difficulty) ? MISTAKE_RATES[difficulty] : MISTAKE_RATES[DEFAULT_DIFFICULTY];
+function configForDifficulty(difficulty) {
+	var p = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY];
+	return {
+		speedMs: p.speedMs, difficultyMs: p.difficultyMs, distanceMult: p.distanceMult,
+		maxDifficulty: p.maxDifficulty, mistakeRate: p.mistakeRate, chordRate: p.chordRate
+	};
 }
 
-function speedFor(difficulty) {
-	return DIFFICULTY_SPEEDS.hasOwnProperty(difficulty) ? DIFFICULTY_SPEEDS[difficulty] : DIFFICULTY_SPEEDS[DEFAULT_DIFFICULTY];
-}
-
-function chordRateFor(difficulty) {
-	return CHORD_RATES.hasOwnProperty(difficulty) ? CHORD_RATES[difficulty] : CHORD_RATES[DEFAULT_DIFFICULTY];
-}
-
-function maxTierFor(difficulty) {
-	return MAX_TIERS.hasOwnProperty(difficulty) ? MAX_TIERS[difficulty] : MAX_TIERS[DEFAULT_DIFFICULTY];
-}
-
-// Map Elo to a solver tier ceiling.  Low-Elo bots can only see trivial
-// deductions and have to guess on anything harder; high-Elo bots reach
-// chain or enum.  Buckets are wide so a small Elo drift doesn't flip the
-// ceiling every match.
-function maxTierForElo(elo) {
-	if (elo < 800)  return "trivial";
-	if (elo < 1100) return "subset";
-	if (elo < 1400) return "overlap";
-	if (elo < 1700) return "chain";
-	return "enum";
-}
+// Trivial counting moves (direct neighbour deductions + chords) — the bot finds these
+// by itself without the solver, so they're the easiest possible move.
+var TRIVIAL_DIFFICULTY = 1;
 
 // Anchor points the bot-strength curve is calibrated to: configForElo(600) is the
 // weak reference, configForElo(1800) the strong one. The curve extrapolates below
@@ -68,71 +53,58 @@ var ELO_MIN = 600, ELO_MAX = 1800, ELO_FLOOR = 0;
 function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-// Build a bot tuned to play at roughly `elo`. Strength rises with elo via two
-// knobs — faster pace and fewer blunders. A random "style" then trades those off
-// (slow & safe ⇄ fast & reckless). To keep style roughly strength-neutral, the
-// per-move speed bonus a reckless bot gets is derived from the expected penalty
-// cost of its extra blunders, so the time saved ≈ the time lost to mines.
-//
-// NOTE: nothing at runtime calls configForElo any more — ranked filler bots are
-// drawn from a pre-benchmarked pool (see pickBotFromPool / scripts/generate-bot-pool.js).
-// It is retained solely as the *calibration anchor* for that pool: the offline
-// generator benchmarks configForElo(600..1800) to learn the solve-time↔Elo curve,
-// then maps each random pool bot's measured times back onto the same scale so the
-// ranked ladder's Elo numbers keep their existing meaning.
-var STYLE_MISTAKE = 1.0;   // reckless doubles blunders; safe drops them to ~0
-var MINE_PROB = 0.3;       // ~chance a blunder actually uncovers a mine
-var PENALTY_MS = 5000;     // ranked death-penalty freeze
+var PENALTY_MS = 5000;     // ranked death-penalty freeze (used by the benchmark clock)
 
+// Build a reference bot for `elo` along a single strength curve: higher Elo = faster
+// pace, less per-difficulty thinking, a higher max-difficulty ceiling, fewer blunders,
+// and more chording.
+//
+// NOTE: nothing at runtime calls configForElo any more — ranked filler bots are drawn
+// from a pre-benchmarked pool (pickBotFromPool / scripts/generate-bot-pool.js). It is
+// retained as the *calibration anchor*: the generator benchmarks configForElo(0..1800)
+// to learn the solve-time↔Elo curve, then maps each random pool bot's measured times
+// onto the same scale so the ladder's Elo numbers keep their meaning. (Also the
+// pool-missing fallback in pickBotFromPool.)
 function configForElo(elo) {
 	// Allow s below 0 (down to ELO_FLOOR) so the curve extrapolates to weaker-than-600
-	// reference bots; the speed/mistake/chord clamps below keep the extrapolation sane.
+	// reference bots; the clamps below keep the extrapolation sane.
 	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), (ELO_FLOOR - ELO_MIN) / (ELO_MAX - ELO_MIN), 1);
-	var baseSpeed = lerp(950, 130, s);       // ms between actions; faster as s rises
-	var baseMistake = lerp(0.06, 0.002, s);  // blunder chance; lower as s rises
-	var style = Math.random() * 2 - 1;        // -1 = slow & safe, +1 = fast & reckless
-
-	// Extra blunders from +style cost ~ (baseMistake*STYLE_MISTAKE)*MINE_PROB*PENALTY_MS
-	// per move; give that same amount back as a per-move speed bonus so the styles
-	// stay about equally strong.
-	var speedSwing = baseMistake * STYLE_MISTAKE * MINE_PROB * PENALTY_MS;
-	var speedMs = Math.round(clamp(baseSpeed - style * speedSwing, 70, 1400));
-	var mistakeRate = clamp(baseMistake * (1 + STYLE_MISTAKE * style), 0, 0.4);
-	// Chording is a learned speed technique: most beginners click cells one
-	// by one; experienced players chord almost every time the geometry
-	// allows.  Curve from ~5% at the floor to ~85% at the ceiling; the
-	// resulting time savings naturally flow back into apparent skill.
-	var chordRate = clamp(lerp(0.05, 0.85, s), 0, 1);
 	return {
 		rating: Math.round(elo),
-		speedMs: speedMs,
-		mistakeRate: mistakeRate,
-		chordRate: chordRate,
-		maxTier: maxTierForElo(elo),
-		style: style,
-		reckless: style > 0
+		speedMs: Math.round(clamp(lerp(950, 130, s), 70, 1400)),       // pace; faster as s rises
+		difficultyMs: Math.round(clamp(lerp(320, 60, s), 20, 600)),    // per-difficulty thinking; less as s rises
+		distanceMult: 1,                                                // strength-neutral; varied only in the pool
+		maxDifficulty: clamp(lerp(1.2, 8, s), 1, 9),                    // skill ceiling; trivial-only at the floor
+		mistakeRate: clamp(lerp(0.06, 0.002, s), 0, 0.4),              // blunder chance; lower as s rises
+		chordRate: clamp(lerp(0.05, 0.85, s), 0, 1)
 	};
 }
 
-// Knob ranges for randomly-generated pool bots. Deliberately wider than the
-// configForElo curve's span so the random pool covers — and slightly overshoots —
-// the playable strength range; the offline benchmark then measures where each
-// random bot actually lands and the coverage pass trims/fills to span 600–1800.
-var RAND_SPEED_MIN = 70, RAND_SPEED_MAX = 1400;   // ms between actions
-var RAND_MISTAKE_MIN = 0, RAND_MISTAKE_MAX = 0.12; // blunder chance
-var RAND_CHORD_MIN = 0, RAND_CHORD_MAX = 1;        // chord-when-possible chance
+// Knob ranges for randomly-generated pool bots. Spans (and slightly overshoots) the
+// playable range so the pool covers 0–1800 after benchmarking. maxDifficulty runs from
+// trivial-only up past GEN_MAX_COMPLEXITY (7) so the strongest bots solve everything.
+var RAND = {
+	speedMs:       [70, 1400],
+	difficultyMs:  [40, 400],
+	distanceMult:  [0.4, 2.0],
+	maxDifficulty: [1, 8.5],
+	mistakeRate:   [0, 0.12],
+	chordRate:     [0, 1]
+};
 
-// A pool bot is just a random point in knob-space. Unlike configForElo, the four
-// knobs vary independently — speed, accuracy, chording, and solver depth are not
-// tied to a single strength dial — so the pool contains genuinely different play
-// styles that happen to benchmark to similar Elos. `rating`/`times` are filled in
-// later by the benchmark (scripts/generate-bot-pool.js); here they're left absent.
+// A pool bot is a random point in this six-axis knob-space. The axes vary independently
+// — pace, per-difficulty thinking, refocus speed, skill ceiling, blunders, and chording
+// aren't tied to one strength dial — so the pool holds genuinely different play styles
+// that happen to benchmark to similar Elos. `rating` is filled in by the benchmark.
 function randomBotConfig() {
+	function u(range) { return lerp(range[0], range[1], Math.random()); }
 	return {
-		speedMs: Math.round(lerp(RAND_SPEED_MIN, RAND_SPEED_MAX, Math.random())),
-		mistakeRate: lerp(RAND_MISTAKE_MIN, RAND_MISTAKE_MAX, Math.random()),
-		chordRate: lerp(RAND_CHORD_MIN, RAND_CHORD_MAX, Math.random()),
-		maxTier: TIER_ORDER[Math.floor(Math.random() * TIER_ORDER.length)]
+		speedMs: Math.round(u(RAND.speedMs)),
+		difficultyMs: Math.round(u(RAND.difficultyMs)),
+		distanceMult: Math.round(u(RAND.distanceMult) * 100) / 100,
+		maxDifficulty: Math.round(u(RAND.maxDifficulty) * 100) / 100,
+		mistakeRate: Math.round(u(RAND.mistakeRate) * 10000) / 10000,
+		chordRate: Math.round(u(RAND.chordRate) * 1000) / 1000
 	};
 }
 
@@ -229,7 +201,9 @@ function decideMove(game) {
 		var rate = game.botMistakeRate || 0;
 		if (rate > 0 && Math.random() < rate) {
 			var blunder = pickFrontierGuess(game);
-			if (blunder) { game.botFocus = { r: blunder.r, c: blunder.c }; return blunder; }
+			// A hasty misclick is quick — treat it as a trivial-effort move, not a
+			// deliberated guess, so it doesn't earn a long thinking pause.
+			if (blunder) { blunder.difficulty = TRIVIAL_DIFFICULTY; game.botFocus = { r: blunder.r, c: blunder.c }; return blunder; }
 		}
 	}
 	return best;
@@ -344,7 +318,7 @@ function computeBestMove(game) {
 		var chordRate = typeof game.botChordRate === "number" ? game.botChordRate : 0;
 		if (chordRate > 0 && Math.random() < chordRate) {
 			var chordActions = chordList.map(function(x) {
-				return { type: "left", r: x.r, c: x.c, certain: true, chord: true, tier: "trivial" };
+				return { type: "left", r: x.r, c: x.c, certain: true, chord: true, difficulty: TRIVIAL_DIFFICULTY };
 			});
 			var chordPick = pickByFocus(game, chordActions);
 			game.botFocus = { r: chordPick.r, c: chordPick.c };
@@ -353,8 +327,8 @@ function computeBestMove(game) {
 	}
 
 	var actions = [];
-	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, tier: "trivial" });
-	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, tier: "trivial" });
+	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, difficulty: TRIVIAL_DIFFICULTY });
+	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, difficulty: TRIVIAL_DIFFICULTY });
 
 	if (actions.length) {
 		var pick = pickByFocus(game, actions);
@@ -362,32 +336,33 @@ function computeBestMove(game) {
 		return pick;
 	}
 
-	// Escalate to the solver — but only up to the bot's tier ceiling. Low-Elo
-	// bots that can't see overlap patterns will fail to find a deduction here
-	// and fall through to a "stuck" guess (with a thinking pause to represent
-	// the effort).  Higher-Elo bots reach deeper into the chain/enum tiers and
-	// keep playing accurately.
-	var maxTier = game.botMaxTier || "trivial";
-	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, maxTier);
+	// No trivial move. Find the easiest deducible move (uncapped probe — fast), then
+	// gate on the bot's max difficulty using the board's precomputed difficulty map.
+	// A bot that can't reason that hard never sees the move and falls through to a guess.
+	var maxDifficulty = (typeof game.botMaxDifficulty === "number") ? game.botMaxDifficulty : TRIVIAL_DIFFICULTY;
+	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, "enum");
 	if (hint) {
-		var tier = hint.kind ? hint.kind.replace("-flag", "") : "subset";
-		if (hint.safeCells && hint.safeCells.length) {
-			var s = hint.safeCells[Math.floor(Math.random() * hint.safeCells.length)];
-			game.botFocus = { r: s[0], c: s[1] };
-			return { type: "left", r: s[0], c: s[1], certain: true, tier: tier };
-		}
-		if (hint.mineCells && hint.mineCells.length) {
-			var m = hint.mineCells[Math.floor(Math.random() * hint.mineCells.length)];
-			game.botFocus = { r: m[0], c: m[1] };
-			return { type: "right", r: m[0], c: m[1], certain: true, tier: tier };
+		var hintCells = (hint.safeCells && hint.safeCells.length) ? hint.safeCells : (hint.mineCells || []);
+		var hintType = (hint.safeCells && hint.safeCells.length) ? "left" : "right";
+		if (hintCells.length) {
+			// The move's difficulty is the easiest (min) of its cells on the CSP map;
+			// fall back to a per-kind estimate if a cell wasn't keyed (e.g. cascade-only).
+			var diff = Infinity;
+			for (var hc = 0; hc < hintCells.length; hc++) {
+				diff = Math.min(diff, cellDifficulty(game, hintCells[hc][0], hintCells[hc][1]));
+			}
+			if (!isFinite(diff)) diff = kindDifficulty(hint.kind);
+			if (diff <= maxDifficulty) {
+				var pick = hintCells[Math.floor(Math.random() * hintCells.length)];
+				game.botFocus = { r: pick[0], c: pick[1] };
+				return { type: hintType, r: pick[0], c: pick[1], certain: true, difficulty: diff };
+			}
 		}
 	}
 
-	// Solver returned nothing within ceiling: this position requires a tier
-	// the bot doesn't have access to.  Guess, but tag with the ceiling tier
-	// AND a "stuck" flag so computeMoveDelay can budget a "thought about it,
-	// gave up" pause — even trivial-only bots should pause briefly before
-	// committing to a guess instead of click-spamming.
+	// The easiest available deduction is beyond the bot's reach (or none exists): guess.
+	// Tag with maxDifficulty + `stuck` so computeMoveDelay budgets a "thought to my
+	// limit, then committed" pause proportional to how hard the bot tries.
 	var guess = pickFrontierGuess(game);
 	if (!guess) {
 		var candidates = [];
@@ -400,60 +375,70 @@ function computeBestMove(game) {
 		var p = candidates[Math.floor(Math.random() * candidates.length)];
 		guess = { type: "left", r: p[0], c: p[1], certain: false };
 	}
-	guess.tier = maxTier;
+	guess.difficulty = maxDifficulty;
 	guess.stuck = true;
 	game.botFocus = { r: guess.r, c: guess.c };
 	return guess;
 }
 
-// Returns ms to wait before performing `move` from `lastClick`. `baseMs` is the
-// room's bot-speed setting (a baseline "thinking" pace). The model:
-//   - log-scaled distance term (a saccade/refocus tax — farther = slower)
-//   - thinking pause when guessing (no certain deduction)
-//   - thinking pause when the deduction was hard (subset → enum), so the bot
-//     visibly hesitates on tough boards instead of click-spamming through
-//     deductions a human would pause on
-//   - extra pause on the very first move of a round (planning the opening)
+// A cell's numeric difficulty from the board's precomputed CSP difficulty map (set on
+// the game at round start / in the benchmark). Cells opened only by cascade aren't
+// keyed — they were free, so treat them as trivial.
+function cellDifficulty(game, r, c) {
+	var map = game.botDifficultyByCell;
+	if (map) {
+		var d = map[r + "," + c];
+		if (typeof d === "number") return d;
+	}
+	return TRIVIAL_DIFFICULTY;
+}
+
+// Fallback difficulty when the pass solver finds a move whose cell wasn't in the CSP
+// map (rare). Rough per-method complexity so the skill gate still behaves sanely.
+function kindDifficulty(kind) {
+	var k = kind ? kind.replace("-flag", "") : "subset";
+	if (k === "trivial") return 1;
+	if (k === "subset") return 2.5;
+	if (k === "overlap") return 4;
+	if (k === "chain") return 6;
+	return 7; // enum / unknown
+}
+
+// Returns ms to wait before performing `move`, reading the bot's per-move variables
+// off `game` (botSpeedMs / botDifficultyMs / botDistanceMult). The model:
+//   - flat per-move pace (speedMs)
+//   - distance term (a saccade/refocus tax — farther = slower), scaled per-bot
+//   - thinking pause proportional to the move's numeric difficulty × the bot's
+//     difficultyMs, so harder deductions visibly take longer (the human feel)
+//   - an opening planning beat on the first move of a round
 //   - small Gaussian-ish jitter so two consecutive ticks never look identical
 //
-// The tier-based pause is what keeps high-density boards from feeling unfair.
-// On a 25%-mine board the bot still needs to chain subset/overlap/enum like a
-// real player; without this, it'd power through them at trivial pace.
-var TIER_THINKING_MS = {
-	trivial: 0,
-	subset: 450,
-	overlap: 800,
-	chain: 1200,
-	enum: 1800
-};
+// The difficulty term is what keeps dense boards fair: a hard chain costs the same
+// extra thinking time for everyone (it's absolute, not scaled by pace), so a fast
+// bot's edge shrinks exactly where reading hard patterns is what matters.
+function computeMoveDelay(game, lastClick, move) {
+	var speedMs = (typeof game.botSpeedMs === "number") ? game.botSpeedMs : 400;
+	var difficultyMs = (typeof game.botDifficultyMs === "number") ? game.botDifficultyMs : 0;
+	var distanceMult = (typeof game.botDistanceMult === "number") ? game.botDistanceMult : 1;
 
-function computeMoveDelay(baseMs, lastClick, move) {
 	var distance = 0;
 	if (lastClick) {
-		distance = Math.max(
-			Math.abs(lastClick.r - move.r),
-			Math.abs(lastClick.c - move.c)
-		);
+		distance = Math.max(Math.abs(lastClick.r - move.r), Math.abs(lastClick.c - move.c));
 	}
 	// log scaling: ~30ms per square for short hops, levelling off for long ones
 	var distanceTerm = distance === 0 ? 0 : 40 + 55 * Math.log2(distance + 1);
-	var thinkingTerm = 0;
-	if (move.opening) thinkingTerm = Math.max(250, baseMs * 0.6);
-	else if (!move.certain) thinkingTerm = Math.max(150, baseMs * 0.4);
-	// Tier-based thinking pause: harder deductions take longer to spot.
-	// Max() against the existing thinkingTerm so we don't double-count for
-	// uncertain guesses (which already have their own pause).
-	var tierMs = (move.tier && TIER_THINKING_MS[move.tier]) || 0;
-	// A stuck guess: bot tried tiers up to its ceiling, found nothing, has to
-	// guess. Pause for at least ceiling-tier thinking time + 400ms so even a
-	// trivial-only bot pauses briefly before committing — they just looked at
-	// the board and realized they couldn't deduce anything.
-	if (move.stuck) tierMs = Math.max(tierMs + 400, 600);
-	if (tierMs > thinkingTerm) thinkingTerm = tierMs;
+
+	// Difficulty-scaled thinking. The opening has no difficulty value, so give it a
+	// flat planning beat instead. Guesses (stuck/blunder) carry a difficulty too —
+	// maxDifficulty for a deliberated stuck guess, trivial for a hasty misclick.
+	var difficulty = (typeof move.difficulty === "number") ? move.difficulty : TRIVIAL_DIFFICULTY;
+	var thinkingTerm = difficultyMs * difficulty;
+	if (move.opening) thinkingTerm = Math.max(thinkingTerm, Math.max(250, speedMs * 0.6));
+
 	// average-of-three uniforms ≈ approximately normal, mean 0, range ~[-1, 1]
 	var n = (Math.random() + Math.random() + Math.random()) / 1.5 - 1;
-	var jitter = n * baseMs * 0.18;
-	var total = baseMs + distanceTerm + thinkingTerm + jitter;
+	var jitter = n * speedMs * 0.18;
+	var total = speedMs + distanceMult * distanceTerm + thinkingTerm + jitter;
 	return Math.max(60, Math.round(total));
 }
 
@@ -462,14 +447,9 @@ exports.computeMoveDelay = computeMoveDelay;
 exports.pickBotName = pickBotName;
 exports.DIFFICULTIES = DIFFICULTIES;
 exports.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY;
-exports.mistakeRateFor = mistakeRateFor;
-exports.speedFor = speedFor;
-exports.chordRateFor = chordRateFor;
-exports.maxTierFor = maxTierFor;
-exports.maxTierForElo = maxTierForElo;
+exports.configForDifficulty = configForDifficulty;
 exports.configForElo = configForElo;
 exports.randomBotConfig = randomBotConfig;
 exports.loadPool = loadPool;
 exports.pickBotFromPool = pickBotFromPool;
 exports.PENALTY_MS = PENALTY_MS;
-exports.TIER_ORDER = TIER_ORDER;
