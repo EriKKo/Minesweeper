@@ -87,10 +87,12 @@ function renderRoomState(state) {
 	mineDensityReadonly.textContent = formatMineDensity(state.mineDensity);
 
 	// During play, the right column shows the other players; in planning, it shows
-	// the room options. The scoreboard stays visible in both phases.
+	// the room options. The scoreboard stays visible in both phases. Ranked rooms
+	// have a locked ruleset and no lobby to configure, so the options card never
+	// shows for them — it's only meaningful in a custom lobby.
 	var playing = state.phase !== "planning";
 	allOpponentsDiv.style.display = playing ? "" : "none";
-	seriesCard.style.display = playing ? "none" : "";
+	seriesCard.style.display = (playing || state.ranked) ? "none" : "";
 	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";
 	if (showBotCard) {
