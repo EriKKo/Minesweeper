@@ -462,7 +462,7 @@ function renderLearnHome() {
 			var c = LEARN_COURSES[idx];
 			var prog = courseProgress(c.id);
 			var done = courseIsComplete(c.id);
-			var locked = idx > 0 && !courseIsComplete(LEARN_COURSES[idx - 1].id);
+			var locked = false; // courses are open — pick them in any order
 			var card = document.createElement("button");
 			card.type = "button";
 			card.className = "learn-course-card" + (done ? " done" : "") + (locked ? " locked" : "");
