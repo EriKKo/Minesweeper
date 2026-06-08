@@ -1562,11 +1562,12 @@ main {
 .puzzle-card-label { font-size: 0.8rem; font-weight: 600; margin: 0.45rem 0 0.1rem; }
 .puzzle-card .learn-puzzle { padding: 0; }
 /* Wide combined boards (up to ~11 cols) are rendered at a fixed cell size; scale the canvas
-   down to fit its card / modal column instead of overflowing. height:auto keeps the aspect. */
+   down to fit its card / modal column instead of overflowing. The canvas carries an inline
+   width+height (px), so height:auto needs !important to win and keep the aspect ratio square. */
 .puzzle-card .learn-board { display: block; max-width: 100%; box-sizing: border-box; }
-.puzzle-card .learn-board canvas { max-width: 100%; height: auto; }
+.puzzle-card .learn-board canvas { max-width: 100%; height: auto !important; }
 .analyze-modal-board .learn-board { max-width: 100%; box-sizing: border-box; }
-.analyze-modal-board .learn-board canvas { max-width: 100%; height: auto; }
+.analyze-modal-board .learn-board canvas { max-width: 100%; height: auto !important; }
 
 /* Combined-puzzles page: group headings + the seam-conflict note. */
 .section-page-subtitle { font-size: 1rem; margin: 1.6rem 0 0.7rem; color: var(--text); }
