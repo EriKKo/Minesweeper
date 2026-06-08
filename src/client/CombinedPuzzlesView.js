@@ -33,24 +33,31 @@ function renderCombinedPuzzles() {
 			? (puzzles.length + " combined puzzles" + (data.generatedAt ? " · generated " + data.generatedAt.slice(0, 10) : ""))
 			: "No combined puzzles — run scripts/combine-patterns.js to build combined-puzzles.json.";
 
-		// Group cards by the script's `group` field, hardest first within each group.
-		var groups = [];
-		var byGroup = {};
-		puzzles.forEach(function(p) {
-			if (!byGroup[p.group]) { byGroup[p.group] = []; groups.push(p.group); }
-			byGroup[p.group].push(p);
-		});
-		groups.forEach(function(g) {
+		// Split by whether the board is fully no-guess solvable. Solvable ones are real playable
+		// puzzles; "partial" ones force some cells (often a ring of mines via a case-split) and
+		// then stall on a genuine ambiguity — kept because Analyze still shows the hard deduction.
+		function section(heading, blurb, list) {
+			if (!list.length) return;
 			var h = document.createElement("h2");
 			h.className = "section-page-subtitle";
-			h.textContent = g;
+			h.textContent = heading;
 			view.appendChild(h);
+			if (blurb) {
+				var b = document.createElement("p");
+				b.className = "combined-section-blurb";
+				b.textContent = blurb;
+				view.appendChild(b);
+			}
 			var grid = document.createElement("div");
 			grid.className = "puzzles-grid";
-			byGroup[g].sort(function(a, b) { return (b.cspMaxComplexity || 0) - (a.cspMaxComplexity || 0); });
-			byGroup[g].forEach(function(p) { grid.appendChild(renderPuzzleListCard(p, "/api/combined-puzzles")); });
+			list.sort(function(a, b) { return (b.cspMaxComplexity || 0) - (a.cspMaxComplexity || 0); });
+			list.forEach(function(p) { grid.appendChild(renderPuzzleListCard(p, "/api/combined-puzzles")); });
 			view.appendChild(grid);
-		});
+		}
+		section("Solvable", "Fully no-guess solvable — real puzzles you can clear by deduction. Click Analyze to play and step the solver.",
+			puzzles.filter(function(p) { return p.solved; }));
+		section("Partial — forces flags, then ambiguous", "Not no-guess solvable: the solver forces some cells (the corners4-edges2 ring pins a checkerboard of mines via a cx-8 case-split) then stalls on cells no deduction can resolve. Kept because Analyze still shows the hardest forced deduction — including combinations that push past the cx-8 ceiling.",
+			puzzles.filter(function(p) { return !p.solved; }));
 
 		// Combinations whose clue rings conflict at the seam (no consistent mine layout exists) —
 		// a real finding, surfaced as a note since they can't be realised as a board.

@@ -1562,15 +1562,18 @@ main {
 .puzzle-card-label { font-size: 0.8rem; font-weight: 600; margin: 0.45rem 0 0.1rem; }
 .puzzle-card .learn-puzzle { padding: 0; }
 /* Wide combined boards (up to ~11 cols) are rendered at a fixed cell size; scale the canvas
-   down to fit its card / modal column instead of overflowing. The canvas carries an inline
-   width+height (px), so height:auto needs !important to win and keep the aspect ratio square. */
-.puzzle-card .learn-board { display: block; max-width: 100%; box-sizing: border-box; }
-.puzzle-card .learn-board canvas { max-width: 100%; height: auto !important; }
-.analyze-modal-board .learn-board { max-width: 100%; box-sizing: border-box; }
-.analyze-modal-board .learn-board canvas { max-width: 100%; height: auto !important; }
+   down to fit its card / modal column instead of overflowing. `width: fit-content` keeps the
+   board tray hugging the canvas (so narrow boards don't leave a dark gap) while `max-width:100%`
+   caps it to the container; the canvas carries an inline width+height (px), so height:auto needs
+   !important to win and keep the cells square as the width scales. */
+.puzzle-card .learn-board { display: block; width: fit-content; max-width: 100%; margin: 0 auto; box-sizing: border-box; }
+.puzzle-card .learn-board canvas { display: block; max-width: 100%; height: auto !important; }
+.analyze-modal-board .learn-board { width: fit-content; max-width: 100%; margin: 0 auto; box-sizing: border-box; }
+.analyze-modal-board .learn-board canvas { display: block; max-width: 100%; height: auto !important; }
 
 /* Combined-puzzles page: group headings + the seam-conflict note. */
 .section-page-subtitle { font-size: 1rem; margin: 1.6rem 0 0.7rem; color: var(--text); }
+.combined-section-blurb { color: var(--muted); font-size: 0.82rem; margin: -0.3rem 0 0.9rem; max-width: 60ch; }
 .combined-unsat-note { margin-top: 1.8rem; }
 .combined-unsat-list { color: var(--muted); font-size: 0.85rem; line-height: 1.6; margin: 0; padding-left: 1.2rem; }
 .puzzle-card .learn-puzzle-title { display: none; }
