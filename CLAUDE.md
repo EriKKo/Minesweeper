@@ -103,13 +103,16 @@ Source is split into three trees under `src/`:
   the blast is re-covered (a reverse-cascade "unreveal" animation client-side) and its mines
   re-generated (`computeExplosion`, border-constrained backtracking) so every surrounding clue still
   holds AND the patch is no-guess solvable from its border — you re-clear it in place, no "going
-  around". Any cell the regen turns into a 0 is auto-cascaded back open so the board is never left
-  with an uncascaded 0. If the re-cover **splits your territory** into disconnected groups, you keep
-  only your largest 8-connected group and the smaller cut-off sections go **neutral** (`loseSmallerSections`
-  — they stay revealed but un-owned, de-colouring to dead ground); so "home" is never a fixed corner,
-  it's just the biggest area you currently hold and can shift or shrink to a last stand (the generator's
-  mine-free corner zone is now only a clean opening, no longer explosion-protected). A 3 s freeze
-  accompanies the hit; if no valid regen is found in a small search it falls back to a plain re-cover.
+  around". If the re-cover **splits your territory** into disconnected groups, you keep only your
+  largest 8-connected group and the smaller cut-off sections are **re-covered** too (`loseSmallerSections`
+  — orphaned ground always reverts to covered, never left as dead revealed cells); so "home" is never a
+  fixed corner, it's just the biggest area you currently hold and can shift or shrink to a last stand
+  (the generator's mine-free corner zone is now only a clean opening, no longer explosion-protected).
+  An explosion is **confined to the hitter**: any cell left next to a revealed 0 by the re-cover is
+  auto-revealed (no "uncascaded 0") but claimed by the OWNER OF THAT 0-cell — so a blast only feeds the
+  player whose own open ground forced the reveal and can never reach across to alter the other player's
+  cells. A 3 s freeze accompanies the hit; if no valid regen is found in a small search it falls back to
+  a plain re-cover.
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
@@ -124,9 +127,12 @@ Source is split into three trees under `src/`:
   `drawCell` tints (via `view.getOwner`, null in other modes), and routes clicks through
   `Input.performAction`'s `"territory"` mode. Like the other modes it **predicts locally** — the
   client decodes the board, so `territoryLocalReveal` reveals+cascades+claims a safe move instantly
-  and then emits; the server still owns mine hits (explosions), enclosure capture and validation, all
-  reconciled by the next `territory_board` (the reverse-cascade unreveal animation is gated on a real
-  explosion so a rolled-back prediction can't trigger it). Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
+  and then emits; the server still owns mine hits (explosions), enclosure capture and validation. The
+  next `territory_board` **merge-reconciles** rather than overwrites: a cell you've already revealed is
+  never un-revealed by a server board unless that board's `explosion.recovered` list actually re-covered
+  it — so a broadcast that races ahead of your reveal's echo (an opponent moving) can't flicker your
+  cells back to covered, and the reverse-cascade animation is driven off that same `recovered` list
+  (never a diff), so it only ever plays on the exploder's cells. Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
   and animations all work for free. Racing chrome is hidden via a `.territory` class on `#game_view`
   plus a small territory score-bar HUD. **Bots** use the same `BotPlayer.decideMove` AI as the
   racing modes, fed a game view with two extra knobs (no-ops for racing): `canTarget(r,c)` limits

@@ -101,15 +101,27 @@ function territoryBoard(data) {
 		if (territoryFlags) for (var ek in data.explosion.clues) { var ep = ek.split(","); territoryFlags[+ep[0]][+ep[1]] = false; }
 	}
 
-	var prev = prevPlayerState; // last state, for the un-reveal (reverse cascade) diff
+	// Cells the server re-covered this tick (only an explosion does this). Used both to allow an
+	// authoritative un-reveal and to drive the reverse-cascade animation.
+	var recovered = (data.explosion && data.explosion.recovered) || [];
+	var recoveredSet = {};
+	for (var i = 0; i < recovered.length; i++) recoveredSet[recovered[i][0] + "," + recovered[i][1]] = true;
+
 	var R = rows, C = cols;
-	// Translate the shared state + owner grids into the board's myState + tint grid.
+	// Translate the shared state + owner grids into the board's myState + tint grid, MERGING with the
+	// local prediction: a cell we already revealed is never un-revealed by a server board unless an
+	// explosion actually re-covered it. Otherwise a broadcast that races ahead of our own reveal's echo
+	// (e.g. the opponent moving) would briefly revert our just-revealed cells — a flicker.
 	var newState = [];
 	for (var r = 0; r < R; r++) {
 		newState.push(new Array(C));
 		for (var c = 0; c < C; c++) {
 			var s = data.state[r][c];
 			var o = data.owner[r][c];
+			if (s === UNKNOWN && myState && myState[r][c] === KNOWN && !recoveredSet[r + "," + c]) {
+				s = KNOWN;                                  // keep our predicted reveal (server just hasn't echoed it yet)
+				if (o == null) o = territoryInfo.myId;      // we predicted it ours
+			}
 			territoryOwnerColors[r][c] = o == null ? null : territoryColorHex(territoryColorOf(o));
 			// A claimed cell can't stay flagged; otherwise re-apply the local flag mark so the
 			// server's state broadcast doesn't wipe it (flags are client-only in territory).
@@ -122,18 +134,17 @@ function territoryBoard(data) {
 	// Animate newly-claimed cells (queueRevealAnimations diffs against prevPlayerState, then we
 	// snapshot). On the first board prevPlayerState is null, so the start cascades animate in.
 	queueRevealAnimations(newState);
-	// Reverse cascade: cells that went revealed → covered animate the cover dropping back, staggered
-	// outward from the blast origin. Only on an actual explosion — otherwise a rolled-back local
-	// prediction (a reveal the server didn't confirm) would spuriously play an un-reveal. Queued AFTER
-	// queueRevealAnimations (which clears anims for now-covered cells) so they aren't wiped.
-	if (prev && data.explosion) {
+	// Reverse cascade: animate exactly the cells the server re-covered (the exploder's territory),
+	// staggered outward from the blast origin — never inferred from a diff, so a rolled-back local
+	// prediction can't trigger a spurious un-reveal. Queued AFTER queueRevealAnimations (which clears
+	// anims for now-covered cells) so they aren't wiped.
+	if (data.explosion && recovered.length) {
 		var origin = data.explosion.origin, now = performance.now(), any = false;
-		for (var ur = 0; ur < R; ur++) for (var uc = 0; uc < C; uc++) {
-			if (prev[ur][uc] === KNOWN && newState[ur][uc] === UNKNOWN) {
-				var delay = Math.hypot(ur - origin[0], uc - origin[1]) * 26;
-				cellAnims[ur + "," + uc] = { type: "unreveal", start: now + delay };
-				any = true;
-			}
+		for (var ri = 0; ri < recovered.length; ri++) {
+			var rc = recovered[ri];
+			if (newState[rc[0]][rc[1]] !== UNKNOWN) continue;
+			cellAnims[rc[0] + "," + rc[1]] = { type: "unreveal", start: now + Math.hypot(rc[0] - origin[0], rc[1] - origin[1]) * 26 };
+			any = true;
 		}
 		if (any && typeof startAnimLoop === "function") startAnimLoop();
 	}

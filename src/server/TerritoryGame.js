@@ -92,43 +92,52 @@ function create(gen, players) {
 		g.frozenUntil[pid] = now + FREEZE_MS;
 		g.mineHits[pid]++;
 		if (!regen) { g.mineKnown[pid][mr + "," + mc] = true; return { type: "mine", cell: [mr, mc], until: g.frozenUntil[pid] }; }
-		// Re-cover the patch (lost territory), write the new layout, recompute the mine total.
-		regen.patch.forEach(function(p) { state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null; delete g.mineKnown[pid][p[0] + "," + p[1]]; });
+		// Re-cover the patch and write the new layout. `touched` collects every cell this explosion
+		// re-covers (the patch + any cut-off section below) for the client's reverse-cascade animation.
+		var touched = {};
+		function recover(p) {
+			state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null;
+			delete g.mineKnown[pid][p[0] + "," + p[1]];
+			touched[p[0] + "," + p[1]] = p;
+		}
+		regen.patch.forEach(recover);
 		for (var k in regen.clues) { var pr = k.indexOf(","); g.board[+k.slice(0, pr)][+k.slice(pr + 1)] = regen.clues[k]; }
 		var n = 0; for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) if (g.board[r][c] === MINE) n++;
 		g.totalSafe = R * C - n;
-		// The regen can turn a cell into a 0 (it removed an adjacent mine); a covered cell next to a
-		// revealed 0 is unambiguously safe and must never be left covered ("uncascaded 0"). Flood every
-		// such cell exactly like a normal click — cascading through connected 0s, even out past the patch
-		// into unexplored frontier — claiming it for the hitter so the layout stays cascade-consistent.
+		// Cut in two: if the re-cover split your territory into disconnected groups, you keep only your
+		// largest 8-connected group and the smaller cut-off sections are re-covered too — orphaned ground
+		// always reverts to covered, never left as dead revealed cells. Home is just the biggest area you
+		// currently hold; it can shift across the board or shrink to a last stand.
+		loseSmallerSections(pid).forEach(recover);
+		// The regen (or a re-cover) can leave a covered cell next to a revealed 0 — unambiguously safe,
+		// never allowed to stay covered ("uncascaded 0"). Reveal each such cell (flooding through connected
+		// 0s) and give it to the OWNER OF THAT 0-cell. Crucially that means a blast only ever feeds the
+		// player whose own open ground forced the reveal — it can never reach across and alter the other
+		// player's territory. Fixes both the patch and the cut-off re-cover.
 		var changed = true;
 		while (changed) {
 			changed = false;
 			for (var fr = 0; fr < R; fr++) for (var fc = 0; fc < C; fc++) {
 				if (state[fr][fc] !== KNOWN || g.board[fr][fc] !== 0) continue;
+				var into = owner[fr][fc];                               // re-revealed cells join this 0-cell's owner (or neutral)
 				nbrs(fr, fc).forEach(function(b) {
 					if (state[b[0]][b[1]] !== UNKNOWN || g.board[b[0]][b[1]] === MINE) return;
 					BoardLogic.cascadeReveal(b[0], b[1], R, C,
 						function(a, d) { return state[a][d] === UNKNOWN && g.board[a][d] !== MINE; },
-						function(a, d) { state[a][d] = KNOWN; owner[a][d] = pid; return false; },
+						function(a, d) { state[a][d] = KNOWN; owner[a][d] = into; return false; },
 						function(a, d) { return g.board[a][d]; });
 					changed = true;
 				});
 			}
 		}
-		// Cut in two: if the re-cover split your territory into disconnected groups, you keep only your
-		// largest and lose the smaller cut-off sections (they stay revealed but go neutral — unowned).
-		// Your home is thus simply the biggest area you still control — it can shift across the board,
-		// even down to a tiny last stand. Run AFTER the cascade above, which may have re-bridged groups.
-		loseSmallerSections(pid);
-		var recovered = regen.patch.filter(function(p) { return state[p[0]][p[1]] === UNKNOWN; });
+		var recovered = [];
+		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
 		g._explosion = { origin: [mr, mc], recovered: recovered, clues: regen.clues };
 		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
 	};
 
-	// Keep only the player's largest 8-connected group of owned cells; the rest go neutral (owner →
-	// null, but stay revealed, so no covered cells are created and the board can't gain an uncascaded
-	// 0). A cut-off limb just de-colours into dead, unowned ground.
+	// The player's owned cells minus their largest 8-connected group — i.e. the cut-off sections after
+	// a re-cover. Returns them (the caller re-covers them); does not mutate. Empty if still one piece.
 	function loseSmallerSections(pid) {
 		var seen = [];
 		for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
@@ -142,13 +151,12 @@ function create(gen, players) {
 			}
 			comps.push(comp);
 		}
-		if (comps.length <= 1) return;                                 // still one piece — nothing lost
+		if (comps.length <= 1) return [];                              // still one piece — nothing lost
 		var best = 0;
 		for (var i = 1; i < comps.length; i++) if (comps[i].length > comps[best].length) best = i;
-		for (var j = 0; j < comps.length; j++) {
-			if (j === best) continue;
-			comps[j].forEach(function(p) { owner[p[0]][p[1]] = null; });  // de-claim; cell stays revealed (neutral)
-		}
+		var lost = [];
+		for (var j = 0; j < comps.length; j++) if (j !== best) lost = lost.concat(comps[j]);
+		return lost;
 	}
 
 	function computeExplosion(pid, mr, mc, rad) {
