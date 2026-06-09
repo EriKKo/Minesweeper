@@ -90,6 +90,19 @@ Source is split into three trees under `src/`:
   `corners4-edges2` rings sharing a seam reach cx 9.7 (past 8, though it stalls before a full
   solve). Some pairs (`#15⊕#16`, `#16⊕#16` at a shared seam) have **no consistent mine layout** —
   the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
+- `TerritoryGenerator.js` / `TerritoryGame.js` — the **Territory (versus)** mode: two players grow
+  from opposite corners of ONE shared board, claiming cells (vs the racing modes where each player
+  has a private state matrix over a shared layout). The generator mirrors the two corner blocks
+  (180°) for an identical start and caps interior cascades; `TerritoryGame` holds the single
+  `state` + an `owner` matrix, enforces contiguous growth (you may only reveal a covered cell
+  adjacent to your own territory), and on a mine hit re-covers it + freezes the player 3 s (v1 —
+  no reroll yet). Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
+  `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
+  and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); ends on all-claimed /
+  stuck / round-timer → most cells wins (`territory_result`). Entry: a "Create Territory (versus)"
+  button in the custom lobby (`create_room {mode:"territory"}`, forced 2-player, fixed 16×16).
+  Client `Territory.js` + `#territory_view`: one full shared board with subtle cyan/amber owner
+  tints, server-authoritative clicks, freeze veil, a territory bar, and an end overlay.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of

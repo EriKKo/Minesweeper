@@ -7,6 +7,8 @@ var http = require("http")
   , puzzleGen = require("./PuzzleGenerator")
   , insideOut = require("./InsideOutGenerator")
   , roomCreator = require("./RoomCreator")
+  , territoryGen = require("./TerritoryGenerator")
+  , territoryGame = require("./TerritoryGame")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
   , BoardLogic = require("../common/BoardLogic")
@@ -63,6 +65,10 @@ function gameForBroadcast(g, pid) {
 }
 
 var COUNT_DOWN_TIME = 3;
+// Territory (versus) mode: 2 players, fixed square board, subtle per-player colours.
+var TERRITORY_SIZE = 16;
+var TERRITORY_DENSITY = 0.18;
+var TERRITORY_COLORS = ["cyan", "amber"]; // index = player slot
 var BETWEEN_GAMES_DELAY = 3000;
 // Tournament rounds run the elimination sequence (scrim → reorder → cut flashes
 // → survivor pulse → fade) over the same gap. The reveal lives in roughly
@@ -1014,6 +1020,7 @@ function roomSummary(room) {
 		humanCount: room.players.filter(function(pid) { return !isBot(pid); }).length,
 		maxPlayers: room.maxPlayers,
 		phase: room.phase,
+		gameMode: room.gameMode || "race",
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
@@ -1038,6 +1045,7 @@ function buildRoomState(room) {
 		owner: room.owner,
 		ranked: !!room.ranked,
 		rankedMode: room.rankedMode || null,
+		gameMode: room.gameMode || "race",
 		phase: room.phase,
 		gameCount: room.gameCount,
 		gamesPlayed: room.gamesPlayed,
@@ -1828,6 +1836,7 @@ function gameMineHit(playerID) {
 }
 
 function startGame(room) {
+	if (room.gameMode === "territory") return startTerritoryGame(room);
 	clearRoundTimer(room.id);
 	var mines = Math.round(room.mineDensity * room.rows * room.cols);
 	var centerR = Math.floor(room.rows / 2);
@@ -1917,6 +1926,92 @@ function startSeries(room) {
 	broadcastRoomState(room);
 	broadcastRoomList();
 	startGame(room);
+}
+
+// ---- Territory (versus) mode -------------------------------------------
+// One shared board both players grow into from opposite corners; cells are claimed by whoever
+// clears them first. See TerritoryGenerator / TerritoryGame.
+
+function territoryPlayerMeta(room) {
+	return room.players.map(function(pid, i) {
+		return { id: pid, name: names[pid] || "Anonymous", color: TERRITORY_COLORS[i] || "cyan" };
+	});
+}
+
+function startTerritoryGame(room) {
+	clearRoundTimer(room.id);
+	if (room.players.length !== 2) return; // territory is strictly 2-player
+	var gen = territoryGen.generate({ rows: room.rows, cols: room.cols, density: TERRITORY_DENSITY });
+	var tg = territoryGame.create(gen, room.players);
+	tg.started = false;
+	room.territory = tg;
+
+	var obf = obfuscateBoard(gen.board, gen.rows, gen.cols);
+	var meta = territoryPlayerMeta(room);
+	for (var i = 0; i < room.players.length; i++) {
+		var pid = room.players[i];
+		if (!sockets[pid]) continue;
+		sockets[pid].emit("territory_start", {
+			time: COUNT_DOWN_TIME, rows: gen.rows, cols: gen.cols,
+			boardData: obf.data, boardMask: obf.mask,
+			players: meta, you: pid, starts: gen.starts,
+			roundSeconds: room.roundSeconds
+		});
+	}
+	setTimeout(function() {
+		if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg) return;
+		tg.started = true;
+		roundStarts[room.id] = Date.now();
+		if (room.roundSeconds > 0) {
+			roundDeadlines[room.id] = Date.now() + room.roundSeconds * 1000;
+			roundTimers[room.id] = setTimeout(function() {
+				if (room.phase === "playing" && room.territory === tg) endTerritoryGame(room, "timeout");
+			}, room.roundSeconds * 1000);
+		}
+		broadcastTerritory(room);
+	}, COUNT_DOWN_TIME * 1000);
+}
+
+function broadcastTerritory(room) {
+	var tg = room.territory;
+	if (!tg) return;
+	var payload = {
+		state: tg.state, owner: tg.owner, scores: tg.scores(),
+		frozenUntil: tg.frozenUntil, playing: tg.playing,
+		roundDeadline: roundDeadlines[room.id] || null
+	};
+	io.to("room:" + room.id).emit("territory_board", payload);
+}
+
+function endTerritoryGame(room, reason) {
+	clearRoundTimer(room.id);
+	var tg = room.territory;
+	if (!tg) return;
+	tg.playing = false;
+	var scores = tg.scores();
+	var meta = territoryPlayerMeta(room);
+	var winnerId = null, best = -1, tie = false;
+	meta.forEach(function(m) {
+		var s = scores[m.id] || 0;
+		if (s > best) { best = s; winnerId = m.id; tie = false; }
+		else if (s === best) { tie = true; }
+	});
+	io.to("room:" + room.id).emit("territory_result", {
+		reason: reason || "cleared",
+		scores: meta.map(function(m) { return { id: m.id, name: m.name, color: m.color, score: scores[m.id] || 0 }; }),
+		winnerId: tie ? null : winnerId,
+		winnerName: tie ? null : (winnerId ? names[winnerId] : null),
+		totalSafe: tg.totalSafe
+	});
+	room.territory = null;
+	room.phase = "planning";
+	broadcastRoomState(room);
+	broadcastRoomList();
+	setTimeout(function() {
+		if (!rooms[room.id]) return;
+		room.resetReady();
+		broadcastRoomState(room);
+	}, 1200);
 }
 
 // ---- Ranked matchmaking ------------------------------------------------
@@ -2245,6 +2340,14 @@ function removePlayerFromRoom(playerID) {
 		}
 		if (newOwner) room.owner = newOwner;
 		else room.reassignOwnerIfNeeded();
+	}
+
+	if (wasPlaying && room.gameMode === "territory") {
+		// A territory game can't continue with a player gone — award it to whoever's left.
+		if (room.territory) endTerritoryGame(room, "opponent-left");
+		else { room.phase = "planning"; broadcastRoomState(room); }
+		broadcastRoomList();
+		return leaveEloInfo;
 	}
 
 	if (wasPlaying) {
@@ -2629,11 +2732,18 @@ io.on("connection", function (socket) {
 
 	socket.on("bot_demo_stop", function() { stopBotDemo(playerID); });
 
-	socket.on("create_room", function() {
+	socket.on("create_room", function(data) {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
 		var id = nextRoomId++;
-		var room = roomCreator.createRoom(id, playerID);
+		var territory = data && data.mode === "territory";
+		// Territory is a 2-player shared-board mode on a fixed square board.
+		var room = roomCreator.createRoom(id, playerID, territory ? 2 : undefined);
+		if (territory) {
+			room.gameMode = "territory";
+			room.rows = TERRITORY_SIZE; room.cols = TERRITORY_SIZE;
+			room.roundSeconds = 180;
+		}
 		rooms[id] = room;
 		addPlayerToRoom(socket, room);
 	});
@@ -2790,6 +2900,7 @@ io.on("connection", function (socket) {
 		}
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
+		if (room.gameMode === "territory") return; // no flags in territory v1
 		var game = games[playerID];
 		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
 		game.handleRightClick(data.r, data.c);
@@ -2805,6 +2916,15 @@ io.on("connection", function (socket) {
 		}
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing") return;
+		if (room.gameMode === "territory") {
+			var tg = room.territory;
+			if (!tg || !tg.started || !tg.playing) return;
+			var res = tg.reveal(playerID, data.r, data.c, Date.now());
+			if (res.type === "invalid") return;
+			broadcastTerritory(room);
+			if (!tg.playing || tg.stuck()) endTerritoryGame(room, "cleared");
+			return;
+		}
 		var game = games[playerID];
 		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
 		game.handleLeftClick(data.r, data.c);

@@ -291,6 +291,7 @@
 			<p class="section-page-sub">Casual rooms — pick the ruleset and play with friends or against bots. No rating change.</p>
 			<div class="custom-actions">
 				<button id="create_room_button" class="btn btn-primary">Create new room</button>
+				<button id="create_territory_button" class="btn btn-primary">Create Territory (versus)</button>
 				<button id="refresh_button" class="btn btn-secondary">Refresh rooms</button>
 			</div>
 
@@ -390,6 +391,7 @@
 		<section id="patterns_view" class="view section-view" style="display:none"></section>
 		<section id="start_patterns_view" class="view section-view" style="display:none"></section>
 		<section id="combined_puzzles_view" class="view section-view" style="display:none"></section>
+		<section id="territory_view" class="view" style="display:none"></section>
 		<section id="puzzle_play_view" class="view section-view" style="display:none"></section>
 
 		<section id="game_view" class="view game-view" style="display:none">
@@ -634,6 +636,7 @@
 <script src="/PatternsView.js"></script>
 <script src="/StartPatternsView.js"></script>
 <script src="/CombinedPuzzlesView.js"></script>
+<script src="/Territory.js"></script>
 <script src="/PuzzlePlay.js"></script>
 <script src="/Overlay.js"></script>
 <script src="/RoundTimer.js"></script>
@@ -1397,6 +1400,10 @@ document.getElementById("create_room_button").addEventListener("click", function
 	socket.emit("create_room");
 });
 
+document.getElementById("create_territory_button").addEventListener("click", function() {
+	socket.emit("create_room", { mode: "territory" });
+});
+
 document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });
@@ -1566,6 +1573,11 @@ socket.on("room_state", function(state) {
 	applyBoardDims(state.rows, state.cols);
 	renderRoomState(state);
 });
+
+// Territory (versus) mode — shared-board events handled in Territory.js.
+socket.on("territory_start", function(data) { if (typeof territoryStart === "function") territoryStart(data); });
+socket.on("territory_board", function(data) { if (typeof territoryBoard === "function") territoryBoard(data); });
+socket.on("territory_result", function(data) { if (typeof territoryResult === "function") territoryResult(data); });
 
 socket.on("start_game", function(data) {
 	if (typeof music !== "undefined") music.resume();
@@ -1896,7 +1908,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "puzzle_play_view", "ranked_picker_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "practice_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "territory_view", "puzzle_play_view", "ranked_picker_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 
