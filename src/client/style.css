@@ -1593,6 +1593,8 @@ body.territory-fullscreen main { max-width: none; padding: 0.6rem; }
 .tv-result-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(11,18,32,0.62); border-radius: 8px; z-index: 6; }
 .tv-elo { color: var(--muted); font-size: 0.85rem; }
 .tv-hud { display: flex; align-items: center; gap: 0.8rem; width: 100%; max-width: 560px; }
+.tv-hud-multi { flex-direction: column; align-items: stretch; gap: 0.4rem; }
+.tv-hud-multi .tv-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem 1.2rem; }
 .tv-chip { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; white-space: nowrap; }
 .tv-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .tv-name { color: var(--text); }

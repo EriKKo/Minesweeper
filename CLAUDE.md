@@ -90,14 +90,16 @@ Source is split into three trees under `src/`:
   `corners4-edges2` rings sharing a seam reach cx 9.7 (past 8, though it stalls before a full
   solve). Some pairs (`#15⊕#16`, `#16⊕#16` at a shared seam) have **no consistent mine layout** —
   the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
-- `TerritoryGenerator.js` / `TerritoryGame.js` — the **Territory (versus)** mode: two players grow
-  from opposite corners of ONE shared board, claiming cells (vs the racing modes where each player
-  has a private state matrix over a shared layout). The generator is generate-and-test: a random
-  18×30 board with the top-left corner block mirrored 180° onto the bottom-right (and every cascade
-  capped) so the two start openings are **identical**, plus a mine-free **start zone** (Chebyshev
-  radius 3) carved at each corner, kept only if it's **no-guess solvable from BOTH corners**
-  (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the interior between the corners
-  is independent, not symmetric. `TerritoryGame` holds the single `state` + an `owner` matrix,
+- `TerritoryGenerator.js` / `TerritoryGame.js` — the **Territory (versus)** mode: players grow from
+  the corners of ONE shared board, claiming cells (vs the racing modes where each player has a private
+  state matrix over a shared layout). Supported with **2 players** (opposite corners) or **4** (one per
+  corner — `generate({corners: 4})`, custom lobby only). The generator is generate-and-test: a random
+  18×30 board with the top-left corner block mirrored onto every other corner (180° for 2; the full
+  horizontal/vertical/180° set for 4) and every cascade capped, so all start openings are **identical**,
+  plus a mine-free **start zone** (Chebyshev radius 3) at each corner, kept only if it's **no-guess
+  solvable from EVERY corner** (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the
+  interior is independent, not symmetric. `TerritoryGame` is N-player throughout (per-player owner /
+  scores / capture / explosion); it holds the single `state` + an `owner` matrix,
   enforces contiguous growth (you may only reveal a covered cell adjacent to your own territory), and
   on a mine hit triggers an **explosion** (`g.explode`): a patch of the hitter's own territory around
   the blast is re-covered (a reverse-cascade "unreveal" animation client-side) and its mines
@@ -119,11 +121,13 @@ Source is split into three trees under `src/`:
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
   (`roundSeconds: 0`) — it ends when the board is played out (`tg.stuck()`, i.e. neither player has a
-  safe move left) or a player leaves → most cells wins (`territory_result`). **Two entry points:** a
-  "Create Territory (versus)" button in the custom lobby, and a **ranked** `territory_duo` mode
+  safe move left) or a player leaves → most cells wins (`territory_result`). **Entry points:** "Create
+  Territory (1v1)" and "Create Territory (4-player)" buttons in the custom lobby (`create_room` with
+  `players: 2|4`; `startTerritoryGame` accepts 2 or 4 and seeds one player per corner from
+  `TERRITORY_COLORS = [cyan, amber, violet, rose]`), and a **ranked** `territory_duo` (2-player) mode
   (`RANKED_MODES`, style `"territory"`, filled with bots like the other ranked modes) with its own
-  `rating_territory` Elo ladder; ranked games
-  apply pairwise Elo in `endTerritoryGame` and report the delta in `territory_result`. **Client:
+  `rating_territory` Elo ladder; ranked games apply pairwise Elo in `endTerritoryGame` and report the
+  delta in `territory_result`. **Client:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
   `drawCell` tints (via `view.getOwner`, null in other modes), and routes clicks through
@@ -136,7 +140,8 @@ Source is split into three trees under `src/`:
   cells back to covered, and the reverse-cascade animation is driven off that same `recovered` list
   (never a diff), so it only ever plays on the exploder's cells. Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
   and animations all work for free. Racing chrome is hidden via a `.territory` class on `#game_view`
-  plus a small territory score-bar HUD. **Bots** use the same `BotPlayer.decideMove` AI as the
+  plus a small territory score-bar HUD (chip · bar · chip for 2; a chips row over a segmented bar for
+  4, built from `territoryInfo.players`). **Bots** use the same `BotPlayer.decideMove` AI as the
   racing modes, fed a game view with two extra knobs (no-ops for racing): `canTarget(r,c)` limits
   reveals to the bot's own frontier (`tg.canReveal` + excluding mines it has detonated) and
   `revealsOnly` drops flags/chords. `scheduleTerritoryBot` ticks it on a speed/difficulty-scaled

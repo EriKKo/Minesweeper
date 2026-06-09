@@ -16,26 +16,36 @@ var territoryOwnerColors = null;      // [r][c] -> owner colour hex (or null) fo
 var territoryInfo = null;             // { myId, players, colorOf, started, playing, scores, deadline }
 var territoryFlags = null;            // [r][c] -> bool, local-only "suspected mine" marks (not shared/scored)
 
-function territoryColorHex(color) { return color === "amber" ? "#fb923c" : "#22d3ee"; }
+var TERRITORY_HEX = { cyan: "#22d3ee", amber: "#fb923c", violet: "#a78bfa", rose: "#fb7185" };
+function territoryColorHex(color) { return TERRITORY_HEX[color] || "#22d3ee"; }
 
 function territoryColorOf(pid) {
 	var p = territoryInfo && territoryInfo.players.filter(function(x) { return x.id === pid; })[0];
 	return p ? p.color : "cyan";
 }
 
-// Build / fetch the HUD that sits above the shared board in game_view.
+// Build / fetch the HUD that sits above the shared board in game_view. Two players get the classic
+// chip · bar · chip row; with more (4-player territory) the chips sit in a row above a single bar.
 function territoryEnsureHud() {
+	var n = (territoryInfo && territoryInfo.players) ? territoryInfo.players.length : 2;
 	var hud = document.getElementById("territory_hud");
-	if (hud) return hud;
+	if (hud && +hud.getAttribute("data-n") === n) return hud;
 	var left = document.querySelector("#game_view .game-left");
 	if (!left) return null;
+	if (hud) hud.remove();
 	hud = document.createElement("div");
 	hud.id = "territory_hud";
-	hud.className = "tv-hud";
-	hud.innerHTML =
-		'<div class="tv-chip" id="tv_chip0"></div>' +
-		'<div class="tv-bar"><div class="tv-bar-fill" id="tv_bar0"></div><div class="tv-bar-fill" id="tv_bar1"></div></div>' +
-		'<div class="tv-chip" id="tv_chip1"></div>';
+	hud.className = n > 2 ? "tv-hud tv-hud-multi" : "tv-hud";
+	hud.setAttribute("data-n", n);
+	var fills = "";
+	for (var i = 0; i < n; i++) fills += '<div class="tv-bar-fill" id="tv_bar' + i + '"></div>';
+	if (n === 2) {
+		hud.innerHTML = '<div class="tv-chip" id="tv_chip0"></div><div class="tv-bar">' + fills + '</div><div class="tv-chip" id="tv_chip1"></div>';
+	} else {
+		var chips = "";
+		for (var j = 0; j < n; j++) chips += '<div class="tv-chip" id="tv_chip' + j + '"></div>';
+		hud.innerHTML = '<div class="tv-chips">' + chips + '</div><div class="tv-bar">' + fills + '</div>';
+	}
 	left.insertBefore(hud, left.firstChild);
 	return hud;
 }

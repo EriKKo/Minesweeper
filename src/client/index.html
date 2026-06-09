@@ -309,7 +309,8 @@
 			<p class="section-page-sub">Casual rooms — pick the ruleset and play with friends or against bots. No rating change.</p>
 			<div class="custom-actions">
 				<button id="create_room_button" class="btn btn-primary">Create new room</button>
-				<button id="create_territory_button" class="btn btn-primary">Create Territory (versus)</button>
+				<button id="create_territory_button" class="btn btn-primary">Create Territory (1v1)</button>
+				<button id="create_territory4_button" class="btn btn-primary">Create Territory (4-player)</button>
 				<button id="refresh_button" class="btn btn-secondary">Refresh rooms</button>
 			</div>
 
@@ -1420,6 +1421,9 @@ document.getElementById("create_room_button").addEventListener("click", function
 
 document.getElementById("create_territory_button").addEventListener("click", function() {
 	socket.emit("create_room", { mode: "territory" });
+});
+document.getElementById("create_territory4_button").addEventListener("click", function() {
+	socket.emit("create_room", { mode: "territory", players: 4 });
 });
 
 document.getElementById("refresh_button").addEventListener("click", function() {

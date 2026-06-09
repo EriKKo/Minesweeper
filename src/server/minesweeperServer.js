@@ -68,7 +68,7 @@ var COUNT_DOWN_TIME = 3;
 // Territory (versus) mode: 2 players, fixed square board, subtle per-player colours.
 var TERRITORY_ROWS = 18, TERRITORY_COLS = 30; // bigger, wide board so there's room to play
 var TERRITORY_DENSITY = 0.13;
-var TERRITORY_COLORS = ["cyan", "amber"]; // index = player slot
+var TERRITORY_COLORS = ["cyan", "amber", "violet", "rose"]; // index = player slot (2- or 4-player)
 var BETWEEN_GAMES_DELAY = 3000;
 // Tournament rounds run the elimination sequence (scrim → reorder → cut flashes
 // → survivor pulse → fade) over the same gap. The reveal lives in roughly
@@ -1948,8 +1948,8 @@ function territoryPlayerMeta(room) {
 
 function startTerritoryGame(room) {
 	clearRoundTimer(room.id);
-	if (room.players.length !== 2) return; // territory is strictly 2-player
-	var gen = territoryGen.generate({ rows: room.rows, cols: room.cols, density: TERRITORY_DENSITY });
+	if (room.players.length !== 2 && room.players.length !== 4) return; // territory is 2- or 4-player (one per corner)
+	var gen = territoryGen.generate({ rows: room.rows, cols: room.cols, density: TERRITORY_DENSITY, corners: room.players.length });
 	var tg = territoryGame.create(gen, room.players);
 	tg.started = false;
 	room.territory = tg;
@@ -2849,8 +2849,9 @@ io.on("connection", function (socket) {
 		if (roomMapping[playerID]) return;
 		var id = nextRoomId++;
 		var territory = data && data.mode === "territory";
-		// Territory is a 2-player shared-board mode on a fixed square board.
-		var room = roomCreator.createRoom(id, playerID, territory ? 2 : undefined);
+		// Territory is a shared-board mode: 2 players (opposite corners) or 4 (one per corner).
+		var territorySeats = (data && data.players === 4) ? 4 : 2;
+		var room = roomCreator.createRoom(id, playerID, territory ? territorySeats : undefined);
 		if (territory) {
 			room.gameMode = "territory";
 			room.rows = TERRITORY_ROWS; room.cols = TERRITORY_COLS;
