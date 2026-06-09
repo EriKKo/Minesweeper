@@ -109,7 +109,8 @@ function territoryBoard(data) {
 }
 
 function territoryResult(data) {
-	territoryActive = false;
+	// Keep territoryActive true so the final board still shows the territory tints behind the
+	// result overlay; it's fully reset by territoryReset() when the player actually leaves.
 	if (territoryInfo) territoryInfo.playing = false;
 	var mine = data.scores && data.scores.filter(function(s) { return s.id === (territoryInfo && territoryInfo.myId); })[0];
 	var win = data.winnerId === (territoryInfo && territoryInfo.myId);
@@ -137,15 +138,24 @@ function territoryResult(data) {
 }
 
 function leaveTerritory() {
+	territoryReset();
+	if (typeof socket !== "undefined") socket.emit("leave_room");
+}
+
+// Tear down ALL territory state + DOM. Called when leaving by any path (the result button, or the
+// left_room handler when navigating away) so territoryActive/owner colours can't leak into the
+// other modes that share the board (which would break chording and tint their cells).
+function territoryReset() {
+	territoryActive = false;
+	territoryOwnerColors = null;
+	territoryFlags = null;
+	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
 	if (ov) ov.remove();
-	var gv = document.getElementById("game_view");
-	if (gv) gv.classList.remove("territory");
 	var hud = document.getElementById("territory_hud");
 	if (hud) hud.remove();
-	territoryOwnerColors = null;
-	territoryInfo = null;
-	if (typeof socket !== "undefined") socket.emit("leave_room");
+	var gv = document.getElementById("game_view");
+	if (gv) gv.classList.remove("territory");
 }
 
 // Toggle a local "suspected mine" flag on a covered cell (client-only — not sent to the server,
