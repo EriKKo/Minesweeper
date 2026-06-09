@@ -28,7 +28,8 @@ function create(gen, players) {
 		rows: R, cols: C, board: gen.board, state: state, owner: owner,
 		players: players.slice(), starts: gen.starts,
 		frozenUntil: {}, mineHits: {},
-		totalSafe: R * C - gen.mineCount, playing: true
+		totalSafe: R * C - gen.mineCount, playing: true,
+		density: (gen.mineCount || 0) / (R * C) // board mine density — explosion regen matches it so re-fills aren't denser than usual
 	};
 	g.mineKnown = {}; // pid -> { "r,c": true } cells this player has detonated (so the bot won't re-pick)
 	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; });
@@ -208,7 +209,10 @@ function create(gen, players) {
 				if (solvableFromBorder(patch, inPatch, ov)) found = { patch: patch, clues: changedClues(patch, inPatch, ov) };
 				return;
 			}
-			var vi = order[oi], vals = Math.random() < 0.5 ? [false, true] : [true, false];
+			// Try non-mine vs mine weighted by the board density (not 50/50): a patch cell with no border
+			// constraint keeps whichever value is tried first, so a 50/50 bias filled the patch interior
+			// with ~half mines — far denser than the board. Density-weighting keeps re-fills normal.
+			var vi = order[oi], vals = Math.random() < g.density ? [true, false] : [false, true];
 			for (var ti = 0; ti < 2; ti++) {
 				var val = vals[ti];
 				assign[vi] = val; var ok = true;
