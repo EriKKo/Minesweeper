@@ -117,7 +117,9 @@ Source is split into three trees under `src/`:
   cells. **Your last cells are always safe** — if a blast would re-cover your ENTIRE territory, the
   patch spares the owned cells farthest from the blast (a home), so a mine can never eliminate you
   outright. A 3 s freeze accompanies the hit; if no valid regen is found in a small search it falls back
-  to a plain re-cover.
+  to a plain re-cover. Flags: `_explosion` carries the hitter's `pid` — the client clears the hitter's
+  OWN local flags in the refilled area (recovered cells + neighbours), but an opponent's explosion
+  never touches your flags.
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
@@ -196,7 +198,9 @@ Source is split into three trees under `src/`:
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
 - `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors. Keyboard
-  actions are resolved through `keybindings.actionFor()`.
+  actions are resolved through `keybindings.actionFor()`. A chord that **detonates** clears every
+  incorrect flag around that number (flagged but not actually a mine) in all modes — locally, and via
+  a `right_click` per cleared flag in server-tracked modes (and via `territoryToggleFlag` in territory).
 - `Keybindings.js` — rebindable in-game keyboard controls (persisted to `ms_keybinds`),
   the Controls section rendered on the Profile page, and the dynamic in-game hint line.
 - `BotsAdmin.js` — admin bot browser (`#/admin/bots`): paginated/sortable/Elo-filterable

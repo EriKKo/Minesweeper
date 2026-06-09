@@ -103,10 +103,8 @@ function territoryBoard(data) {
 	territoryInfo.scores = data.scores || {};
 	territoryInfo.deadline = data.roundDeadline || null;
 
-	// A mine explosion re-covered a patch (origin noted below for the reverse-cascade animation). Flags
-	// are NOT touched — a suspected-mine mark only clears when its cell is actually revealed (see the
-	// `s === KNOWN` reset below), so an enemy blast can never wipe your flags. If the explosion ever
-	// carries regenerated clue values again, patch them into the client's board.
+	// A mine explosion re-covered a patch (origin noted below for the reverse-cascade animation). If the
+	// explosion ever carries regenerated clue values again, patch them into the client's board.
 	if (data.explosion && data.explosion.clues && typeof patchBoardCells === "function") patchBoardCells(data.explosion.clues);
 
 	// Cells the server re-covered this tick (only an explosion does this). Used both to allow an
@@ -114,6 +112,19 @@ function territoryBoard(data) {
 	var recovered = (data.explosion && data.explosion.recovered) || [];
 	var recoveredSet = {};
 	for (var i = 0; i < recovered.length; i++) recoveredSet[recovered[i][0] + "," + recovered[i][1]] = true;
+
+	// When YOUR OWN mine hit refills an area, clear your flags within it (you'll re-explore it fresh).
+	// An opponent's explosion never touches your flags. Done before myState is rebuilt below so the
+	// cleared marks don't get re-applied. Covers the re-covered cells and their immediate neighbours
+	// (where suspected-mine flags around the blast tend to sit).
+	if (data.explosion && data.explosion.pid === territoryInfo.myId && territoryFlags) {
+		recovered.forEach(function(rc) {
+			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+				var fr = rc[0] + dr, fc = rc[1] + dc;
+				if (fr >= 0 && fc >= 0 && fr < rows && fc < cols && territoryFlags[fr][fc]) { territoryFlags[fr][fc] = false; delete cellAnims[fr + "," + fc]; }
+			}
+		});
+	}
 
 	var R = rows, C = cols;
 	// Translate the shared state + owner grids into the board's myState + tint grid, MERGING with the

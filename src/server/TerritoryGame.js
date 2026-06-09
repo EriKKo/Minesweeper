@@ -123,7 +123,7 @@ function create(gen, players) {
 		}
 		var recovered = [];
 		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
-		g._explosion = { origin: [mr, mc], recovered: recovered }; // no `clues` — the layout is unchanged
+		g._explosion = { origin: [mr, mc], recovered: recovered, pid: pid }; // pid = who hit it (no `clues` — layout unchanged)
 		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
 	};
 

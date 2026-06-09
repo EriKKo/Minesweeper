@@ -44,9 +44,10 @@ function localReveal(r, c, revealed) {
 // Click on a revealed number-cell with the right flag-count → chord (auto-reveal
 // the remaining unflagged neighbors). Matches server clearAdjacentIfEnoughFlags.
 function applyLocalLeftClick(r, c) {
-	if (!myState || !boardDecoder) return { revealed: [], hitMine: false, anyChange: false };
+	if (!myState || !boardDecoder) return { revealed: [], hitMine: false, anyChange: false, clearedFlags: [] };
 	var revealed = [];
 	var hitMine = false;
+	var clearedFlags = [];
 	if (myState[r][c] === UNKNOWN) {
 		hitMine = localReveal(r, c, revealed);
 	} else if (myState[r][c] === KNOWN) {
@@ -61,10 +62,24 @@ function applyLocalLeftClick(r, c) {
 				for (var i = 0; i < ctx.covered.length; i++) {
 					if (localReveal(ctx.covered[i][0], ctx.covered[i][1], revealed)) hitMine = true;
 				}
+				// A chord that detonates means a flag here was wrong. Clear every incorrect flag around
+				// this number (flagged but not actually a mine) so the mistake is visibly undone.
+				if (hitMine) {
+					for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+						if (!dr && !dc) continue;
+						var nr = r + dr, nc = c + dc;
+						if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
+						if (myState[nr][nc] === FLAGGED && boardCell(nr, nc) !== MINE) {
+							myState[nr][nc] = UNKNOWN;
+							delete cellAnims[nr + "," + nc];
+							clearedFlags.push([nr, nc]);
+						}
+					}
+				}
 			}
 		}
 	}
-	return { revealed: revealed, hitMine: hitMine, anyChange: revealed.length > 0 };
+	return { revealed: revealed, hitMine: hitMine, anyChange: revealed.length > 0 || clearedFlags.length > 0, clearedFlags: clearedFlags };
 }
 
 // One click pipeline for every mode. The board logic is identical — only
@@ -103,6 +118,7 @@ function performAction(r, c, asFlag) {
 		redrawOwnBoardWithFocus();
 		return;
 	}
+	var actionResult = null; // reveal/chord result, for emitting any chord-cleared flags to the server
 	if (asFlag) {
 		// Right-click on a covered cell toggles a flag. Right-click on a
 		// revealed number with the matching flag count chords the same way
@@ -111,6 +127,7 @@ function performAction(r, c, asFlag) {
 		// button triggered it.
 		if (myState && myState[r][c] === KNOWN) {
 			var chordResult = revealAt(r, c);
+			actionResult = chordResult;
 			if (mode === "multiplayer" && chordResult.hitMine && currentRoom.deathPenalty) {
 				frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
 				startFreezeTick();
@@ -121,6 +138,7 @@ function performAction(r, c, asFlag) {
 		}
 	} else {
 		var result = revealAt(r, c);
+		actionResult = result;
 		if (mode === "multiplayer" && result.hitMine && currentRoom.deathPenalty) {
 			frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
 			startFreezeTick();
@@ -130,6 +148,13 @@ function performAction(r, c, asFlag) {
 	}
 	if (mode === "multiplayer" || mode === "puzzle") {
 		socket.emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });
+		// A chord that detonated cleared its incorrect flags locally — tell the server to drop those
+		// flags too (right_click toggles each off) so its per-player board stays in sync.
+		if (actionResult && actionResult.clearedFlags) {
+			for (var cf = 0; cf < actionResult.clearedFlags.length; cf++) {
+				socket.emit("right_click", { r: actionResult.clearedFlags[cf][0], c: actionResult.clearedFlags[cf][1], id: id });
+			}
+		}
 	}
 	if (mode === "solo") updateSoloHud();
 	else if (mode === "puzzle") updatePuzzleHud();
@@ -147,6 +172,18 @@ function territoryChord(r, c) {
 		function() { return false; },                                  // no revealed-mine concept in territory
 		function(rr, cc) { return myState[rr][cc] === UNKNOWN; });
 	if (ctx.flagCount !== v) return;
+	// If a covered non-flagged neighbour is actually a mine, this chord will detonate — a flag here was
+	// wrong. Clear every incorrect flag around this number (flagged but not a mine) before revealing.
+	var willDetonate = false;
+	for (var k = 0; k < ctx.covered.length; k++) if (boardCell(ctx.covered[k][0], ctx.covered[k][1]) === MINE) willDetonate = true;
+	if (willDetonate) {
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (!dr && !dc) continue;
+			var fr = r + dr, fc = c + dc;
+			if (fr < 0 || fc < 0 || fr >= rows || fc >= cols) continue;
+			if (myState[fr][fc] === FLAGGED && boardCell(fr, fc) !== MINE && typeof territoryToggleFlag === "function") territoryToggleFlag(fr, fc);
+		}
+	}
 	for (var i = 0; i < ctx.covered.length; i++) {
 		var nr = ctx.covered[i][0], nc = ctx.covered[i][1];
 		if (typeof territoryLocalReveal === "function") territoryLocalReveal(nr, nc); // predict the safe neighbours
