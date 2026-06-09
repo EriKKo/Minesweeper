@@ -111,8 +111,10 @@ Source is split into three trees under `src/`:
   An explosion is **confined to the hitter**: any cell left next to a revealed 0 by the re-cover is
   auto-revealed (no "uncascaded 0") but claimed by the OWNER OF THAT 0-cell — so a blast only feeds the
   player whose own open ground forced the reveal and can never reach across to alter the other player's
-  cells. A 3 s freeze accompanies the hit; if no valid regen is found in a small search it falls back to
-  a plain re-cover.
+  cells. **Your last cells are always safe** — if a blast would re-cover your ENTIRE territory, the
+  patch spares the owned cells farthest from the blast (a home), so a mine can never eliminate you
+  outright. A 3 s freeze accompanies the hit; if no valid regen is found in a small search it falls back
+  to a plain re-cover.
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
@@ -138,7 +140,17 @@ Source is split into three trees under `src/`:
   racing modes, fed a game view with two extra knobs (no-ops for racing): `canTarget(r,c)` limits
   reveals to the bot's own frontier (`tg.canReveal` + excluding mines it has detonated) and
   `revealsOnly` drops flags/chords. `scheduleTerritoryBot` ticks it on a speed/difficulty-scaled
-  cadence; `tg.mineKnown` keeps it from re-hitting a mine. **Enclosure capture**
+  cadence; `tg.mineKnown` keeps it from re-hitting a mine. Bots are picked for territory by a
+  **separate measured rating** (`b.ratings.territory`): `TerritoryBench` replays a bot's decision loop
+  clearing a no-guess territory board against a non-moving opponent on a virtual clock (mirroring
+  `BotBench`, but mine hits cost a re-cover + freeze instead of a flat penalty), and
+  `scripts/calibrate-territory.js` (fanned across `territory-bench-worker.js`) maps clear time to an Elo
+  and writes `ratings.territory` onto every pool bot; matchmaking calls `pickBotFromPool(elo, w,
+  "territory")` and targets the lobby's territory Elo. **Known gap:** mid/low bots clear territory
+  poorly because the safe-move solver (`findFirstSafeStepCapped`) returns the first safe cell anywhere,
+  and when it's off the bot's `canTarget` frontier the bot guesses into a mine even though a
+  frontier-safe move exists — so they hit mines a lot and the calibration has little resolution below
+  the top until the bot is taught to find a *frontier* safe move before guessing. **Enclosure capture**
   (`tg.captureEnclosed`, run after every reveal): a region you've sealed off so that **only you can
   reach it** — two reachability floods (each spreads from a player's land through covered cells only;
   the opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the

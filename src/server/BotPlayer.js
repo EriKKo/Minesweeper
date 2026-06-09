@@ -136,21 +136,27 @@ function getPoolMeta() { return botPoolMeta || {}; }
 // to add by hand. If the window is empty (sparse pool edge) it widens; if the pool
 // is missing entirely (bots-pool.json absent), it falls back to the configForElo
 // curve so matchmaking can never fail to fill a seat.
-function pickBotFromPool(targetElo, window) {
+// `ratingKey` selects which measured rating to match on: undefined → the overall racing `rating`;
+// otherwise a per-mode rating in `b.ratings` (e.g. "territory"), falling back to `b.rating` for any
+// bot that predates that calibration. The returned bot's `rating` is set to the matched value so the
+// rest of matchmaking (display, Elo seeding) uses the right ladder; the pool entry isn't mutated.
+function pickBotFromPool(targetElo, window, ratingKey) {
 	if (!botPool || !botPool.length) return configForElo(targetElo);
+	function ratingOf(b) { return ratingKey && b.ratings && b.ratings[ratingKey] != null ? b.ratings[ratingKey] : b.rating; }
+	function chosen(b) { return ratingKey ? Object.assign({}, b, { rating: ratingOf(b) }) : b; }
 	var w = window > 0 ? window : 60;
 	for (var widen = 0; widen < 24; widen++) {
 		var lo = targetElo - w, hi = targetElo + w;
-		var inRange = botPool.filter(function(b) { return b.rating >= lo && b.rating <= hi; });
-		if (inRange.length) return inRange[Math.floor(Math.random() * inRange.length)];
+		var inRange = botPool.filter(function(b) { return ratingOf(b) >= lo && ratingOf(b) <= hi; });
+		if (inRange.length) return chosen(inRange[Math.floor(Math.random() * inRange.length)]);
 		w += 60;
 	}
 	// Whole pool somehow outside the widened window — return the nearest bot.
 	var nearest = botPool[0];
 	for (var i = 1; i < botPool.length; i++) {
-		if (Math.abs(botPool[i].rating - targetElo) < Math.abs(nearest.rating - targetElo)) nearest = botPool[i];
+		if (Math.abs(ratingOf(botPool[i]) - targetElo) < Math.abs(ratingOf(nearest) - targetElo)) nearest = botPool[i];
 	}
-	return nearest;
+	return chosen(nearest);
 }
 
 // Pools for generating player-looking handles (so ranked bots blend in).

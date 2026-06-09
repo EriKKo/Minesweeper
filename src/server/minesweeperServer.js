@@ -988,7 +988,7 @@ var RANKED_MODES = {
 	// Territory (versus): 2 players share one board from opposite corners. Human-only (no bot AI
 	// for it yet), so matches form when two real players queue — which also makes it easy to test
 	// with two tabs.
-	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0 } // no clock — ends when the board is played out
+	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" } // no clock — ends when the board is played out; bots picked by their measured territory rating
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
@@ -2116,11 +2116,12 @@ function rankedCount(mode) {
 // bots so the lobby's overall skill stays consistent.
 function rankedTargetElo(mode) {
 	var q = rankedQueues[mode];
+	var style = RANKED_MODES[mode].style;
 	var sum = 0, n = 0;
 	for (var i = 0; i < q.length; i++) {
 		var acc = accounts[q[i]];
 		var u = acc ? db.getUserById(acc.userId) : null;
-		if (u) { sum += u.rating; n++; }
+		if (u) { sum += readUserRating(u, style); n++; } // match on this mode's own ladder
 	}
 	return n ? Math.round(sum / n) : 1000;
 }
@@ -2198,7 +2199,7 @@ function scheduleBotArrival(mode) {
 			var taken = pendingBotsLists[mode].map(function(p) { return p.name; });
 			pendingBotsLists[mode].push({
 				name: botPlayer.pickBotName(taken),
-				config: botPlayer.pickBotFromPool(rankedTargetElo(mode))
+				config: botPlayer.pickBotFromPool(rankedTargetElo(mode), 0, RANKED_MODES[mode].ratingKey)
 			});
 		}
 		if (rankedCount(mode) >= modeSize(mode)) {

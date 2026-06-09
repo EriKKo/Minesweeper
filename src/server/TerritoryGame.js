@@ -163,11 +163,24 @@ function create(gen, players) {
 		var patch = [], inPatch = {};
 		function add(r, c) { var k = r + "," + c; if (!inPatch[k]) { inPatch[k] = true; patch.push([r, c]); } }
 		add(mr, mc);
-		// Your own territory around the blast is re-covered (your "home" isn't a protected corner — it's
-		// just wherever you currently hold ground, so a blast can eat into any of it).
-		for (var r = Math.max(0, mr - rad); r <= Math.min(R - 1, mr + rad); r++)
-			for (var c = Math.max(0, mc - rad); c <= Math.min(C - 1, mc + rad); c++)
-				if (owner[r][c] === pid) add(r, c);
+		// The hitter's own territory within the blast radius is what gets re-covered (your "home" isn't a
+		// protected corner — it's wherever you currently hold ground, so a blast can eat into any of it).
+		var inRange = [], totalOwned = 0;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (owner[r][c] !== pid) continue;
+			totalOwned++;
+			if (r >= mr - rad && r <= mr + rad && c >= mc - rad && c <= mc + rad) inRange.push([r, c]);
+		}
+		// Your last cells are always safe: if the blast would re-cover your ENTIRE territory, spare a home
+		// of the owned cells FARTHEST from the blast — so a mine can never eliminate you outright.
+		if (totalOwned - inRange.length === 0 && inRange.length > 0) {
+			var keep = Math.max(1, Math.ceil(totalOwned / 3));
+			inRange.sort(function(a, b) {
+				return Math.max(Math.abs(b[0] - mr), Math.abs(b[1] - mc)) - Math.max(Math.abs(a[0] - mr), Math.abs(a[1] - mc));
+			});
+			inRange = inRange.slice(keep); // the farthest `keep` cells stay revealed (your protected home)
+		}
+		inRange.forEach(function(p) { add(p[0], p[1]); });
 		var idxOf = {}; patch.forEach(function(p, i) { idxOf[p[0] + "," + p[1]] = i; });
 		// Border constraints: each revealed cell touching the patch must keep its mine-among-patch count.
 		var seen = {}, cons = [];
