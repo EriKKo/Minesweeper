@@ -103,13 +103,11 @@ function territoryBoard(data) {
 	territoryInfo.scores = data.scores || {};
 	territoryInfo.deadline = data.roundDeadline || null;
 
-	// A mine explosion re-generated a patch: patch the client's board clues so the re-covered cells
-	// re-reveal with their NEW values, note the origin for the reverse-cascade animation, and clear
-	// any local flags in the affected area (the old layout they marked no longer holds).
-	if (data.explosion) {
-		if (typeof patchBoardCells === "function") patchBoardCells(data.explosion.clues);
-		if (territoryFlags) for (var ek in data.explosion.clues) { var ep = ek.split(","); territoryFlags[+ep[0]][+ep[1]] = false; }
-	}
+	// A mine explosion re-covered a patch (origin noted below for the reverse-cascade animation). Flags
+	// are NOT touched — a suspected-mine mark only clears when its cell is actually revealed (see the
+	// `s === KNOWN` reset below), so an enemy blast can never wipe your flags. If the explosion ever
+	// carries regenerated clue values again, patch them into the client's board.
+	if (data.explosion && data.explosion.clues && typeof patchBoardCells === "function") patchBoardCells(data.explosion.clues);
 
 	// Cells the server re-covered this tick (only an explosion does this). Used both to allow an
 	// authoritative un-reveal and to drive the reverse-cascade animation.

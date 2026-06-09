@@ -82,45 +82,35 @@ function create(gen, players) {
 	}
 	function isMineWith(ov, r, c) { var k = r + "," + c; return (k in ov) ? ov[k] : (g.board[r][c] === MINE); }
 
-	// Hitting a mine triggers an explosion: re-cover a patch of the hitter's own territory around
-	// the mine and re-generate the mines under it so (a) every still-revealed clue around the patch
-	// stays correct (we preserve, per border cell, the mine-count among its patch neighbours) and
-	// (b) the patch is no-guess solvable from that border — the player re-clears it in place without
-	// "going around". If no such layout is found within a small search, fall back to a plain freeze.
+	// Hitting a mine triggers an EXPLOSION: a patch of the hitter's own territory around the mine is
+	// re-covered (a reverse cascade on the client) and the player is frozen for FREEZE_MS.
+	// NOTE: mine RE-GENERATION is disabled for now — the underlying board values are left exactly as
+	// they were, so the patch is simply un-revealed and the player re-clears the same layout. The
+	// re-roll machinery (computeExplosion / solvableFromBorder / changedClues) is kept below, dormant,
+	// for when we switch it back on.
 	g.explode = function(pid, mr, mc, now) {
-		var regen = null;
-		for (var rad = 2; rad <= 4 && !regen; rad++) regen = computeExplosion(pid, mr, mc, rad);
 		g.frozenUntil[pid] = now + FREEZE_MS;
 		g.mineHits[pid]++;
-		if (!regen) { g.mineKnown[pid][mr + "," + mc] = true; return { type: "mine", cell: [mr, mc], until: g.frozenUntil[pid] }; }
-		// Re-cover the patch and write the new layout. `touched` collects every cell this explosion
-		// re-covers (the patch + any cut-off section below) for the client's reverse-cascade animation.
+		var ep = explosionPatch(pid, mr, mc, 3);
+		// `touched` collects every cell this explosion re-covers (the patch + any cut-off section) for
+		// the client's reverse-cascade animation. Board values are NOT changed.
 		var touched = {};
-		function recover(p) {
-			state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null;
-			delete g.mineKnown[pid][p[0] + "," + p[1]];
-			touched[p[0] + "," + p[1]] = p;
-		}
-		regen.patch.forEach(recover);
-		for (var k in regen.clues) { var pr = k.indexOf(","); g.board[+k.slice(0, pr)][+k.slice(pr + 1)] = regen.clues[k]; }
-		var n = 0; for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) if (g.board[r][c] === MINE) n++;
-		g.totalSafe = R * C - n;
+		function recover(p) { state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null; touched[p[0] + "," + p[1]] = p; }
+		ep.patch.forEach(recover);
 		// Cut in two: if the re-cover split your territory into disconnected groups, you keep only your
 		// largest 8-connected group and the smaller cut-off sections are re-covered too — orphaned ground
-		// always reverts to covered, never left as dead revealed cells. Home is just the biggest area you
-		// currently hold; it can shift across the board or shrink to a last stand.
+		// always reverts to covered. Home is just the biggest area you currently hold (down to a last stand).
 		loseSmallerSections(pid).forEach(recover);
-		// The regen (or a re-cover) can leave a covered cell next to a revealed 0 — unambiguously safe,
-		// never allowed to stay covered ("uncascaded 0"). Reveal each such cell (flooding through connected
-		// 0s) and give it to the OWNER OF THAT 0-cell. Crucially that means a blast only ever feeds the
-		// player whose own open ground forced the reveal — it can never reach across and alter the other
-		// player's territory. Fixes both the patch and the cut-off re-cover.
+		g.mineKnown[pid][mr + "," + mc] = true; // the hit cell is still a mine (no regen) — the bot won't re-pick it
+		// Re-cover can leave a covered cell next to a revealed 0 ("uncascaded 0"): reveal each such cell
+		// (flooding through connected 0s), claimed by the OWNER OF THAT 0-cell — so a blast only ever feeds
+		// the player whose own open ground forced the reveal, never reaching across to another's territory.
 		var changed = true;
 		while (changed) {
 			changed = false;
 			for (var fr = 0; fr < R; fr++) for (var fc = 0; fc < C; fc++) {
 				if (state[fr][fc] !== KNOWN || g.board[fr][fc] !== 0) continue;
-				var into = owner[fr][fc];                               // re-revealed cells join this 0-cell's owner (or neutral)
+				var into = owner[fr][fc];
 				nbrs(fr, fc).forEach(function(b) {
 					if (state[b[0]][b[1]] !== UNKNOWN || g.board[b[0]][b[1]] === MINE) return;
 					BoardLogic.cascadeReveal(b[0], b[1], R, C,
@@ -133,9 +123,34 @@ function create(gen, players) {
 		}
 		var recovered = [];
 		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
-		g._explosion = { origin: [mr, mc], recovered: recovered, clues: regen.clues };
+		g._explosion = { origin: [mr, mc], recovered: recovered }; // no `clues` — the layout is unchanged
 		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
 	};
+
+	// The cells an explosion at (mr,mc) re-covers: the hit cell plus the hitter's owned cells within
+	// Chebyshev `rad`. If that would re-cover the player's ENTIRE territory, the owned cells farthest
+	// from the blast are spared (a home), so a mine can never eliminate you outright. Returns
+	// { patch: [[r,c]...], inPatch: {"r,c": true} }.
+	function explosionPatch(pid, mr, mc, rad) {
+		var patch = [], inPatch = {};
+		function add(r, c) { var k = r + "," + c; if (!inPatch[k]) { inPatch[k] = true; patch.push([r, c]); } }
+		add(mr, mc);
+		var inRange = [], totalOwned = 0;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (owner[r][c] !== pid) continue;
+			totalOwned++;
+			if (r >= mr - rad && r <= mr + rad && c >= mc - rad && c <= mc + rad) inRange.push([r, c]);
+		}
+		if (totalOwned - inRange.length === 0 && inRange.length > 0) {
+			var keep = Math.max(1, Math.ceil(totalOwned / 3));
+			inRange.sort(function(a, b) {
+				return Math.max(Math.abs(b[0] - mr), Math.abs(b[1] - mc)) - Math.max(Math.abs(a[0] - mr), Math.abs(a[1] - mc));
+			});
+			inRange = inRange.slice(keep); // the farthest `keep` cells stay revealed (your protected home)
+		}
+		inRange.forEach(function(p) { add(p[0], p[1]); });
+		return { patch: patch, inPatch: inPatch };
+	}
 
 	// The player's owned cells minus their largest 8-connected group — i.e. the cut-off sections after
 	// a re-cover. Returns them (the caller re-covers them); does not mutate. Empty if still one piece.
@@ -160,28 +175,12 @@ function create(gen, players) {
 		return lost;
 	}
 
+	// DORMANT: regenerates the mines under an exploded patch so the surrounding clues stay correct and
+	// the patch is no-guess solvable from its border. Not currently called (g.explode keeps the layout
+	// as-is); retained for when mine re-generation is switched back on.
 	function computeExplosion(pid, mr, mc, rad) {
-		var patch = [], inPatch = {};
-		function add(r, c) { var k = r + "," + c; if (!inPatch[k]) { inPatch[k] = true; patch.push([r, c]); } }
-		add(mr, mc);
-		// The hitter's own territory within the blast radius is what gets re-covered (your "home" isn't a
-		// protected corner — it's wherever you currently hold ground, so a blast can eat into any of it).
-		var inRange = [], totalOwned = 0;
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			if (owner[r][c] !== pid) continue;
-			totalOwned++;
-			if (r >= mr - rad && r <= mr + rad && c >= mc - rad && c <= mc + rad) inRange.push([r, c]);
-		}
-		// Your last cells are always safe: if the blast would re-cover your ENTIRE territory, spare a home
-		// of the owned cells FARTHEST from the blast — so a mine can never eliminate you outright.
-		if (totalOwned - inRange.length === 0 && inRange.length > 0) {
-			var keep = Math.max(1, Math.ceil(totalOwned / 3));
-			inRange.sort(function(a, b) {
-				return Math.max(Math.abs(b[0] - mr), Math.abs(b[1] - mc)) - Math.max(Math.abs(a[0] - mr), Math.abs(a[1] - mc));
-			});
-			inRange = inRange.slice(keep); // the farthest `keep` cells stay revealed (your protected home)
-		}
-		inRange.forEach(function(p) { add(p[0], p[1]); });
+		var ep = explosionPatch(pid, mr, mc, rad);
+		var patch = ep.patch, inPatch = ep.inPatch;
 		var idxOf = {}; patch.forEach(function(p, i) { idxOf[p[0] + "," + p[1]] = i; });
 		// Border constraints: each revealed cell touching the patch must keep its mine-among-patch count.
 		var seen = {}, cons = [];
