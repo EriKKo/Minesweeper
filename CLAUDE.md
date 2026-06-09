@@ -99,10 +99,18 @@ Source is split into three trees under `src/`:
   no reroll yet). Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); ends on all-claimed /
-  stuck / round-timer → most cells wins (`territory_result`). Entry: a "Create Territory (versus)"
-  button in the custom lobby (`create_room {mode:"territory"}`, forced 2-player, fixed 16×16).
-  Client `Territory.js` + `#territory_view`: one full shared board with subtle cyan/amber owner
-  tints, server-authoritative clicks, freeze veil, a territory bar, and an end overlay.
+  stuck / round-timer → most cells wins (`territory_result`). **Two entry points:** a "Create
+  Territory (versus)" button in the custom lobby, and a **ranked** `territory_duo` mode
+  (`RANKED_MODES`, style `"territory"`, `noBots: true` so it forms only when two humans queue —
+  which is also the easy way to test it) with its own `rating_territory` Elo ladder; ranked games
+  apply pairwise Elo in `endTerritoryGame` and report the delta in `territory_result`. **Client:
+  `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
+  not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
+  `drawCell` tints (via `view.getOwner`, null in other modes), and routes clicks through
+  `Input.performAction`'s new `"territory"` mode (server-authoritative — emit, no optimistic
+  reveal). Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
+  and animations all work for free. Racing chrome is hidden via a `.territory` class on `#game_view`
+  plus a small territory score-bar HUD.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of
