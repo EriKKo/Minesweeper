@@ -92,8 +92,11 @@ Source is split into three trees under `src/`:
   the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
 - `TerritoryGenerator.js` / `TerritoryGame.js` — the **Territory (versus)** mode: two players grow
   from opposite corners of ONE shared board, claiming cells (vs the racing modes where each player
-  has a private state matrix over a shared layout). The generator mirrors the two corner blocks
-  (180°) for an identical start and caps interior cascades; `TerritoryGame` holds the single
+  has a private state matrix over a shared layout). The generator is generate-and-test: a random
+  18×30 board with the top-left corner block mirrored 180° onto the bottom-right (and every cascade
+  capped) so the two start openings are **identical**, kept only if it's **no-guess solvable from
+  BOTH corners** (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the interior
+  between the corners is independent, not symmetric. `TerritoryGame` holds the single
   `state` + an `owner` matrix, enforces contiguous growth (you may only reveal a covered cell
   adjacent to your own territory), and on a mine hit re-covers it + freezes the player 3 s (v1 —
   no reroll yet). Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →

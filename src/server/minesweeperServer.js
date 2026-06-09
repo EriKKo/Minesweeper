@@ -67,7 +67,7 @@ function gameForBroadcast(g, pid) {
 var COUNT_DOWN_TIME = 3;
 // Territory (versus) mode: 2 players, fixed square board, subtle per-player colours.
 var TERRITORY_ROWS = 18, TERRITORY_COLS = 30; // bigger, wide board so there's room to play
-var TERRITORY_DENSITY = 0.18;
+var TERRITORY_DENSITY = 0.13;
 var TERRITORY_COLORS = ["cyan", "amber"]; // index = player slot
 var BETWEEN_GAMES_DELAY = 3000;
 // Tournament rounds run the elimination sequence (scrim → reorder → cut flashes

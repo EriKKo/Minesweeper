@@ -10,6 +10,7 @@
 // guarantee), so this is a plain mine layout, not a no-guess template.
 
 var BoardLogic = require("../common/BoardLogic");
+var noGuess = require("./NoGuessGenerator");
 var MINE = BoardLogic.MINE; // -1
 
 function inBounds(r, c, R, C) { return r >= 0 && c >= 0 && r < R && c < C; }
@@ -67,49 +68,77 @@ function firstBigZeroRegion(board, cap, inCorner) {
 	return null;
 }
 
+// Are the two corner openings identical? The BR cascade must be the exact 180° mirror of the TL
+// cascade, same cells AND same clue values.
+function openingsIdentical(board, tl, br, R, C) {
+	if (tl.length !== br.length) return false;
+	var brClue = {};
+	for (var i = 0; i < br.length; i++) brClue[br[i][0] + "," + br[i][1]] = board[br[i][0]][br[i][1]];
+	for (var j = 0; j < tl.length; j++) {
+		var p = tl[j], mk = (R - 1 - p[0]) + "," + (C - 1 - p[1]);
+		if (brClue[mk] !== board[p[0]][p[1]]) return false;
+	}
+	return true;
+}
+
+// Generate a Territory board with two guarantees:
+//   1. it's no-guess solvable from EACH corner independently (so neither player is forced to
+//      guess — checked with the shared no-guess solver), and
+//   2. the two corner start cascades are identical (the top-left corner block is mirrored 180°
+//      onto the bottom-right, and every cascade is capped so the opening stays small and fully
+//      inside that mirrored block).
+// The interior between the corners is independent (not symmetric). Generate-and-test: most boards
+// pass within a few tries; if none does within maxTries, the closest identical-opening board is
+// returned as a fallback.
 function generate(opts) {
 	opts = opts || {};
 	var R = opts.rows || 16, C = opts.cols || 16;
-	var density = opts.density != null ? opts.density : 0.18;
+	var density = opts.density != null ? opts.density : 0.13;
 	var cap = opts.cascadeCap || 6;
-	var D = opts.cornerSize || 5;          // size of the mirrored corner block
-	var openDepth = opts.openDepth || 3;   // triangular open pocket: cells with r+c < openDepth
+	var BLK = opts.cornerSize || 7;        // mirrored corner block → identical openings
+	var openDepth = opts.openDepth || 3;
+	var maxTries = opts.maxTries || 150;
 
-	function inCorner(r, c) {
-		return (r < D && c < D) || (r >= R - D && c >= C - D);
+	function inBlock(r, c) { return (r < BLK && c < BLK) || (r >= R - BLK && c >= C - BLK); }
+	function never() { return false; }
+
+	var best = null;
+	for (var t = 0; t < maxTries; t++) {
+		var mine = [];
+		for (var r = 0; r < R; r++) { mine.push([]); for (var c = 0; c < C; c++) mine[r].push(Math.random() < density); }
+		// Open pocket at the top-left corner, then mirror the whole TL block (180°) onto the BR
+		// block so the two openings match. Only the corner blocks are mirrored — the interior is independent.
+		for (var pr = 0; pr < BLK; pr++) for (var pc = 0; pc < BLK; pc++) if (pr + pc < openDepth) mine[pr][pc] = false;
+		for (var mr = 0; mr < BLK; mr++) for (var mc = 0; mc < BLK; mc++) mine[R - 1 - mr][C - 1 - mc] = mine[mr][mc];
+		mine[0][0] = false; mine[R - 1][C - 1] = false;
+		var board = cluesFromMines(mine);
+		// Cap EVERY cascade (incl. the corner openings) so the opening stays small and contained in
+		// its mirrored block; a cap-mine landing inside a corner block is mirrored to keep them equal.
+		for (var it = 0; it < 3000; it++) {
+			var big = firstBigZeroRegion(board, cap, never);
+			if (!big) break;
+			var cell = big[Math.floor(big.length / 2)];
+			mine[cell[0]][cell[1]] = true;
+			if (inBlock(cell[0], cell[1])) mine[R - 1 - cell[0]][C - 1 - cell[1]] = true;
+			board = cluesFromMines(mine);
+		}
+		var mineCount = 0;
+		for (r = 0; r < R; r++) for (c = 0; c < C; c++) if (mine[r][c]) mineCount++;
+		var tlReveal = cascadeFrom(board, 0, 0), brReveal = cascadeFrom(board, R - 1, C - 1);
+		var result = {
+			rows: R, cols: C, board: board, starts: [[0, 0], [R - 1, C - 1]],
+			startReveals: [tlReveal, brReveal], mineCount: mineCount, cornerSize: BLK, solvable: false
+		};
+		if (!openingsIdentical(board, tlReveal, brReveal, R, C)) { if (!best) best = result; continue; }
+		// No-guess from BOTH corners means each player can clear their side by pure deduction.
+		if (noGuess.analyzeSolvability(board, tlReveal, mineCount).solved
+			&& noGuess.analyzeSolvability(board, brReveal, mineCount).solved) {
+			result.solvable = true;
+			return result;
+		}
+		best = result; // identical openings but not both-solvable — better fallback than a non-identical board
 	}
-
-	var mine = [];
-	for (var r = 0; r < R; r++) { mine.push([]); for (var c = 0; c < C; c++) mine[r].push(Math.random() < density); }
-
-	// Carve an identical open pocket at the top-left corner (within its block)…
-	for (var pr = 0; pr < D; pr++) for (var pc = 0; pc < D; pc++) if (pr + pc < openDepth) mine[pr][pc] = false;
-	// …then mirror the whole top-left block (incl. the pocket) onto the bottom-right via 180° rotation,
-	// so both corners face an identical opening.
-	for (var br = 0; br < D; br++) for (var bc = 0; bc < D; bc++) mine[R - 1 - br][C - 1 - bc] = mine[br][bc];
-	mine[0][0] = false; mine[R - 1][C - 1] = false; // start cells always safe
-
-	var board = cluesFromMines(mine);
-
-	// Cap cascades outside the corner blocks: drop a mine into any oversized clue-0 region and
-	// recompute, until none exceeds the cap (bounded iterations as a safety net).
-	for (var it = 0; it < 1000; it++) {
-		var big = firstBigZeroRegion(board, cap, inCorner);
-		if (!big) break;
-		var cell = big[Math.floor(big.length / 2)];
-		mine[cell[0]][cell[1]] = true;
-		board = cluesFromMines(mine);
-	}
-
-	var mineCount = 0;
-	for (r = 0; r < R; r++) for (c = 0; c < C; c++) if (mine[r][c]) mineCount++;
-
-	return {
-		rows: R, cols: C, board: board,
-		starts: [[0, 0], [R - 1, C - 1]],
-		startReveals: [cascadeFrom(board, 0, 0), cascadeFrom(board, R - 1, C - 1)],
-		mineCount: mineCount, cornerSize: D
-	};
+	return best;
 }
 
 module.exports = { generate: generate, cascadeFrom: cascadeFrom, cluesFromMines: cluesFromMines };
