@@ -214,6 +214,10 @@ function territoryToggleFlag(r, c) {
 		delete cellAnims[key];
 		if (typeof sound !== "undefined" && sound.unflag) sound.unflag();
 	}
+	// Mirror the change into prevPlayerState so the next territory_board diff doesn't see a phantom
+	// flag transition and re-play the flag-pop (which starts at scale 0, making the flag blink out
+	// once). Flags are client-only, so the server's broadcast never carries them.
+	if (prevPlayerState) prevPlayerState[r][c] = myState[r][c];
 }
 
 function territoryRenderHud() {

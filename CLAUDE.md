@@ -103,17 +103,21 @@ Source is split into three trees under `src/`:
   the blast is re-covered (a reverse-cascade "unreveal" animation client-side) and its mines
   re-generated (`computeExplosion`, border-constrained backtracking) so every surrounding clue still
   holds AND the patch is no-guess solvable from its border — you re-clear it in place, no "going
-  around". The patch **never includes a protected start-zone cell** (an explosion can't claw back a
-  player's start), and any cell the regen turns into a 0 is auto-cascaded back open so the board is
-  never left with an uncascaded 0. A 3 s freeze accompanies the hit; if no valid regen is found in a
-  small search it falls back to a plain re-cover. Server wiring in `minesweeperServer.js`:
-  `room.gameMode === "territory"` →
+  around". Any cell the regen turns into a 0 is auto-cascaded back open so the board is never left
+  with an uncascaded 0. If the re-cover **splits your territory** into disconnected groups, you keep
+  only your largest 8-connected group and the smaller cut-off sections go **neutral** (`loseSmallerSections`
+  — they stay revealed but un-owned, de-colouring to dead ground); so "home" is never a fixed corner,
+  it's just the biggest area you currently hold and can shift or shrink to a last stand (the generator's
+  mine-free corner zone is now only a clean opening, no longer explosion-protected). A 3 s freeze
+  accompanies the hit; if no valid regen is found in a small search it falls back to a plain re-cover.
+  Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
-  and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); ends on all-claimed /
-  stuck / round-timer → most cells wins (`territory_result`). **Two entry points:** a "Create
-  Territory (versus)" button in the custom lobby, and a **ranked** `territory_duo` mode
-  (`RANKED_MODES`, style `"territory"`, `noBots: true` so it forms only when two humans queue —
-  which is also the easy way to test it) with its own `rating_territory` Elo ladder; ranked games
+  and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
+  (`roundSeconds: 0`) — it ends when the board is played out (`tg.stuck()`, i.e. neither player has a
+  safe move left) or a player leaves → most cells wins (`territory_result`). **Two entry points:** a
+  "Create Territory (versus)" button in the custom lobby, and a **ranked** `territory_duo` mode
+  (`RANKED_MODES`, style `"territory"`, filled with bots like the other ranked modes) with its own
+  `rating_territory` Elo ladder; ranked games
   apply pairwise Elo in `endTerritoryGame` and report the delta in `territory_result`. **Client:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
@@ -127,10 +131,11 @@ Source is split into three trees under `src/`:
   `revealsOnly` drops flags/chords. `scheduleTerritoryBot` ticks it on a speed/difficulty-scaled
   cadence; `tg.mineKnown` keeps it from re-hitting a mine. **Enclosure capture**
   (`tg.captureEnclosed`, run after every reveal): a region you've sealed off so that **only you can
-  reach it** — two reachability floods, capture = cells your territory reaches (through covered cells)
-  but the opponent's cannot — is claimed. This captures regions pinned against a **board edge** too,
-  not just interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and
-  claimed, mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
+  reach it** — two reachability floods (each spreads from a player's land through covered cells only;
+  the opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the
+  opponent's doesn't — is claimed. This captures regions pinned against a **board edge** too, not just
+  interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and claimed,
+  mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of

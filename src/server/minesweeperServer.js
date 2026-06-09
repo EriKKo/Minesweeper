@@ -988,7 +988,7 @@ var RANKED_MODES = {
 	// Territory (versus): 2 players share one board from opposite corners. Human-only (no bot AI
 	// for it yet), so matches form when two real players queue — which also makes it easy to test
 	// with two tabs.
-	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 180 }
+	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0 } // no clock — ends when the board is played out
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
@@ -2853,7 +2853,7 @@ io.on("connection", function (socket) {
 		if (territory) {
 			room.gameMode = "territory";
 			room.rows = TERRITORY_ROWS; room.cols = TERRITORY_COLS;
-			room.roundSeconds = 180;
+			room.roundSeconds = 0; // no clock — territory ends when the board is fully played out (stuck)
 		}
 		rooms[id] = room;
 		addPlayerToRoom(socket, room);

@@ -5,9 +5,8 @@
 //   - mirrors each corner's start BLOCK (180° rotation) so both openings are identical;
 //   - caps the size of any cascade (connected clue-0 region) so no single click hands over a
 //     huge chunk of territory;
-//   - carves a mine-free START ZONE (Chebyshev radius `safeRadius`) at each corner so a player
-//     can't detonate a mine in their starting area, and (with TerritoryGame excluding it from any
-//     blast patch) so a mine explosion can never claw back a player's start.
+//   - carves a mine-free opening (Chebyshev radius `safeRadius`) at each corner so the first moves
+//     are safe (no instant self-detonation on the start cascade).
 // The interior between the corners stays random. Mine hits are part of the mode (no full no-guess
 // guarantee), so this is a plain mine layout, not a no-guess template.
 

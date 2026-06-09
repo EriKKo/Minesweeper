@@ -7,17 +7,16 @@
 // becomes theirs. Hitting a mine triggers an EXPLOSION: a patch of the hitter's own territory around
 // the mine is re-covered (a reverse cascade on the client), its mines re-generated so the surrounding
 // clues stay correct AND the patch is no-guess solvable from its border, and the player is frozen for
-// FREEZE_MS. Each corner has a protected START ZONE (Chebyshev START_RADIUS): the generator keeps it
-// mine-free, and an explosion is never allowed to re-cover a cell inside it — so a player's starting
-// area can never be clawed back by a blast. The game ends when every safe cell is claimed (or the
-// room timer expires); most cells wins.
+// FREEZE_MS. If that re-cover splits your territory, you keep only your largest connected group and
+// lose the smaller cut-off sections — so "home" is never a fixed corner, just the biggest area you
+// currently hold (it can shift, or shrink to a last stand). The game ends when every safe cell is
+// claimed (or the room timer expires); most cells wins.
 
 var BoardLogic = require("../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, MINE = BoardLogic.MINE;
 
 var FREEZE_MS = 3000;
-var START_RADIUS = 3; // Chebyshev radius of the protected start zone at each corner (matches TerritoryGenerator)
 
 // gen = TerritoryGenerator.generate(...); players = [idA, idB] mapped to starts[0], starts[1].
 function create(gen, players) {
@@ -40,10 +39,6 @@ function create(gen, players) {
 			state[rc[0]][rc[1]] = KNOWN; owner[rc[0]][rc[1]] = pid;
 		});
 	});
-
-	// Protected start zone: within Chebyshev START_RADIUS of either corner. Mine-free (generator) and
-	// excluded from every blast patch (computeExplosion) so an explosion can never re-cover a start cell.
-	function inStartZone(r, c) { return (r <= START_RADIUS && c <= START_RADIUS) || (r >= R - 1 - START_RADIUS && c >= C - 1 - START_RADIUS); }
 
 	g.frozen = function(pid, now) { return now < (g.frozenUntil[pid] || 0); };
 
@@ -121,20 +116,50 @@ function create(gen, players) {
 				});
 			}
 		}
-		var stillCovered = regen.patch.filter(function(p) { return state[p[0]][p[1]] === UNKNOWN; });
-		g._explosion = { origin: [mr, mc], recovered: stillCovered, clues: regen.clues };
-		return { type: "explode", origin: [mr, mc], recovered: stillCovered, until: g.frozenUntil[pid] };
+		// Cut in two: if the re-cover split your territory into disconnected groups, you keep only your
+		// largest and lose the smaller cut-off sections (they stay revealed but go neutral — unowned).
+		// Your home is thus simply the biggest area you still control — it can shift across the board,
+		// even down to a tiny last stand. Run AFTER the cascade above, which may have re-bridged groups.
+		loseSmallerSections(pid);
+		var recovered = regen.patch.filter(function(p) { return state[p[0]][p[1]] === UNKNOWN; });
+		g._explosion = { origin: [mr, mc], recovered: recovered, clues: regen.clues };
+		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
 	};
+
+	// Keep only the player's largest 8-connected group of owned cells; the rest go neutral (owner →
+	// null, but stay revealed, so no covered cells are created and the board can't gain an uncascaded
+	// 0). A cut-off limb just de-colours into dead, unowned ground.
+	function loseSmallerSections(pid) {
+		var seen = [];
+		for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
+		var comps = [];
+		for (var r0 = 0; r0 < R; r0++) for (var c0 = 0; c0 < C; c0++) {
+			if (owner[r0][c0] !== pid || seen[r0][c0]) continue;
+			var comp = [], stack = [[r0, c0]]; seen[r0][c0] = true;
+			while (stack.length) {
+				var p = stack.pop(); comp.push(p);
+				nbrs(p[0], p[1]).forEach(function(b) { if (owner[b[0]][b[1]] === pid && !seen[b[0]][b[1]]) { seen[b[0]][b[1]] = true; stack.push(b); } });
+			}
+			comps.push(comp);
+		}
+		if (comps.length <= 1) return;                                 // still one piece — nothing lost
+		var best = 0;
+		for (var i = 1; i < comps.length; i++) if (comps[i].length > comps[best].length) best = i;
+		for (var j = 0; j < comps.length; j++) {
+			if (j === best) continue;
+			comps[j].forEach(function(p) { owner[p[0]][p[1]] = null; });  // de-claim; cell stays revealed (neutral)
+		}
+	}
 
 	function computeExplosion(pid, mr, mc, rad) {
 		var patch = [], inPatch = {};
 		function add(r, c) { var k = r + "," + c; if (!inPatch[k]) { inPatch[k] = true; patch.push([r, c]); } }
 		add(mr, mc);
-		// Own territory around the blast — but never a start-zone cell, so an explosion can't re-cover
-		// a player's start (those cells stay revealed and act as fixed border for the regen instead).
+		// Your own territory around the blast is re-covered (your "home" isn't a protected corner — it's
+		// just wherever you currently hold ground, so a blast can eat into any of it).
 		for (var r = Math.max(0, mr - rad); r <= Math.min(R - 1, mr + rad); r++)
 			for (var c = Math.max(0, mc - rad); c <= Math.min(C - 1, mc + rad); c++)
-				if (owner[r][c] === pid && !inStartZone(r, c)) add(r, c);
+				if (owner[r][c] === pid) add(r, c);
 		var idxOf = {}; patch.forEach(function(p, i) { idxOf[p[0] + "," + p[1]] = i; });
 		// Border constraints: each revealed cell touching the patch must keep its mine-among-patch count.
 		var seen = {}, cons = [];
@@ -193,7 +218,7 @@ function create(gen, players) {
 		var tb = [];
 		for (var r = 0; r < R; r++) { tb.push(new Array(C)); for (var c = 0; c < C; c++) { if (isMineWith(ov, r, c)) tb[r][c] = MINE; else { var n = 0; nbrs(r, c).forEach(function(nb) { if (isMineWith(ov, nb[0], nb[1])) n++; }); tb[r][c] = n; } } }
 		var st = [];
-		for (var r2 = 0; r2 < R; r2++) { st.push(new Array(C)); for (var c2 = 0; c2 < C; c2++) st[r2][c2] = (owner[r2][c2] !== null && !inPatch[r2 + "," + c2]) ? KNOWN : UNKNOWN; }
+		for (var r2 = 0; r2 < R; r2++) { st.push(new Array(C)); for (var c2 = 0; c2 < C; c2++) st[r2][c2] = (state[r2][c2] === KNOWN && !inPatch[r2 + "," + c2]) ? KNOWN : UNKNOWN; }
 		function cascade(rr, cc) { BoardLogic.cascadeReveal(rr, cc, R, C, function(a, b) { return st[a][b] === UNKNOWN; }, function(a, b) { st[a][b] = KNOWN; return false; }, function(a, b) { return tb[a][b]; }); }
 		cspSolver.analyzeBoard(tb, st, { revealCell: cascade, maxComplexity: 7 });
 		for (var i = 0; i < patch.length; i++) { var p = patch[i]; if (!isMineWith(ov, p[0], p[1]) && st[p[0]][p[1]] !== KNOWN) return false; }
@@ -207,19 +232,20 @@ function create(gen, players) {
 	// and claimed; mines stay covered (a dead pocket); the opponent's own cells are never stolen.
 	// Returns the newly-claimed cells.
 	g.captureEnclosed = function(pid) {
-		// Cells reachable from `isSeed` without crossing an `isWall` cell (4-connected). Seeds are a
-		// player's territory; walls are the other player's territory; covered cells are passable.
-		function flood(isSeed, isWall) {
+		// Cells a player can reach (4-connected), spreading from their own territory through covered
+		// cells only. Their own land is passable too (it's where they start); any OTHER revealed cell —
+		// the opponent's, or neutral dead ground — is a wall they can't expand through.
+		function reach(own) {
 			var seen = [], stack = [];
 			for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
-			function push(r, c) { if (r < 0 || c < 0 || r >= R || c >= C || seen[r][c] || isWall(r, c)) return; seen[r][c] = true; stack.push([r, c]); }
-			for (var sr = 0; sr < R; sr++) for (var sc = 0; sc < C; sc++) if (isSeed(sr, sc)) push(sr, sc);
+			function push(r, c) { if (r < 0 || c < 0 || r >= R || c >= C || seen[r][c]) return; if (state[r][c] !== UNKNOWN && !own(r, c)) return; seen[r][c] = true; stack.push([r, c]); }
+			for (var sr = 0; sr < R; sr++) for (var sc = 0; sc < C; sc++) if (own(sr, sc)) push(sr, sc);
 			while (stack.length) { var p = stack.pop(); push(p[0] - 1, p[1]); push(p[0] + 1, p[1]); push(p[0], p[1] - 1); push(p[0], p[1] + 1); }
 			return seen;
 		}
 		function isOpp(r, c) { return owner[r][c] !== null && owner[r][c] !== pid; }
-		var oppReach = flood(isOpp, function(r, c) { return owner[r][c] === pid; });            // opponent's reach (your land walls them out)
-		var youReach = flood(function(r, c) { return owner[r][c] === pid; }, isOpp);            // your reach (their land walls you out)
+		var oppReach = reach(isOpp);                                                            // opponent's reach (your land + neutral ground wall them out)
+		var youReach = reach(function(r, c) { return owner[r][c] === pid; });                   // your reach (their land + neutral ground wall you out)
 		var captured = [];
 		for (var r2 = 0; r2 < R; r2++) for (var c2 = 0; c2 < C; c2++) {
 			if (owner[r2][c2] === pid || oppReach[r2][c2] || !youReach[r2][c2]) continue;        // theirs, reachable by them, or unreachable by you
