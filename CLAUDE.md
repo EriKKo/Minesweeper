@@ -122,8 +122,11 @@ Source is split into three trees under `src/`:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
   `drawCell` tints (via `view.getOwner`, null in other modes), and routes clicks through
-  `Input.performAction`'s new `"territory"` mode (server-authoritative — emit, no optimistic
-  reveal). Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
+  `Input.performAction`'s `"territory"` mode. Like the other modes it **predicts locally** — the
+  client decodes the board, so `territoryLocalReveal` reveals+cascades+claims a safe move instantly
+  and then emits; the server still owns mine hits (explosions), enclosure capture and validation, all
+  reconciled by the next `territory_board` (the reverse-cascade unreveal animation is gated on a real
+  explosion so a rolled-back prediction can't trigger it). Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
   and animations all work for free. Racing chrome is hidden via a `.territory` class on `#game_view`
   plus a small territory score-bar HUD. **Bots** use the same `BotPlayer.decideMove` AI as the
   racing modes, fed a game view with two extra knobs (no-ops for racing): `canTarget(r,c)` limits

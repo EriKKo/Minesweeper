@@ -122,14 +122,15 @@ function territoryBoard(data) {
 	// Animate newly-claimed cells (queueRevealAnimations diffs against prevPlayerState, then we
 	// snapshot). On the first board prevPlayerState is null, so the start cascades animate in.
 	queueRevealAnimations(newState);
-	// Reverse cascade: cells that went revealed → covered (an explosion's re-cover) animate the
-	// cover dropping back, staggered outward from the blast origin. Queued AFTER queueRevealAnimations
-	// (which clears anims for now-covered cells) so they aren't wiped.
-	if (prev) {
-		var origin = data.explosion ? data.explosion.origin : null, now = performance.now(), any = false;
+	// Reverse cascade: cells that went revealed → covered animate the cover dropping back, staggered
+	// outward from the blast origin. Only on an actual explosion — otherwise a rolled-back local
+	// prediction (a reveal the server didn't confirm) would spuriously play an un-reveal. Queued AFTER
+	// queueRevealAnimations (which clears anims for now-covered cells) so they aren't wiped.
+	if (prev && data.explosion) {
+		var origin = data.explosion.origin, now = performance.now(), any = false;
 		for (var ur = 0; ur < R; ur++) for (var uc = 0; uc < C; uc++) {
 			if (prev[ur][uc] === KNOWN && newState[ur][uc] === UNKNOWN) {
-				var delay = origin ? Math.hypot(ur - origin[0], uc - origin[1]) * 26 : 0;
+				var delay = Math.hypot(ur - origin[0], uc - origin[1]) * 26;
 				cellAnims[ur + "," + uc] = { type: "unreveal", start: now + delay };
 				any = true;
 			}
@@ -196,6 +197,42 @@ function territoryReset() {
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.remove("territory");
 	document.body.classList.remove("territory-fullscreen");
+}
+
+// Client-side contiguity check, mirroring the server's g.canReveal: a covered cell 8-adjacent to one
+// of my own cells. Lets us predict a reveal locally instead of waiting for the server round-trip.
+function territoryCanReveal(r, c) {
+	if (!myState || !territoryOwnerColors || myState[r][c] !== UNKNOWN) return false;
+	var mine = territoryColorHex(territoryColorOf(territoryInfo.myId));
+	for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+		if (!dr && !dc) continue;
+		var nr = r + dr, nc = c + dc;
+		if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && territoryOwnerColors[nr][nc] === mine) return true;
+	}
+	return false;
+}
+
+// Optimistic local reveal: the client knows the decoded board, so it predicts a safe reveal + cascade
+// exactly as the server will, claims the cells for me, and animates immediately — no waiting on the
+// round-trip. Mines are NOT predicted (the server owns the explosion/regen); enclosure capture and the
+// opponent's moves arrive on the authoritative territory_board, which reconciles the whole grid. A move
+// the server ends up rejecting is simply overwritten by the next board. Returns true if it revealed.
+function territoryLocalReveal(r, c) {
+	if (!territoryActive || !myState) return false;
+	if (myState[r][c] !== UNKNOWN) return false;          // covered cells only (FLAGGED is protected upstream)
+	if (boardCell(r, c) === MINE) return false;           // let the server compute the explosion
+	if (!territoryCanReveal(r, c)) return false;          // must touch my own territory
+	var mine = territoryColorHex(territoryColorOf(territoryInfo.myId));
+	var revealed = [];
+	BoardLogic.cascadeReveal(r, c, rows, cols,
+		function(rr, cc) { return myState[rr][cc] === UNKNOWN && boardCell(rr, cc) !== MINE; },
+		function(rr, cc) { myState[rr][cc] = KNOWN; territoryOwnerColors[rr][cc] = mine; territoryFlags[rr][cc] = false; revealed.push([rr, cc]); return false; },
+		function(rr, cc) { return boardCell(rr, cc); });
+	if (!revealed.length) return false;
+	lastActionCell = { r: r, c: c };
+	queueRevealAnimations(myState);
+	prevPlayerState = cloneState(myState);                // so the matching server board doesn't re-animate these
+	return true;
 }
 
 // Toggle a local "suspected mine" flag on a covered cell (client-only — not sent to the server,

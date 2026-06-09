@@ -87,14 +87,17 @@ function performAction(r, c, asFlag) {
 	focusedR = r;
 	focusedC = c;
 	if (mode === "territory") {
-		// Shared board, server-authoritative (emit, no optimistic). Clicking one of your own
-		// revealed numbers chords (client-driven, since flags are local-only). Flags are a
-		// local "suspected mine" mark; a flagged cell is protected from an accidental reveal.
+		// Shared board with local prediction (the client decodes the board, like the other modes):
+		// predict a safe reveal immediately, then emit for the server to validate/explode/capture and
+		// reconcile via territory_board. Clicking one of your own revealed numbers chords (client-driven,
+		// since flags are local-only). Flags are a local "suspected mine" mark; a flagged cell is
+		// protected from an accidental reveal.
 		if (myState && myState[r][c] === KNOWN) {
 			territoryChord(r, c);
 		} else if (asFlag) {
 			if (typeof territoryToggleFlag === "function") territoryToggleFlag(r, c);
 		} else if (!(myState && myState[r][c] === FLAGGED)) {
+			if (typeof territoryLocalReveal === "function") territoryLocalReveal(r, c); // optimistic predict
 			socket.emit("left_click", { r: r, c: c, id: id });
 		}
 		redrawOwnBoardWithFocus();
@@ -145,7 +148,9 @@ function territoryChord(r, c) {
 		function(rr, cc) { return myState[rr][cc] === UNKNOWN; });
 	if (ctx.flagCount !== v) return;
 	for (var i = 0; i < ctx.covered.length; i++) {
-		socket.emit("left_click", { r: ctx.covered[i][0], c: ctx.covered[i][1], id: id });
+		var nr = ctx.covered[i][0], nc = ctx.covered[i][1];
+		if (typeof territoryLocalReveal === "function") territoryLocalReveal(nr, nc); // predict the safe neighbours
+		socket.emit("left_click", { r: nr, c: nc, id: id });
 	}
 }
 
