@@ -64,8 +64,35 @@ function create(gen, players) {
 			function(a, b) { return state[a][b] === UNKNOWN && g.board[a][b] !== MINE; },
 			function(a, b) { state[a][b] = KNOWN; owner[a][b] = pid; claimed.push([a, b]); return false; },
 			function(a, b) { return g.board[a][b]; });
+		// Newly walling something off captures it (enclosed covered ground becomes yours).
+		var captured = g.captureEnclosed(pid);
 		if (g.claimedSafe() >= g.totalSafe) g.playing = false;
-		return { type: "reveal", cells: claimed };
+		return { type: "reveal", cells: claimed.concat(captured) };
+	};
+
+	// Enclosure capture: any region the player has walled off — cells not owned by them that can't
+	// reach the board edge except by crossing their territory — is captured. Covered non-mine cells
+	// in it are revealed and claimed; mines stay covered (a dead pocket inside your land); the
+	// opponent's own cells are left alone (no stealing). Returns the newly-claimed cells.
+	g.captureEnclosed = function(pid) {
+		var free = [];
+		for (var r = 0; r < R; r++) free.push(new Array(C).fill(false));
+		var stack = [];
+		function seed(r, c) { if (r >= 0 && c >= 0 && r < R && c < C && owner[r][c] !== pid && !free[r][c]) { free[r][c] = true; stack.push([r, c]); } }
+		for (var c0 = 0; c0 < C; c0++) { seed(0, c0); seed(R - 1, c0); }
+		for (var r0 = 0; r0 < R; r0++) { seed(r0, 0); seed(r0, C - 1); }
+		while (stack.length) {
+			var p = stack.pop();
+			seed(p[0] - 1, p[1]); seed(p[0] + 1, p[1]); seed(p[0], p[1] - 1); seed(p[0], p[1] + 1);
+		}
+		var captured = [];
+		for (var r2 = 0; r2 < R; r2++) for (var c2 = 0; c2 < C; c2++) {
+			if (owner[r2][c2] === pid || free[r2][c2]) continue;          // owned by pid, or escapes to edge
+			if (state[r2][c2] === UNKNOWN && g.board[r2][c2] !== MINE) {  // enclosed covered safe cell
+				state[r2][c2] = KNOWN; owner[r2][c2] = pid; captured.push([r2, c2]);
+			}
+		}
+		return captured;
 	};
 
 	g.claimedSafe = function() {
