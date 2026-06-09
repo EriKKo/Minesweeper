@@ -135,13 +135,16 @@ function renderRoomState(state) {
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;
 	document.getElementById("player_name0").textContent = ownName;
-	// player_div is shared with puzzle play. Only toggle the "Waiting
-	// for series to start" idle overlay when we're actually viewing the
-	// multiplayer lobby — otherwise room_state ticks would fade out the
-	// puzzle board mid-play.
+	// player_div is shared with puzzle play AND territory. Only toggle the "Waiting for series to
+	// start" idle overlay when we're actually viewing the multiplayer lobby — otherwise room_state
+	// ticks would fade out the puzzle board mid-play, or fade the territory board after a match
+	// (territory has no series, so it should never go idle).
+	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
 	var inMpView = (location.hash === "" || location.hash === "#/" || location.hash.indexOf("#/?") === 0);
-	if (inMpView) {
+	if (inMpView && !inTerritory) {
 		document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
+	} else if (inTerritory) {
+		document.getElementById("player_div").classList.remove("idle");
 	}
 
 	if (state.phase === "playing" && me && me.finished && !roundResultShown) {
