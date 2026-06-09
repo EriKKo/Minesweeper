@@ -64,10 +64,26 @@ function territoryStart(data) {
 	showGameView();
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.add("territory");
+	document.body.classList.add("territory-fullscreen");
 	if (typeof hideReadyButton === "function") hideReadyButton();
 	territoryEnsureHud();
 	territoryRenderHud();
 	countDown(data.time || 3);
+	// Re-fit the board now that the .territory single-column layout is applied (applyBoardDims
+	// sized it against the racing layout / may have early-returned on unchanged dims).
+	requestAnimationFrame(sizeTerritoryBoard);
+}
+
+// Size the shared canvas to fill the territory board area (reuses the fit-to-space sizing), then
+// recompute the hit-test cell size and repaint. Also run on window resize via the shared handler.
+function sizeTerritoryBoard() {
+	if (!territoryActive || typeof sizePlayerCanvas !== "function") return;
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	if (typeof renderPlayerBoard === "function") renderPlayerBoard();
 }
 
 function territoryBoard(data) {
@@ -156,6 +172,7 @@ function territoryReset() {
 	if (hud) hud.remove();
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.remove("territory");
+	document.body.classList.remove("territory-fullscreen");
 }
 
 // Toggle a local "suspected mine" flag on a covered cell (client-only — not sent to the server,

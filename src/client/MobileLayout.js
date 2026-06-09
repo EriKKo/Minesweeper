@@ -38,7 +38,9 @@ function fitDesktopCellPx() {
 	if (!(availW > 0)) availW = cols * PLAYER_CELL;
 	if (!(availH > 0)) availH = rows * PLAYER_CELL;
 	var cell = Math.floor(Math.min(availW / cols, availH / rows));
-	return Math.max(DESKTOP_CELL_MIN, Math.min(DESKTOP_CELL_MAX, cell));
+	// Territory fills the whole area below the nav, so let its cells grow past the racing cap.
+	var maxCell = (typeof territoryActive !== "undefined" && territoryActive) ? 100 : DESKTOP_CELL_MAX;
+	return Math.max(DESKTOP_CELL_MIN, Math.min(maxCell, cell));
 }
 
 function sizePlayerCanvas() {

@@ -1576,9 +1576,19 @@ main {
 .combined-section-blurb { color: var(--muted); font-size: 0.82rem; margin: -0.3rem 0 0.9rem; max-width: 60ch; }
 
 /* Territory (versus) mode — plays on the shared game board, with racing chrome hidden. */
+/* Territory breaks out of the 1200px content column to use the full viewport width below the nav. */
+body.territory-fullscreen main { max-width: none; padding: 0.6rem; }
+/* Territory uses the whole width below the nav: drop the racing side column and chrome, and
+   let the board card hug and centre the (fit-to-space) board. */
 .game-view.territory .game-side { display: none; }
 .game-view.territory .player-controls { display: none; }
-.game-view.territory .hotkey-hint { opacity: 0.7; }
+.game-view.territory #player_name0 { display: none; }
+.game-view.territory .hotkey-hint { display: none; }
+.game-view.territory .game-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.game-view.territory .game-left { text-align: center; }
+.game-view.territory .player-board { display: inline-block; text-align: center; padding: 0.6rem; max-width: 100%; }
+.game-view.territory #territory_hud { max-width: none; }
+.game-view.territory .board-wrap { display: inline-block; }
 #territory_hud { margin: 0 0 0.7rem; }
 .tv-result-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(11,18,32,0.62); border-radius: 8px; z-index: 6; }
 .tv-elo { color: var(--muted); font-size: 0.85rem; }
