@@ -170,7 +170,7 @@ function territoryBoard(data) {
 function territoryResult(data) {
 	// Keep territoryActive true so the final board still shows the territory tints behind the
 	// result overlay; it's fully reset by territoryReset() when the player actually leaves.
-	if (territoryInfo) territoryInfo.playing = false;
+	if (territoryInfo) { territoryInfo.playing = false; territoryInfo.ranked = !!data.ranked; }
 	var mine = data.scores && data.scores.filter(function(s) { return s.id === (territoryInfo && territoryInfo.myId); })[0];
 	var win = data.winnerId === (territoryInfo && territoryInfo.myId);
 	var head = data.winnerId == null ? "Draw" : (win ? "You win!" : "You lose");
@@ -191,7 +191,11 @@ function territoryResult(data) {
 		var ov = document.getElementById("territory_result_overlay");
 		if (!ov) { ov = document.createElement("div"); ov.id = "territory_result_overlay"; ov.className = "tv-result-overlay"; wrap.appendChild(ov); }
 		ov.innerHTML = '<div class="tv-result"><h2>' + head + '</h2><p>' + detail + '</p>' +
-			'<button class="btn btn-primary" onclick="leaveTerritory()">Back to lobby</button></div>';
+			'<div class="tv-result-actions">' +
+			'<button class="btn btn-secondary" onclick="territoryViewBoard()">View board</button>' +
+			'<button class="btn btn-primary" onclick="territoryPlayAgain()">Find another game</button>' +
+			'<button class="btn btn-secondary" onclick="leaveTerritory()">Back to lobby</button>' +
+			'</div></div>';
 		ov.style.display = "";
 	}
 }
@@ -199,6 +203,31 @@ function territoryResult(data) {
 function leaveTerritory() {
 	territoryReset();
 	if (typeof socket !== "undefined") socket.emit("leave_room");
+}
+
+// "View board": dismiss the result overlay so the player can look over the finished board, leaving a
+// small "Show result" pill to bring the result (and its actions) back.
+function territoryViewBoard() {
+	var ov = document.getElementById("territory_result_overlay");
+	if (ov) ov.style.display = "none";
+	var wrap = document.querySelector("#game_view .board-wrap");
+	if (!wrap) return;
+	var pill = document.getElementById("territory_result_pill");
+	if (!pill) { pill = document.createElement("div"); pill.id = "territory_result_pill"; pill.className = "tv-result-pill"; wrap.appendChild(pill); }
+	pill.innerHTML = '<button class="btn btn-primary" onclick="territoryShowResult()">Show result</button>';
+	pill.style.display = "";
+}
+function territoryShowResult() {
+	var ov = document.getElementById("territory_result_overlay"); if (ov) ov.style.display = "";
+	var pill = document.getElementById("territory_result_pill"); if (pill) pill.style.display = "none";
+}
+
+// "Find another game": leave this one and, if it was ranked, re-queue for another ranked match;
+// otherwise drop back to the custom lobby to start/join one.
+function territoryPlayAgain() {
+	var ranked = territoryInfo && territoryInfo.ranked;
+	leaveTerritory();
+	if (ranked && typeof findRanked === "function") findRanked("territory_duo");
 }
 
 // Tear down ALL territory state + DOM. Called when leaving by any path (the result button, or the
@@ -211,6 +240,8 @@ function territoryReset() {
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
 	if (ov) ov.remove();
+	var pill = document.getElementById("territory_result_pill");
+	if (pill) pill.remove();
 	var hud = document.getElementById("territory_hud");
 	if (hud) hud.remove();
 	var gv = document.getElementById("game_view");

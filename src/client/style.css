@@ -1608,6 +1608,8 @@ body.territory-fullscreen main { max-width: none; padding: 0.6rem; }
 .tv-result { text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem 1.8rem; }
 .tv-result h2 { margin: 0 0 0.5rem; }
 .tv-result p { margin: 0 0 1rem; color: var(--muted); }
+.tv-result-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.tv-result-pill { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 6; }
 .tv-status { color: var(--muted); font-size: 0.8rem; margin: 0; }
 .combined-unsat-note { margin-top: 1.8rem; }
 .combined-unsat-list { color: var(--muted); font-size: 0.85rem; line-height: 1.6; margin: 0; padding-left: 1.2rem; }
