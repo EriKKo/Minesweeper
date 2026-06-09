@@ -126,10 +126,11 @@ Source is split into three trees under `src/`:
   reveals to the bot's own frontier (`tg.canReveal` + excluding mines it has detonated) and
   `revealsOnly` drops flags/chords. `scheduleTerritoryBot` ticks it on a speed/difficulty-scaled
   cadence; `tg.mineKnown` keeps it from re-hitting a mine. **Enclosure capture**
-  (`tg.captureEnclosed`, run after every reveal): a region you've walled off — cells not yours that
-  can't reach the board edge except through your territory (classic surrounded-regions flood-fill) —
-  is captured; enclosed covered non-mines are revealed and claimed, mines stay a covered dead
-  pocket, and the opponent's own cells aren't stolen.
+  (`tg.captureEnclosed`, run after every reveal): a region you've sealed off so that **only you can
+  reach it** — two reachability floods, capture = cells your territory reaches (through covered cells)
+  but the opponent's cannot — is claimed. This captures regions pinned against a **board edge** too,
+  not just interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and
+  claimed, mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of
