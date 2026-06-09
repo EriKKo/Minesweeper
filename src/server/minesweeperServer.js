@@ -2017,7 +2017,10 @@ function territoryBotView(tg, botId) {
 
 function scheduleTerritoryBot(room, tg, botId) {
 	if (!territoryBotTimers[room.id]) territoryBotTimers[room.id] = {};
-	var initial = (botSpeedMs[botId] || 400) + Math.floor(Math.random() * 200);
+	// Human "settling in" pause before the very first move — a real player takes a beat to read the
+	// board rather than firing instantly. Randomised per bot (1.5–3.5 s) so they don't all start in
+	// unison, which is what made the opening feel frantic and robotic.
+	var initial = 1500 + Math.floor(Math.random() * 2000);
 	territoryBotTimers[room.id][botId] = setTimeout(function tick() {
 		if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) { clearTerritoryBots(room.id); return; }
 		var now = Date.now();
