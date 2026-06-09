@@ -15,7 +15,8 @@ var rankedSearchInfo = null;
 var MODE_LABELS = {
 	sprint_duo: "1v1 Sprint",   sprint_six: "6-player Sprint",
 	standard_duo: "1v1 Standard", standard_six: "6-player Standard",
-	tournament: "Tournament"
+	tournament: "Tournament",
+	territory_duo: "1v1 Territory", territory_quad: "4-player Territory"
 };
 
 // Fixed match-search toast lives in the bottom-right while queued — it

@@ -35,7 +35,12 @@ var RANKED_PICKER_META = {
 	standard: { title: "Standard", sub: "20% mines · deduction",
 		pitch: "Dense boards reward careful reading. Bad guesses end your match — every flag matters.",
 		duoSub: "Head-to-head deduction", sixSub: "Dense free-for-all", color: "#a78bfa",
-		iconPath: "M12 3a9 9 0 109 9 9 9 0 00-9-9zm0 4a5 5 0 11-5 5 5 5 0 015-5zm0 3a2 2 0 102 2 2 2 0 00-2-2z" }
+		iconPath: "M12 3a9 9 0 109 9 9 9 0 00-9-9zm0 4a5 5 0 11-5 5 5 5 0 015-5zm0 3a2 2 0 102 2 2 2 0 00-2-2z" },
+	territory: { title: "Territory", sub: "claim a shared board",
+		pitch: "Grow from your corner and claim more cells than anyone. Mines re-cover your ground — wall opponents off to capture it.",
+		duoTitle: "1v1", duoSub: "Two corners, head-to-head",
+		sixTitle: "4-player", sixSub: "One per corner, free-for-all", color: "#22d3ee",
+		iconPath: "M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" }
 };
 
 function showRankedPickerView(style) {
@@ -54,12 +59,15 @@ function showRankedPickerView(style) {
 	document.getElementById("ranked_picker_pitch").textContent = meta.pitch;
 	document.getElementById("ranked_picker_duo_sub").textContent = meta.duoSub;
 	document.getElementById("ranked_picker_six_sub").textContent = meta.sixSub;
+	document.getElementById("ranked_picker_duo_title").textContent = meta.duoTitle || "1v1";
+	document.getElementById("ranked_picker_six_title").textContent = meta.sixTitle || "6-player";
 	// Rating displayed up top reflects this playstyle's Elo so the
 	// player sees what's on the line for the match they're about to queue.
 	var rating = null;
 	if (account) {
 		if (style === "sprint") rating = account.ratingSprint != null ? account.ratingSprint : account.rating;
 		else if (style === "standard") rating = account.ratingStandard != null ? account.ratingStandard : account.rating;
+		else if (style === "territory") rating = account.ratingTerritory != null ? account.ratingTerritory : account.rating;
 	}
 	var tierEl = document.getElementById("ranked_picker_tier");
 	var ratingEl = document.getElementById("ranked_picker_num");
@@ -72,8 +80,10 @@ function showRankedPickerView(style) {
 	}
 	var duoBtn = document.getElementById("ranked_picker_duo");
 	var sixBtn = document.getElementById("ranked_picker_six");
+	// Territory's larger match is 4-player (territory_quad), not the "_six" used by the racing styles.
+	var bigMode = style === "territory" ? "territory_quad" : style + "_six";
 	duoBtn.onclick = function() { findRanked(style + "_duo"); location.hash = "#/"; };
-	sixBtn.onclick = function() { findRanked(style + "_six"); location.hash = "#/"; };
+	sixBtn.onclick = function() { findRanked(bigMode); location.hash = "#/"; };
 	document.getElementById("ranked_picker_back").onclick = function() { location.hash = "#/"; };
 }
 
@@ -282,7 +292,6 @@ function applyRouteFromHash() {
 	if (hash.indexOf("/ranked/") === 0) {
 		var style = hash.slice("/ranked/".length);
 		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); location.hash = "#/"; return; }
-		if (style === "territory") { if (typeof findRanked === "function") findRanked("territory_duo"); location.hash = "#/"; return; }
 		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
 	if (hash === "/" || hash === "") return showLobbyView();

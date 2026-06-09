@@ -66,9 +66,12 @@ function gameForBroadcast(g, pid) {
 
 var COUNT_DOWN_TIME = 3;
 // Territory (versus) mode: 2 players, fixed square board, subtle per-player colours.
-var TERRITORY_ROWS = 18, TERRITORY_COLS = 30; // bigger, wide board so there's room to play
+var TERRITORY_ROWS = 18, TERRITORY_COLS = 30; // 2-player board: wide, room to play
+var TERRITORY_ROWS_4 = 24, TERRITORY_COLS_4 = 40; // 4-player board: bigger, so each corner has room
 var TERRITORY_DENSITY = 0.13;
 var TERRITORY_COLORS = ["cyan", "amber", "violet", "rose"]; // index = player slot (2- or 4-player)
+// Board dims for a territory game by player count.
+function territoryDims(players) { return players === 4 ? { rows: TERRITORY_ROWS_4, cols: TERRITORY_COLS_4 } : { rows: TERRITORY_ROWS, cols: TERRITORY_COLS }; }
 var BETWEEN_GAMES_DELAY = 3000;
 // Tournament rounds run the elimination sequence (scrim → reorder → cut flashes
 // → survivor pulse → fade) over the same gap. The reveal lives in roughly
@@ -988,7 +991,8 @@ var RANKED_MODES = {
 	// Territory (versus): 2 players share one board from opposite corners. Human-only (no bot AI
 	// for it yet), so matches form when two real players queue — which also makes it easy to test
 	// with two tabs.
-	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" } // no clock — ends when the board is played out; bots picked by their measured territory rating
+	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" }, // no clock — ends when the board is played out; bots picked by their measured territory rating
+	territory_quad: { size: 4, label: "4P Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" } // 4 players, one per corner; shares the territory Elo ladder
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
@@ -1000,7 +1004,8 @@ var RANKED_MATCH_REVEAL_MS = {
 	standard_duo: 2500,
 	standard_six: 3000,
 	tournament: 5000,
-	territory_duo: 2500
+	territory_duo: 2500,
+	territory_quad: 3000
 };
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
@@ -1008,9 +1013,9 @@ var RANKED_BOT_RATING = 1000;
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
-var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [] };
-var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [] };
-var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null, territory_duo: null };
+var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [], territory_quad: [] };
+var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [], territory_quad: [] };
+var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null, territory_duo: null, territory_quad: null };
 var rankedQueueMode = {}; // playerID -> mode key
 
 function isBot(playerID) {
@@ -2272,7 +2277,7 @@ function formRankedMatch(mode) {
 	if (modeDef.roundSeconds) room.roundSeconds = modeDef.roundSeconds;
 	if (modeDef.gameMode === "territory") {
 		room.gameMode = "territory";
-		room.rows = TERRITORY_ROWS; room.cols = TERRITORY_COLS;
+		var td = territoryDims(modeDef.size); room.rows = td.rows; room.cols = td.cols;
 	}
 	if (mode === "tournament") {
 		room.tournamentSchedule = modeDef.schedule.slice();
@@ -2857,7 +2862,7 @@ io.on("connection", function (socket) {
 		var room = roomCreator.createRoom(id, playerID, territory ? territorySeats : undefined);
 		if (territory) {
 			room.gameMode = "territory";
-			room.rows = TERRITORY_ROWS; room.cols = TERRITORY_COLS;
+			var td = territoryDims(territorySeats); room.rows = td.rows; room.cols = td.cols;
 			room.roundSeconds = 0; // no clock — territory ends when the board is fully played out (stuck)
 		}
 		rooms[id] = room;

@@ -92,9 +92,10 @@ Source is split into three trees under `src/`:
   the clue rings conflict at the seam — surfaced as a note on the page since they can't be a board.
 - `TerritoryGenerator.js` / `TerritoryGame.js` — the **Territory (versus)** mode: players grow from
   the corners of ONE shared board, claiming cells (vs the racing modes where each player has a private
-  state matrix over a shared layout). Supported with **2 players** (opposite corners) or **4** (one per
-  corner — `generate({corners: 4})`, custom lobby only). The generator is generate-and-test: a random
-  18×30 board with the top-left corner block mirrored onto every other corner (180° for 2; the full
+  state matrix over a shared layout). Supported with **2 players** (opposite corners, 18×30) or **4**
+  (one per corner — `generate({corners: 4})`, on a bigger 24×40 board; `territoryDims(players)` picks
+  the size). The generator is generate-and-test: a random
+  board with the top-left corner block mirrored onto every other corner (180° for 2; the full
   horizontal/vertical/180° set for 4) and every cascade capped, so all start openings are **identical**,
   plus a mine-free **start zone** (Chebyshev radius 3) at each corner, kept only if it's **no-guess
   solvable from EVERY corner** (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the
@@ -124,10 +125,11 @@ Source is split into three trees under `src/`:
   safe move left) or a player leaves → most cells wins (`territory_result`). **Entry points:** "Create
   Territory (1v1)" and "Create Territory (4-player)" buttons in the custom lobby (`create_room` with
   `players: 2|4`; `startTerritoryGame` accepts 2 or 4 and seeds one player per corner from
-  `TERRITORY_COLORS = [cyan, amber, violet, rose]`), and a **ranked** `territory_duo` (2-player) mode
-  (`RANKED_MODES`, style `"territory"`, filled with bots like the other ranked modes) with its own
-  `rating_territory` Elo ladder; ranked games apply pairwise Elo in `endTerritoryGame` and report the
-  delta in `territory_result`. **Client:
+  `TERRITORY_COLORS = [cyan, amber, violet, rose]`), and **ranked** `territory_duo` (2-player) /
+  `territory_quad` (4-player) modes chosen from the territory ranked picker (`RANKED_PICKER_META`,
+  style `"territory"`, filled with bots like the other ranked modes) — both share the one
+  `rating_territory` Elo ladder; `endTerritoryGame` applies rank-based Elo across all players (so it
+  works for 4 as well as 2) and reports the delta in `territory_result`. **Client:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
   `drawCell` tints (via `view.getOwner`, null in other modes) — and applies **fog-of-clues**: clue numbers
