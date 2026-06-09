@@ -371,13 +371,15 @@ function computeBestMove(game) {
 	// No trivial move. Find the easiest deducible move (uncapped probe — fast), then
 	// gate on the bot's max difficulty using the board's precomputed difficulty map.
 	// A bot that can't reason that hard never sees the move and falls through to a guess.
+	// `game.canTarget` is passed straight into the solver (territory only) so it searches for a safe
+	// move the bot can actually make — a safe deduction off the bot's frontier won't be returned and
+	// then discarded into a guess; the solver keeps looking for a frontier-safe move instead.
 	var maxDifficulty = (typeof game.botMaxDifficulty === "number") ? game.botMaxDifficulty : TRIVIAL_DIFFICULTY;
-	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, "enum");
+	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, "enum", game.canTarget);
 	if (hint) {
 		var hintCells = (hint.safeCells && hint.safeCells.length) ? hint.safeCells : (hint.mineCells || []);
 		var hintType = (hint.safeCells && hint.safeCells.length) ? "left" : "right";
 		if (game.revealsOnly && hintType === "right") hintCells = []; // territory never flags
-		if (game.canTarget) hintCells = hintCells.filter(function(hc) { return game.canTarget(hc[0], hc[1]); });
 		if (hintCells.length) {
 			// The move's difficulty is the easiest (min) of its cells on the CSP map;
 			// fall back to a per-kind estimate if a cell wasn't keyed (e.g. cascade-only).

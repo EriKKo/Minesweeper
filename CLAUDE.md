@@ -146,11 +146,12 @@ Source is split into three trees under `src/`:
   `BotBench`, but mine hits cost a re-cover + freeze instead of a flat penalty), and
   `scripts/calibrate-territory.js` (fanned across `territory-bench-worker.js`) maps clear time to an Elo
   and writes `ratings.territory` onto every pool bot; matchmaking calls `pickBotFromPool(elo, w,
-  "territory")` and targets the lobby's territory Elo. **Known gap:** mid/low bots clear territory
-  poorly because the safe-move solver (`findFirstSafeStepCapped`) returns the first safe cell anywhere,
-  and when it's off the bot's `canTarget` frontier the bot guesses into a mine even though a
-  frontier-safe move exists — so they hit mines a lot and the calibration has little resolution below
-  the top until the bot is taught to find a *frontier* safe move before guessing. **Enclosure capture**
+  "territory")` and targets the lobby's territory Elo. So the bot doesn't needlessly guess into mines,
+  `findFirstSafeStepCapped` takes the bot's `canTarget` predicate (territory only) and only counts a
+  safe deduction as a result when it has a cell on the bot's own frontier — a safe move the bot can't
+  reach no longer short-circuits it into a guess; it keeps searching for a frontier-safe move. This
+  both cuts territory mine-hits and gives the calibration real resolution across the Elo range.
+  **Enclosure capture**
   (`tg.captureEnclosed`, run after every reveal): a region you've sealed off so that **only you can
   reach it** — two reachability floods (each spreads from a player's land through covered cells only;
   the opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the

@@ -390,7 +390,12 @@ function findFirstSafeStep(board, originalState) {
 // Tier-capped variant: the bot uses this so a 600-Elo player can't see
 // overlap deductions a 1700-Elo player would.  Same chain logic as
 // findFirstSafeStep, but stops escalating beyond `maxTier`.
-function findFirstSafeStepCapped(board, originalState, maxTier) {
+//
+// `allow(r, c)` (optional) restricts which SAFE cells count as a usable result — territory bots may
+// only reveal their own frontier (canTarget), so a safe deduction whose cells are all off-frontier is
+// no use to them: we skip it and keep searching deeper instead of returning a move the bot can't make
+// (which would otherwise fall through to a needless guess). Omitted → any safe cell counts (racing).
+function findFirstSafeStepCapped(board, originalState, maxTier, allow) {
 	var rows = board.length;
 	var state = new Array(rows);
 	for (var r = 0; r < rows; r++) state[r] = originalState[r].slice();
@@ -409,7 +414,19 @@ function findFirstSafeStepCapped(board, originalState, maxTier) {
 	}
 	var chainClues = [];
 	var firstFlagStep = null;
-	function firstSafe(steps) { for (var i = 0; i < steps.length; i++) if (steps[i].safeCells.length) return steps[i]; return null; }
+	// First step with a usable safe cell. With `allow`, only allowed safe cells count and the returned
+	// step carries just those (so the caller always gets a move it can make); without it, any safe step.
+	function firstSafe(steps) {
+		for (var i = 0; i < steps.length; i++) {
+			var sc = steps[i].safeCells;
+			if (!sc || !sc.length) continue;
+			if (!allow) return steps[i];
+			var ok = [];
+			for (var j = 0; j < sc.length; j++) if (allow(sc[j][0], sc[j][1])) ok.push(sc[j]);
+			if (ok.length) return { safeCells: ok, clueCells: steps[i].clueCells, componentSize: steps[i].componentSize };
+		}
+		return null;
+	}
 	function firstMine(steps) { for (var i = 0; i < steps.length; i++) if (steps[i].mineCells.length) return steps[i]; return null; }
 	function tryLevel(steps, kind) {
 		var safe = firstSafe(steps);
