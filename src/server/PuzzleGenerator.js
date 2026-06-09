@@ -22,6 +22,20 @@ var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;
 var FLAGGED = BoardLogic.FLAGGED;
 
+// Difficulty score: sort the solve's per-move complexities high→low and sum c / SCORE_X^rank.
+// The hardest move counts fully (rank 0); each further hard move adds a geometrically-decaying
+// share, so a puzzle that demands several hard deductions scores well above one with a single hard
+// move, while a long tail of easy moves saturates (the sum is bounded by c_max · X/(X-1)). This
+// replaces the old maxC + totalC/20, which weighted every move equally and let length inflate the
+// rating. X = 3.5 caps the multiplier over the hardest move at X/(X-1) ≈ 1.4×.
+var SCORE_X = 3.5;
+function complexityScore(moves) {
+	var comps = (moves || []).map(function(m) { return m.complexity; }).sort(function(a, b) { return b - a; });
+	var s = 0;
+	for (var k = 0; k < comps.length; k++) s += comps[k] / Math.pow(SCORE_X, k);
+	return Math.round(s * 100) / 100;
+}
+
 function generatePuzzles(opts) {
 	opts = opts || {};
 	var batchSize = opts.count || 20;
@@ -330,11 +344,12 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var cspResult = cspSolver.analyzeBoard(board, cspState, { revealCell: cspCascade });
 	var maxC = cspResult.maxComplexity;
 	var totalC = cspResult.totalComplexity;
-	// Score includes a small total-complexity bonus so puzzles that
-	// require many easy steps rate slightly higher than ones with the
-	// same single hardest step. Divide total by 20 to keep the bonus
-	// modest (~0.5 for typical chains).
-	var score = solved ? Math.round((maxC + totalC / 20) * 10) / 10 : 0;
+	// Geometric difficulty score (see complexityScore): rewards many hard moves, saturates length.
+	// `cscore` is computed regardless of solvability so callers that rate not-fully-solvable boards
+	// (e.g. the combined-puzzles experiment) can still surface a difficulty; the pool keeps the
+	// convention that an unsolved board scores 0.
+	var cscore = complexityScore(cspResult.moves);
+	var score = solved ? cscore : 0;
 	// Tier bands by max complexity. Each band ~2 wide except the last.
 	var difficulty;
 	if (!solved) difficulty = 0;
@@ -376,6 +391,7 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		solved: solved,
 		difficulty: difficulty,
 		score: score,
+		complexityScore: cscore,
 		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
 		maxEnumSize: maxEnumSize,
 		needsCaseSplit: needsCaseSplit,
@@ -388,4 +404,5 @@ function analyzeWithTracking(board, revealedList, numMines) {
 exports.generatePuzzles = generatePuzzles;
 exports.canonicalKey = canonicalKey;
 exports.buildBoard = buildBoard;
+exports.complexityScore = complexityScore;
 exports.analyzeWithTracking = analyzeWithTracking;

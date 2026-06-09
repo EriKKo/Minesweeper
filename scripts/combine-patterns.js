@@ -143,8 +143,8 @@ function makePuzzle(label, group, ms) {
 	mines.sort(comparePos);
 	var board = puzzleGen.buildBoard(rows, cols, mines);
 	var a = puzzleGen.analyzeWithTracking(board, revealed, mines.length);
-	var maxC = a.cspMaxComplexity, totalC = a.cspTotalComplexity;
-	var score = Math.round((maxC + totalC / 20) * 10) / 10;
+	var maxC = a.cspMaxComplexity;
+	var score = a.complexityScore; // geometric score, computed even for not-fully-solvable boards
 	var difficulty = tierFromComplexity(maxC);
 	var coveredSafe = rows * cols - mines.length - revealed.length;
 	var p = {

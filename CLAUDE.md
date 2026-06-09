@@ -48,6 +48,13 @@ Source is split into three trees under `src/`:
   returns per-move numeric `complexity` and `solved`. The `maxComplexity` cap prunes the
   search and skips case-splits below 8 — it's both the generation difficulty ceiling and the
   model for a bot's skill ceiling.
+- **Puzzle difficulty score** (`PuzzleGenerator.complexityScore`): sort the solve's per-move
+  complexities high→low and sum `c / X^rank` with `X = 3.5`. The hardest move counts fully; each
+  further hard move adds a geometrically-decaying share (bounded by `c_max · X/(X-1) ≈ 1.4×`), so
+  stacking hard deductions is rewarded while a long tail of easy moves saturates — many *hard*
+  moves matter, raw *length* doesn't. `rating = max(0, round(240·(score − 0.5)))`; the difficulty
+  *tier* (t1–t6) is bands on `maxComplexity` alone. Bump `db.CURRENT_SCORING_VERSION` when the
+  formula changes — a startup backfill re-rates every stored puzzle below it.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
@@ -89,7 +96,7 @@ Source is split into three trees under `src/`:
   increasing size (fewest first), keeps the ones that force a reveal, ranks by deduction complexity,
   and from the hardest down hands the seed to the inside-out generator to finish — keeping the first
   that comes out faithful (block clues still the ring values) and fully solvable. Two top-corner
-  4→2 changes break the symmetry and grow into a solvable ~cx-7.9 board (rating ~2400). Driven by
+  4→2 changes break the symmetry and grow into a solvable ~cx-7.9 board (rating ~2350). Driven by
   `combine-patterns.js` (group "Ring → solvable").
 - `InsideOutGenerator.js` — deduction-driven generator: from a seed it asks the analyzer for the next
   forced move, commits each revealed cell's clue to the value that maximises full-solve complexity,
