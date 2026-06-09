@@ -87,10 +87,12 @@ function performAction(r, c, asFlag) {
 	focusedR = r;
 	focusedC = c;
 	if (mode === "territory") {
-		// Shared board: reveals are server-authoritative (emit, no optimistic). Flags are a
-		// local-only "suspected mine" mark (territory has no shared/scored flags), and a flagged
-		// cell is protected from an accidental reveal — same as the other modes.
-		if (asFlag) {
+		// Shared board, server-authoritative (emit, no optimistic). Clicking one of your own
+		// revealed numbers chords (client-driven, since flags are local-only). Flags are a
+		// local "suspected mine" mark; a flagged cell is protected from an accidental reveal.
+		if (myState && myState[r][c] === KNOWN) {
+			territoryChord(r, c);
+		} else if (asFlag) {
 			if (typeof territoryToggleFlag === "function") territoryToggleFlag(r, c);
 		} else if (!(myState && myState[r][c] === FLAGGED)) {
 			socket.emit("left_click", { r: r, c: c, id: id });
@@ -129,6 +131,22 @@ function performAction(r, c, asFlag) {
 	if (mode === "solo") updateSoloHud();
 	else if (mode === "puzzle") updatePuzzleHud();
 	redrawOwnBoardWithFocus();
+}
+
+// Territory chord: clicking an owned number whose local flag-count matches it emits a reveal for
+// each remaining covered (non-flagged) neighbour. The server validates each (they're adjacent to
+// your territory); revealing into a mine freezes you, like a mistaken chord anywhere else.
+function territoryChord(r, c) {
+	var v = boardCell(r, c);
+	if (v <= 0 || !myState) return;
+	var ctx = BoardLogic.chordContext(r, c, rows, cols,
+		function(rr, cc) { return myState[rr][cc] === FLAGGED; },
+		function() { return false; },                                  // no revealed-mine concept in territory
+		function(rr, cc) { return myState[rr][cc] === UNKNOWN; });
+	if (ctx.flagCount !== v) return;
+	for (var i = 0; i < ctx.covered.length; i++) {
+		socket.emit("left_click", { r: ctx.covered[i][0], c: ctx.covered[i][1], id: id });
+	}
 }
 
 function currentActionMode() {
