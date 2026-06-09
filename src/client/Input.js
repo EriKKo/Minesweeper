@@ -87,11 +87,14 @@ function performAction(r, c, asFlag) {
 	focusedR = r;
 	focusedC = c;
 	if (mode === "territory") {
-		// Shared board: clicks are server-authoritative (no optimistic reveal) — left-click emits
-		// a reveal, right-click is a no-op (no flags in territory v1). Reusing this pipeline means
-		// the keyboard focus highlight, key-repeat guard, right-click preventDefault, and hit-test
-		// all behave exactly like the other modes.
-		if (!asFlag) socket.emit("left_click", { r: r, c: c, id: id });
+		// Shared board: reveals are server-authoritative (emit, no optimistic). Flags are a
+		// local-only "suspected mine" mark (territory has no shared/scored flags), and a flagged
+		// cell is protected from an accidental reveal — same as the other modes.
+		if (asFlag) {
+			if (typeof territoryToggleFlag === "function") territoryToggleFlag(r, c);
+		} else if (!(myState && myState[r][c] === FLAGGED)) {
+			socket.emit("left_click", { r: r, c: c, id: id });
+		}
 		redrawOwnBoardWithFocus();
 		return;
 	}

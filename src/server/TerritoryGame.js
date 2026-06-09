@@ -25,7 +25,8 @@ function create(gen, players) {
 		frozenUntil: {}, mineHits: {},
 		totalSafe: R * C - gen.mineCount, playing: true
 	};
-	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; });
+	g.mineKnown = {}; // pid -> { "r,c": true } cells this player has detonated (so the bot won't re-pick)
+	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; });
 
 	// Seed each player's starting cascade as their territory.
 	players.forEach(function(pid, i) {
@@ -55,6 +56,7 @@ function create(gen, players) {
 		if (g.board[r][c] === MINE) {
 			g.frozenUntil[pid] = now + FREEZE_MS;
 			g.mineHits[pid]++;
+			g.mineKnown[pid][r + "," + c] = true;
 			return { type: "mine", cell: [r, c], until: g.frozenUntil[pid] };
 		}
 		var claimed = [];
@@ -77,6 +79,35 @@ function create(gen, players) {
 		players.forEach(function(p) { s[p] = 0; });
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) { var o = owner[r][c]; if (o !== null) s[o]++; }
 		return s;
+	};
+
+	// Simple bot move: among this player's frontier (covered cells adjacent to its territory),
+	// pick the one least likely to be a mine, estimated from neighbouring revealed clues
+	// (clue value spread over its still-covered neighbours). No flags exist, so this is a
+	// risk-minimising guess — the bot will occasionally hit a mine and freeze, like a human.
+	g.botMove = function(pid) {
+		var best = null, bestScore = Infinity;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (!g.canReveal(pid, r, c)) continue;
+			if (g.mineKnown[pid][r + "," + c]) continue; // don't re-pick a mine we already hit
+			var risk = 0, n = 0;
+			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+				if (!dr && !dc) continue;
+				var nr = r + dr, nc = c + dc;
+				if (nr < 0 || nc < 0 || nr >= R || nc >= C) continue;
+				if (state[nr][nc] !== KNOWN || g.board[nr][nc] <= 0) continue;
+				var cov = 0;
+				for (var er = -1; er <= 1; er++) for (var ec = -1; ec <= 1; ec++) {
+					if (!er && !ec) continue;
+					var mr = nr + er, mc = nc + ec;
+					if (mr >= 0 && mc >= 0 && mr < R && mc < C && state[mr][mc] === UNKNOWN) cov++;
+				}
+				if (cov > 0) { risk += g.board[nr][nc] / cov; n++; }
+			}
+			var score = n ? risk / n : 0.45; // unconstrained frontier → neutral guess
+			if (score < bestScore) { bestScore = score; best = [r, c]; }
+		}
+		return best;
 	};
 
 	// True once no player has any safe frontier move left (every reachable safe cell is claimed).

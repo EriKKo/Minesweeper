@@ -988,7 +988,7 @@ var RANKED_MODES = {
 	// Territory (versus): 2 players share one board from opposite corners. Human-only (no bot AI
 	// for it yet), so matches form when two real players queue — which also makes it easy to test
 	// with two tabs.
-	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", noBots: true, roundSeconds: 180 }
+	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", roundSeconds: 180 }
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
@@ -1977,7 +1977,40 @@ function startTerritoryGame(room) {
 			}, room.roundSeconds * 1000);
 		}
 		broadcastTerritory(room);
+		startTerritoryBots(room, tg);
 	}, COUNT_DOWN_TIME * 1000);
+}
+
+// Drive any bot players in a territory game: on a loose cadence each bot reveals the frontier
+// cell its risk heuristic likes best (tg.botMove), freezing like a human when it hits a mine.
+var territoryBotTimers = {}; // roomId -> { botId: timeoutHandle }
+function startTerritoryBots(room, tg) {
+	territoryBotTimers[room.id] = territoryBotTimers[room.id] || {};
+	room.players.forEach(function(pid) { if (isBot(pid)) scheduleTerritoryBot(room, tg, pid); });
+}
+function scheduleTerritoryBot(room, tg, botId) {
+	var now = Date.now();
+	var frozen = now < (tg.frozenUntil[botId] || 0);
+	var delay = frozen ? (tg.frozenUntil[botId] - now + 150) : (500 + Math.floor(Math.random() * 500));
+	if (!territoryBotTimers[room.id]) territoryBotTimers[room.id] = {};
+	territoryBotTimers[room.id][botId] = setTimeout(function() {
+		if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) { clearTerritoryBots(room.id); return; }
+		if (!tg.frozen(botId, Date.now())) {
+			var mv = tg.botMove(botId);
+			if (mv) {
+				tg.reveal(botId, mv[0], mv[1], Date.now());
+				broadcastTerritory(room);
+				if (!tg.playing || tg.stuck()) { endTerritoryGame(room, "cleared"); return; }
+			}
+		}
+		scheduleTerritoryBot(room, tg, botId);
+	}, delay);
+}
+function clearTerritoryBots(roomId) {
+	var t = territoryBotTimers[roomId];
+	if (!t) return;
+	Object.keys(t).forEach(function(b) { clearTimeout(t[b]); });
+	delete territoryBotTimers[roomId];
 }
 
 function broadcastTerritory(room) {
@@ -1993,6 +2026,7 @@ function broadcastTerritory(room) {
 
 function endTerritoryGame(room, reason) {
 	clearRoundTimer(room.id);
+	clearTerritoryBots(room.id);
 	var tg = room.territory;
 	if (!tg) return;
 	tg.playing = false;

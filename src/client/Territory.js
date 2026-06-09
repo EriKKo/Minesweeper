@@ -14,6 +14,7 @@
 var territoryActive = false;          // Input.currentActionMode → "territory" while true
 var territoryOwnerColors = null;      // [r][c] -> owner colour hex (or null) for drawCell tint
 var territoryInfo = null;             // { myId, players, colorOf, started, playing, scores, deadline }
+var territoryFlags = null;            // [r][c] -> bool, local-only "suspected mine" marks (not shared/scored)
 
 function territoryColorHex(color) { return color === "amber" ? "#fb923c" : "#22d3ee"; }
 
@@ -44,7 +45,8 @@ function territoryStart(data) {
 	territoryInfo = { myId: data.you, players: data.players, started: false, playing: true, scores: {}, deadline: null, total: R * C };
 	territoryActive = true;
 	territoryOwnerColors = [];
-	for (var r = 0; r < R; r++) territoryOwnerColors.push(new Array(C).fill(null));
+	territoryFlags = [];
+	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
 
 	// Set up the shared board exactly like a normal round start.
 	applyBoardDims(R, C);
@@ -81,9 +83,14 @@ function territoryBoard(data) {
 	for (var r = 0; r < R; r++) {
 		newState.push(new Array(C));
 		for (var c = 0; c < C; c++) {
-			newState[r][c] = data.state[r][c];
+			var s = data.state[r][c];
 			var o = data.owner[r][c];
 			territoryOwnerColors[r][c] = o == null ? null : territoryColorHex(territoryColorOf(o));
+			// A claimed cell can't stay flagged; otherwise re-apply the local flag mark so the
+			// server's state broadcast doesn't wipe it (flags are client-only in territory).
+			if (s === KNOWN) territoryFlags[r][c] = false;
+			else if (territoryFlags[r][c]) s = FLAGGED;
+			newState[r][c] = s;
 		}
 	}
 	myState = newState;
@@ -139,6 +146,24 @@ function leaveTerritory() {
 	territoryOwnerColors = null;
 	territoryInfo = null;
 	if (typeof socket !== "undefined") socket.emit("leave_room");
+}
+
+// Toggle a local "suspected mine" flag on a covered cell (client-only — not sent to the server,
+// not scored). Reuses the shared flag animation + sounds so it looks identical to the other modes.
+function territoryToggleFlag(r, c) {
+	if (!myState || !territoryFlags || myState[r][c] === KNOWN) return;
+	territoryFlags[r][c] = !territoryFlags[r][c];
+	var key = r + "," + c;
+	if (territoryFlags[r][c]) {
+		myState[r][c] = FLAGGED;
+		cellAnims[key] = { type: "flag", start: performance.now() };
+		if (typeof sound !== "undefined" && sound.flag) sound.flag();
+		startAnimLoop();
+	} else {
+		myState[r][c] = UNKNOWN;
+		delete cellAnims[key];
+		if (typeof sound !== "undefined" && sound.unflag) sound.unflag();
+	}
 }
 
 function territoryRenderHud() {
