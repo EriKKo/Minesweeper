@@ -282,6 +282,7 @@ function applyRouteFromHash() {
 	if (hash.indexOf("/ranked/") === 0) {
 		var style = hash.slice("/ranked/".length);
 		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); location.hash = "#/"; return; }
+		if (style === "territory") { if (typeof findRanked === "function") findRanked("territory_duo"); location.hash = "#/"; return; }
 		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
 	if (hash === "/" || hash === "") return showLobbyView();

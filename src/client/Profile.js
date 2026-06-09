@@ -87,6 +87,8 @@ function renderHomeRankChips() {
 	applyTo(rankTierStandard, rankRatingStandard, standard);
 	applyTo(rankTierStandardSix, rankRatingStandardSix, standard);
 	applyTo(rankTierTournament, rankRatingTournament, tournament);
+	var territory = account ? (account.ratingTerritory != null ? account.ratingTerritory : account.rating) : null;
+	applyTo(document.getElementById("rank_tier_territory"), document.getElementById("rank_rating_territory"), territory);
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");

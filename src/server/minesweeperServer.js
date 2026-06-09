@@ -984,7 +984,11 @@ var RANKED_MODES = {
 	// Cut 4 per round while many players are alive (16 → 12 → 8), then drop to
 	// 2 per round (8 → 6 → 4 → 2) so the bottom of the bracket gets dramatic
 	// per-round 1v1 elimination drama all the way to the 2 → 1 final.
-	tournament: { size: 16, label: "Tournament", style: "tournament", mineDensity: 0.15, boardSize: "medium", schedule: [12, 8, 6, 4, 2, 1] }
+	tournament: { size: 16, label: "Tournament", style: "tournament", mineDensity: 0.15, boardSize: "medium", schedule: [12, 8, 6, 4, 2, 1] },
+	// Territory (versus): 2 players share one board from opposite corners. Human-only (no bot AI
+	// for it yet), so matches form when two real players queue — which also makes it easy to test
+	// with two tabs.
+	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: TERRITORY_DENSITY, boardSize: "medium", gameMode: "territory", noBots: true, roundSeconds: 180 }
 };
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 // Brief pause between forming a ranked match and starting the first game so
@@ -995,7 +999,8 @@ var RANKED_MATCH_REVEAL_MS = {
 	sprint_six: 3000,
 	standard_duo: 2500,
 	standard_six: 3000,
-	tournament: 5000
+	tournament: 5000,
+	territory_duo: 2500
 };
 var RANKED_BOT_RATING = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real
@@ -1003,9 +1008,9 @@ var RANKED_BOT_RATING = 1000;
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
-var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [] };
-var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [] };
-var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null };
+var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [] };
+var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [] };
+var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null, territory_duo: null };
 var rankedQueueMode = {}; // playerID -> mode key
 
 function isBot(playerID) {
@@ -1441,6 +1446,7 @@ function readUserRating(u, style) {
 	if (style === "sprint") return u.rating_sprint != null ? u.rating_sprint : u.rating;
 	if (style === "standard") return u.rating_standard != null ? u.rating_standard : u.rating;
 	if (style === "tournament") return u.rating_tournament != null ? u.rating_tournament : u.rating;
+	if (style === "territory") return u.rating_territory != null ? u.rating_territory : u.rating;
 	return u.rating;
 }
 
@@ -1474,6 +1480,7 @@ function applyEloForPlayer(targetPid, allParts, style) {
 		if (style === "sprint") accounts[targetPid].ratingSprint = newRating;
 		else if (style === "standard") accounts[targetPid].ratingStandard = newRating;
 		else if (style === "tournament") accounts[targetPid].ratingTournament = newRating;
+			else if (style === "territory") accounts[targetPid].ratingTerritory = newRating;
 		accounts[targetPid].rating = newRating; // legacy field kept in sync
 		accounts[targetPid].played = target.played + 1;
 	}
@@ -1558,6 +1565,7 @@ function applyRankedElo(standings, style) {
 				if (style === "sprint") acc.ratingSprint = parts[k].newRating;
 				else if (style === "standard") acc.ratingStandard = parts[k].newRating;
 				else if (style === "tournament") acc.ratingTournament = parts[k].newRating;
+					else if (style === "territory") acc.ratingTerritory = parts[k].newRating;
 				acc.rating = parts[k].newRating; // legacy field
 				acc.played = parts[k].played + 1;
 			}
@@ -1989,25 +1997,37 @@ function endTerritoryGame(room, reason) {
 	if (!tg) return;
 	tg.playing = false;
 	var scores = tg.scores();
-	var meta = territoryPlayerMeta(room);
-	var winnerId = null, best = -1, tie = false;
-	meta.forEach(function(m) {
-		var s = scores[m.id] || 0;
-		if (s > best) { best = s; winnerId = m.id; tie = false; }
-		else if (s === best) { tie = true; }
-	});
+	// Rank by cells owned (ties share a rank), like the racing standings.
+	var ranked = territoryPlayerMeta(room).map(function(m) { return { id: m.id, name: m.name, color: m.color, score: scores[m.id] || 0 }; });
+	ranked.sort(function(a, b) { return b.score - a.score; });
+	ranked.forEach(function(e, i) { e.rank = (i > 0 && ranked[i - 1].score === e.score) ? ranked[i - 1].rank : i + 1; });
+	var winnerId = (ranked.length >= 2 && ranked[0].score !== ranked[1].score) ? ranked[0].id : null;
+
+	// Ranked territory is a single game; apply pairwise Elo on its own "territory" ladder.
+	if (room.ranked) {
+		var standings = ranked.map(function(e) { return { id: e.id, name: e.name, rank: e.rank }; });
+		applyRankedElo(standings, room.rankedStyle || "territory");
+		standings.forEach(function(s) {
+			var e = ranked.filter(function(x) { return x.id === s.id; })[0];
+			if (e) { e.ratingDelta = s.ratingDelta; e.rating = s.rating; e.provisional = s.provisional; }
+		});
+		room.seriesWinner = winnerId;
+	}
+
 	io.to("room:" + room.id).emit("territory_result", {
 		reason: reason || "cleared",
-		scores: meta.map(function(m) { return { id: m.id, name: m.name, color: m.color, score: scores[m.id] || 0 }; }),
-		winnerId: tie ? null : winnerId,
-		winnerName: tie ? null : (winnerId ? names[winnerId] : null),
+		ranked: !!room.ranked,
+		scores: ranked.map(function(e) { return { id: e.id, name: e.name, color: e.color, score: e.score, ratingDelta: e.ratingDelta, rating: e.rating, provisional: e.provisional }; }),
+		winnerId: winnerId,
+		winnerName: winnerId ? names[winnerId] : null,
 		totalSafe: tg.totalSafe
 	});
 	room.territory = null;
 	room.phase = "planning";
 	broadcastRoomState(room);
 	broadcastRoomList();
-	setTimeout(function() {
+	// Casual rooms re-arm for another game; ranked rooms are single-match (player leaves/re-queues).
+	if (!room.ranked) setTimeout(function() {
 		if (!rooms[room.id]) return;
 		room.resetReady();
 		broadcastRoomState(room);
@@ -2095,6 +2115,7 @@ function pickBotBatchSize() {
 }
 
 function scheduleBotArrival(mode) {
+	if (RANKED_MODES[mode].noBots) return; // human-only mode — never fill with bots
 	if (rankedFillTimers[mode]) return;
 	var delay = BOT_JOIN_MIN_MS + Math.floor(Math.random() * (BOT_JOIN_MAX_MS - BOT_JOIN_MIN_MS));
 	rankedFillTimers[mode] = setTimeout(function() {
@@ -2174,6 +2195,11 @@ function formRankedMatch(mode) {
 	room.deathPenalty = RANKED_RULES.deathPenalty;
 	room.mineDensity = modeDef.mineDensity;
 	room.setBoardSize(modeDef.boardSize);
+	if (modeDef.roundSeconds) room.roundSeconds = modeDef.roundSeconds;
+	if (modeDef.gameMode === "territory") {
+		room.gameMode = "territory";
+		room.rows = TERRITORY_SIZE; room.cols = TERRITORY_SIZE;
+	}
 	if (mode === "tournament") {
 		room.tournamentSchedule = modeDef.schedule.slice();
 		room.tournamentParticipants = [];   // populated after players join
@@ -2204,7 +2230,7 @@ function formRankedMatch(mode) {
 	// If queued bots weren't enough (e.g. a player joined late and the queue size
 	// jumped without enough bot timers firing), top up with fresh bots tuned to
 	// the lobby's average human rating.
-	if (room.players.length < matchSize) {
+	if (!modeDef.noBots && room.players.length < matchSize) {
 		var sumElo = 0, eloCount = 0;
 		for (var h = 0; h < humans.length; h++) {
 			var acc = accounts[humans[h]];
@@ -2215,6 +2241,19 @@ function formRankedMatch(mode) {
 		while (room.players.length < matchSize && botCount(room) < MAX_BOTS_PER_ROOM) {
 			if (!addBotToRoom(room, botPlayer.pickBotFromPool(targetElo))) break;
 		}
+	}
+
+	// Human-only mode that couldn't reach full size (rare race): re-queue the lone player
+	// and tear the room down rather than start a game that can't run.
+	if (modeDef.noBots && room.players.length < matchSize) {
+		var leftover = room.players.slice();
+		leftover.forEach(function(pid) {
+			delete roomMapping[pid]; delete games[pid];
+			if (sockets[pid]) sockets[pid].leave("room:" + room.id);
+		});
+		delete rooms[room.id];
+		leftover.forEach(function(pid) { if (sockets[pid] && accounts[pid]) enqueueRanked(pid, mode); });
+		return;
 	}
 
 	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);
@@ -2446,7 +2485,8 @@ io.on("connection", function (socket) {
 			rating: user.rating,
 			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
 			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
-			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating
+			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
+			ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating
 		};
 		var isFirst = !names[playerID];
 		names[playerID] = user.name;
@@ -2462,6 +2502,7 @@ io.on("connection", function (socket) {
 			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
 			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
 			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
+			ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating,
 			avatarUrl: user.avatar_url,
 			wins: user.wins,
 			played: user.played,

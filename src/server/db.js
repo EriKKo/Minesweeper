@@ -92,6 +92,7 @@ addColumnIfMissing("users", "email", "TEXT");
 addColumnIfMissing("users", "rating_sprint", "INTEGER NOT NULL DEFAULT 1000");
 addColumnIfMissing("users", "rating_standard", "INTEGER NOT NULL DEFAULT 1000");
 addColumnIfMissing("users", "rating_tournament", "INTEGER NOT NULL DEFAULT 1000");
+addColumnIfMissing("users", "rating_territory", "INTEGER NOT NULL DEFAULT 1000");
 addColumnIfMissing("users", "sprint_provisional", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "standard_provisional", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "tournament_provisional", "INTEGER NOT NULL DEFAULT 0");
@@ -315,6 +316,7 @@ function updateRating(userId, newRating, won, style) {
 	if (style === "sprint")       ratingCol = "rating_sprint";
 	else if (style === "standard")   ratingCol = "rating_standard";
 	else if (style === "tournament") ratingCol = "rating_tournament";
+	else if (style === "territory")  ratingCol = "rating_territory";
 	// `played` / `wins` stay as overall ranked counts so leaderboards
 	// can still show a single record per user.
 	db.prepare(

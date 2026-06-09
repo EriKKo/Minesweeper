@@ -97,6 +97,17 @@ function territoryResult(data) {
 	var detail = (data.scores || []).map(function(s) {
 		return '<span style="color:' + territorySolid(s.color) + '">' + s.name + ": " + s.score + "</span>";
 	}).join(" &nbsp;·&nbsp; ");
+	// Ranked: show the Elo delta and sync the local account's territory rating + home chips.
+	if (data.ranked && mine && typeof mine.ratingDelta === "number") {
+		var sign = mine.ratingDelta >= 0 ? "+" : "";
+		detail += '<br><span class="tv-elo">Territory rating ' + mine.rating + " (" + sign + mine.ratingDelta + ")</span>";
+		if (typeof account !== "undefined" && account) {
+			account.ratingTerritory = mine.rating; account.rating = mine.rating;
+			if (typeof account.provisional !== "undefined") account.provisional = !!mine.provisional;
+		}
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+		if (typeof updateTopbarRating === "function") updateTopbarRating();
+	}
 	if (ov) {
 		ov.dataset.mode = "result";
 		ov.innerHTML = '<div class="tv-result"><h2>' + head + '</h2><p>' + detail + '</p>' +
