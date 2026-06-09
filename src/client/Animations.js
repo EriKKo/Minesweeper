@@ -56,6 +56,13 @@ function makeLiveView(state) {
 		// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
 		// colours never bleed into the racing/solo/puzzle boards (they share this render path).
 		getOwner: function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; },
+		// Territory "fog of clues": you only see the numbers on cells YOU control — opponent (and
+		// neutral) cells still show their owner tint but no clue. Reduces clutter and means you can't
+		// read your opponent's board. Off (always show) in every other mode.
+		hideClue: function(r, c) {
+			if (typeof territoryActive === "undefined" || !territoryActive || !territoryOwnerColors || typeof territoryInfo === "undefined" || !territoryInfo) return false;
+			return territoryOwnerColors[r][c] !== territoryColorHex(territoryColorOf(territoryInfo.myId));
+		},
 		xray: false
 	};
 }

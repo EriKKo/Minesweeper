@@ -130,7 +130,9 @@ Source is split into three trees under `src/`:
   delta in `territory_result`. **Client:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
-  `drawCell` tints (via `view.getOwner`, null in other modes), and routes clicks through
+  `drawCell` tints (via `view.getOwner`, null in other modes) — and applies **fog-of-clues**: a revealed
+  cell you don't own shows its owner tint but no number (`view.hideClue`, true only for territory cells
+  whose owner colour isn't yours), so you can't read your opponent's board — and routes clicks through
   `Input.performAction`'s `"territory"` mode. Like the other modes it **predicts locally** — the
   client decodes the board, so `territoryLocalReveal` reveals+cascades+claims a safe move instantly
   and then emits; the server still owns mine hits (explosions), enclosure capture and validation. The

@@ -101,7 +101,8 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 			drawMine(ctx, w, h, t);
 		} else {
 			var clue = view.getClue(r, c);
-			if (clue > 0) drawNumber(ctx, clue, w, h, t);
+			// hideClue (territory fog-of-clues): a revealed cell you don't own shows its tint but no number.
+			if (clue > 0 && !(view.hideClue && view.hideClue(r, c))) drawNumber(ctx, clue, w, h, t);
 		}
 		// the unknown "cover" lifts off as the reveal plays
 		if (revealing && anim.t < 1) {
@@ -118,7 +119,9 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		var ut = clamp01(anim.t);
 		drawKnownBase(ctx, w, h, rad);
 		var uclue = view.getClue(r, c);
-		if (uclue > 0) { ctx.globalAlpha = 1 - easeOutCubic(ut); drawNumber(ctx, uclue, w, h, 1); ctx.globalAlpha = 1; }
+		// Don't fade a number out for a cell whose clue is hidden (e.g. an opponent's cell re-covered by
+		// their own explosion) — that would briefly leak their clue.
+		if (uclue > 0 && !(view.hideClue && view.hideClue(r, c))) { ctx.globalAlpha = 1 - easeOutCubic(ut); drawNumber(ctx, uclue, w, h, 1); ctx.globalAlpha = 1; }
 		ctx.globalAlpha = easeOutCubic(ut);
 		drawUnknown(ctx, w, h, rad);
 		ctx.globalAlpha = 1;
