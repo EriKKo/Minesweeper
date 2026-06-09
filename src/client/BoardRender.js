@@ -78,6 +78,17 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		var revealing = anim && (anim.type === "reveal" || anim.type === "mine");
 		var t = revealing ? clamp01(anim.t) : 1;
 		drawKnownBase(ctx, w, h, rad);
+		// Territory mode: subtle per-owner tint behind the clue. getOwner returns a colour
+		// string for claimed cells and null otherwise, so other modes are unaffected.
+		var ownerColor = view.getOwner && view.getOwner(r, c);
+		if (ownerColor) {
+			ctx.save();
+			ctx.globalAlpha = 0.20 * (revealing ? easeOutCubic(t) : 1);
+			ctx.fillStyle = ownerColor;
+			roundRectPath(ctx, 0, 0, w, h, rad);
+			ctx.fill();
+			ctx.restore();
+		}
 		if (view.isMine(r, c)) {
 			if (anim && anim.type === "mine") {
 				// red danger flash that fades as the bomb settles in

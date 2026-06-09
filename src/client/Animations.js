@@ -53,6 +53,8 @@ function makeLiveView(state) {
 		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
 		isMine: function(r, c) { return boardCell(r, c) === MINE; },
 		getClue: function(r, c) { var v = boardCell(r, c); return v > 0 ? v : 0; },
+		// Territory mode tints claimed cells by owner colour; null in every other mode.
+		getOwner: function(r, c) { return (typeof territoryOwnerColors !== "undefined" && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; },
 		xray: false
 	};
 }

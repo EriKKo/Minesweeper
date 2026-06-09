@@ -86,6 +86,15 @@ function performAction(r, c, asFlag) {
 	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
 	focusedR = r;
 	focusedC = c;
+	if (mode === "territory") {
+		// Shared board: clicks are server-authoritative (no optimistic reveal) — left-click emits
+		// a reveal, right-click is a no-op (no flags in territory v1). Reusing this pipeline means
+		// the keyboard focus highlight, key-repeat guard, right-click preventDefault, and hit-test
+		// all behave exactly like the other modes.
+		if (!asFlag) socket.emit("left_click", { r: r, c: c, id: id });
+		redrawOwnBoardWithFocus();
+		return;
+	}
 	if (asFlag) {
 		// Right-click on a covered cell toggles a flag. Right-click on a
 		// revealed number with the matching flag count chords the same way
@@ -122,6 +131,9 @@ function performAction(r, c, asFlag) {
 function currentActionMode() {
 	if (soloSession && !soloSession.finished) return "solo";
 	if ((typeof puzzleSession !== "undefined") && puzzleSession && !puzzleSession.finished) return "puzzle";
+	// Territory takes precedence over the generic multiplayer path (the room is also phase
+	// "playing"), since it drives the shared board differently (server-authoritative, no flags).
+	if (typeof territoryActive !== "undefined" && territoryActive) return "territory";
 	if (inRoom && currentRoom && currentRoom.phase === "playing") return "multiplayer";
 	return null;
 }
