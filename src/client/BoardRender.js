@@ -113,6 +113,15 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		drawUnknown(ctx, w, h, rad);
 		var fs = anim && anim.type === "flag" ? easeOutBack(clamp01(anim.t)) : 1;
 		drawFlag(ctx, w, h, fs);
+	} else if (anim && anim.type === "unreveal") {
+		// Reverse cascade (territory explosion): the clue fades out as the cover drops back in.
+		var ut = clamp01(anim.t);
+		drawKnownBase(ctx, w, h, rad);
+		var uclue = view.getClue(r, c);
+		if (uclue > 0) { ctx.globalAlpha = 1 - easeOutCubic(ut); drawNumber(ctx, uclue, w, h, 1); ctx.globalAlpha = 1; }
+		ctx.globalAlpha = easeOutCubic(ut);
+		drawUnknown(ctx, w, h, rad);
+		ctx.globalAlpha = 1;
 	} else {
 		drawUnknown(ctx, w, h, rad);
 	}

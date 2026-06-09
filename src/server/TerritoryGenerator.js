@@ -5,7 +5,9 @@
 //   - mirrors each corner's start BLOCK (180° rotation) so both openings are identical;
 //   - caps the size of any cascade (connected clue-0 region) so no single click hands over a
 //     huge chunk of territory;
-//   - carves a small open pocket at each corner so the first click cascades a modest, equal area.
+//   - carves a mine-free START ZONE (Chebyshev radius `safeRadius`) at each corner so a player
+//     can't detonate a mine in their starting area, and (with TerritoryGame excluding it from any
+//     blast patch) so a mine explosion can never claw back a player's start.
 // The interior between the corners stays random. Mine hits are part of the mode (no full no-guess
 // guarantee), so this is a plain mine layout, not a no-guess template.
 
@@ -96,26 +98,29 @@ function generate(opts) {
 	var density = opts.density != null ? opts.density : 0.13;
 	var cap = opts.cascadeCap || 6;
 	var BLK = opts.cornerSize || 7;        // mirrored corner block → identical openings
-	var openDepth = opts.openDepth || 3;
+	var safeRad = opts.safeRadius != null ? opts.safeRadius : 3; // Chebyshev radius of the mine-free start zone
 	var maxTries = opts.maxTries || 150;
 
 	function inBlock(r, c) { return (r < BLK && c < BLK) || (r >= R - BLK && c >= C - BLK); }
-	function never() { return false; }
+	// Mine-free safe zone: within Chebyshev distance safeRad of either corner.
+	function inSafe(r, c) { return (r <= safeRad && c <= safeRad) || (r >= R - 1 - safeRad && c >= C - 1 - safeRad); }
 
 	var best = null;
 	for (var t = 0; t < maxTries; t++) {
 		var mine = [];
 		for (var r = 0; r < R; r++) { mine.push([]); for (var c = 0; c < C; c++) mine[r].push(Math.random() < density); }
-		// Open pocket at the top-left corner, then mirror the whole TL block (180°) onto the BR
-		// block so the two openings match. Only the corner blocks are mirrored — the interior is independent.
-		for (var pr = 0; pr < BLK; pr++) for (var pc = 0; pc < BLK; pc++) if (pr + pc < openDepth) mine[pr][pc] = false;
+		// Clear the mine-free safe zone at both corners, then mirror the whole TL block (180°) onto
+		// the BR block so the two openings match. Only the corner blocks are mirrored — the interior
+		// is independent. (safeRad < BLK, so the safe carve sits inside the mirrored block and stays equal.)
+		for (var sr = 0; sr < R; sr++) for (var sc = 0; sc < C; sc++) if (inSafe(sr, sc)) mine[sr][sc] = false;
 		for (var mr = 0; mr < BLK; mr++) for (var mc = 0; mc < BLK; mc++) mine[R - 1 - mr][C - 1 - mc] = mine[mr][mc];
-		mine[0][0] = false; mine[R - 1][C - 1] = false;
 		var board = cluesFromMines(mine);
-		// Cap EVERY cascade (incl. the corner openings) so the opening stays small and contained in
-		// its mirrored block; a cap-mine landing inside a corner block is mirrored to keep them equal.
+		// Cap every cascade OUTSIDE the safe zone so no single click hands over a huge chunk; a
+		// cap-mine inside a corner block is mirrored to keep the two sides equal. The safe zone is
+		// excluded (inSafe) so the capper never drops a mine back into the protected start area —
+		// its opening is intentionally large and identical by the block mirror.
 		for (var it = 0; it < 3000; it++) {
-			var big = firstBigZeroRegion(board, cap, never);
+			var big = firstBigZeroRegion(board, cap, inSafe);
 			if (!big) break;
 			var cell = big[Math.floor(big.length / 2)];
 			mine[cell[0]][cell[1]] = true;

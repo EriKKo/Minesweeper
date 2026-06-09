@@ -93,6 +93,11 @@ function territoryBoard(data) {
 	territoryInfo.scores = data.scores || {};
 	territoryInfo.deadline = data.roundDeadline || null;
 
+	// A mine explosion re-generated a patch: patch the client's board clues so the re-covered cells
+	// re-reveal with their NEW values, and note the origin for the reverse-cascade animation.
+	if (data.explosion) { if (typeof patchBoardCells === "function") patchBoardCells(data.explosion.clues); }
+
+	var prev = prevPlayerState; // last state, for the un-reveal (reverse cascade) diff
 	var R = rows, C = cols;
 	// Translate the shared state + owner grids into the board's myState + tint grid.
 	var newState = [];
@@ -113,6 +118,20 @@ function territoryBoard(data) {
 	// Animate newly-claimed cells (queueRevealAnimations diffs against prevPlayerState, then we
 	// snapshot). On the first board prevPlayerState is null, so the start cascades animate in.
 	queueRevealAnimations(newState);
+	// Reverse cascade: cells that went revealed → covered (an explosion's re-cover) animate the
+	// cover dropping back, staggered outward from the blast origin. Queued AFTER queueRevealAnimations
+	// (which clears anims for now-covered cells) so they aren't wiped.
+	if (prev) {
+		var origin = data.explosion ? data.explosion.origin : null, now = performance.now(), any = false;
+		for (var ur = 0; ur < R; ur++) for (var uc = 0; uc < C; uc++) {
+			if (prev[ur][uc] === KNOWN && newState[ur][uc] === UNKNOWN) {
+				var delay = origin ? Math.hypot(ur - origin[0], uc - origin[1]) * 26 : 0;
+				cellAnims[ur + "," + uc] = { type: "unreveal", start: now + delay };
+				any = true;
+			}
+		}
+		if (any && typeof startAnimLoop === "function") startAnimLoop();
+	}
 	prevPlayerState = cloneState(newState);
 	renderPlayerBoard();
 

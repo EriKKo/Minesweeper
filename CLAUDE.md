@@ -94,12 +94,20 @@ Source is split into three trees under `src/`:
   from opposite corners of ONE shared board, claiming cells (vs the racing modes where each player
   has a private state matrix over a shared layout). The generator is generate-and-test: a random
   18×30 board with the top-left corner block mirrored 180° onto the bottom-right (and every cascade
-  capped) so the two start openings are **identical**, kept only if it's **no-guess solvable from
-  BOTH corners** (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the interior
-  between the corners is independent, not symmetric. `TerritoryGame` holds the single
-  `state` + an `owner` matrix, enforces contiguous growth (you may only reveal a covered cell
-  adjacent to your own territory), and on a mine hit re-covers it + freezes the player 3 s (v1 —
-  no reroll yet). Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
+  capped) so the two start openings are **identical**, plus a mine-free **start zone** (Chebyshev
+  radius 3) carved at each corner, kept only if it's **no-guess solvable from BOTH corners**
+  (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the interior between the corners
+  is independent, not symmetric. `TerritoryGame` holds the single `state` + an `owner` matrix,
+  enforces contiguous growth (you may only reveal a covered cell adjacent to your own territory), and
+  on a mine hit triggers an **explosion** (`g.explode`): a patch of the hitter's own territory around
+  the blast is re-covered (a reverse-cascade "unreveal" animation client-side) and its mines
+  re-generated (`computeExplosion`, border-constrained backtracking) so every surrounding clue still
+  holds AND the patch is no-guess solvable from its border — you re-clear it in place, no "going
+  around". The patch **never includes a protected start-zone cell** (an explosion can't claw back a
+  player's start), and any cell the regen turns into a 0 is auto-cascaded back open so the board is
+  never left with an uncascaded 0. A 3 s freeze accompanies the hit; if no valid regen is found in a
+  small search it falls back to a plain re-cover. Server wiring in `minesweeperServer.js`:
+  `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); ends on all-claimed /
   stuck / round-timer → most cells wins (`territory_result`). **Two entry points:** a "Create

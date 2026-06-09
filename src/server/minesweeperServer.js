@@ -2054,6 +2054,9 @@ function broadcastTerritory(room) {
 		frozenUntil: tg.frozenUntil, playing: tg.playing,
 		roundDeadline: roundDeadlines[room.id] || null
 	};
+	// A mine explosion re-covered + re-generated a patch this tick — tell clients to patch the
+	// changed clues and play the reverse-cascade animation. One-shot, then cleared.
+	if (tg._explosion) { payload.explosion = tg._explosion; tg._explosion = null; }
 	io.to("room:" + room.id).emit("territory_board", payload);
 }
 

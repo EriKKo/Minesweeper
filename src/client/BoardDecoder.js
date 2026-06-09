@@ -6,9 +6,17 @@
 // raw bytes never leave installBoardDecoder's closure.
 
 var boardDecoder = null;
-function boardCell(r, c) { return boardDecoder ? boardDecoder(r, c) : 0; }
+// Cells whose value changed after the decoder was installed (territory mine-explosion re-gen
+// rewrites a patch of the board). Checked first so boardCell reflects the live layout.
+var boardOverride = null;
+function boardCell(r, c) {
+	if (boardOverride) { var k = r + "," + c; if (k in boardOverride) return boardOverride[k]; }
+	return boardDecoder ? boardDecoder(r, c) : 0;
+}
+function patchBoardCells(clues) { if (!boardOverride) boardOverride = {}; for (var k in clues) boardOverride[k] = clues[k]; }
 
 function installBoardDecoder(dataB64, maskB64, decodeRows, decodeCols) {
+	boardOverride = null; // fresh layout — drop any prior explosion patches
 	var data = base64ToBytes(dataB64);
 	var mask = base64ToBytes(maskB64);
 	var width = decodeCols;
