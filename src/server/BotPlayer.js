@@ -251,6 +251,7 @@ function pickFrontierGuess(game) {
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== UNKNOWN) continue;
+			if (game.canTarget && !game.canTarget(r, c)) continue; // territory: only its own frontier
 			var nbrs = neighbors(r, c, rows, cols);
 			for (var k = 0; k < nbrs.length; k++) {
 				var rr = nbrs[k][0], cc = nbrs[k][1];
@@ -334,7 +335,7 @@ function computeBestMove(game) {
 	// With probability chordRate, prefer a chord when one is available.  Locality
 	// still applies — pick the chord candidate nearest the current focus so the
 	// bot's path through the board feels continuous.
-	if (chordList.length > 0) {
+	if (!game.revealsOnly && chordList.length > 0) {
 		var chordRate = typeof game.botChordRate === "number" ? game.botChordRate : 0;
 		if (chordRate > 0 && Math.random() < chordRate) {
 			var chordActions = chordList.map(function(x) {
@@ -349,9 +350,11 @@ function computeBestMove(game) {
 	// Even trivial counting moves carry their real CSP difficulty: counting against more
 	// covered cells / mines is genuinely harder, so those cells cost a little more and the
 	// locality picker treats them as slightly less attractive.
+	// Territory restricts reveals to the bot's own frontier (game.canTarget) and never flags
+	// (game.revealsOnly); both are absent for the racing modes, leaving their behaviour unchanged.
 	var actions = [];
-	for (var ks in safeSet) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, difficulty: cellDifficulty(game, safeSet[ks][0], safeSet[ks][1]) });
-	for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, difficulty: cellDifficulty(game, mineSet[ms][0], mineSet[ms][1]) });
+	for (var ks in safeSet) { if (!game.canTarget || game.canTarget(safeSet[ks][0], safeSet[ks][1])) actions.push({ type: "left", r: safeSet[ks][0], c: safeSet[ks][1], certain: true, difficulty: cellDifficulty(game, safeSet[ks][0], safeSet[ks][1]) }); }
+	if (!game.revealsOnly) for (var ms in mineSet) actions.push({ type: "right", r: mineSet[ms][0], c: mineSet[ms][1], certain: true, difficulty: cellDifficulty(game, mineSet[ms][0], mineSet[ms][1]) });
 
 	if (actions.length) {
 		var pick = pickByFocus(game, actions);
@@ -367,6 +370,8 @@ function computeBestMove(game) {
 	if (hint) {
 		var hintCells = (hint.safeCells && hint.safeCells.length) ? hint.safeCells : (hint.mineCells || []);
 		var hintType = (hint.safeCells && hint.safeCells.length) ? "left" : "right";
+		if (game.revealsOnly && hintType === "right") hintCells = []; // territory never flags
+		if (game.canTarget) hintCells = hintCells.filter(function(hc) { return game.canTarget(hc[0], hc[1]); });
 		if (hintCells.length) {
 			// The move's difficulty is the easiest (min) of its cells on the CSP map;
 			// fall back to a per-kind estimate if a cell wasn't keyed (e.g. cascade-only).
@@ -391,7 +396,7 @@ function computeBestMove(game) {
 		var candidates = [];
 		for (var r3 = 0; r3 < rows; r3++) {
 			for (var c3 = 0; c3 < cols; c3++) {
-				if (state[r3][c3] === UNKNOWN) candidates.push([r3, c3]);
+				if (state[r3][c3] === UNKNOWN && (!game.canTarget || game.canTarget(r3, c3))) candidates.push([r3, c3]);
 			}
 		}
 		if (candidates.length === 0) return null;

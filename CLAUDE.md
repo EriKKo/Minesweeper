@@ -110,7 +110,11 @@ Source is split into three trees under `src/`:
   `Input.performAction`'s new `"territory"` mode (server-authoritative — emit, no optimistic
   reveal). Reusing the real board means keyboard focus, right-click `preventDefault`, hit-testing
   and animations all work for free. Racing chrome is hidden via a `.territory` class on `#game_view`
-  plus a small territory score-bar HUD.
+  plus a small territory score-bar HUD. **Bots** use the same `BotPlayer.decideMove` AI as the
+  racing modes, fed a game view with two extra knobs (no-ops for racing): `canTarget(r,c)` limits
+  reveals to the bot's own frontier (`tg.canReveal` + excluding mines it has detonated) and
+  `revealsOnly` drops flags/chords. `scheduleTerritoryBot` ticks it on a speed/difficulty-scaled
+  cadence; `tg.mineKnown` keeps it from re-hitting a mine.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of

@@ -1981,30 +1981,63 @@ function startTerritoryGame(room) {
 	}, COUNT_DOWN_TIME * 1000);
 }
 
-// Drive any bot players in a territory game: on a loose cadence each bot reveals the frontier
-// cell its risk heuristic likes best (tg.botMove), freezing like a human when it hits a mine.
+// Drive any bot players in a territory game with the SAME bot AI the racing modes use
+// (botPlayer.decideMove). The only differences are fed in via the game view: reveals are
+// restricted to cells adjacent to the bot's own territory (canTarget), it never flags/chords
+// (revealsOnly), and its KNOWN cells are everything claimed on the shared board plus mines it
+// has already detonated (so it deduces from the full visible board but expands only its own front).
 var territoryBotTimers = {}; // roomId -> { botId: timeoutHandle }
+var territoryBotFocus = {};  // botId -> { r, c } (locality focus persisted across ticks)
+
 function startTerritoryBots(room, tg) {
 	territoryBotTimers[room.id] = territoryBotTimers[room.id] || {};
 	room.players.forEach(function(pid) { if (isBot(pid)) scheduleTerritoryBot(room, tg, pid); });
 }
+
+function territoryBotView(tg, botId) {
+	var R = tg.rows, C = tg.cols, state = [];
+	for (var r = 0; r < R; r++) {
+		state.push(new Array(C));
+		for (var c = 0; c < C; c++) {
+			var known = tg.owner[r][c] !== null || tg.mineKnown[botId][r + "," + c];
+			state[r][c] = known ? BoardLogic.KNOWN : BoardLogic.UNKNOWN;
+		}
+	}
+	return {
+		board: tg.board, state: state,
+		botMaxDifficulty: botMaxDifficulty[botId],
+		botMistakeRate: botMistake[botId],
+		botChordRate: 0,
+		revealsOnly: true,
+		botFocus: territoryBotFocus[botId] || null,
+		botDifficultyByCell: null,
+		canTarget: function(r, c) { return tg.canReveal(botId, r, c) && !tg.mineKnown[botId][r + "," + c]; }
+	};
+}
+
 function scheduleTerritoryBot(room, tg, botId) {
-	var now = Date.now();
-	var frozen = now < (tg.frozenUntil[botId] || 0);
-	var delay = frozen ? (tg.frozenUntil[botId] - now + 150) : (500 + Math.floor(Math.random() * 500));
 	if (!territoryBotTimers[room.id]) territoryBotTimers[room.id] = {};
-	territoryBotTimers[room.id][botId] = setTimeout(function() {
+	var initial = (botSpeedMs[botId] || 400) + Math.floor(Math.random() * 200);
+	territoryBotTimers[room.id][botId] = setTimeout(function tick() {
 		if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) { clearTerritoryBots(room.id); return; }
-		if (!tg.frozen(botId, Date.now())) {
-			var mv = tg.botMove(botId);
-			if (mv) {
-				tg.reveal(botId, mv[0], mv[1], Date.now());
+		var now = Date.now();
+		var nextDelay = (botSpeedMs[botId] || 400) + Math.floor(Math.random() * 150);
+		if (tg.frozen(botId, now)) {
+			nextDelay = (tg.frozenUntil[botId] - now) + 150;
+		} else {
+			var view = territoryBotView(tg, botId);
+			var action = botPlayer.decideMove(view);
+			territoryBotFocus[botId] = view.botFocus;
+			if (action && action.type === "left") {
+				tg.reveal(botId, action.r, action.c, now);
 				broadcastTerritory(room);
 				if (!tg.playing || tg.stuck()) { endTerritoryGame(room, "cleared"); return; }
+				// Harder deductions earn a longer pause, mirroring the racing pacing.
+				nextDelay += Math.round((botDifficultyMs[botId] || 0) * Math.min(action.difficulty || 0, 8));
 			}
 		}
-		scheduleTerritoryBot(room, tg, botId);
-	}, delay);
+		territoryBotTimers[room.id][botId] = setTimeout(tick, nextDelay);
+	}, initial);
 }
 function clearTerritoryBots(roomId) {
 	var t = territoryBotTimers[roomId];
