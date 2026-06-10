@@ -194,6 +194,25 @@ Source is split into three trees under `src/`:
   re-open cleared cells to NEUTRAL (claimable by either side), so they don't permanently capture — a
   defended core a bot keeps re-revealing can stalemate, since elimination is now the only win. A beam
   that captures the channel for the firer (or a domination tiebreak) is the open follow-up.
+
+  **Energy infrastructure (`TerritoryGame.js`).** A structure (claimed mine) is also an energy
+  **extractor**: it spends `EXTRACTOR_BUILD_MS` (15s) under construction, then produces `EXTRACTOR_RATE`
+  (1/s) energy for its owner. `g.extractorStartedAt["r,c"]` is stamped when the cell is first claimed (in
+  `updateStructures`) and cleared when its enclosure breaks. Running extractors auto-wire **energy lines**
+  to their nearest same-owner running extractors (`g.recomputeLines`, ≤ `LINE_MAX_LINKS`=3 each within
+  `LINE_RADIUS`=6 Chebyshev), stored in `g.energyLines["r,c|r,c"] = {owner,startedAt}`; a line spends
+  `LINE_BUILD_MS` (10s) building then adds `LINE_RATE` (0.6/s). Energy banks per player in `g.energy`
+  (`g.accrueEnergy` integrates rate×Δt lazily; `g.energyRate` sums running extractors + completed lines).
+  A server `setInterval` (`startTerritoryWorldTick`, ~1/s, cleared in `endTerritoryGame`) calls
+  `g.tickWorld` (accrue + re-wire) and re-broadcasts so the economy advances even when nobody clicks.
+  `broadcastTerritory` adds `energyLines` (`energyLineList`: endpoints + `buildInMs`/`buildMs`), per-
+  structure `buildInMs`/`buildMs`, and `energy`/`energyRate` per player. **Client:** `territoryStructures`
+  entries carry `builtAt`/`buildMs`; `drawCell` shows a construction ring (`drawExtractorBuild`) until
+  built, then a glowing core (`drawExtractorCore`) + the beam gauge; `drawTerritoryEnergyLines` renders the
+  grid (dashed while building, solid+glow when done); the HUD chip shows banked energy (`territoryEnergy` +
+  `territoryEnergyNow` interpolation, ticked every 250ms by `territoryEnergyTick`). Banked energy is the
+  resource for the planned **energy explosions** (area wipe → re-covered cells, up for grabs) — not yet
+  built; board re-randomisation of the wiped area is a later idea.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of

@@ -24,6 +24,23 @@ var FREEZE_MS = 3000;
 var BEAM_LEN = 6;            // enemy cells deep the beam re-covers before it fizzles
 var BEAM_COOLDOWN_BASE = 8000, BEAM_COOLDOWN_REF = 60, BEAM_COOLDOWN_MIN = 2500, BEAM_COOLDOWN_MAX = 12000;
 
+// Energy infrastructure. A claimed mine (structure) is an energy EXTRACTOR: it spends EXTRACTOR_BUILD_MS
+// under construction, then runs and produces EXTRACTOR_RATE energy/sec for its owner. Operational
+// extractors auto-wire energy LINES to nearby same-owner extractors (up to LINE_MAX_LINKS each, within
+// LINE_RADIUS); a line spends LINE_BUILD_MS building, then adds LINE_RATE energy/sec. Energy banks per
+// player — later spent on area "energy explosions" against opponents.
+var EXTRACTOR_BUILD_MS = 15000;  // captured mine → running extractor
+var EXTRACTOR_RATE = 1.0;        // energy/sec per running extractor
+var LINE_RADIUS = 6;             // Chebyshev cells two extractors can wire across
+var LINE_MAX_LINKS = 3;          // max wires per extractor (to its nearest same-owner extractors)
+var LINE_BUILD_MS = 10000;       // energy line construction time once both ends are running
+var LINE_RATE = 0.6;             // bonus energy/sec per completed line
+
+function lineKey(a, b) {
+	var ka = a[0] + "," + a[1], kb = b[0] + "," + b[1];
+	return ka < kb ? ka + "|" + kb : kb + "|" + ka;
+}
+
 // gen = TerritoryGenerator.generate(...); players = [idA, idB] mapped to starts[0], starts[1].
 function create(gen, players) {
 	var R = gen.rows, C = gen.cols;
@@ -39,7 +56,11 @@ function create(gen, players) {
 	};
 	g.mineKnown = {}; // pid -> { "r,c": true } cells this player has detonated (so the bot won't re-pick)
 	g.structReadyAt = {}; // "r,c" -> server timestamp a structure becomes ready to fire again
-	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; });
+	g.extractorStartedAt = {}; // "r,c" -> server time the extractor began construction (built EXTRACTOR_BUILD_MS later)
+	g.energyLines = {}; // "r,c|r,c" (endpoints sorted) -> { owner, startedAt }
+	g.energy = {}; // pid -> banked energy
+	g.energyAt = 0; // server time energy was last accrued
+	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; g.energy[p] = 0; });
 
 	// Seed each player's starting cascade as their territory.
 	players.forEach(function(pid, i) {
@@ -378,9 +399,12 @@ function create(gen, players) {
 			comp.forEach(function(p) {
 				var k = p[0] + "," + p[1];
 				if (ok && holder != null) {
-					if (owner[p[0]][p[1]] !== holder) { owner[p[0]][p[1]] = holder; g.structReadyAt[k] = now; } // newly built → ready
+					if (owner[p[0]][p[1]] !== holder) {
+						owner[p[0]][p[1]] = holder; g.structReadyAt[k] = now; // newly claimed → beam ready
+						g.extractorStartedAt[k] = now; // ...and the extractor begins construction
+					}
 				} else if (owner[p[0]][p[1]] !== null) {
-					owner[p[0]][p[1]] = null; delete g.structReadyAt[k]; // boundary broke → revert to neutral mine
+					owner[p[0]][p[1]] = null; delete g.structReadyAt[k]; delete g.extractorStartedAt[k]; // boundary broke → neutral mine
 				}
 			});
 		}
@@ -432,10 +456,88 @@ function create(gen, players) {
 		var out = [];
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
 			if (!g.isStructure(r, c)) continue;
-			var ready = g.structReadyAt[r + "," + c] || 0, cd = cooldownFor(owner[r][c]);
-			out.push({ r: r, c: c, owner: owner[r][c], readyInMs: Math.max(0, ready - now), cooldownMs: cd });
+			var k = r + "," + c;
+			var ready = g.structReadyAt[k] || 0, cd = cooldownFor(owner[r][c]);
+			var st = g.extractorStartedAt[k];
+			var buildInMs = st == null ? EXTRACTOR_BUILD_MS : Math.max(0, EXTRACTOR_BUILD_MS - (now - st));
+			out.push({ r: r, c: c, owner: owner[r][c], readyInMs: Math.max(0, ready - now), cooldownMs: cd,
+				buildInMs: buildInMs, buildMs: EXTRACTOR_BUILD_MS });
 		}
 		return out;
+	};
+
+	// ---- Energy infrastructure -------------------------------------------------------------------
+	g.extractorBuilt = function(k, now) { var s = g.extractorStartedAt[k]; return s != null && (now - s) >= EXTRACTOR_BUILD_MS; };
+	g.lineBuilt = function(key, now) { var l = g.energyLines[key]; return !!l && (now - l.startedAt) >= LINE_BUILD_MS; };
+
+	// Auto-wire the energy network: each owner's RUNNING extractors link to their nearest same-owner
+	// running extractors (≤ LINE_MAX_LINKS each, within LINE_RADIUS). New pairs start building now;
+	// existing lines keep their startedAt (progress persists); links that no longer qualify are dropped.
+	g.recomputeLines = function(now) {
+		var byOwner = {};
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (!g.isStructure(r, c) || !g.extractorBuilt(r + "," + c, now)) continue;
+			var o = owner[r][c]; (byOwner[o] = byOwner[o] || []).push([r, c]);
+		}
+		var want = {};
+		Object.keys(byOwner).forEach(function(o) {
+			var ex = byOwner[o];
+			for (var i = 0; i < ex.length; i++) {
+				var cand = [];
+				for (var j = 0; j < ex.length; j++) {
+					if (i === j) continue;
+					var d = Math.max(Math.abs(ex[i][0] - ex[j][0]), Math.abs(ex[i][1] - ex[j][1]));
+					if (d <= LINE_RADIUS) cand.push({ j: j, d: d });
+				}
+				cand.sort(function(a, b) { return a.d - b.d; });
+				for (var n = 0; n < Math.min(LINE_MAX_LINKS, cand.length); n++) want[lineKey(ex[i], ex[cand[n].j])] = o;
+			}
+		});
+		Object.keys(g.energyLines).forEach(function(key) { if (!want[key]) delete g.energyLines[key]; });
+		Object.keys(want).forEach(function(key) {
+			if (!g.energyLines[key]) g.energyLines[key] = { owner: want[key], startedAt: now };
+			else g.energyLines[key].owner = want[key];
+		});
+	};
+
+	// Current energy production for a player: running extractors + completed lines.
+	g.energyRate = function(pid, now) {
+		var rate = 0;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (g.isStructure(r, c) && owner[r][c] === pid && g.extractorBuilt(r + "," + c, now)) rate += EXTRACTOR_RATE;
+		}
+		Object.keys(g.energyLines).forEach(function(key) { if (g.energyLines[key].owner === pid && g.lineBuilt(key, now)) rate += LINE_RATE; });
+		return rate;
+	};
+
+	// Bank elapsed production into each player's energy total (lazy; called on tick + before broadcasts).
+	g.accrueEnergy = function(now) {
+		if (!g.energyAt) { g.energyAt = now; return; }
+		var dt = (now - g.energyAt) / 1000;
+		g.energyAt = now;
+		if (dt <= 0) return;
+		players.forEach(function(p) { g.energy[p] = (g.energy[p] || 0) + g.energyRate(p, now) * dt; });
+	};
+
+	// Steady world step (server runs this ~1/s): bank energy with the current network, then re-wire it.
+	g.tickWorld = function(now) { g.accrueEnergy(now); g.recomputeLines(now); };
+
+	// Energy lines for the client (endpoints + build state so it can animate construction).
+	g.energyLineList = function(now) {
+		var out = [];
+		Object.keys(g.energyLines).forEach(function(key) {
+			var l = g.energyLines[key], pts = key.split("|").map(function(s) { return s.split(",").map(Number); });
+			out.push({ a: pts[0], b: pts[1], owner: l.owner,
+				buildInMs: Math.max(0, LINE_BUILD_MS - (now - l.startedAt)), buildMs: LINE_BUILD_MS });
+		});
+		return out;
+	};
+
+	// Per-player energy snapshot (banked total + current rate so the client can count up smoothly).
+	g.energySnapshot = function(now) {
+		var e = {}, rate = {};
+		players.forEach(function(p) { e[p] = g.energy[p] || 0; rate[p] = g.energyRate(p, now); });
+		return { energy: e, rate: rate };
 	};
 
 	return g;

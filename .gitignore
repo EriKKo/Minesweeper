@@ -10,3 +10,4 @@ ranked.db-wal
 ranked.db-shm
 
 .claude/worktrees/
+.claude-worktrees/

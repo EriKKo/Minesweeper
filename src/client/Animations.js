@@ -79,6 +79,14 @@ function makeLiveView(state) {
 			var remaining = s.readyAt - performance.now();
 			return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
 		},
+		// Extractor construction progress (0..1). 1 = built/operational. Interpolated from the broadcast.
+		structureBuild: function(r, c) {
+			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+			var s = territoryStructures[r + "," + c];
+			if (!s || !s.buildMs) return 1;
+			var remaining = s.builtAt - performance.now();
+			return remaining <= 0 ? 1 : 1 - remaining / s.buildMs;
+		},
 		xray: false
 	};
 }
@@ -114,6 +122,7 @@ function renderPlayerBoard() {
 				drawCell(ctx, r, c, view, sw, sh, animArg);
 			}
 		}
+		if (typeof drawTerritoryEnergyLines === "function") drawTerritoryEnergyLines(ctx, sw, sh); // territory: power grid
 		if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
 	}
 	drawPressedHighlight();
@@ -236,6 +245,7 @@ function startAnimLoop() {
 			else { alive = true; }
 		}
 		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks
+		if (typeof territoryInfraAnimating === "function" && territoryInfraAnimating()) alive = true; // animate extractor/line construction
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }

@@ -18,6 +18,44 @@ var territoryFlags = null;            // [r][c] -> bool, local-only "suspected m
 var territoryStructures = null;       // "r,c" -> { owner, readyAt (perf.now ms), cooldownMs } surrounded-mine forts
 var territoryBeams = [];              // active beam streaks: { from:[r,c], to:[r,c], color, start } for the firing animation
 var TV_BEAM_DUR = 480;                // ms a beam streak stays on screen
+var territoryEnergyLines = [];        // power grid: [{ a:[r,c], b:[r,c], color, builtAt(perf.now), buildMs }]
+var territoryEnergy = {};             // pid -> { value, rate, at(perf.now) } banked energy, interpolated for the HUD
+var territoryEnergyTick = null;       // setInterval handle that counts the energy HUD up between broadcasts
+
+// True while any extractor or energy line is still under construction (keeps the render loop animating).
+function territoryInfraAnimating() {
+	var now = performance.now();
+	if (territoryStructures) for (var k in territoryStructures) { var s = territoryStructures[k]; if (s.buildMs && s.builtAt > now) return true; }
+	for (var i = 0; i < territoryEnergyLines.length; i++) { var l = territoryEnergyLines[i]; if (l.buildMs && l.builtAt > now) return true; }
+	return false;
+}
+
+// Draw the energy grid: a line between each pair of wired extractors. A completed line glows solid in the
+// owner's colour; one still building is faint and dashed, brightening as it nears completion.
+function drawTerritoryEnergyLines(ctx, sw, sh) {
+	if (!territoryEnergyLines.length) return;
+	var now = performance.now();
+	for (var i = 0; i < territoryEnergyLines.length; i++) {
+		var l = territoryEnergyLines[i];
+		var frac = !l.buildMs ? 1 : Math.max(0, Math.min(1, 1 - (l.builtAt - now) / l.buildMs));
+		var built = frac >= 1;
+		var x0 = (l.a[1] + 0.5) * sw, y0 = (l.a[0] + 0.5) * sh;
+		var x1 = (l.b[1] + 0.5) * sw, y1 = (l.b[0] + 0.5) * sh;
+		ctx.save();
+		ctx.strokeStyle = l.color;
+		ctx.lineCap = "round";
+		if (built) {
+			ctx.globalAlpha = 0.85; ctx.lineWidth = Math.min(sw, sh) * 0.12;
+			ctx.shadowColor = l.color; ctx.shadowBlur = Math.min(sw, sh) * 0.35;
+			ctx.setLineDash([]);
+		} else {
+			ctx.globalAlpha = 0.25 + 0.5 * frac; ctx.lineWidth = Math.min(sw, sh) * 0.07;
+			ctx.setLineDash([Math.min(sw, sh) * 0.22, Math.min(sw, sh) * 0.18]);
+		}
+		ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+		ctx.restore();
+	}
+}
 
 // True while any beam streak is still animating (keeps the render loop alive).
 function territoryBeamsActive(now) {
@@ -95,6 +133,10 @@ function territoryStart(data) {
 	territoryFlags = [];
 	territoryStructures = {};
 	territoryBeams = [];
+	territoryEnergyLines = [];
+	territoryEnergy = {};
+	if (territoryEnergyTick) clearInterval(territoryEnergyTick);
+	territoryEnergyTick = setInterval(territoryUpdateEnergyHud, 250); // count the energy HUD up between broadcasts
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
 
 	// Set up the shared board exactly like a normal round start.
@@ -153,11 +195,24 @@ function territoryBoard(data) {
 	var recoveredSet = {};
 	recovered.concat(fireRecovered).forEach(function(p) { recoveredSet[p[0] + "," + p[1]] = true; });
 	// Rebuild the structure map (surrounded-mine forts + their recharge state) from the broadcast.
+	var sNow = performance.now();
 	if (territoryStructures) {
-		var fresh = {}, sNow = performance.now();
-		(data.structures || []).forEach(function(s) { fresh[s.r + "," + s.c] = { owner: s.owner, cooldownMs: s.cooldownMs, readyAt: sNow + s.readyInMs }; });
+		var fresh = {};
+		(data.structures || []).forEach(function(s) {
+			fresh[s.r + "," + s.c] = { owner: s.owner, cooldownMs: s.cooldownMs, readyAt: sNow + s.readyInMs,
+				builtAt: sNow + (s.buildInMs || 0), buildMs: s.buildMs || 0 };
+		});
 		territoryStructures = fresh;
 	}
+	// Power grid + banked energy. Store builtAt as a local perf.now timestamp so the client animates
+	// construction without clock sync; energy keeps value+rate+at so the HUD can count up smoothly.
+	territoryEnergyLines = (data.energyLines || []).map(function(l) {
+		return { a: l.a, b: l.b, color: territoryColorHex(territoryColorOf(l.owner)),
+			builtAt: sNow + (l.buildInMs || 0), buildMs: l.buildMs || 0 };
+	});
+	if (data.energy) Object.keys(data.energy).forEach(function(pid) {
+		territoryEnergy[pid] = { value: data.energy[pid], rate: (data.energyRate && data.energyRate[pid]) || 0, at: sNow };
+	});
 
 	// When YOUR OWN mine hit refills an area, clear your flags within it (you'll re-explore it fresh).
 	// An opponent's explosion never touches your flags. Done before myState is rebuilt below so the
@@ -234,6 +289,9 @@ function territoryBoard(data) {
 	}
 	prevPlayerState = cloneState(newState);
 	renderPlayerBoard();
+	// While extractors/lines are building, keep the render loop spinning so construction animates smoothly
+	// between the 1/s broadcasts (the loop self-stops once everything's built and no beam is flying).
+	if (typeof startAnimLoop === "function" && territoryInfraAnimating()) startAnimLoop();
 
 	// Freeze: reuse the shared frozenUntil + freeze visuals.
 	var fz = (data.frozenUntil && data.frozenUntil[territoryInfo.myId]) || 0;
@@ -315,6 +373,9 @@ function territoryReset() {
 	territoryFlags = null;
 	territoryStructures = null;
 	territoryBeams = [];
+	territoryEnergyLines = [];
+	territoryEnergy = {};
+	if (territoryEnergyTick) { clearInterval(territoryEnergyTick); territoryEnergyTick = null; }
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
 	if (ov) ov.remove();
@@ -391,6 +452,22 @@ function territoryToggleFlag(r, c) {
 	if (prevPlayerState) prevPlayerState[r][c] = myState[r][c];
 }
 
+// Interpolated banked energy for a player: last broadcast value + rate × elapsed (smooth between ticks).
+function territoryEnergyNow(pid) {
+	var e = territoryEnergy[pid];
+	if (!e) return 0;
+	return e.value + e.rate * (performance.now() - e.at) / 1000;
+}
+
+// Tick the energy numbers on the HUD chips between broadcasts so they count up live.
+function territoryUpdateEnergyHud() {
+	if (!territoryInfo) return;
+	for (var i = 0; i < territoryInfo.players.length; i++) {
+		var el = document.getElementById("tv_energy" + i);
+		if (el) el.textContent = "⚡ " + Math.floor(territoryEnergyNow(territoryInfo.players[i].id));
+	}
+}
+
 function territoryRenderHud() {
 	var info = territoryInfo;
 	if (!info) return;
@@ -401,7 +478,8 @@ function territoryRenderHud() {
 		if (chip) {
 			chip.innerHTML = '<span class="tv-swatch" style="background:' + territoryColorHex(p.color) + '"></span>' +
 				'<span class="tv-name">' + p.name + (p.id === info.myId ? " (you)" : "") + '</span>' +
-				'<span class="tv-score">' + sc + '</span>';
+				'<span class="tv-score">' + sc + '</span>' +
+				'<span class="tv-energy" id="tv_energy' + i + '" style="color:' + territoryColorHex(p.color) + '">⚡ ' + Math.floor(territoryEnergyNow(p.id)) + '</span>';
 		}
 		var bar = document.getElementById("tv_bar" + i);
 		if (bar) { bar.style.width = (100 * sc / info.total) + "%"; bar.style.background = territoryColorHex(p.color); }

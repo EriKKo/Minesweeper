@@ -125,8 +125,20 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 			ctx.restore();
 		}
 		var fs = anim && anim.type === "flag" ? easeOutBack(clamp01(anim.t)) : 1;
+		// An extractor under construction flies its flag dimmed and shows a build ring; once built it gets a
+		// glowing energy core plus its beam-charge gauge.
+		var bf = (flagOwner && view.structureBuild) ? view.structureBuild(r, c) : 1;
+		if (flagOwner && bf < 1) ctx.globalAlpha = 0.55;
 		drawFlag(ctx, w, h, fs, flagOwner || null);
-		if (flagOwner && view.structureCharge) drawStructureCharge(ctx, w, h, view.structureCharge(r, c), flagOwner);
+		ctx.globalAlpha = 1;
+		if (flagOwner) {
+			if (bf < 1) {
+				drawExtractorBuild(ctx, w, h, bf, flagOwner);
+			} else {
+				drawExtractorCore(ctx, w, h, flagOwner);
+				if (view.structureCharge) drawStructureCharge(ctx, w, h, view.structureCharge(r, c), flagOwner);
+			}
+		}
 	} else if (anim && anim.type === "unreveal") {
 		// Reverse cascade (territory explosion): the clue fades out as the cover drops back in.
 		var ut = clamp01(anim.t);
@@ -293,5 +305,30 @@ function drawStructureCharge(ctx, w, h, frac, color) {
 	ctx.fillStyle = color;
 	roundRectPath(ctx, pad, by, Math.max(bh, bw * frac), bh, bh / 2);
 	ctx.fill();
+	ctx.restore();
+}
+
+// Energy extractor under construction: a faint full ring with a colored arc sweeping to show progress.
+function drawExtractorBuild(ctx, w, h, frac, color) {
+	frac = clamp01(frac);
+	var cx = w / 2, cy = h / 2, rad = Math.min(w, h) * 0.26, lw = Math.max(1.5, Math.min(w, h) * 0.08);
+	ctx.save();
+	ctx.lineWidth = lw;
+	ctx.globalAlpha = 0.25; ctx.strokeStyle = color;
+	ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
+	ctx.globalAlpha = 0.95; ctx.strokeStyle = color; ctx.lineCap = "round";
+	ctx.beginPath(); ctx.arc(cx, cy, rad, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
+	ctx.restore();
+}
+
+// Operational extractor: a glowing energy core dot in the owner colour.
+function drawExtractorCore(ctx, w, h, color) {
+	var cx = w / 2, cy = h / 2, rad = Math.min(w, h) * 0.17;
+	ctx.save();
+	ctx.shadowColor = color; ctx.shadowBlur = Math.min(w, h) * 0.5;
+	ctx.fillStyle = color;
+	ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+	ctx.shadowBlur = 0; ctx.globalAlpha = 0.85; ctx.fillStyle = "#fff";
+	ctx.beginPath(); ctx.arc(cx, cy, rad * 0.45, 0, Math.PI * 2); ctx.fill();
 	ctx.restore();
 }

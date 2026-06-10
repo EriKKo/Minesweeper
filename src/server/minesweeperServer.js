@@ -1983,6 +1983,7 @@ function startTerritoryGame(room) {
 		}
 		broadcastTerritory(room);
 		startTerritoryBots(room, tg);
+		startTerritoryWorldTick(room, tg);
 	}, COUNT_DOWN_TIME * 1000);
 }
 
@@ -2054,14 +2055,34 @@ function clearTerritoryBots(roomId) {
 	delete territoryBotTimers[roomId];
 }
 
+// Steady ~1/s heartbeat that advances the energy economy even when nobody is clicking: bank produced
+// energy, re-wire the extractor network, and push the updated infra/energy to clients so the HUD counts.
+var territoryWorldTimers = {}; // roomId -> intervalHandle
+function startTerritoryWorldTick(room, tg) {
+	clearTerritoryWorldTick(room.id);
+	territoryWorldTimers[room.id] = setInterval(function() {
+		if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) { clearTerritoryWorldTick(room.id); return; }
+		tg.tickWorld(Date.now());
+		broadcastTerritory(room);
+	}, 1000);
+}
+function clearTerritoryWorldTick(roomId) {
+	if (territoryWorldTimers[roomId]) { clearInterval(territoryWorldTimers[roomId]); delete territoryWorldTimers[roomId]; }
+}
+
 function broadcastTerritory(room) {
 	var tg = room.territory;
 	if (!tg) return;
+	var now = Date.now();
+	tg.accrueEnergy(now); // bank energy up to this instant so the broadcast total is fresh
+	var snap = tg.energySnapshot(now);
 	var payload = {
 		state: tg.state, owner: tg.owner, scores: tg.scores(),
 		frozenUntil: tg.frozenUntil, playing: tg.playing,
 		roundDeadline: roundDeadlines[room.id] || null,
-		structures: tg.structureList(Date.now()) // surrounded-mine forts + their recharge state
+		structures: tg.structureList(now), // extractors: position, beam recharge + construction state
+		energyLines: tg.energyLineList(now), // the auto-wired power grid + its build progress
+		energy: snap.energy, energyRate: snap.rate // banked energy + production rate per player
 	};
 	// A mine explosion re-covered + re-generated a patch this tick — tell clients to patch the
 	// changed clues and play the reverse-cascade animation. One-shot, then cleared.
@@ -2085,6 +2106,7 @@ function maybeEndTerritory(room) {
 function endTerritoryGame(room, reason) {
 	clearRoundTimer(room.id);
 	clearTerritoryBots(room.id);
+	clearTerritoryWorldTick(room.id);
 	var tg = room.territory;
 	if (!tg) return;
 	tg.playing = false;
