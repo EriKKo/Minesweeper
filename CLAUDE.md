@@ -219,6 +219,13 @@ Source is split into three trees under `src/`:
   and DOM/state wiring. All other client modules are plain `<script>` tags
   loaded ahead of it (each becomes a global).
 - `style.css` — all styles.
+- `privacy.html` / `terms.html` — standalone server-rendered legal pages (not part of
+  the SPA), served at the clean URLs `/privacy` and `/terms` (rewritten in
+  `resolveStatic`). They reuse `style.css` (topbar/logo classes + the `.legal` block)
+  and exist so the Google OAuth consent screen can point at a real Privacy Policy / Terms
+  URL. Linked from the home page's `.site-footer`. `logo.svg` is the square brand tile
+  (same design as `favicon.svg`); `logo-512.png` (repo root) is its rasterised 512×512
+  PNG for upload as the OAuth consent-screen app logo.
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
 - `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors. Keyboard
