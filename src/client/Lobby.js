@@ -19,15 +19,32 @@ var MODE_LABELS = {
 	territory_duo: "1v1 Territory", territory_quad: "4-player Territory"
 };
 
-// Fixed match-search toast lives in the bottom-right while queued — it
+// Short flavour line shown under the mode label in the waiting room — the
+// achtungroyale-style "what this match feels like" tag.
+var MODE_TAGLINES = {
+	sprint_duo: "Fast race · head-to-head",
+	sprint_six: "Fast race · free-for-all",
+	standard_duo: "Deduction · head-to-head",
+	standard_six: "Dense free-for-all",
+	tournament: "Battle royale · 16 → 1",
+	territory_duo: "Claim the board · 1v1",
+	territory_quad: "Claim the board · 4-player"
+};
+
+// Fixed match-search waiting room lives in the bottom-right while queued — it
 // survives navigation so the player can poke around the rest of the UI
 // without losing their place in line. The elapsed timer ticks while
-// the toast is visible.
+// the toast is visible, and the roster fills in as players/bots arrive.
 var rankedSearchStart = 0;
 var rankedSearchTickHandle = null;
 var matchToastModeEl = document.getElementById("match_toast_mode");
 var matchToastElapsedEl = document.getElementById("match_toast_elapsed");
+var matchToastTaglineEl = document.getElementById("match_toast_tagline");
+var matchRosterEl = document.getElementById("match_roster");
 var searchProgressFill = document.getElementById("search_progress_fill");
+// How many roster rows were filled on the previous render — lets us animate
+// only the newly-arrived rows, not re-flash everyone on each broadcast.
+var matchRosterShown = 0;
 
 function setRankedSearching(on, mode) {
 	if (on) rankedSearching.removeAttribute("hidden");
@@ -40,6 +57,8 @@ function setRankedSearching(on, mode) {
 		rankedSearchTickHandle = setInterval(updateRankedSearchingElapsed, 500);
 	} else {
 		rankedSearchInfo = null;
+		matchRosterShown = 0;
+		if (matchRosterEl) matchRosterEl.innerHTML = "";
 		if (rankedSearchTickHandle) { clearInterval(rankedSearchTickHandle); rankedSearchTickHandle = null; }
 	}
 	// currentRankedMode stays set after match formation so series-end can re-queue.
@@ -55,67 +74,69 @@ function updateRankedSearchingElapsed() {
 function updateRankedSearchingText() {
 	var info = rankedSearchInfo || {};
 	var count = info.count || 1, size = info.size || 2;
-	var modeLabel = MODE_LABELS[info.mode || currentRankedMode] || "Ranked";
+	var mode = info.mode || currentRankedMode;
+	var modeLabel = MODE_LABELS[mode] || "Ranked";
 	rankedSearchingText.textContent = count >= size
 		? "Match found — joining…"
 		: "Finding match…";
 	if (matchToastModeEl) matchToastModeEl.textContent = modeLabel;
+	if (matchToastTaglineEl) matchToastTaglineEl.textContent = MODE_TAGLINES[mode] || "";
 	if (searchCountText) searchCountText.textContent = count;
 	if (searchSizeText) searchSizeText.textContent = size;
 	if (searchProgressFill) {
 		var ratio = Math.max(0, Math.min(1, count / size));
 		searchProgressFill.style.width = (ratio * 100) + "%";
 	}
+	renderMatchRoster(info);
 }
 
-// (Old slot rendering intentionally removed — the searching view shows only a
-// player count + filling ring; the full lobby reveals once the match starts.)
-
-function renderRankedSlots_DISABLED(info) {
-	if (!rankedSlotsEl) return;
-	var size = info.size || 4;
+// The waiting-room roster: one row per match slot. Filled slots show the
+// player/bot name (+ a "YOU" tag for self) and a tier chip; the rest are muted
+// "Waiting…" placeholders. Re-rendered on every ranked_searching broadcast, so
+// the list visibly fills as bots/humans arrive. Only rows beyond the last
+// render's fill count get the entrance animation, so existing rows don't
+// re-flash each tick.
+function renderMatchRoster(info) {
+	if (!matchRosterEl) return;
+	var size = info.size || 2;
 	var members = info.members || [];
-	rankedSlotsEl.innerHTML = "";
+	matchRosterEl.innerHTML = "";
 	for (var i = 0; i < size; i++) {
-		var slot = document.createElement("div");
-		slot.className = "ranked-slot";
+		var row = document.createElement("li");
+		row.className = "match-roster-row";
 		var m = members[i];
 		if (m) {
-			if (m.isYou) slot.classList.add("ranked-slot-you");
-			var name = document.createElement("div");
-			name.className = "ranked-slot-name";
+			if (m.isYou) row.classList.add("match-roster-row-you");
+			// Animate only freshly-arrived rows (index >= what we showed last time).
+			if (i >= matchRosterShown) row.classList.add("match-roster-row-new");
+
+			var name = document.createElement("span");
+			name.className = "match-roster-name";
 			name.textContent = m.name;
+			row.appendChild(name);
 			if (m.isYou) {
 				var youTag = document.createElement("span");
-				youTag.className = "ranked-slot-you-tag";
+				youTag.className = "match-roster-you-tag";
 				youTag.textContent = "YOU";
-				name.appendChild(document.createTextNode(" "));
-				name.appendChild(youTag);
+				row.appendChild(youTag);
 			}
-			slot.appendChild(name);
 
-			var meta = document.createElement("div");
-			meta.className = "ranked-slot-meta";
-			var t = tierFor(m.rating, m.provisional);
-			var tierEl = document.createElement("span");
-			tierEl.className = "ranked-slot-tier";
-			tierEl.textContent = t.name;
-			tierEl.style.color = t.color;
-			meta.appendChild(tierEl);
-			// Only the player sees their own exact rating; opponents are tier-only.
-			if (m.isYou) {
-				var ratingEl = document.createElement("span");
-				ratingEl.className = "ranked-slot-rating";
-				ratingEl.textContent = (m.provisional ? "~" : "") + m.rating;
-				meta.appendChild(ratingEl);
+			if (typeof m.rating === "number" && typeof tierFor === "function") {
+				var t = tierFor(m.rating, m.provisional);
+				var tierEl = document.createElement("span");
+				tierEl.className = "match-roster-tier";
+				// Self sees an exact rating; opponents stay tier-only.
+				tierEl.textContent = m.isYou ? (t.name + " · " + (m.provisional ? "~" : "") + m.rating) : t.name;
+				tierEl.style.color = t.color;
+				row.appendChild(tierEl);
 			}
-			slot.appendChild(meta);
 		} else {
-			slot.classList.add("ranked-slot-empty");
-			slot.textContent = "Searching for opponent…";
+			row.classList.add("match-roster-slot-empty");
+			row.textContent = "Waiting for player…";
 		}
-		rankedSlotsEl.appendChild(slot);
+		matchRosterEl.appendChild(row);
 	}
+	matchRosterShown = Math.min(members.length, size);
 }
 
 function formatRoundTime(s) {
