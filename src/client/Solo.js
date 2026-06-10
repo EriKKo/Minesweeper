@@ -52,11 +52,13 @@ function countSoloSafeRevealed() {
 }
 
 function startSolo(size) {
+	enterGameFullscreen();
 	soloSelectedSize = size || soloSelectedSize || "medium";
 	socket.emit("request_solo_board", { size: soloSelectedSize, density: soloSelectedDensity });
 }
 
 function exitSolo() {
+	exitGameFullscreen();
 	soloSession = null;
 	stopSoloTimer();
 	hideOverlay();

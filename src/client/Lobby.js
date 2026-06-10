@@ -7,6 +7,7 @@
 // inline script — they need access to DOM elements declared there.
 
 function findRanked(mode) {
+	enterGameFullscreen();
 	currentRankedMode = mode;
 	socket.emit("find_ranked", { mode: mode });
 	setRankedSearching(true, mode);

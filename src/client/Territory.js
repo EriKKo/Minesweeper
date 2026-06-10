@@ -325,6 +325,7 @@ function territoryReset() {
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.remove("territory");
 	document.body.classList.remove("territory-fullscreen");
+	exitGameFullscreen();
 }
 
 // Is (r,c) one of MY structures (a surrounded-mine fort I own)? Left-clicking it fires an offensive beam.
