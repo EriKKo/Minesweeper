@@ -3712,23 +3712,39 @@ body.touch .find-next-arrow { display: inline-flex; }
 .ranked-picker-option-sub { color: var(--muted); font-size: 0.85rem; }
 
 /* === Match-search toast (fixed bottom-right) ====================== */
-.match-toast {
+/* Full-viewport dimming backdrop that centres the waiting-room card. */
+.match-overlay {
 	position: fixed;
-	bottom: 1.2rem; right: 1.2rem;
-	width: 18.5rem;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	background: rgba(8, 10, 18, 0.62);
+	backdrop-filter: blur(3px);
+	-webkit-backdrop-filter: blur(3px);
+	z-index: 80;
+	animation: match-overlay-in 0.18s ease-out;
+}
+.match-overlay[hidden] { display: none; }
+@keyframes match-overlay-in {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+.match-toast {
+	width: 22rem;
+	max-width: 100%;
 	background: var(--surface);
 	border: 1px solid var(--border);
-	border-radius: 0.7rem;
-	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-	padding: 0.85rem 1rem 0.9rem;
-	z-index: 80;
+	border-radius: 0.9rem;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+	padding: 1.1rem 1.25rem 1.2rem;
 	color: var(--text);
-	animation: match-toast-in 0.18s ease-out;
+	animation: match-toast-in 0.2s ease-out;
 }
-.match-toast[hidden] { display: none; }
 @keyframes match-toast-in {
-	from { transform: translateY(8px); opacity: 0; }
-	to   { transform: translateY(0);   opacity: 1; }
+	from { transform: translateY(12px) scale(0.98); opacity: 0; }
+	to   { transform: translateY(0) scale(1);       opacity: 1; }
 }
 .match-toast-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .match-toast-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.92rem; }
@@ -3830,12 +3846,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	0%, 100% { opacity: 0.5; }
 	50%      { opacity: 0.8; }
 }
-/* On narrow phones, let the waiting room span the width instead of overflowing
-   off the right edge. */
+/* On narrow phones the centred card fills most of the width (the overlay's
+   padding keeps a small margin) and the roster scrolls if the lobby is large. */
 @media (max-width: 600px) {
-	.match-toast {
-		left: 0.7rem; right: 0.7rem; bottom: 0.7rem;
-		width: auto;
-	}
-	.match-roster { max-height: 9rem; }
+	.match-toast { width: 100%; }
+	.match-roster { max-height: 12rem; }
 }

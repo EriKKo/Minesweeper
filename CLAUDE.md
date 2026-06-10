@@ -227,8 +227,8 @@ Source is split into three trees under `src/`:
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
   `MatchPanels.js`, `GameRoom.js`, `Solo.js`, `Learn.js`,
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
-- `Lobby.js`'s ranked search is a **waiting room** (`#ranked_searching`, fixed
-  bottom-right, survives navigation): `renderMatchRoster(info)` turns the `members`
+- `Lobby.js`'s ranked search is a **waiting room** (`#ranked_searching`, a centred
+  full-viewport overlay with a dimmed/blurred backdrop): `renderMatchRoster(info)` turns the `members`
   roster the server sends with every `ranked_searching` broadcast into a filling slot
   list (name + tier chip, "YOU" tag for self, dashed "Waiting for player…"
   placeholders for empty slots), above a mode label + flavour tagline (`MODE_TAGLINES`),
