@@ -147,9 +147,9 @@ function drawOwnerBorder(ctx, r, c, w, h, rad, color, view, prog) {
 	var top = facesOut(r - 1, c), bottom = facesOut(r + 1, c), left = facesOut(r, c - 1), right = facesOut(r, c + 1);
 	if (!top && !bottom && !left && !right) return;                        // interior cell — no border
 	ctx.save();
-	ctx.globalAlpha = 0.9 * (prog == null ? 1 : prog);
+	ctx.globalAlpha = 0.4 * (prog == null ? 1 : prog);
 	ctx.strokeStyle = color;
-	ctx.lineWidth = Math.max(1.5, Math.min(w, h) * 0.16);
+	ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.06);
 	ctx.lineCap = "round";
 	var i = ctx.lineWidth / 2; // inset so the stroke sits fully inside the cell
 	ctx.beginPath();
