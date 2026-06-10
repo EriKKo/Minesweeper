@@ -249,6 +249,14 @@ Source is split into three trees under `src/`:
 - `BotsAdmin.js` — admin bot browser (`#/admin/bots`): paginated/sortable/Elo-filterable
   view of the pool via `GET /api/bots`, plus the server-driven "watch a bot play" modal
   (`bot_demo_start`/`stop` → `bot_demo_board`/`move` sockets; renders frames with `drawCell`).
+- `Fullscreen.js` — `enterGameFullscreen()` / `exitGameFullscreen()`: requests browser
+  fullscreen when a game starts (any mode) and releases it on leave. Because the
+  Fullscreen API needs a transient user gesture, `enterGameFullscreen()` is called straight
+  from the committing click handlers (`readyButton` for casual, `findRanked` for ranked,
+  `startSolo`, `renderPuzzlePlay`, territory create), never from a later socket/board
+  callback; it's idempotent and fails silently if the browser blocks/doesn't support it.
+  Exit is wired into every leave path (`leave_button`, `cancelRanked`, `exitSolo`,
+  `exitPuzzle`, territory teardown, and the Router's navigate-away teardown).
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,

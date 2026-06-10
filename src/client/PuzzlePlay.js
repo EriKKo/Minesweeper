@@ -73,6 +73,7 @@ function renderPuzzlePlay(mode) {
 		view.appendChild(msg);
 		return;
 	}
+	enterGameFullscreen();
 	if (mode === "daily") {
 		// Check first — if already attempted today, show the result without
 		// starting a fresh play.
@@ -95,6 +96,7 @@ function renderPuzzlePlay(mode) {
 }
 
 function exitPuzzle() {
+	exitGameFullscreen();
 	// If a run is active, tell the server to wrap it up so the score gets
 	// recorded as a personal-best update if it qualifies.
 	if (puzzleSession && (puzzleSession.mode === "streak" || puzzleSession.mode === "storm") && !puzzleSession.finished) {
@@ -490,6 +492,7 @@ function showPuzzleRunOutcome(data) {
 	again.className = "btn btn-primary";
 	again.textContent = data.mode === "streak" ? "New streak" : "New storm";
 	again.addEventListener("click", function() {
+		enterGameFullscreen();
 		hideOverlay();
 		if (data.mode === "streak") socket.emit("puzzle_streak_start");
 		else socket.emit("puzzle_storm_start");

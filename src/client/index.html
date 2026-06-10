@@ -643,6 +643,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/BoardLogic.js"></script>
+<script src="/Fullscreen.js"></script>
 <script src="/BoardRender.js"></script>
 <script src="/MobileLayout.js"></script>
 <script src="/Ranking.js"></script>
@@ -1476,6 +1477,7 @@ cancelRankedButton.addEventListener("click", function() {
 	socket.emit("cancel_ranked");
 	currentRankedMode = null;
 	setRankedSearching(false);
+	exitGameFullscreen();
 });
 
 document.getElementById("leave_button").addEventListener("click", function() {
@@ -1483,10 +1485,12 @@ document.getElementById("leave_button").addEventListener("click", function() {
 	if (puzzleSession) { location.hash = "#/"; return; }
 	if (currentRoom && currentRoom.phase === "playing"
 		&& !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) return;
+	exitGameFullscreen();
 	socket.emit("leave_room");
 });
 
 readyButton.addEventListener("click", function() {
+	enterGameFullscreen();
 	socket.emit("player_ready");
 });
 

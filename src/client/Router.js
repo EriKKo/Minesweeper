@@ -248,10 +248,12 @@ function applyRouteFromHash() {
 			location.hash = lastAppliedHash || "#/";
 			return;
 		}
+		exitGameFullscreen();
 		socket.emit("leave_room");
 		return;
 	}
 	if (puzzleSession) {
+		exitGameFullscreen();
 		// Rated: leaving is free — server keeps current_puzzle_id and
 		// re-serves the same board next time. Streak/Storm: tell the
 		// server to wrap up so the score is recorded as a personal-best
@@ -270,6 +272,7 @@ function applyRouteFromHash() {
 		boardDecoder = null;
 	}
 	if (soloSession) {
+		exitGameFullscreen();
 		soloSession = null;
 		stopSoloTimer();
 		hideOverlay();
