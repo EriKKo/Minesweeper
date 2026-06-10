@@ -172,8 +172,10 @@ Source is split into three trees under `src/`:
   opponent's doesn't — is claimed. This captures regions pinned against a **board edge** too, not just
   interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and claimed,
   mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
-  **Structures + offensive beams (PvP invasion).** A covered mine whose every neighbour you own becomes
-  your **structure** (`g.updateStructures`, run after every board change): owned by you (counts toward
+  **Structures + offensive beams (PvP invasion).** A connected blob of covered mines whose entire outer
+  boundary you own becomes your **structures** (`g.updateStructures`, run after every board change — it
+  flood-fills each 8-connected mine group and claims the whole group if one player rings it, so clusters
+  of mines count, not just lone ones): owned by you (counts toward
   score, NOT toward `claimedSafe`), auto-flagged, rendered as a coloured flag with a charge gauge. Each
   has a **cooldown** that recharges faster the more territory you hold (`cooldownFor` ∝ your cell count).
   Left-clicking your charged structure fires `g.fireStructure` → a **directional beam** at the nearest

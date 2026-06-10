@@ -338,24 +338,44 @@ function create(gen, players) {
 		return Math.max(BEAM_COOLDOWN_MIN, Math.min(BEAM_COOLDOWN_MAX, Math.round(BEAM_COOLDOWN_BASE * BEAM_COOLDOWN_REF / cells)));
 	}
 
-	// Re-evaluate which covered mines are structures: a covered mine whose every in-bounds neighbour is
-	// owned by ONE player becomes that player's structure (auto-claimed). One no longer fully surrounded
-	// by a single player reverts to a neutral covered mine.
+	// Re-evaluate which covered mines are structures. A whole CONNECTED GROUP of covered mines becomes one
+	// player's structures when the group's entire outer boundary is owned by that single player — so a
+	// surrounded cluster of mines counts, not just a lone mine (adjacent mines used to block each other).
+	// A group no longer fully enclosed by one player reverts to neutral covered mines.
 	g.updateStructures = function(now) {
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			if (state[r][c] !== UNKNOWN || g.board[r][c] !== MINE) continue; // covered mines only
-			var ns = nbrs(r, c), holder = undefined, ok = true;
-			for (var i = 0; i < ns.length; i++) {
-				var o = owner[ns[i][0]][ns[i][1]];
-				if (o === null) { ok = false; break; }            // a covered/neutral neighbour → not surrounded
-				if (holder === undefined) holder = o; else if (o !== holder) { ok = false; break; } // mixed owners
+		var seen = [];
+		for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
+		for (var r0 = 0; r0 < R; r0++) for (var c0 = 0; c0 < C; c0++) {
+			if (seen[r0][c0] || state[r0][c0] !== UNKNOWN || g.board[r0][c0] !== MINE) continue;
+			// Flood the 8-connected blob of covered mines.
+			var comp = [], inComp = {}, stack = [[r0, c0]];
+			seen[r0][c0] = true;
+			while (stack.length) {
+				var p = stack.pop(); comp.push(p); inComp[p[0] + "," + p[1]] = true;
+				nbrs(p[0], p[1]).forEach(function(b) {
+					if (!seen[b[0]][b[1]] && state[b[0]][b[1]] === UNKNOWN && g.board[b[0]][b[1]] === MINE) { seen[b[0]][b[1]] = true; stack.push(b); }
+				});
 			}
-			var k = r + "," + c;
-			if (ok && holder != null) {
-				if (owner[r][c] !== holder) { owner[r][c] = holder; g.structReadyAt[k] = now; } // newly built → ready at once
-			} else if (owner[r][c] !== null) {
-				owner[r][c] = null; delete g.structReadyAt[k]; // surroundings broke → revert to neutral mine
+			// The blob is a structure group iff every boundary cell (a neighbour not in the blob) is owned
+			// by one and the same player — a null (covered/neutral) or mixed-owner boundary is an escape.
+			var holder = undefined, ok = true;
+			for (var i = 0; i < comp.length && ok; i++) {
+				var ns = nbrs(comp[i][0], comp[i][1]);
+				for (var j = 0; j < ns.length; j++) {
+					if (inComp[ns[j][0] + "," + ns[j][1]]) continue;
+					var o = owner[ns[j][0]][ns[j][1]];
+					if (o === null) { ok = false; break; }
+					if (holder === undefined) holder = o; else if (o !== holder) { ok = false; break; }
+				}
 			}
+			comp.forEach(function(p) {
+				var k = p[0] + "," + p[1];
+				if (ok && holder != null) {
+					if (owner[p[0]][p[1]] !== holder) { owner[p[0]][p[1]] = holder; g.structReadyAt[k] = now; } // newly built → ready
+				} else if (owner[p[0]][p[1]] !== null) {
+					owner[p[0]][p[1]] = null; delete g.structReadyAt[k]; // boundary broke → revert to neutral mine
+				}
+			});
 		}
 	};
 
