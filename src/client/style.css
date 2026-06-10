@@ -3853,3 +3853,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.match-toast { width: 100%; }
 	.match-roster { max-height: 12rem; }
 }
+
+/* Fullscreen game chrome: hide the site navbar and let the game fill the space. The in-game "Exit game"
+   button (#leave_button) stays as the single way out. Driven by body.game-fullscreen, kept in sync with
+   the real fullscreen state in Fullscreen.js (so Esc reverts it too). */
+body.game-fullscreen .topbar { display: none; }
+body.game-fullscreen main { max-width: none; }

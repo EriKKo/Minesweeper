@@ -33,3 +33,12 @@ function exitGameFullscreen() {
 		if (r && typeof r.catch === "function") r.catch(function() {});
 	} catch (e) { /* ignore */ }
 }
+
+// Keep a `game-fullscreen` body class in sync with the ACTUAL fullscreen state — driven by the browser
+// event, not our enter/exit helpers, so pressing Esc (the native exit) reverts the chrome too. The CSS
+// hangs the immersive layout (hidden navbar, visible "Exit game" button) off this class.
+function syncFullscreenChrome() {
+	document.body.classList.toggle("game-fullscreen", isInFullscreen());
+}
+document.addEventListener("fullscreenchange", syncFullscreenChrome);
+document.addEventListener("webkitfullscreenchange", syncFullscreenChrome);
