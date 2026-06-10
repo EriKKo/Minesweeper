@@ -103,6 +103,8 @@ var STATIC_ROOTS = [
 
 function resolveStatic(pathname) {
 	if (pathname === "/") pathname = "/index.html";
+	else if (pathname === "/privacy") pathname = "/privacy.html";
+	else if (pathname === "/terms") pathname = "/terms.html";
 	for (var i = 0; i < STATIC_ROOTS.length; i++) {
 		var full = path.join(STATIC_ROOTS[i], pathname);
 		// Guard against path traversal — must stay rooted under the static dir.
@@ -143,6 +145,8 @@ function handler (req, res) {
 		contentType = "text/css";
 	} else if (extension == ".svg") {
 		contentType = "image/svg+xml";
+	} else if (extension == ".png") {
+		contentType = "image/png";
 	}
 	fs.readFile(filePath, function(err, data) {
 		if (err) {

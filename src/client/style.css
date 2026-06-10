@@ -3859,3 +3859,61 @@ body.touch .find-next-arrow { display: inline-flex; }
    the real fullscreen state in Fullscreen.js (so Esc reverts it too). */
 body.game-fullscreen .topbar { display: none; }
 body.game-fullscreen main { max-width: none; }
+
+/* Standalone legal pages (privacy.html, terms.html) — server-rendered HTML
+   served at /privacy and /terms, reusing the topbar/logo and colour vars. */
+.legal {
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 2.5rem 1.25rem 4rem;
+}
+.legal a.legal-home {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	text-decoration: none;
+	margin-bottom: 2rem;
+}
+.legal h1 {
+	font-size: 1.9rem;
+	letter-spacing: -0.01em;
+	margin: 0 0 0.35rem;
+}
+.legal .legal-updated {
+	color: var(--muted);
+	font-size: 0.9rem;
+	margin: 0 0 2rem;
+}
+.legal h2 {
+	font-size: 1.2rem;
+	margin: 2rem 0 0.6rem;
+	color: var(--text);
+}
+.legal p, .legal li { color: #c3c9e0; }
+.legal ul { padding-left: 1.25rem; }
+.legal li { margin: 0.3rem 0; }
+.legal a { color: var(--accent-hover); }
+.legal .legal-footer {
+	margin-top: 3rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--border);
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+/* Footer site links (added to index.html) */
+.site-footer {
+	max-width: 1100px;
+	margin: 3rem auto 0;
+	padding: 1.5rem 1.25rem 2rem;
+	border-top: 1px solid var(--border);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.25rem;
+	align-items: center;
+	color: var(--muted);
+	font-size: 0.88rem;
+}
+.site-footer a { color: var(--muted); text-decoration: none; }
+.site-footer a:hover { color: var(--text); }
+.site-footer .site-footer-spacer { flex: 1; }
