@@ -107,7 +107,9 @@ function performAction(r, c, asFlag) {
 		// reconcile via territory_board. Clicking one of your own revealed numbers chords (client-driven,
 		// since flags are local-only). Flags are a local "suspected mine" mark; a flagged cell is
 		// protected from an accidental reveal.
-		if (myState && myState[r][c] === KNOWN) {
+		if (!asFlag && typeof territoryIsMyStructure === "function" && territoryIsMyStructure(r, c)) {
+			socket.emit("territory_fire", { r: r, c: c }); // fire this fort's beam at the nearest enemy
+		} else if (myState && myState[r][c] === KNOWN) {
 			territoryChord(r, c);
 		} else if (asFlag) {
 			if (typeof territoryToggleFlag === "function") territoryToggleFlag(r, c);

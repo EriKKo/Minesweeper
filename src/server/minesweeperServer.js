@@ -2060,11 +2060,14 @@ function broadcastTerritory(room) {
 	var payload = {
 		state: tg.state, owner: tg.owner, scores: tg.scores(),
 		frozenUntil: tg.frozenUntil, playing: tg.playing,
-		roundDeadline: roundDeadlines[room.id] || null
+		roundDeadline: roundDeadlines[room.id] || null,
+		structures: tg.structureList(Date.now()) // surrounded-mine forts + their recharge state
 	};
 	// A mine explosion re-covered + re-generated a patch this tick — tell clients to patch the
 	// changed clues and play the reverse-cascade animation. One-shot, then cleared.
 	if (tg._explosion) { payload.explosion = tg._explosion; tg._explosion = null; }
+	// An offensive beam fired this tick — tell clients to play the beam + re-cover animation. One-shot.
+	if (tg._fire) { payload.fire = tg._fire; tg._fire = null; }
 	io.to("room:" + room.id).emit("territory_board", payload);
 }
 
@@ -3050,6 +3053,18 @@ io.on("connection", function (socket) {
 		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
 		game.handleLeftClick(data.r, data.c);
 		updateDraw(room);
+	});
+
+	// Fire a structure (left-click on your own surrounded-mine fort) — a directional beam at the nearest enemy.
+	socket.on("territory_fire", function(data) {
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing" || room.gameMode !== "territory") return;
+		var tg = room.territory;
+		if (!tg || !tg.started || !tg.playing) return;
+		var res = tg.fireStructure(playerID, data.r, data.c, Date.now());
+		if (res.type === "invalid" || res.type === "charging") return;
+		broadcastTerritory(room);
+		if (!tg.playing || tg.stuck()) endTerritoryGame(room, "cleared");
 	});
 
 	socket.on("disconnect", function() {

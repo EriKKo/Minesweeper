@@ -15,6 +15,7 @@ var territoryActive = false;          // Input.currentActionMode → "territory"
 var territoryOwnerColors = null;      // [r][c] -> owner colour hex (or null) for drawCell tint
 var territoryInfo = null;             // { myId, players, colorOf, started, playing, scores, deadline }
 var territoryFlags = null;            // [r][c] -> bool, local-only "suspected mine" marks (not shared/scored)
+var territoryStructures = null;       // "r,c" -> { owner, readyAt (perf.now ms), cooldownMs } surrounded-mine forts
 
 var TERRITORY_HEX = { cyan: "#22d3ee", amber: "#fb923c", violet: "#a78bfa", rose: "#fb7185" };
 function territoryColorHex(color) { return TERRITORY_HEX[color] || "#22d3ee"; }
@@ -56,6 +57,7 @@ function territoryStart(data) {
 	territoryActive = true;
 	territoryOwnerColors = [];
 	territoryFlags = [];
+	territoryStructures = {};
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
 
 	// Set up the shared board exactly like a normal round start.
@@ -110,8 +112,15 @@ function territoryBoard(data) {
 	// Cells the server re-covered this tick (only an explosion does this). Used both to allow an
 	// authoritative un-reveal and to drive the reverse-cascade animation.
 	var recovered = (data.explosion && data.explosion.recovered) || [];
+	var fireRecovered = (data.fire && data.fire.recovered) || [];
 	var recoveredSet = {};
-	for (var i = 0; i < recovered.length; i++) recoveredSet[recovered[i][0] + "," + recovered[i][1]] = true;
+	recovered.concat(fireRecovered).forEach(function(p) { recoveredSet[p[0] + "," + p[1]] = true; });
+	// Rebuild the structure map (surrounded-mine forts + their recharge state) from the broadcast.
+	if (territoryStructures) {
+		var fresh = {}, sNow = performance.now();
+		(data.structures || []).forEach(function(s) { fresh[s.r + "," + s.c] = { owner: s.owner, cooldownMs: s.cooldownMs, readyAt: sNow + s.readyInMs }; });
+		territoryStructures = fresh;
+	}
 
 	// When YOUR OWN mine hit refills an area, clear your flags within it (you'll re-explore it fresh).
 	// An opponent's explosion never touches your flags. Done before myState is rebuilt below so the
@@ -149,6 +158,13 @@ function territoryBoard(data) {
 			newState[r][c] = s;
 		}
 	}
+	// Structures render as flagged cells in their owner's colour (drawCell draws a coloured flag + charge
+	// gauge). They're covered mines, so without this overlay they'd just look like blank covered cells.
+	if (territoryStructures) for (var sk in territoryStructures) {
+		var sp = sk.split(","), str = +sp[0], stc = +sp[1];
+		newState[str][stc] = FLAGGED;
+		territoryOwnerColors[str][stc] = territoryColorHex(territoryColorOf(territoryStructures[sk].owner));
+	}
 	myState = newState;
 	// Animate newly-claimed cells (queueRevealAnimations diffs against prevPlayerState, then we
 	// snapshot). On the first board prevPlayerState is null, so the start cascades animate in.
@@ -166,6 +182,17 @@ function territoryBoard(data) {
 			any = true;
 		}
 		if (any && typeof startAnimLoop === "function") startAnimLoop();
+	}
+	// Offensive beam: animate the re-covered enemy channel as an unreveal rippling out from the launch point.
+	if (data.fire && fireRecovered.length) {
+		var ffrom = data.fire.from, fnow = performance.now(), anyF = false;
+		for (var fi = 0; fi < fireRecovered.length; fi++) {
+			var frc = fireRecovered[fi];
+			if (newState[frc[0]][frc[1]] !== UNKNOWN) continue;
+			cellAnims[frc[0] + "," + frc[1]] = { type: "unreveal", start: fnow + Math.hypot(frc[0] - ffrom[0], frc[1] - ffrom[1]) * 18 };
+			anyF = true;
+		}
+		if (anyF && typeof startAnimLoop === "function") startAnimLoop();
 	}
 	prevPlayerState = cloneState(newState);
 	renderPlayerBoard();
@@ -248,6 +275,7 @@ function territoryReset() {
 	territoryActive = false;
 	territoryOwnerColors = null;
 	territoryFlags = null;
+	territoryStructures = null;
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
 	if (ov) ov.remove();
@@ -258,6 +286,12 @@ function territoryReset() {
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.remove("territory");
 	document.body.classList.remove("territory-fullscreen");
+}
+
+// Is (r,c) one of MY structures (a surrounded-mine fort I own)? Left-clicking it fires an offensive beam.
+function territoryIsMyStructure(r, c) {
+	var s = territoryStructures && territoryStructures[r + "," + c];
+	return !!(s && territoryInfo && s.owner === territoryInfo.myId);
 }
 
 // Client-side contiguity check, mirroring the server's g.canReveal: a covered cell 8-adjacent to one

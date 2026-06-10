@@ -172,6 +172,20 @@ Source is split into three trees under `src/`:
   opponent's doesn't — is claimed. This captures regions pinned against a **board edge** too, not just
   interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and claimed,
   mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
+  **Structures + offensive beams (PvP invasion).** A covered mine whose every neighbour you own becomes
+  your **structure** (`g.updateStructures`, run after every board change): owned by you (counts toward
+  score, NOT toward `claimedSafe`), auto-flagged, rendered as a coloured flag with a charge gauge. Each
+  has a **cooldown** that recharges faster the more territory you hold (`cooldownFor` ∝ your cell count).
+  Left-clicking your charged structure fires `g.fireStructure` → a **directional beam** at the nearest
+  enemy cell: it travels over your land/neutral, then re-covers a 3-wide channel of the enemy's territory
+  (`BEAM_LEN` deep) — those cells go neutral and you re-claim them by expanding in. An enemy **structure
+  in the path ABSORBS** the beam: it's destroyed (reverts to a neutral mine) and the beam stops there, so
+  forts are sacrificial defence. Re-cover stays consistent via the shared `fillUncascaded` (reused from
+  explosions). Wiring: `territory_fire` socket event; `broadcastTerritory` sends `structures`
+  (`{r,c,owner,readyInMs,cooldownMs}`, client interpolates the gauge) and a one-shot `fire`
+  (`{from,to,recovered,destroyed}`) for the breach animation. NB: beams re-open cleared cells, so games
+  rarely reach `stuck()` (which now also stays "not stuck" while structures + 2+ players remain) — the
+  domination/clock endgame discussed for PvP is still TODO.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of

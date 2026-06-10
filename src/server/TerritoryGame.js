@@ -17,6 +17,12 @@ var cspSolver = require("./CSPSolver");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, MINE = BoardLogic.MINE;
 
 var FREEZE_MS = 3000;
+// Structures: a covered mine fully surrounded by one player becomes their structure (a flagged fort).
+// Left-clicking it fires a directional beam at the nearest enemy, re-covering a channel of their land
+// (which you can then re-claim) and destroying any enemy structure it hits. Fixed blast on a cooldown
+// that recharges faster the more territory you hold.
+var BEAM_LEN = 6;            // enemy cells deep the beam re-covers before it fizzles
+var BEAM_COOLDOWN_BASE = 8000, BEAM_COOLDOWN_REF = 60, BEAM_COOLDOWN_MIN = 2500, BEAM_COOLDOWN_MAX = 12000;
 
 // gen = TerritoryGenerator.generate(...); players = [idA, idB] mapped to starts[0], starts[1].
 function create(gen, players) {
@@ -32,6 +38,7 @@ function create(gen, players) {
 		density: (gen.mineCount || 0) / (R * C) // board mine density — explosion regen matches it so re-fills aren't denser than usual
 	};
 	g.mineKnown = {}; // pid -> { "r,c": true } cells this player has detonated (so the bot won't re-pick)
+	g.structReadyAt = {}; // "r,c" -> server timestamp a structure becomes ready to fire again
 	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; });
 
 	// Seed each player's starting cascade as their territory.
@@ -67,6 +74,7 @@ function create(gen, players) {
 			function(a, b) { return g.board[a][b]; });
 		// Newly walling something off captures it (enclosed covered ground becomes yours).
 		var captured = g.captureEnclosed(pid);
+		g.updateStructures(now); // a mine you've now fully surrounded becomes a structure
 		if (g.claimedSafe() >= g.totalSafe) g.playing = false;
 		return { type: "reveal", cells: claimed.concat(captured) };
 	};
@@ -102,9 +110,18 @@ function create(gen, players) {
 		// always reverts to covered. Home is just the biggest area you currently hold (down to a last stand).
 		loseSmallerSections(pid).forEach(recover);
 		g.mineKnown[pid][mr + "," + mc] = true; // the hit cell is still a mine (no regen) — the bot won't re-pick it
-		// Re-cover can leave a covered cell next to a revealed 0 ("uncascaded 0"): reveal each such cell
-		// (flooding through connected 0s), claimed by the OWNER OF THAT 0-cell — so a blast only ever feeds
-		// the player whose own open ground forced the reveal, never reaching across to another's territory.
+		fillUncascaded();
+		g.updateStructures(now);
+		var recovered = [];
+		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
+		g._explosion = { origin: [mr, mc], recovered: recovered, pid: pid }; // pid = who hit it (no `clues` — layout unchanged)
+		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
+	};
+
+	// A re-cover (explosion or offensive beam) can leave a covered cell next to a revealed 0 ("uncascaded
+	// 0"): reveal each such cell (flooding through connected 0s), claimed by the OWNER OF THAT 0-cell — so
+	// a blast only ever feeds the player whose own open ground forced the reveal, never reaching across.
+	function fillUncascaded() {
 		var changed = true;
 		while (changed) {
 			changed = false;
@@ -121,11 +138,7 @@ function create(gen, players) {
 				});
 			}
 		}
-		var recovered = [];
-		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
-		g._explosion = { origin: [mr, mc], recovered: recovered, pid: pid }; // pid = who hit it (no `clues` — layout unchanged)
-		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
-	};
+	}
 
 	// The cells an explosion at (mr,mc) re-covers: the hit cell plus the hitter's owned cells within
 	// Chebyshev `rad`. If that would re-cover the player's ENTIRE territory, the owned cells farthest
@@ -285,12 +298,15 @@ function create(gen, players) {
 		return captured;
 	};
 
+	// Safe cells claimed (excludes structures — they're owned MINES, not safe cells, so they must not
+	// count toward the totalSafe end-condition).
 	g.claimedSafe = function() {
 		var n = 0;
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) if (owner[r][c] !== null) n++;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) if (owner[r][c] !== null && g.board[r][c] !== MINE) n++;
 		return n;
 	};
 
+	// Score = all cells you control, INCLUDING your structures (surrounded mines count as territory).
 	g.scores = function() {
 		var s = {};
 		players.forEach(function(p) { s[p] = 0; });
@@ -298,15 +314,101 @@ function create(gen, players) {
 		return s;
 	};
 
-	// True once no player has any safe frontier move left (every reachable safe cell is claimed).
 	g.stuck = function() {
+		// No safe frontier move for anyone...
 		for (var pi = 0; pi < players.length; pi++) {
 			var pid = players[pi];
 			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
 				if (state[r][c] === UNKNOWN && g.board[r][c] !== MINE && g.canReveal(pid, r, c)) return false;
 			}
 		}
+		// ...but the war can still resume: if a structure exists and 2+ players hold ground, a charged
+		// beam can re-open cells, so the game isn't over.
+		var withLand = 0, sc = g.scores();
+		players.forEach(function(p) { if (sc[p] > 0) withLand++; });
+		if (withLand >= 2) for (var sr = 0; sr < R; sr++) for (var scc = 0; scc < C; scc++) if (g.isStructure(sr, scc)) return false;
 		return true;
+	};
+
+	// A structure is a covered mine that a player has claimed (by fully surrounding it).
+	g.isStructure = function(r, c) { return state[r][c] === UNKNOWN && g.board[r][c] === MINE && owner[r][c] !== null; };
+
+	function cooldownFor(pid) {
+		var cells = g.scores()[pid] || 1;
+		return Math.max(BEAM_COOLDOWN_MIN, Math.min(BEAM_COOLDOWN_MAX, Math.round(BEAM_COOLDOWN_BASE * BEAM_COOLDOWN_REF / cells)));
+	}
+
+	// Re-evaluate which covered mines are structures: a covered mine whose every in-bounds neighbour is
+	// owned by ONE player becomes that player's structure (auto-claimed). One no longer fully surrounded
+	// by a single player reverts to a neutral covered mine.
+	g.updateStructures = function(now) {
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (state[r][c] !== UNKNOWN || g.board[r][c] !== MINE) continue; // covered mines only
+			var ns = nbrs(r, c), holder = undefined, ok = true;
+			for (var i = 0; i < ns.length; i++) {
+				var o = owner[ns[i][0]][ns[i][1]];
+				if (o === null) { ok = false; break; }            // a covered/neutral neighbour → not surrounded
+				if (holder === undefined) holder = o; else if (o !== holder) { ok = false; break; } // mixed owners
+			}
+			var k = r + "," + c;
+			if (ok && holder != null) {
+				if (owner[r][c] !== holder) { owner[r][c] = holder; g.structReadyAt[k] = now; } // newly built → ready at once
+			} else if (owner[r][c] !== null) {
+				owner[r][c] = null; delete g.structReadyAt[k]; // surroundings broke → revert to neutral mine
+			}
+		}
+	};
+
+	// Left-click your structure: fire a directional beam at the nearest enemy. Travels from the structure
+	// toward the closest enemy cell, re-covering a 3-wide channel of their land (BEAM_LEN deep) which then
+	// becomes claimable. An enemy structure in the path ABSORBS the beam — it's destroyed and the beam
+	// stops there. Spends the structure (goes on cooldown).
+	g.fireStructure = function(pid, sr, sc, now) {
+		if (!g.isStructure(sr, sc) || owner[sr][sc] !== pid) return { type: "invalid" };
+		if (now < (g.structReadyAt[sr + "," + sc] || 0)) return { type: "charging" };
+		var E = null, bestD = Infinity;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (owner[r][c] === null || owner[r][c] === pid) continue; // an enemy-held cell
+			var d = Math.max(Math.abs(r - sr), Math.abs(c - sc));
+			if (d < bestD) { bestD = d; E = [r, c]; }
+		}
+		g.structReadyAt[sr + "," + sc] = now + cooldownFor(pid); // spent regardless
+		if (!E) { g.updateStructures(now); g._fire = { from: [sr, sc], to: [sr, sc], recovered: [], destroyed: [] }; return { type: "fizzle" }; }
+		var ddr = Math.sign(E[0] - sr), ddc = Math.sign(E[1] - sc);
+		var pr = -ddc, pc = ddr; // one perpendicular (the other is its negation) → 3-wide channel
+		var recovered = [], destroyed = [], budget = BEAM_LEN;
+		function rerecover(rr, cc) {
+			if (rr < 0 || cc < 0 || rr >= R || cc >= C) return;
+			if (state[rr][cc] !== KNOWN || owner[rr][cc] === null || owner[rr][cc] === pid) return; // only enemy revealed land
+			state[rr][cc] = UNKNOWN; owner[rr][cc] = null; recovered.push([rr, cc]);
+		}
+		var cr = sr, cc = sc, steps = 0, maxSteps = R + C, endR = sr, endC = sc;
+		while (steps < maxSteps && budget > 0) {
+			cr += ddr; cc += ddc; steps++;
+			if (cr < 0 || cc < 0 || cr >= R || cc >= C) break;
+			endR = cr; endC = cc;
+			var o = owner[cr][cc];
+			if (o === pid || o === null) continue;            // travels over your land / neutral ground
+			if (g.isStructure(cr, cc)) { owner[cr][cc] = null; delete g.structReadyAt[cr + "," + cc]; destroyed.push([cr, cc]); break; } // absorbed
+			rerecover(cr, cc); rerecover(cr + pr, cc + pc); rerecover(cr - pr, cc - pc); // 3-wide
+			budget--;
+		}
+		fillUncascaded();
+		g.updateStructures(now);
+		g._fire = { from: [sr, sc], to: [endR, endC], recovered: recovered, destroyed: destroyed };
+		return { type: "fire", recovered: recovered, destroyed: destroyed };
+	};
+
+	// Structures (for the client): position, owner and recharge state (ms-to-ready so the client can
+	// interpolate the gauge without clock sync).
+	g.structureList = function(now) {
+		var out = [];
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			if (!g.isStructure(r, c)) continue;
+			var ready = g.structReadyAt[r + "," + c] || 0, cd = cooldownFor(owner[r][c]);
+			out.push({ r: r, c: c, owner: owner[r][c], readyInMs: Math.max(0, ready - now), cooldownMs: cd });
+		}
+		return out;
 	};
 
 	return g;

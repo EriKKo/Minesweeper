@@ -70,6 +70,15 @@ function makeLiveView(state) {
 			}
 			return true; // not yours and not touching you — hidden
 		},
+		// Territory structure charge (0..1), interpolated live from the last broadcast so the gauge fills
+		// smoothly between updates. null/1 when not a structure.
+		structureCharge: function(r, c) {
+			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+			var s = territoryStructures[r + "," + c];
+			if (!s || !s.cooldownMs) return 1;
+			var remaining = s.readyAt - performance.now();
+			return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
+		},
 		xray: false
 	};
 }

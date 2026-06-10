@@ -112,8 +112,21 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		}
 	} else if (view.isFlagged(r, c)) {
 		drawUnknown(ctx, w, h, rad);
+		// Territory structure: a flagged cell with an owner colour is a fort (a surrounded mine). Tint it
+		// in the owner colour, fly the flag in that colour, and show a charge gauge. A plain (ownerless)
+		// flag is a manual suspected-mine mark — the usual red flag.
+		var flagOwner = view.getOwner && view.getOwner(r, c);
+		if (flagOwner) {
+			ctx.save();
+			ctx.globalAlpha = 0.30;
+			ctx.fillStyle = flagOwner;
+			roundRectPath(ctx, 0, 0, w, h, rad);
+			ctx.fill();
+			ctx.restore();
+		}
 		var fs = anim && anim.type === "flag" ? easeOutBack(clamp01(anim.t)) : 1;
-		drawFlag(ctx, w, h, fs);
+		drawFlag(ctx, w, h, fs, flagOwner || null);
+		if (flagOwner && view.structureCharge) drawStructureCharge(ctx, w, h, view.structureCharge(r, c), flagOwner);
 	} else if (anim && anim.type === "unreveal") {
 		// Reverse cascade (territory explosion): the clue fades out as the cover drops back in.
 		var ut = clamp01(anim.t);
@@ -236,7 +249,7 @@ function drawMineXray(ctx, w, h) {
 	ctx.restore();
 }
 
-function drawFlag(ctx, w, h, scale) {
+function drawFlag(ctx, w, h, scale, clothColor) {
 	ctx.save();
 	ctx.translate(w / 2, h / 2);
 	ctx.scale(scale, scale);
@@ -261,7 +274,24 @@ function drawFlag(ctx, w, h, scale) {
 	ctx.lineTo(px + w * 0.34, -ph * 0.28);
 	ctx.lineTo(px, -ph * 0.06);
 	ctx.closePath();
-	ctx.fillStyle = COLOR_FLAG_CLOTH;
+	ctx.fillStyle = clothColor || COLOR_FLAG_CLOTH;
+	ctx.fill();
+	ctx.restore();
+}
+
+// Territory structure charge gauge: a thin bar across the bottom of the cell, filling 0..1 in the owner
+// colour. At full charge it's bright/solid (ready to fire); while charging it's dim.
+function drawStructureCharge(ctx, w, h, frac, color) {
+	frac = clamp01(frac == null ? 1 : frac);
+	var pad = w * 0.14, bw = w - pad * 2, bh = Math.max(1.5, h * 0.09), by = h - bh - h * 0.1;
+	ctx.save();
+	ctx.globalAlpha = 0.35;
+	ctx.fillStyle = "#0b1220";
+	roundRectPath(ctx, pad, by, bw, bh, bh / 2);
+	ctx.fill();
+	ctx.globalAlpha = frac >= 1 ? 1 : 0.7;
+	ctx.fillStyle = color;
+	roundRectPath(ctx, pad, by, Math.max(bh, bw * frac), bh, bh / 2);
 	ctx.fill();
 	ctx.restore();
 }
