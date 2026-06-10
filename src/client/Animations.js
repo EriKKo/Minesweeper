@@ -114,6 +114,7 @@ function renderPlayerBoard() {
 				drawCell(ctx, r, c, view, sw, sh, animArg);
 			}
 		}
+		if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
 	}
 	drawPressedHighlight();
 	drawFocusHighlight();
@@ -234,6 +235,7 @@ function startAnimLoop() {
 			if (now >= a.start + dur) { delete cellAnims[key]; }
 			else { alive = true; }
 		}
+		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }

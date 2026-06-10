@@ -393,7 +393,7 @@ function create(gen, players) {
 			if (d < bestD) { bestD = d; E = [r, c]; }
 		}
 		g.structReadyAt[sr + "," + sc] = now + cooldownFor(pid); // spent regardless
-		if (!E) { g.updateStructures(now); g._fire = { from: [sr, sc], to: [sr, sc], recovered: [], destroyed: [] }; return { type: "fizzle" }; }
+		if (!E) { g.updateStructures(now); g._fire = { pid: pid, from: [sr, sc], to: [sr, sc], recovered: [], destroyed: [] }; return { type: "fizzle" }; }
 		var ddr = Math.sign(E[0] - sr), ddc = Math.sign(E[1] - sc);
 		var pr = -ddc, pc = ddr; // one perpendicular (the other is its negation) → 3-wide channel
 		var recovered = [], destroyed = [], budget = BEAM_LEN;
@@ -415,7 +415,7 @@ function create(gen, players) {
 		}
 		fillUncascaded();
 		g.updateStructures(now);
-		g._fire = { from: [sr, sc], to: [endR, endC], recovered: recovered, destroyed: destroyed };
+		g._fire = { pid: pid, from: [sr, sc], to: [endR, endC], recovered: recovered, destroyed: destroyed };
 		return { type: "fire", recovered: recovered, destroyed: destroyed };
 	};
 

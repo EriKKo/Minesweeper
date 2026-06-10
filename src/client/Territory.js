@@ -16,6 +16,42 @@ var territoryOwnerColors = null;      // [r][c] -> owner colour hex (or null) fo
 var territoryInfo = null;             // { myId, players, colorOf, started, playing, scores, deadline }
 var territoryFlags = null;            // [r][c] -> bool, local-only "suspected mine" marks (not shared/scored)
 var territoryStructures = null;       // "r,c" -> { owner, readyAt (perf.now ms), cooldownMs } surrounded-mine forts
+var territoryBeams = [];              // active beam streaks: { from:[r,c], to:[r,c], color, start } for the firing animation
+var TV_BEAM_DUR = 480;                // ms a beam streak stays on screen
+
+// True while any beam streak is still animating (keeps the render loop alive).
+function territoryBeamsActive(now) {
+	for (var i = 0; i < territoryBeams.length; i++) if (now - territoryBeams[i].start < TV_BEAM_DUR) return true;
+	return false;
+}
+
+// Draw the active beam streaks on the shared board: a glowing line from the firing structure to the
+// blast's end, fading out. Called by renderPlayerBoard after the cells (territory only).
+function drawTerritoryBeams(ctx, sw, sh) {
+	if (!territoryBeams.length) return;
+	var now = performance.now();
+	territoryBeams = territoryBeams.filter(function(b) { return now - b.start < TV_BEAM_DUR; });
+	for (var i = 0; i < territoryBeams.length; i++) {
+		var b = territoryBeams[i], t = (now - b.start) / TV_BEAM_DUR;
+		var x0 = (b.from[1] + 0.5) * sw, y0 = (b.from[0] + 0.5) * sh;
+		var x1 = (b.to[1] + 0.5) * sw, y1 = (b.to[0] + 0.5) * sh;
+		ctx.save();
+		ctx.globalAlpha = (1 - t) * 0.9;
+		ctx.strokeStyle = b.color;
+		ctx.shadowColor = b.color;
+		ctx.shadowBlur = Math.min(sw, sh) * 0.7;
+		ctx.lineWidth = Math.min(sw, sh) * (0.5 - 0.3 * t); // thick, tapering as it fades
+		ctx.lineCap = "round";
+		ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+		// bright head racing to the impact in the first part of the animation
+		var hp = Math.min(1, t / 0.5);
+		ctx.globalAlpha = 1 - t;
+		ctx.fillStyle = "#fff";
+		ctx.shadowBlur = Math.min(sw, sh) * 1.1;
+		ctx.beginPath(); ctx.arc(x0 + (x1 - x0) * hp, y0 + (y1 - y0) * hp, Math.min(sw, sh) * 0.32 * (1 - t), 0, Math.PI * 2); ctx.fill();
+		ctx.restore();
+	}
+}
 
 var TERRITORY_HEX = { cyan: "#22d3ee", amber: "#fb923c", violet: "#a78bfa", rose: "#fb7185" };
 function territoryColorHex(color) { return TERRITORY_HEX[color] || "#22d3ee"; }
@@ -58,6 +94,7 @@ function territoryStart(data) {
 	territoryOwnerColors = [];
 	territoryFlags = [];
 	territoryStructures = {};
+	territoryBeams = [];
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
 
 	// Set up the shared board exactly like a normal round start.
@@ -183,16 +220,17 @@ function territoryBoard(data) {
 		}
 		if (any && typeof startAnimLoop === "function") startAnimLoop();
 	}
-	// Offensive beam: animate the re-covered enemy channel as an unreveal rippling out from the launch point.
-	if (data.fire && fireRecovered.length) {
-		var ffrom = data.fire.from, fnow = performance.now(), anyF = false;
+	// Offensive beam: streak a glowing line from the structure to the impact (so you SEE the shot even
+	// when the breach lands far away), and animate the re-covered enemy channel as an unreveal.
+	if (data.fire) {
+		var ffrom = data.fire.from, fnow = performance.now();
+		territoryBeams.push({ from: data.fire.from, to: data.fire.to, color: territoryColorHex(territoryColorOf(data.fire.pid)), start: fnow });
 		for (var fi = 0; fi < fireRecovered.length; fi++) {
 			var frc = fireRecovered[fi];
 			if (newState[frc[0]][frc[1]] !== UNKNOWN) continue;
 			cellAnims[frc[0] + "," + frc[1]] = { type: "unreveal", start: fnow + Math.hypot(frc[0] - ffrom[0], frc[1] - ffrom[1]) * 18 };
-			anyF = true;
 		}
-		if (anyF && typeof startAnimLoop === "function") startAnimLoop();
+		if (typeof startAnimLoop === "function") startAnimLoop();
 	}
 	prevPlayerState = cloneState(newState);
 	renderPlayerBoard();
@@ -276,6 +314,7 @@ function territoryReset() {
 	territoryOwnerColors = null;
 	territoryFlags = null;
 	territoryStructures = null;
+	territoryBeams = [];
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
 	if (ov) ov.remove();
