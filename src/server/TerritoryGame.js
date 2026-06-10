@@ -75,7 +75,8 @@ function create(gen, players) {
 		// Newly walling something off captures it (enclosed covered ground becomes yours).
 		var captured = g.captureEnclosed(pid);
 		g.updateStructures(now); // a mine you've now fully surrounded becomes a structure
-		if (g.claimedSafe() >= g.totalSafe) g.playing = false;
+		// NB: clearing every safe cell no longer ends the game — that's when the invasion war begins.
+		// The game ends only on elimination (g.alive() <= 1) or a genuine deadlock (g.deadlocked()).
 		return { type: "reveal", cells: claimed.concat(captured) };
 	};
 
@@ -314,19 +315,25 @@ function create(gen, players) {
 		return s;
 	};
 
-	g.stuck = function() {
-		// No safe frontier move for anyone...
+	// How many players still hold any ground. The game is won when only one is left standing.
+	g.alive = function() {
+		var sc = g.scores(), n = 0;
+		players.forEach(function(p) { if (sc[p] > 0) n++; });
+		return n;
+	};
+
+	// A genuine dead end: nobody can expand (no safe frontier move for anyone) AND there are no
+	// structures anywhere (so no charged beam can ever re-open the board). Only then is the war
+	// truly unresolvable and we fall back to ranking by territory. As long as a single fort stands,
+	// the war can continue, so the game keeps running until someone is eliminated.
+	g.deadlocked = function() {
 		for (var pi = 0; pi < players.length; pi++) {
 			var pid = players[pi];
 			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
 				if (state[r][c] === UNKNOWN && g.board[r][c] !== MINE && g.canReveal(pid, r, c)) return false;
 			}
 		}
-		// ...but the war can still resume: if a structure exists and 2+ players hold ground, a charged
-		// beam can re-open cells, so the game isn't over.
-		var withLand = 0, sc = g.scores();
-		players.forEach(function(p) { if (sc[p] > 0) withLand++; });
-		if (withLand >= 2) for (var sr = 0; sr < R; sr++) for (var scc = 0; scc < C; scc++) if (g.isStructure(sr, scc)) return false;
+		for (var sr = 0; sr < R; sr++) for (var scc = 0; scc < C; scc++) if (g.isStructure(sr, scc)) return false;
 		return true;
 	};
 

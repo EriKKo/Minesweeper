@@ -2039,7 +2039,7 @@ function scheduleTerritoryBot(room, tg, botId) {
 			if (action && action.type === "left") {
 				tg.reveal(botId, action.r, action.c, now);
 				broadcastTerritory(room);
-				if (!tg.playing || tg.stuck()) { endTerritoryGame(room, "cleared"); return; }
+				if (maybeEndTerritory(room)) return;
 				// Harder deductions earn a longer pause, mirroring the racing pacing.
 				nextDelay += Math.round((botDifficultyMs[botId] || 0) * Math.min(action.difficulty || 0, 8));
 			}
@@ -2069,6 +2069,17 @@ function broadcastTerritory(room) {
 	// An offensive beam fired this tick — tell clients to play the beam + re-cover animation. One-shot.
 	if (tg._fire) { payload.fire = tg._fire; tg._fire = null; }
 	io.to("room:" + room.id).emit("territory_board", payload);
+}
+
+// End the territory game only when it's genuinely decided: one player left standing (elimination)
+// or a true deadlock (nobody can expand and no fort stands to re-open the board). Clearing the board
+// is NOT an end — that's when the invasion war begins. Returns true if it ended the game.
+function maybeEndTerritory(room) {
+	var tg = room.territory;
+	if (!tg || !tg.playing) return false;
+	if (tg.alive() <= 1) { endTerritoryGame(room, "eliminated"); return true; }
+	if (tg.deadlocked()) { endTerritoryGame(room, "deadlock"); return true; }
+	return false;
 }
 
 function endTerritoryGame(room, reason) {
@@ -2277,7 +2288,7 @@ function formRankedMatch(mode) {
 	room.deathPenalty = RANKED_RULES.deathPenalty;
 	room.mineDensity = modeDef.mineDensity;
 	room.setBoardSize(modeDef.boardSize);
-	if (modeDef.roundSeconds) room.roundSeconds = modeDef.roundSeconds;
+	if (typeof modeDef.roundSeconds === "number") room.roundSeconds = modeDef.roundSeconds; // honor an explicit 0 (territory has no clock)
 	if (modeDef.gameMode === "territory") {
 		room.gameMode = "territory";
 		var td = territoryDims(modeDef.size); room.rows = td.rows; room.cols = td.cols;
@@ -3046,7 +3057,7 @@ io.on("connection", function (socket) {
 			var res = tg.reveal(playerID, data.r, data.c, Date.now());
 			if (res.type === "invalid") return;
 			broadcastTerritory(room);
-			if (!tg.playing || tg.stuck()) endTerritoryGame(room, "cleared");
+			maybeEndTerritory(room);
 			return;
 		}
 		var game = games[playerID];
@@ -3064,7 +3075,7 @@ io.on("connection", function (socket) {
 		var res = tg.fireStructure(playerID, data.r, data.c, Date.now());
 		if (res.type === "invalid" || res.type === "charging") return;
 		broadcastTerritory(room);
-		if (!tg.playing || tg.stuck()) endTerritoryGame(room, "cleared");
+		maybeEndTerritory(room);
 	});
 
 	socket.on("disconnect", function() {

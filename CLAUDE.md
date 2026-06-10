@@ -123,8 +123,12 @@ Source is split into three trees under `src/`:
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
-  (`roundSeconds: 0`) — it ends when the board is played out (`tg.stuck()`, i.e. neither player has a
-  safe move left) or a player leaves → most cells wins (`territory_result`). **Entry points:** "Create
+  (`roundSeconds: 0` — and ranked formation now honors an explicit `0` via
+  `typeof modeDef.roundSeconds === "number"`, so territory no longer silently inherits the
+  120s default). **The game ends only on elimination** — when just one player still holds any ground
+  (`maybeEndTerritory` → `tg.alive() <= 1`, "eliminated") — or a player leaves, or a genuine deadlock
+  (`tg.deadlocked()`: nobody can expand AND no fort stands to re-open the board, "deadlock"). Clearing
+  every safe cell is NOT an end — that's when the invasion war begins. Winner = most cells. **Entry points:** "Create
   Territory (1v1)" and "Create Territory (4-player)" buttons in the custom lobby (`create_room` with
   `players: 2|4`; `startTerritoryGame` accepts 2 or 4 and seeds one player per corner from
   `TERRITORY_COLORS = [cyan, amber, violet, rose]`), and **ranked** `territory_duo` (2-player) /
@@ -185,9 +189,11 @@ Source is split into three trees under `src/`:
   forts are sacrificial defence. Re-cover stays consistent via the shared `fillUncascaded` (reused from
   explosions). Wiring: `territory_fire` socket event; `broadcastTerritory` sends `structures`
   (`{r,c,owner,readyInMs,cooldownMs}`, client interpolates the gauge) and a one-shot `fire`
-  (`{from,to,recovered,destroyed}`) for the breach animation. NB: beams re-open cleared cells, so games
-  rarely reach `stuck()` (which now also stays "not stuck" while structures + 2+ players remain) — the
-  domination/clock endgame discussed for PvP is still TODO.
+  (`{pid,from,to,recovered,destroyed}`) for the breach + beam-streak animation (`territoryBeams` /
+  `drawTerritoryBeams`, a fading glowing line from fort to impact in the firer's colour). NB: beams
+  re-open cleared cells to NEUTRAL (claimable by either side), so they don't permanently capture — a
+  defended core a bot keeps re-revealing can stalemate, since elimination is now the only win. A beam
+  that captures the channel for the firer (or a domination tiebreak) is the open follow-up.
 - `RingSeedGenerator.js` — turns a "4s and 2s" ring start (corners4-edges2) into a real solvable
   puzzle. That ring has exactly **2 symmetric solutions** and no single clue change breaks it (every
   change either over-constrains to 0 or loosens to 7–9 solutions), so it searches clue-change sets of
