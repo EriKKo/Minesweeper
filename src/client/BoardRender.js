@@ -82,12 +82,16 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 		// string for claimed cells and null otherwise, so other modes are unaffected.
 		var ownerColor = view.getOwner && view.getOwner(r, c);
 		if (ownerColor) {
+			var ownProg = revealing ? easeOutCubic(t) : 1;
 			ctx.save();
-			ctx.globalAlpha = 0.20 * (revealing ? easeOutCubic(t) : 1);
+			ctx.globalAlpha = 0.20 * ownProg;
 			ctx.fillStyle = ownerColor;
 			roundRectPath(ctx, 0, 0, w, h, rad);
 			ctx.fill();
 			ctx.restore();
+			// OpenFront-style border: a bright edge wherever this cell meets a different owner,
+			// unclaimed ground, or the board edge — outlining each player's territory clearly.
+			drawOwnerBorder(ctx, r, c, w, h, rad, ownerColor, view, ownProg);
 		}
 		if (view.isMine(r, c)) {
 			if (anim && anim.type === "mine") {
@@ -128,6 +132,32 @@ function drawCell(ctx, r, c, view, sw, sh, anim) {
 	} else {
 		drawUnknown(ctx, w, h, rad);
 	}
+	ctx.restore();
+}
+
+// Territory: stroke a bright border in the owner colour along each edge of cell (r,c) that faces a
+// DIFFERENT owner — a different player, unclaimed/covered ground, or the board edge. Interior cells
+// (all four neighbours same owner) draw nothing, so only the outline of each territory shows.
+function drawOwnerBorder(ctx, r, c, w, h, rad, color, view, prog) {
+	var R = view.rows, C = view.cols;
+	function facesOut(nr, nc) {
+		if (nr < 0 || nc < 0 || nr >= R || nc >= C) return true;           // board edge
+		return (view.getOwner ? view.getOwner(nr, nc) : null) !== color;   // different owner / unclaimed
+	}
+	var top = facesOut(r - 1, c), bottom = facesOut(r + 1, c), left = facesOut(r, c - 1), right = facesOut(r, c + 1);
+	if (!top && !bottom && !left && !right) return;                        // interior cell — no border
+	ctx.save();
+	ctx.globalAlpha = 0.9 * (prog == null ? 1 : prog);
+	ctx.strokeStyle = color;
+	ctx.lineWidth = Math.max(1.5, Math.min(w, h) * 0.16);
+	ctx.lineCap = "round";
+	var i = ctx.lineWidth / 2; // inset so the stroke sits fully inside the cell
+	ctx.beginPath();
+	if (top)    { ctx.moveTo(0, i);     ctx.lineTo(w, i); }
+	if (bottom) { ctx.moveTo(0, h - i); ctx.lineTo(w, h - i); }
+	if (left)   { ctx.moveTo(i, 0);     ctx.lineTo(i, h); }
+	if (right)  { ctx.moveTo(w - i, 0); ctx.lineTo(w - i, h); }
+	ctx.stroke();
 	ctx.restore();
 }
 

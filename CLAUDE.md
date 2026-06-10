@@ -134,7 +134,9 @@ Source is split into three trees under `src/`:
   works for 4 as well as 2) and reports the delta in `territory_result`. **Client:
   `Territory.js` renders on the SHARED game board** (`#game0` / `renderPlayerBoard` / `drawCell`),
   not a bespoke canvas — it sets `myState` from the shared state, feeds an owner-colour grid that
-  `drawCell` tints (via `view.getOwner`, null in other modes) — and applies **fog-of-clues**: clue numbers
+  `drawCell` tints (via `view.getOwner`, null in other modes) and outlines (OpenFront-style: `drawOwnerBorder`
+  strokes a bright owner-colour edge on any side of an owned cell facing a different owner / unclaimed
+  ground / the board edge, so each territory has a crisp border) — and applies **fog-of-clues**: clue numbers
   show only on cells you own PLUS opponent cells that border one of yours (the contested frontier);
   opponent cells deeper in their territory show their owner tint but no number (`view.hideClue`), so you
   can't read your opponent's board — and routes clicks through
