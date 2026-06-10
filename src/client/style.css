@@ -1600,6 +1600,12 @@ body.territory-fullscreen main { max-width: none; padding: 0.6rem; }
 .tv-name { color: var(--text); }
 .tv-score { font-weight: 700; color: var(--text); }
 .tv-energy { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tv-bomb-btn { margin-left: auto; padding: 0.3rem 0.7rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+	border: 1px solid rgba(120, 150, 200, 0.35); background: rgba(30, 41, 66, 0.6); color: var(--text); }
+.tv-bomb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tv-bomb-btn.aiming { background: #b91c1c; border-color: #fca5a5; color: #fff; animation: tv-bomb-pulse 1s ease-in-out infinite; }
+@keyframes tv-bomb-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.5); } 50% { box-shadow: 0 0 0 6px rgba(248, 113, 113, 0); } }
+body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 .tv-bar { flex: 1; height: 10px; background: #1b2742; border-radius: 6px; display: flex; justify-content: space-between; overflow: hidden; }
 .tv-bar-fill { height: 100%; transition: width 0.2s ease; }
 .tv-board-wrap { position: relative; line-height: 0; }

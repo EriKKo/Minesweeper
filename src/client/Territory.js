@@ -23,10 +23,35 @@ var territoryEnergy = {};             // pid -> { value, rate, at(perf.now) } ba
 var territoryEnergyTick = null;       // setInterval handle that counts the energy HUD up between broadcasts
 var territoryPackets = [];            // travelling energy blips on built lines: [{ a, b, color, start, dur, dir }]
 var territoryNextPacketAt = 0;        // perf.now ms before which we don't spawn the next packet ("sometimes")
+var territoryMissiles = [];           // energy bombs in flight: [{ from:[r,c], to:[r,c], color, start, dur }]
+var territoryAiming = false;          // true while the player is choosing a bomb target (next click = launch)
+
+// Draw any energy bombs mid-flight: a glowing projectile streaking from the launch silo to its target,
+// with a short fading tail. The blast itself arrives via the explosion broadcast when the flight ends.
+function drawTerritoryMissiles(ctx, sw, sh) {
+	if (!territoryMissiles.length) return;
+	var now = performance.now(), unit = Math.min(sw, sh);
+	territoryMissiles = territoryMissiles.filter(function(m) { return now - m.start < m.dur; });
+	for (var i = 0; i < territoryMissiles.length; i++) {
+		var m = territoryMissiles[i], t = (now - m.start) / m.dur;
+		var x0 = (m.from[1] + 0.5) * sw, y0 = (m.from[0] + 0.5) * sh;
+		var x1 = (m.to[1] + 0.5) * sw, y1 = (m.to[0] + 0.5) * sh;
+		var hx = x0 + (x1 - x0) * t, hy = y0 + (y1 - y0) * t;
+		var tt = Math.max(0, t - 0.12), tx = x0 + (x1 - x0) * tt, ty = y0 + (y1 - y0) * tt;
+		ctx.save();
+		ctx.strokeStyle = m.color; ctx.lineCap = "round";
+		ctx.globalAlpha = 0.5; ctx.lineWidth = unit * 0.18;
+		ctx.shadowColor = m.color; ctx.shadowBlur = unit * 0.5;
+		ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+		ctx.globalAlpha = 1; ctx.fillStyle = "#fff"; ctx.shadowBlur = unit * 0.9;
+		ctx.beginPath(); ctx.arc(hx, hy, unit * 0.2, 0, Math.PI * 2); ctx.fill();
+		ctx.restore();
+	}
+}
 
 // True while any extractor/line is under construction OR a packet is in flight (keeps the loop animating).
 function territoryInfraAnimating() {
-	if (territoryPackets.length) return true;
+	if (territoryPackets.length || territoryMissiles.length) return true;
 	var now = performance.now();
 	if (territoryStructures) for (var k in territoryStructures) { var s = territoryStructures[k]; if (s.buildMs && s.builtAt > now) return true; }
 	for (var i = 0; i < territoryEnergyLines.length; i++) { var l = territoryEnergyLines[i]; if (l.buildMs && l.builtAt > now) return true; }
@@ -164,8 +189,61 @@ function territoryEnsureHud() {
 		for (var j = 0; j < n; j++) chips += '<div class="tv-chip" id="tv_chip' + j + '"></div>';
 		hud.innerHTML = '<div class="tv-chips">' + chips + '</div><div class="tv-bar">' + fills + '</div>';
 	}
+	// Energy-bomb launcher: click to aim, then click a target area on the board.
+	var bomb = document.createElement("button");
+	bomb.id = "tv_bomb_btn"; bomb.className = "tv-bomb-btn btn"; bomb.type = "button";
+	bomb.addEventListener("click", territoryToggleAim);
+	hud.appendChild(bomb);
 	left.insertBefore(hud, left.firstChild);
+	territoryUpdateBombBtn();
 	return hud;
+}
+
+var TV_BOMB_COST = 60; // mirror of the server's BOMB_COST (energy spent per launch)
+
+// Esc cancels bomb aiming (so you're not stuck in targeting mode).
+document.addEventListener("keydown", function(e) {
+	if (e.key === "Escape" && territoryActive && territoryAiming) { territoryAiming = false; territoryUpdateBombBtn(); }
+});
+
+// How many generators (structures) the local player owns — you need at least one to launch from.
+function territoryMyGenerators() {
+	var n = 0;
+	if (territoryStructures && territoryInfo) for (var k in territoryStructures) if (territoryStructures[k].owner === territoryInfo.myId) n++;
+	return n;
+}
+
+// Refresh the bomb button label + enabled state (called from the 250ms energy tick so affordability is live).
+function territoryUpdateBombBtn() {
+	var btn = document.getElementById("tv_bomb_btn");
+	if (!btn || !territoryInfo) return;
+	var energy = Math.floor(territoryEnergyNow(territoryInfo.myId));
+	var hasGen = territoryMyGenerators() > 0, canAfford = energy >= TV_BOMB_COST;
+	btn.disabled = !(hasGen && canAfford && territoryInfo.playing) && !territoryAiming;
+	btn.classList.toggle("aiming", territoryAiming);
+	document.body.classList.toggle("tv-aiming", territoryAiming); // crosshair cursor over the board
+	btn.textContent = territoryAiming ? "🎯 Pick a target…" : ("💣 Bomb · " + TV_BOMB_COST + "⚡");
+	btn.title = !hasGen ? "Build a generator (surround a mine) to launch from"
+		: !canAfford ? "Need " + TV_BOMB_COST + " energy" : "Launch an energy bomb at the enemy";
+}
+
+// Toggle bomb-aiming mode (click the button, then click the target on the board). No-op if you can't launch.
+function territoryToggleAim() {
+	if (!territoryInfo || !territoryInfo.playing) return;
+	if (!territoryAiming) {
+		var energy = Math.floor(territoryEnergyNow(territoryInfo.myId));
+		if (energy < TV_BOMB_COST || territoryMyGenerators() === 0) return;
+	}
+	territoryAiming = !territoryAiming;
+	territoryUpdateBombBtn();
+}
+
+// Fire the bomb at (r,c) — called from Input when a board cell is clicked while aiming.
+function territoryLaunchBomb(r, c) {
+	if (!territoryAiming) return;
+	territoryAiming = false;
+	territoryUpdateBombBtn();
+	if (typeof socket !== "undefined") socket.emit("territory_bomb", { r: r, c: c });
 }
 
 function territoryStart(data) {
@@ -180,6 +258,8 @@ function territoryStart(data) {
 	territoryEnergy = {};
 	territoryPackets = [];
 	territoryNextPacketAt = 0;
+	territoryMissiles = [];
+	territoryAiming = false;
 	if (territoryEnergyTick) clearInterval(territoryEnergyTick);
 	territoryEnergyTick = setInterval(territoryEnergyTickFn, 250); // count energy up + launch the odd packet
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
@@ -258,12 +338,22 @@ function territoryBoard(data) {
 	if (data.energy) Object.keys(data.energy).forEach(function(pid) {
 		territoryEnergy[pid] = { value: data.energy[pid], rate: (data.energyRate && data.energyRate[pid]) || 0, at: sNow };
 	});
+	// An energy bomb was launched — animate the missile streaking to its target (the blast lands when an
+	// explosion broadcast arrives ~flightMs later).
+	if (data.missile) {
+		territoryMissiles.push({ from: data.missile.from, to: data.missile.to,
+			color: territoryColorHex(territoryColorOf(data.missile.pid)), start: sNow, dur: data.missile.flightMs || 800 });
+		if (typeof startAnimLoop === "function") startAnimLoop();
+	}
 
 	// When YOUR OWN mine hit refills an area, clear your flags within it (you'll re-explore it fresh).
 	// An opponent's explosion never touches your flags. Done before myState is rebuilt below so the
 	// cleared marks don't get re-applied. Covers the re-covered cells and their immediate neighbours
 	// (where suspected-mine flags around the blast tend to sit).
-	if (data.explosion && data.explosion.pid === territoryInfo.myId && territoryFlags) {
+	// A bomb blast wipes every flag in the area (anyone's); a self-mine refill only clears your own flags.
+	// (Self-explosions are gone, so in practice this is the bomb path.) Done before myState is rebuilt so
+	// the cleared marks aren't re-applied. Covers the re-covered cells + their immediate neighbours.
+	if (data.explosion && (data.explosion.bomb || data.explosion.pid === territoryInfo.myId) && territoryFlags) {
 		recovered.forEach(function(rc) {
 			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
 				var fr = rc[0] + dr, fc = rc[1] + dc;
@@ -422,6 +512,8 @@ function territoryReset() {
 	territoryEnergy = {};
 	territoryPackets = [];
 	territoryNextPacketAt = 0;
+	territoryMissiles = [];
+	territoryAiming = false;
 	if (territoryEnergyTick) { clearInterval(territoryEnergyTick); territoryEnergyTick = null; }
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
@@ -514,6 +606,7 @@ function territoryUpdateEnergyHud() {
 		var el = document.getElementById("tv_energy" + i);
 		if (el) el.textContent = "⚡ " + Math.floor(territoryEnergyNow(territoryInfo.players[i].id));
 	}
+	territoryUpdateBombBtn();
 }
 
 // 250ms heartbeat: refresh the energy numbers and occasionally launch a grid packet. When a packet is in

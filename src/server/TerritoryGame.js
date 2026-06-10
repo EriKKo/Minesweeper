@@ -36,6 +36,13 @@ var LINE_MAX_LINKS = 3;          // max wires per extractor (to its nearest same
 var LINE_BUILD_MS = 10000;       // energy line construction time once both ends are running
 var LINE_RATE = 0.6;             // bonus energy/sec per completed line
 
+// Energy bombs: spend banked energy to launch a missile from one of your generators at a target area.
+// On impact it re-covers a circular blast (neutral, up for grabs), wiping flags + infrastructure there,
+// and the mines under it are re-rolled at board density to a no-guess-solvable layout.
+var BOMB_COST = 60;              // energy spent per launch
+var BOMB_RADIUS = 2.6;          // Euclidean blast radius (cells)
+var BOMB_REGEN_TRIES = 90;       // solvable-layout attempts before falling back to the existing layout
+
 function lineKey(a, b) {
 	var ka = a[0] + "," + a[1], kb = b[0] + "," + b[1];
 	return ka < kb ? ka + "|" + kb : kb + "|" + ka;
@@ -87,7 +94,7 @@ function create(gen, players) {
 	g.reveal = function(pid, r, c, now) {
 		if (!g.playing || g.frozen(pid, now)) return { type: "invalid" };
 		if (!g.canReveal(pid, r, c)) return { type: "invalid" };
-		if (g.board[r][c] === MINE) return g.explode(pid, r, c, now);
+		if (g.board[r][c] === MINE) return g.hitMine(pid, r, c, now);
 		var claimed = [];
 		BoardLogic.cascadeReveal(r, c, R, C,
 			function(a, b) { return state[a][b] === UNKNOWN && g.board[a][b] !== MINE; },
@@ -112,32 +119,14 @@ function create(gen, players) {
 	}
 	function isMineWith(ov, r, c) { var k = r + "," + c; return (k in ov) ? ov[k] : (g.board[r][c] === MINE); }
 
-	// Hitting a mine triggers an EXPLOSION: a patch of the hitter's own territory around the mine is
-	// re-covered (a reverse cascade on the client) and the player is frozen for FREEZE_MS.
-	// NOTE: mine RE-GENERATION is disabled for now — the underlying board values are left exactly as
-	// they were, so the patch is simply un-revealed and the player re-clears the same layout. The
-	// re-roll machinery (computeExplosion / solvableFromBorder / changedClues) is kept below, dormant,
-	// for when we switch it back on.
-	g.explode = function(pid, mr, mc, now) {
+	// Hitting a mine now simply FREEZES you for FREEZE_MS — the old self-explosion (re-covering a patch of
+	// your own territory) was removed. The cell stays a covered mine; the only thing that re-covers
+	// territory now is an opponent's energy bomb.
+	g.hitMine = function(pid, mr, mc, now) {
 		g.frozenUntil[pid] = now + FREEZE_MS;
-		g.mineHits[pid]++;
-		var ep = explosionPatch(pid, mr, mc, 3);
-		// `touched` collects every cell this explosion re-covers (the patch + any cut-off section) for
-		// the client's reverse-cascade animation. Board values are NOT changed.
-		var touched = {};
-		function recover(p) { state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null; touched[p[0] + "," + p[1]] = p; }
-		ep.patch.forEach(recover);
-		// Cut in two: if the re-cover split your territory into disconnected groups, you keep only your
-		// largest 8-connected group and the smaller cut-off sections are re-covered too — orphaned ground
-		// always reverts to covered. Home is just the biggest area you currently hold (down to a last stand).
-		loseSmallerSections(pid).forEach(recover);
-		g.mineKnown[pid][mr + "," + mc] = true; // the hit cell is still a mine (no regen) — the bot won't re-pick it
-		fillUncascaded();
-		g.updateStructures(now);
-		var recovered = [];
-		for (var tk in touched) { var tp = touched[tk]; if (state[tp[0]][tp[1]] === UNKNOWN) recovered.push(tp); }
-		g._explosion = { origin: [mr, mc], recovered: recovered, pid: pid }; // pid = who hit it (no `clues` — layout unchanged)
-		return { type: "explode", origin: [mr, mc], recovered: recovered, until: g.frozenUntil[pid] };
+		g.mineHits[pid] = (g.mineHits[pid] || 0) + 1;
+		g.mineKnown[pid][mr + "," + mc] = true; // the bot won't re-pick a cell it's learned is a mine
+		return { type: "mine", origin: [mr, mc], until: g.frozenUntil[pid] };
 	};
 
 	// A re-cover (explosion or offensive beam) can leave a covered cell next to a revealed 0 ("uncascaded
@@ -162,60 +151,19 @@ function create(gen, players) {
 		}
 	}
 
-	// The cells an explosion at (mr,mc) re-covers: the hit cell plus the hitter's owned cells within
-	// Chebyshev `rad`. If that would re-cover the player's ENTIRE territory, the owned cells farthest
-	// from the blast are spared (a home), so a mine can never eliminate you outright. Returns
-	// { patch: [[r,c]...], inPatch: {"r,c": true} }.
-	function explosionPatch(pid, mr, mc, rad) {
-		var patch = [], inPatch = {};
-		function add(r, c) { var k = r + "," + c; if (!inPatch[k]) { inPatch[k] = true; patch.push([r, c]); } }
-		add(mr, mc);
-		var inRange = [], totalOwned = 0;
+	// The cells inside a bomb blast: every in-bounds cell within Euclidean `rad` of the target.
+	function bombPatch(tr, tc, rad) {
+		var patch = [], inPatch = {}, rr = rad * rad;
 		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			if (owner[r][c] !== pid) continue;
-			totalOwned++;
-			if (r >= mr - rad && r <= mr + rad && c >= mc - rad && c <= mc + rad) inRange.push([r, c]);
+			if ((r - tr) * (r - tr) + (c - tc) * (c - tc) <= rr) { patch.push([r, c]); inPatch[r + "," + c] = true; }
 		}
-		if (totalOwned - inRange.length === 0 && inRange.length > 0) {
-			var keep = Math.max(1, Math.ceil(totalOwned / 3));
-			inRange.sort(function(a, b) {
-				return Math.max(Math.abs(b[0] - mr), Math.abs(b[1] - mc)) - Math.max(Math.abs(a[0] - mr), Math.abs(a[1] - mc));
-			});
-			inRange = inRange.slice(keep); // the farthest `keep` cells stay revealed (your protected home)
-		}
-		inRange.forEach(function(p) { add(p[0], p[1]); });
 		return { patch: patch, inPatch: inPatch };
 	}
 
-	// The player's owned cells minus their largest 8-connected group — i.e. the cut-off sections after
-	// a re-cover. Returns them (the caller re-covers them); does not mutate. Empty if still one piece.
-	function loseSmallerSections(pid) {
-		var seen = [];
-		for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
-		var comps = [];
-		for (var r0 = 0; r0 < R; r0++) for (var c0 = 0; c0 < C; c0++) {
-			if (owner[r0][c0] !== pid || seen[r0][c0]) continue;
-			var comp = [], stack = [[r0, c0]]; seen[r0][c0] = true;
-			while (stack.length) {
-				var p = stack.pop(); comp.push(p);
-				nbrs(p[0], p[1]).forEach(function(b) { if (owner[b[0]][b[1]] === pid && !seen[b[0]][b[1]]) { seen[b[0]][b[1]] = true; stack.push(b); } });
-			}
-			comps.push(comp);
-		}
-		if (comps.length <= 1) return [];                              // still one piece — nothing lost
-		var best = 0;
-		for (var i = 1; i < comps.length; i++) if (comps[i].length > comps[best].length) best = i;
-		var lost = [];
-		for (var j = 0; j < comps.length; j++) if (j !== best) lost = lost.concat(comps[j]);
-		return lost;
-	}
-
-	// DORMANT: regenerates the mines under an exploded patch so the surrounding clues stay correct and
-	// the patch is no-guess solvable from its border. Not currently called (g.explode keeps the layout
-	// as-is); retained for when mine re-generation is switched back on.
-	function computeExplosion(pid, mr, mc, rad) {
-		var ep = explosionPatch(pid, mr, mc, rad);
-		var patch = ep.patch, inPatch = ep.inPatch;
+	// Re-roll the mines under `patch` (density-weighted) so every revealed cell bordering the patch keeps
+	// its adjacent-mine count AND the patch is no-guess solvable from that border. Mutates nothing; returns
+	// { clues } (new values for patch + neighbours) or null if no solvable layout turned up in `maxTests`.
+	function regenPatch(patch, inPatch, maxTests) {
 		var idxOf = {}; patch.forEach(function(p, i) { idxOf[p[0] + "," + p[1]] = i; });
 		// Border constraints: each revealed cell touching the patch must keep its mine-among-patch count.
 		var seen = {}, cons = [];
@@ -236,16 +184,15 @@ function create(gen, players) {
 		var assign = new Array(patch.length).fill(false), found = null, tested = 0;
 		function feasible(ci) { var con = cons[ci]; return con.assigned <= con.need && con.assigned + con.remaining >= con.need; }
 		function bt(oi) {
-			if (found || tested >= 40) return;
+			if (found || tested >= maxTests) return;
 			if (oi === order.length) {
 				tested++;
 				var ov = {}; patch.forEach(function(p, i) { ov[p[0] + "," + p[1]] = assign[i]; });
-				if (solvableFromBorder(patch, inPatch, ov)) found = { patch: patch, clues: changedClues(patch, inPatch, ov) };
+				if (solvableFromBorder(patch, inPatch, ov)) found = { clues: changedClues(patch, inPatch, ov) };
 				return;
 			}
-			// Try non-mine vs mine weighted by the board density (not 50/50): a patch cell with no border
-			// constraint keeps whichever value is tried first, so a 50/50 bias filled the patch interior
-			// with ~half mines — far denser than the board. Density-weighting keeps re-fills normal.
+			// Try non-mine vs mine weighted by board density (not 50/50) so an unconstrained interior cell
+			// doesn't default to ~half mines — keeps the re-roll at normal board density.
 			var vi = order[oi], vals = Math.random() < g.density ? [true, false] : [false, true];
 			for (var ti = 0; ti < 2; ti++) {
 				var val = vals[ti];
@@ -259,6 +206,41 @@ function create(gen, players) {
 		bt(0);
 		return found;
 	}
+
+	// Launch request: spend BOMB_COST energy, pick a random generator (structure) you own as the silo, and
+	// stage the missile for broadcast. Returns { type:"launch", from, target, flightMs } or an error type.
+	g.requestBomb = function(pid, tr, tc, now) {
+		if (!g.playing) return { type: "invalid" };
+		if (tr < 0 || tc < 0 || tr >= R || tc >= C) return { type: "invalid" };
+		if ((g.energy[pid] || 0) < BOMB_COST) return { type: "poor" };
+		var silos = [];
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) if (g.isStructure(r, c) && owner[r][c] === pid) silos.push([r, c]);
+		if (!silos.length) return { type: "nosilo" };
+		g.accrueEnergy(now);
+		g.energy[pid] -= BOMB_COST;
+		var from = silos[Math.floor(Math.random() * silos.length)];
+		var flightMs = Math.round(Math.min(1700, 400 + Math.hypot(tr - from[0], tc - from[1]) * 45));
+		g._missile = { pid: pid, from: from, to: [tr, tc], flightMs: flightMs };
+		return { type: "launch", from: from, target: [tr, tc], flightMs: flightMs };
+	};
+
+	// Bomb impact: re-roll the blasted mines to a solvable layout (fall back to the existing layout if none
+	// found), then re-cover the whole blast as NEUTRAL ground (up for grabs), wiping any infrastructure
+	// there. Flags are client-side, cleared by the client from the broadcast. Sets g._explosion (bomb:true).
+	g.detonateBomb = function(tr, tc, now) {
+		var bp = bombPatch(tr, tc, BOMB_RADIUS), patch = bp.patch, inPatch = bp.inPatch;
+		var regen = regenPatch(patch, inPatch, BOMB_REGEN_TRIES);
+		if (regen) for (var k in regen.clues) { var kp = k.split(","); g.board[+kp[0]][+kp[1]] = regen.clues[k]; }
+		patch.forEach(function(p) {
+			state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null; // neutral, up for grabs
+			delete g.structReadyAt[p[0] + "," + p[1]]; delete g.extractorStartedAt[p[0] + "," + p[1]]; // wipe infra
+		});
+		fillUncascaded();
+		g.updateStructures(now);
+		g.recomputeLines(now);
+		g._explosion = { origin: [tr, tc], recovered: patch.slice(), clues: regen ? regen.clues : null, bomb: true };
+		return { recovered: patch };
+	};
 
 	// New clue values for the patch + its neighbours under the candidate mine layout `ov`.
 	function changedClues(patch, inPatch, ov) {

@@ -107,6 +107,12 @@ function performAction(r, c, asFlag) {
 		// reconcile via territory_board. Clicking one of your own revealed numbers chords (client-driven,
 		// since flags are local-only). Flags are a local "suspected mine" mark; a flagged cell is
 		// protected from an accidental reveal.
+		// Aiming an energy bomb: the next left-click picks the target area (handled in Territory.js).
+		if (!asFlag && typeof territoryAiming !== "undefined" && territoryAiming) {
+			if (typeof territoryLaunchBomb === "function") territoryLaunchBomb(r, c);
+			redrawOwnBoardWithFocus();
+			return;
+		}
 		if (!asFlag && typeof territoryIsMyStructure === "function" && territoryIsMyStructure(r, c)) {
 			socket.emit("territory_fire", { r: r, c: c }); // fire this fort's beam at the nearest enemy
 		} else if (myState && myState[r][c] === KNOWN) {

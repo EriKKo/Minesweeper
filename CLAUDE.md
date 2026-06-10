@@ -100,26 +100,25 @@ Source is split into three trees under `src/`:
   plus a mine-free **start zone** (Chebyshev radius 3) at each corner, kept only if it's **no-guess
   solvable from EVERY corner** (verified per-corner with `NoGuessGenerator.analyzeSolvability`) — the
   interior is independent, not symmetric. `TerritoryGame` is N-player throughout (per-player owner /
-  scores / capture / explosion); it holds the single `state` + an `owner` matrix,
-  enforces contiguous growth (you may only reveal a covered cell adjacent to your own territory), and
-  on a mine hit triggers an **explosion** (`g.explode`): a patch of the hitter's own territory around
-  the blast is re-covered (a reverse-cascade "unreveal" animation client-side) and its mines
-  re-generated (`computeExplosion`, border-constrained backtracking) so every surrounding clue still
-  holds AND the patch is no-guess solvable from its border — you re-clear it in place, no "going
-  around". If the re-cover **splits your territory** into disconnected groups, you keep only your
-  largest 8-connected group and the smaller cut-off sections are **re-covered** too (`loseSmallerSections`
-  — orphaned ground always reverts to covered, never left as dead revealed cells); so "home" is never a
-  fixed corner, it's just the biggest area you currently hold and can shift or shrink to a last stand
-  (the generator's mine-free corner zone is now only a clean opening, no longer explosion-protected).
-  An explosion is **confined to the hitter**: any cell left next to a revealed 0 by the re-cover is
-  auto-revealed (no "uncascaded 0") but claimed by the OWNER OF THAT 0-cell — so a blast only feeds the
-  player whose own open ground forced the reveal and can never reach across to alter the other player's
-  cells. **Your last cells are always safe** — if a blast would re-cover your ENTIRE territory, the
-  patch spares the owned cells farthest from the blast (a home), so a mine can never eliminate you
-  outright. A 3 s freeze accompanies the hit; if no valid regen is found in a small search it falls back
-  to a plain re-cover. Flags: `_explosion` carries the hitter's `pid` — the client clears the hitter's
-  OWN local flags in the refilled area (recovered cells + neighbours), but an opponent's explosion
-  never touches your flags.
+  scores / capture); it holds the single `state` + an `owner` matrix,
+  enforces contiguous growth (you may only reveal a covered cell adjacent to your own territory). Hitting
+  a mine now simply **freezes** you for `FREEZE_MS` (3 s) via `g.hitMine` — the old self-explosion (which
+  re-covered a patch of your own territory) was removed; the cell stays a covered mine. The ONLY thing
+  that re-covers territory now is an opponent's **energy bomb** (see below). A re-cover that leaves a cell
+  next to a revealed 0 is auto-revealed (`fillUncascaded`) but claimed by the OWNER OF THAT 0-cell, so a
+  blast only ever feeds the player whose own open ground forced the reveal.
+  **Energy bombs** (`g.requestBomb` / `g.detonateBomb`): spend `BOMB_COST` (60) energy to launch a missile
+  from a random generator (structure) you own at a target cell. After a distance-scaled flight the blast
+  re-covers a Euclidean `BOMB_RADIUS` (≈2.6) circle as **neutral** ground (up for grabs by anyone), wiping
+  flags + infrastructure (structures/lines) there. The mines under it are re-rolled at board density to a
+  **no-guess-solvable** layout (`regenPatch` — border-constrained backtracking + `solvableFromBorder`,
+  ≤`BOMB_REGEN_TRIES` tries; falls back to the existing layout if none found) and the changed clues are
+  patched to clients. Wiring: `territory_bomb` socket event → `requestBomb` (validate energy / pick silo /
+  stage `_missile`) + broadcast, then a `setTimeout(flightMs)` → `detonateBomb` + broadcast. The blast
+  reuses the `_explosion` payload (`{origin, recovered, clues, bomb:true}`); `bomb:true` makes the client
+  clear EVERYONE's flags in the area. Client: HUD `tv-bomb-btn` (cost + affordability, `territoryToggleAim`)
+  → aiming mode (crosshair, Esc cancels) → next board click emits the bomb (`territoryLaunchBomb`, intercepted
+  in `performAction`); the missile animates via `territoryMissiles`/`drawTerritoryMissiles`.
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**

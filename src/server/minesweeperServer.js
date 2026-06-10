@@ -2093,6 +2093,8 @@ function broadcastTerritory(room) {
 	if (tg._explosion) { payload.explosion = tg._explosion; tg._explosion = null; }
 	// An offensive beam fired this tick — tell clients to play the beam + re-cover animation. One-shot.
 	if (tg._fire) { payload.fire = tg._fire; tg._fire = null; }
+	// An energy bomb was launched this tick — tell clients to animate the missile in flight. One-shot.
+	if (tg._missile) { payload.missile = tg._missile; tg._missile = null; }
 	io.to("room:" + room.id).emit("territory_board", payload);
 }
 
@@ -3102,6 +3104,25 @@ io.on("connection", function (socket) {
 		if (res.type === "invalid" || res.type === "charging") return;
 		broadcastTerritory(room);
 		maybeEndTerritory(room);
+	});
+
+	// Launch an energy bomb at a target area: spends energy + fires a missile from a random generator; the
+	// blast lands after the flight time, re-covering the area to a fresh solvable layout.
+	socket.on("territory_bomb", function(data) {
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing" || room.gameMode !== "territory") return;
+		var tg = room.territory;
+		if (!tg || !tg.started || !tg.playing) return;
+		var res = tg.requestBomb(playerID, data.r, data.c, Date.now());
+		if (res.type !== "launch") return; // not enough energy, no generator, or out of bounds
+		broadcastTerritory(room); // carries the energy spend + the missile to animate
+		var target = res.target;
+		setTimeout(function() {
+			if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) return;
+			tg.detonateBomb(target[0], target[1], Date.now());
+			broadcastTerritory(room);
+			maybeEndTerritory(room);
+		}, res.flightMs);
 	});
 
 	socket.on("disconnect", function() {

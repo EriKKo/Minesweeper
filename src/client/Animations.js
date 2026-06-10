@@ -124,6 +124,7 @@ function renderPlayerBoard() {
 		}
 		if (typeof drawTerritoryEnergyLines === "function") drawTerritoryEnergyLines(ctx, sw, sh); // territory: power grid
 		if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
+		if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
 	}
 	drawPressedHighlight();
 	drawFocusHighlight();
