@@ -595,27 +595,34 @@
 		</section>
 	</main>
 
-	<!-- Match-search toast — fixed in the bottom-right while the user is
-		 queued, regardless of which view they're browsing. Compact panel
-		 with title, mode tag, progress bar, count, and a cancel button.
-		 Modelled on Dota 2's "Finding match" panel. -->
-	<div id="ranked_searching" class="match-toast" hidden>
-		<div class="match-toast-head">
-			<div class="match-toast-title">
-				<span class="match-toast-spinner" aria-hidden="true"></span>
-				<span id="ranked_searching_text">Finding match…</span>
+	<!-- Match-search waiting room — a centered overlay shown while the user is
+		 queued (a la achtungroyale.io's waiting room): a roster of the
+		 players/bots in the forming lobby fills in live as they arrive, above a
+		 progress bar + count and a Leave button. The roster is rendered by
+		 renderMatchRoster() in Lobby.js from the `members` list the server sends
+		 with every ranked_searching. The outer element is a full-viewport
+		 dimming backdrop that centres the card. -->
+	<div id="ranked_searching" class="match-overlay" hidden>
+		<div class="match-toast">
+			<div class="match-toast-head">
+				<div class="match-toast-title">
+					<span class="match-toast-spinner" aria-hidden="true"></span>
+					<span id="ranked_searching_text">Finding match…</span>
+				</div>
+				<button id="cancel_ranked_button" class="match-toast-cancel" type="button" aria-label="Leave search">Leave</button>
 			</div>
-			<button id="cancel_ranked_button" class="match-toast-cancel" type="button" aria-label="Cancel search">✕</button>
-		</div>
-		<div class="match-toast-meta">
-			<span id="match_toast_mode" class="match-toast-mode"></span>
-			<span id="match_toast_elapsed" class="match-toast-elapsed">0:00</span>
-		</div>
-		<div class="match-toast-bar">
-			<div id="search_progress_fill" class="match-toast-bar-fill"></div>
-		</div>
-		<div class="match-toast-counts">
-			<span><span id="search_count_text">0</span>/<span id="search_size_text">0</span> players</span>
+			<div class="match-toast-meta">
+				<span id="match_toast_mode" class="match-toast-mode"></span>
+				<span id="match_toast_elapsed" class="match-toast-elapsed">0:00</span>
+			</div>
+			<div id="match_toast_tagline" class="match-toast-tagline"></div>
+			<ol id="match_roster" class="match-roster" aria-label="Players in this match"></ol>
+			<div class="match-toast-bar">
+				<div id="search_progress_fill" class="match-toast-bar-fill"></div>
+			</div>
+			<div class="match-toast-counts">
+				<span><span id="search_count_text">0</span>/<span id="search_size_text">0</span> players</span>
+			</div>
 		</div>
 	</div>
 

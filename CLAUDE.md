@@ -229,6 +229,13 @@ Source is split into three trees under `src/`:
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
   `MatchPanels.js`, `GameRoom.js`, `Solo.js`, `Learn.js`,
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
+- `Lobby.js`'s ranked search is a **waiting room** (`#ranked_searching`, a centred
+  full-viewport overlay with a dimmed/blurred backdrop): `renderMatchRoster(info)` turns the `members`
+  roster the server sends with every `ranked_searching` broadcast into a filling slot
+  list (name + tier chip, "YOU" tag for self, dashed "Waiting for player…"
+  placeholders for empty slots), above a mode label + flavour tagline (`MODE_TAGLINES`),
+  progress bar, count, and a Leave button. Only newly-arrived rows animate in
+  (`matchRosterShown` gate), so existing rows don't re-flash as bots trickle in.
 
 The Learn page is an interactive deduction trainer (`LEARN_COURSES` data
 array, ~16 puzzles + ~10 demos). No mine-count deductions — the game
