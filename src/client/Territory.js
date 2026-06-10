@@ -21,20 +21,53 @@ var TV_BEAM_DUR = 480;                // ms a beam streak stays on screen
 var territoryEnergyLines = [];        // power grid: [{ a:[r,c], b:[r,c], color, builtAt(perf.now), buildMs }]
 var territoryEnergy = {};             // pid -> { value, rate, at(perf.now) } banked energy, interpolated for the HUD
 var territoryEnergyTick = null;       // setInterval handle that counts the energy HUD up between broadcasts
+var territoryPackets = [];            // travelling energy blips on built lines: [{ a, b, color, start, dur, dir }]
+var territoryNextPacketAt = 0;        // perf.now ms before which we don't spawn the next packet ("sometimes")
 
-// True while any extractor or energy line is still under construction (keeps the render loop animating).
+// True while any extractor/line is under construction OR a packet is in flight (keeps the loop animating).
 function territoryInfraAnimating() {
+	if (territoryPackets.length) return true;
 	var now = performance.now();
 	if (territoryStructures) for (var k in territoryStructures) { var s = territoryStructures[k]; if (s.buildMs && s.builtAt > now) return true; }
 	for (var i = 0; i < territoryEnergyLines.length; i++) { var l = territoryEnergyLines[i]; if (l.buildMs && l.builtAt > now) return true; }
 	return false;
 }
 
-// Draw the energy grid: a line between each pair of wired extractors. A completed line glows solid in the
-// owner's colour; one still building is faint and dashed, brightening as it nears completion.
+// A line is routed orthogonally (Manhattan): horizontal along A's row to B's column, then vertical to B —
+// so it runs along the grid axes, not diagonally. This returns the pixel point at fraction t of that path.
+function territoryGridPoint(a, b, t, sw, sh) {
+	var x0 = (a[1] + 0.5) * sw, y0 = (a[0] + 0.5) * sh;
+	var x1 = (b[1] + 0.5) * sw, y1 = (b[0] + 0.5) * sh;
+	var hlen = Math.abs(x1 - x0), vlen = Math.abs(y1 - y0), total = hlen + vlen;
+	if (total === 0) return [x0, y0];
+	var d = t * total;
+	if (d <= hlen) return [x0 + Math.sign(x1 - x0) * d, y0];
+	return [x1, y0 + Math.sign(y1 - y0) * (d - hlen)];
+}
+
+// Occasionally launch an energy packet along a built line (driven by the 250ms HUD tick). Spawns one at a
+// time on a randomised cadence so blips appear "sometimes" rather than constantly.
+function territorySpawnPackets(now) {
+	var built = [];
+	for (var i = 0; i < territoryEnergyLines.length; i++) {
+		var l = territoryEnergyLines[i];
+		if (!l.buildMs || l.builtAt <= now) built.push(l);
+	}
+	if (!built.length) { territoryNextPacketAt = 0; return; }
+	if (!territoryNextPacketAt) territoryNextPacketAt = now + 400;
+	if (now >= territoryNextPacketAt) {
+		var pick = built[Math.floor(Math.random() * built.length)];
+		territoryPackets.push({ a: pick.a, b: pick.b, color: pick.color, start: now,
+			dur: 750 + Math.random() * 650, dir: Math.random() < 0.5 ? 1 : -1 });
+		territoryNextPacketAt = now + 550 + Math.random() * 1600;
+	}
+}
+
+// Draw the energy grid: faint orthogonal traces between wired extractors (subtle so they don't dominate the
+// board), dashed while a line is still building, plus the little energy packets travelling along them.
 function drawTerritoryEnergyLines(ctx, sw, sh) {
-	if (!territoryEnergyLines.length) return;
-	var now = performance.now();
+	if (!territoryEnergyLines.length && !territoryPackets.length) return;
+	var now = performance.now(), unit = Math.min(sw, sh);
 	for (var i = 0; i < territoryEnergyLines.length; i++) {
 		var l = territoryEnergyLines[i];
 		var frac = !l.buildMs ? 1 : Math.max(0, Math.min(1, 1 - (l.builtAt - now) / l.buildMs));
@@ -43,16 +76,26 @@ function drawTerritoryEnergyLines(ctx, sw, sh) {
 		var x1 = (l.b[1] + 0.5) * sw, y1 = (l.b[0] + 0.5) * sh;
 		ctx.save();
 		ctx.strokeStyle = l.color;
-		ctx.lineCap = "round";
+		ctx.lineCap = "round"; ctx.lineJoin = "round";
 		if (built) {
-			ctx.globalAlpha = 0.85; ctx.lineWidth = Math.min(sw, sh) * 0.12;
-			ctx.shadowColor = l.color; ctx.shadowBlur = Math.min(sw, sh) * 0.35;
-			ctx.setLineDash([]);
+			ctx.globalAlpha = 0.18; ctx.lineWidth = Math.max(1, unit * 0.04); ctx.setLineDash([]);
 		} else {
-			ctx.globalAlpha = 0.25 + 0.5 * frac; ctx.lineWidth = Math.min(sw, sh) * 0.07;
-			ctx.setLineDash([Math.min(sw, sh) * 0.22, Math.min(sw, sh) * 0.18]);
+			ctx.globalAlpha = 0.10 + 0.10 * frac; ctx.lineWidth = Math.max(1, unit * 0.03);
+			ctx.setLineDash([unit * 0.16, unit * 0.16]);
 		}
-		ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+		// Orthogonal L route: along the row to B's column, then down/up the column to B.
+		ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y1); ctx.stroke();
+		ctx.restore();
+	}
+	for (var p = territoryPackets.length - 1; p >= 0; p--) {
+		var pk = territoryPackets[p], pt = (now - pk.start) / pk.dur;
+		if (pt >= 1) { territoryPackets.splice(p, 1); continue; }
+		var pos = territoryGridPoint(pk.a, pk.b, pk.dir > 0 ? pt : 1 - pt, sw, sh);
+		ctx.save();
+		ctx.globalAlpha = Math.sin(pt * Math.PI); // fade in as it leaves, out as it arrives
+		ctx.fillStyle = "#eaffff";
+		ctx.shadowColor = pk.color; ctx.shadowBlur = unit * 0.55;
+		ctx.beginPath(); ctx.arc(pos[0], pos[1], Math.max(1.5, unit * 0.11), 0, Math.PI * 2); ctx.fill();
 		ctx.restore();
 	}
 }
@@ -135,8 +178,10 @@ function territoryStart(data) {
 	territoryBeams = [];
 	territoryEnergyLines = [];
 	territoryEnergy = {};
+	territoryPackets = [];
+	territoryNextPacketAt = 0;
 	if (territoryEnergyTick) clearInterval(territoryEnergyTick);
-	territoryEnergyTick = setInterval(territoryUpdateEnergyHud, 250); // count the energy HUD up between broadcasts
+	territoryEnergyTick = setInterval(territoryEnergyTickFn, 250); // count energy up + launch the odd packet
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
 
 	// Set up the shared board exactly like a normal round start.
@@ -375,6 +420,8 @@ function territoryReset() {
 	territoryBeams = [];
 	territoryEnergyLines = [];
 	territoryEnergy = {};
+	territoryPackets = [];
+	territoryNextPacketAt = 0;
 	if (territoryEnergyTick) { clearInterval(territoryEnergyTick); territoryEnergyTick = null; }
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");
@@ -467,6 +514,15 @@ function territoryUpdateEnergyHud() {
 		var el = document.getElementById("tv_energy" + i);
 		if (el) el.textContent = "⚡ " + Math.floor(territoryEnergyNow(territoryInfo.players[i].id));
 	}
+}
+
+// 250ms heartbeat: refresh the energy numbers and occasionally launch a grid packet. When a packet is in
+// flight it kicks the rAF loop so the blip animates smoothly; the loop self-stops in the gaps between them.
+function territoryEnergyTickFn() {
+	territoryUpdateEnergyHud();
+	if (!territoryActive) return;
+	territorySpawnPackets(performance.now());
+	if (territoryPackets.length && typeof startAnimLoop === "function") startAnimLoop();
 }
 
 function territoryRenderHud() {

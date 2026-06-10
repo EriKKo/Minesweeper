@@ -209,7 +209,11 @@ Source is split into three trees under `src/`:
   structure `buildInMs`/`buildMs`, and `energy`/`energyRate` per player. **Client:** `territoryStructures`
   entries carry `builtAt`/`buildMs`; `drawCell` shows a construction ring (`drawExtractorBuild`) until
   built, then a glowing core (`drawExtractorCore`) + the beam gauge; `drawTerritoryEnergyLines` renders the
-  grid (dashed while building, solid+glow when done); the HUD chip shows banked energy (`territoryEnergy` +
+  grid as **faint orthogonal (Manhattan) traces** along the grid axes (`territoryGridPoint` routes
+  horizontal-then-vertical; dashed while building, very low alpha when done) with occasional **energy
+  packets** (`territoryPackets`) blipping along them — spawned on a randomised cadence by
+  `territorySpawnPackets` from the 250ms tick (`territoryEnergyTickFn`), which kicks the rAF loop while a
+  packet is in flight. The HUD chip shows banked energy (`territoryEnergy` +
   `territoryEnergyNow` interpolation, ticked every 250ms by `territoryEnergyTick`). Banked energy is the
   resource for the planned **energy explosions** (area wipe → re-covered cells, up for grabs) — not yet
   built; board re-randomisation of the wiped area is a later idea.
