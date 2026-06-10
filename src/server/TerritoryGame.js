@@ -256,15 +256,20 @@ function create(gen, players) {
 	// and claimed; mines stay covered (a dead pocket); the opponent's own cells are never stolen.
 	// Returns the newly-claimed cells.
 	g.captureEnclosed = function(pid) {
-		// Cells a player can reach (4-connected), spreading from their own territory through covered
-		// cells only. Their own land is passable too (it's where they start); any OTHER revealed cell —
-		// the opponent's, or neutral dead ground — is a wall they can't expand through.
+		// Cells a player can reach, spreading from their own territory through covered cells. The flood is
+		// 8-connected to MATCH expansion (canReveal lets you claim any covered cell 8-adjacent to your
+		// territory) — using 4-connectivity here under-counted reach, so the enclosure capture stole cells
+		// the opponent could actually grab diagonally (and ended games early). Own land is passable (it's
+		// where you start); any OTHER revealed cell — the opponent's, or neutral dead ground — is a wall.
 		function reach(own) {
 			var seen = [], stack = [];
 			for (var r = 0; r < R; r++) seen.push(new Array(C).fill(false));
 			function push(r, c) { if (r < 0 || c < 0 || r >= R || c >= C || seen[r][c]) return; if (state[r][c] !== UNKNOWN && !own(r, c)) return; seen[r][c] = true; stack.push([r, c]); }
 			for (var sr = 0; sr < R; sr++) for (var sc = 0; sc < C; sc++) if (own(sr, sc)) push(sr, sc);
-			while (stack.length) { var p = stack.pop(); push(p[0] - 1, p[1]); push(p[0] + 1, p[1]); push(p[0], p[1] - 1); push(p[0], p[1] + 1); }
+			while (stack.length) {
+				var p = stack.pop();
+				for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) { if (dr || dc) push(p[0] + dr, p[1] + dc); }
+			}
 			return seen;
 		}
 		function isOpp(r, c) { return owner[r][c] !== null && owner[r][c] !== pid; }

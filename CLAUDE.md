@@ -165,8 +165,10 @@ Source is split into three trees under `src/`:
   both cuts territory mine-hits and gives the calibration real resolution across the Elo range.
   **Enclosure capture**
   (`tg.captureEnclosed`, run after every reveal): a region you've sealed off so that **only you can
-  reach it** — two reachability floods (each spreads from a player's land through covered cells only;
-  the opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the
+  reach it** — two reachability floods (each spreads **8-connected** from a player's land through covered
+  cells only, matching `canReveal`'s 8-adjacency expansion — using 4-connectivity under-counted reach and
+  let the capture STEAL cells the opponent could still grab diagonally, ending games early; the
+  opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the
   opponent's doesn't — is claimed. This captures regions pinned against a **board edge** too, not just
   interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and claimed,
   mines stay a covered dead pocket, and the opponent's own cells aren't stolen.
