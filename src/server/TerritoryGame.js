@@ -319,30 +319,36 @@ function create(gen, players) {
 		var captured = [];
 		for (var r2 = 0; r2 < R; r2++) for (var c2 = 0; c2 < C; c2++) {
 			if (owner[r2][c2] === pid || oppReach[r2][c2] || !youReach[r2][c2]) continue;        // theirs, reachable by them, or unreachable by you
+			if (g.claimLocked(pid, r2, c2)) continue;                                            // bombed ground reserved for its launcher
 			if (state[r2][c2] === UNKNOWN && g.board[r2][c2] !== MINE) {                          // sealed-off covered safe cell → yours
 				state[r2][c2] = KNOWN; owner[r2][c2] = pid; captured.push([r2, c2]);
 			}
 		}
-		// Surround an enemy POCKET completely and it flips to you: any 8-connected group of enemy cells whose
-		// every in-bounds boundary neighbour is now yours becomes yours (board edges aren't an escape, and a
-		// covered/neutral boundary cell IS — you must ring it entirely in your own land). Runs after the
-		// covered-cell capture so freshly-sealed covered ground counts as "yours" for the boundary test.
-		var seen2 = [];
-		for (var r = 0; r < R; r++) seen2.push(new Array(C).fill(false));
-		for (var er = 0; er < R; er++) for (var ec = 0; ec < C; ec++) {
-			if (seen2[er][ec] || !isOpp(er, ec)) continue;
-			var comp = [], stack = [[er, ec]], sealed = true; seen2[er][ec] = true;
-			while (stack.length) {
-				var p = stack.pop(); comp.push(p);
-				for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-					if (!dr && !dc) continue;
-					var nr = p[0] + dr, nc = p[1] + dc;
-					if (nr < 0 || nc < 0 || nr >= R || nc >= C) continue;            // edge — not an escape
-					if (isOpp(nr, nc)) { if (!seen2[nr][nc]) { seen2[nr][nc] = true; stack.push([nr, nc]); } }
-					else if (owner[nr][nc] !== pid) sealed = false;                  // a covered/neutral neighbour is an escape
-				}
-			}
-			if (sealed) comp.forEach(function(q) { owner[q[0]][q[1]] = pid; captured.push(q); });
+		// Surround an opponent and their cut-off ground flips to you. "Freedom" = reaching the board border
+		// through any NON-your cell (your cells are the only walls); a player starts on the border, so they
+		// stay free until you fully wall their territory off from every edge. Anything you've sealed into the
+		// interior — enemy cells AND the neutral/covered ground trapped with them (e.g. bomb craters) — can't
+		// reach the border and becomes yours. This is connectivity-based, so a covered/neutral boundary no
+		// longer saves an island: only an actual escape route to the open edge does.
+		var free = [];
+		for (var r = 0; r < R; r++) free.push(new Array(C).fill(false));
+		var fstack = [];
+		function freePush(fr, fc) {
+			if (fr < 0 || fc < 0 || fr >= R || fc >= C || free[fr][fc] || owner[fr][fc] === pid) return;
+			free[fr][fc] = true; fstack.push([fr, fc]);
+		}
+		for (var bc = 0; bc < C; bc++) { freePush(0, bc); freePush(R - 1, bc); }
+		for (var br = 0; br < R; br++) { freePush(br, 0); freePush(br, C - 1); }
+		while (fstack.length) {
+			var fp = fstack.pop();
+			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) if (dr || dc) freePush(fp[0] + dr, fp[1] + dc);
+		}
+		for (var r3 = 0; r3 < R; r3++) for (var c3 = 0; c3 < C; c3++) {
+			if (owner[r3][c3] === pid || free[r3][c3]) continue;                      // yours, or still connected to the edge
+			if (g.claimLocked(pid, r3, c3)) continue;                                 // bombed ground reserved for its launcher
+			if (state[r3][c3] === UNKNOWN && g.board[r3][c3] === MINE) { owner[r3][c3] = pid; }   // sealed mine → your covered structure
+			else { state[r3][c3] = KNOWN; owner[r3][c3] = pid; }                                  // sealed enemy land / covered safe → revealed + yours
+			captured.push([r3, c3]);
 		}
 		return captured;
 	};

@@ -180,11 +180,14 @@ Source is split into three trees under `src/`:
   opponent's land AND neutral dead ground are walls), capture = cells your flood reaches but the
   opponent's doesn't — is claimed. This captures regions pinned against a **board edge** too, not just
   interior pockets (the edge isn't an escape). Captured covered non-mines are revealed and claimed,
-  mines stay a covered dead pocket. **Enemy pockets flip too:** after the covered-cell pass, any
-  8-connected group of opponent cells whose every in-bounds boundary neighbour is now yours is captured
-  (flipped to you) — so completely ringing a chunk of enemy territory in your own land takes it (board
-  edges aren't an escape; a covered/neutral boundary cell is, so you must wall it entirely). Fully
-  surrounding an opponent this way can capture their whole body and eliminate them.
+  mines stay a covered dead pocket. **Enemy pockets flip too** (second pass, connectivity-based):
+  "freedom" = reaching the board border through any NON-your cell (your cells are the only walls). A
+  player starts on the border, so they stay free until you wall their land off from every edge; anything
+  you seal into the interior — opponent cells AND the neutral/covered ground trapped with them (e.g. bomb
+  craters) — can no longer reach the border and is captured (enemy land revealed + claimed, sealed mines
+  become your covered structures). A covered/neutral boundary cell no longer saves an island; only a real
+  escape route to the open edge does. Both passes skip cells under a bomb claim lock (`g.claimLocked`).
+  Fully surrounding an opponent away from the edges captures their territory and can eliminate them.
   **Structures + offensive beams (PvP invasion).** A connected blob of covered mines whose entire outer
   boundary you own becomes your **structures** (`g.updateStructures`, run after every board change — it
   flood-fills each 8-connected mine group and claims the whole group if one player rings it, so clusters
