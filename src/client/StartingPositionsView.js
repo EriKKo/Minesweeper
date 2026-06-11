@@ -85,7 +85,7 @@ function writeStartingPosStateToHash() {
 
 function startingPosSubtitle() {
 	if (startingPosListState.size === 4) {
-		return "The 4x4 corner-mine family: a 4x4 opening where one corner is a covered mine the solver must deduce (flagged here), so it floods like a real cascade. The revealed interior is the player view; the outer ring marks the analyzer's deductions (flags = forced mines, checks = forced safe). Ranked by full-solve difficulty — total = sum of every deduction's complexity, max = the hardest single one. A random sample across difficulty bands, always keeping the single hardest opening.";
+		return "The 4x4 corner-mine family: a 4x4 opening where one corner is a covered mine the solver must deduce (flagged here), so it floods like a real cascade. The revealed interior is the player view; the outer ring marks the analyzer's deductions (flags = forced mines, checks = forced safe). Ranked by REALISTIC difficulty — each opening is solved on a concrete consistent mine layout WITH cascades (the same board Analyze rebuilds): max = the hardest single deduction, total = the sum of all of them. The surrounding ring is underconstrained, so many of these openings aren't fully solvable. A random sample across difficulty bands, always keeping the single hardest opening.";
 	}
 	return "Enumerated cascade patterns where the analyzer can deduce at least one safe cell. The 3x3 cascade is the player view; the outer ring marks what the analyzer can deduce (flags = forced mines, dots = forced safe, dim = ambiguous). Symmetric duplicates are collapsed to the lex-smallest of each orbit. Rating is the complexity of the first analyzer move.";
 }

@@ -1,10 +1,18 @@
 // Generate the "4x4 opening with a corner mine" starting-position family and store a ~200 sample.
 //
 // The 4x4 rectangle has one corner as a (covered, deduced — not pre-flagged) mine; the far interior always
-// has a 0-cell, so it floods like a real cascade. We enumerate every surrounding ring-mine layout, dedup by
-// the revealed-clue tuple, and for each distinct opening fully analyze the static deductions: TOTAL
-// difficulty (sum of every move's complexity) + MAX (hardest single move). Forced safe/mine ring cells come
-// from the exact brute-force closure over the bucket (ground truth, not analyzer-limited).
+// has a 0-cell, so it floods like a real cascade. We enumerate every surrounding ring-mine layout and dedup
+// by the revealed-clue tuple.
+//
+// DIFFICULTY IS RATED REALISTICALLY: for each distinct opening we take the lexicographically-smallest
+// consistent ring layout (the same concrete board the admin Analyze modal reconstructs), build the REAL
+// board, and solve it WITH cascades (revealCell) — so revealing a 0 opens its region like a real game. We
+// record the resulting TOTAL (sum of every move's complexity) and MAX (hardest single move). An earlier
+// version analyzed the frozen opening with no layout and no cascades, which forced the analyzer to
+// case-split the whole underconstrained ring and produced wildly inflated ratings (cx ~11.7) for openings
+// that are actually trivial — and often not even fully solvable. Forced safe/mine ring cells still come from
+// the exact brute-force closure over the bucket (layout-independent: cells that are safe/mine in EVERY
+// consistent layout).
 //
 // We keep the single hardest opening plus an even random sample across difficulty bands (~200 total), tagged
 // variant="corner4", size=4 — so the admin Start-positions page can filter them apart from the 3x3 cascades.
@@ -34,45 +42,60 @@ for(const [r,c] of cells){
 }
 const bnd=meta.filter(m=>m.boundary);
 
-// Enumerate: bucket by boundary-clue tuple, track solution count + per-ring mine occurrences (for forced masks).
+// Enumerate: bucket by boundary-clue tuple, track solution count, per-ring mine occurrences (forced masks),
+// and the FIRST (lex-smallest) ring arrangement that produced this opening — our concrete representative.
 const buckets=new Map(); const total=1<<ring;
 for(let a=0;a<total;a++){
   let k=0,bad=false;
   for(let i=0;i<bnd.length;i++){ const v=popcount(a&bnd[i].mask)+(bnd[i].adjM?1:0); if(v===0){bad=true;break;} k=k*9+v; }
   if(bad) continue;
   let b=buckets.get(k);
-  if(!b){ b={bClues:bnd.map(m=>popcount(a&m.mask)+(m.adjM?1:0)), sol:0, orCounts:new Int32Array(ring)}; buckets.set(k,b); }
+  if(!b){ b={bClues:bnd.map(m=>popcount(a&m.mask)+(m.adjM?1:0)), sol:0, orCounts:new Int32Array(ring), layout:a}; buckets.set(k,b); }
   b.sol++;
   for(let bit=0;bit<ring;bit++) if(a&(1<<bit)) b.orCounts[bit]++;
 }
 console.log("unique openings:", buckets.size);
 
-// Analyze each opening: full-solve total/max difficulty + first move; forced masks from the brute-force closure.
-const records=[]; let n=0;
-for(const b of buckets.values()){
+// Build the concrete board for a bucket's representative ring layout, mines = corner + set ring bits.
+function buildConcrete(layout){
   const board=[],state=[];
   for(let r=0;r<BR;r++){board.push(new Array(BC).fill(0));state.push(new Array(BC).fill(UNKNOWN));}
-  let bi=0;
-  for(const m of meta){ state[m.r][m.c]=KNOWN; board[m.r][m.c]= m.boundary?b.bClues[bi++]:(m.adjM?1:0); }
-  state[cR][cC]=UNKNOWN; board[cR][cC]=MINE; // corner: covered, solver deduces it
-  const res=csp.analyzeBoard(board,state,{});
+  const mine=(r,c)=> (r===cR&&c===cC) || (ringIdx[r+","+c]!==undefined && (layout&(1<<ringIdx[r+","+c])));
+  for(let r=0;r<BR;r++)for(let c=0;c<BC;c++){
+    if(mine(r,c)){ board[r][c]=MINE; continue; }
+    let n=0; for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){ if(!dr&&!dc)continue; const nr=r+dr,nc=c+dc; if(nr>=0&&nr<BR&&nc>=0&&nc<BC&&mine(nr,nc)) n++; }
+    board[r][c]=n;
+  }
+  for(const m of meta) state[m.r][m.c]=KNOWN; // reveal the 4x4 interior except the corner mine
+  return {board,state};
+}
+
+// Analyze each opening on its concrete representative WITH cascades (realistic difficulty).
+const records=[]; let n=0, solvable=0;
+for(const b of buckets.values()){
+  const {board,state}=buildConcrete(b.layout);
+  function cascade(rr,cc){ BL.cascadeReveal(rr,cc,BR,BC, (r,c)=>state[r][c]===UNKNOWN, (r,c)=>{state[r][c]=KNOWN;return false;}, (r,c)=>board[r][c]); }
+  const res=csp.analyzeBoard(board,state,{revealCell:cascade});
   if(!res.moves.length) continue;
-  let tot=0,mx=0; for(const mv of res.moves){ tot+=mv.complexity; if(mv.complexity>mx)mx=mv.complexity; }
+  if(res.solved) solvable++;
+  // Use the analyzer's own canonical totals (over un-bundled moves) so the stored numbers match exactly
+  // what the Analyze modal shows for the same reconstructed board.
+  const tot=res.totalComplexity, mx=res.maxComplexity;
   // forced ring masks from the closure: bit set in EVERY solution = forced mine; in NONE = forced safe
   let safeMask=0,mineMask=0,fSafe=0,fMine=0;
   for(let bit=0;bit<ring;bit++){ if(b.orCounts[bit]===0){safeMask|=(1<<bit);fSafe++;} else if(b.orCounts[bit]===b.sol){mineMask|=(1<<bit);fMine++;} }
   // pattern string: 16 row-major 4x4 cells, corner = "M", others = clue value
-  const clueAt={}; bi=0; for(const m of meta) clueAt[m.r+","+m.c]= m.boundary?b.bClues[bi++]:(m.adjM?1:0);
+  let bi=0; const clueAt={}; for(const m of meta) clueAt[m.r+","+m.c]= m.boundary?b.bClues[bi++]:(m.adjM?1:0);
   const pattern = cells.map(([r,c])=> (r===cR&&c===cC)?"M":String(clueAt[r+","+c])).join(".");
   // analyzeBoard returns BUNDLED moves (revealed/flagged arrays, no .action) — derive the first action
   const m0=res.moves[0];
   const firstAction = (m0.revealed.length && m0.flagged.length) ? "case" : (m0.flagged.length ? "flag" : "reveal");
-  records.push({ pattern, sol:b.sol, fSafe, fMine, safeMask, mineMask,
+  records.push({ pattern, sol:b.sol, fSafe, fMine, safeMask, mineMask, solved:res.solved,
     firstAction: firstAction, firstComplexity:+m0.complexity.toFixed(3),
     total:+tot.toFixed(3), max:+mx.toFixed(3) });
   if(++n % 20000 === 0) console.log("...analyzed", n);
 }
-console.log("analyzed:", records.length);
+console.log("analyzed:", records.length, "| fully solvable:", solvable);
 
 // Sample ~200: always the single hardest (by max, tie-break total), plus an even random sample per band.
 const TARGET=200;

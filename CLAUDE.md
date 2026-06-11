@@ -97,16 +97,23 @@ Source is split into three trees under `src/`:
   table, admin "Starting positions" page `#/admin/starting-positions`, `StartingPositionsView.js`).
   A separate family from the plain 3×3 cascades: a **4×4 opening with one corner a covered mine the
   solver must deduce** (not pre-flagged) — the far interior still has a 0-cell, so it floods like a
-  real cascade, and unlike a fresh 3×3 it reaches genuinely hard deductions (max complexity up to
-  ~11.7, well past the ~8 starting ceiling). The script enumerates every surrounding ring layout
-  (2²⁰), dedups by revealed-clue tuple (76 352 distinct openings), and for each runs the analyzer to
-  record **total** difficulty (sum of every deduction's complexity) + **max**; forced safe/mine ring
-  cells come from the exact brute-force closure. It stores a **~200 sample**: always the single hardest
-  opening, plus an even random sample across the `floor(max)` difficulty bands. Stored as `size=4`,
-  `variant="corner4"`, with `total_complexity`/`max_complexity` columns — so the admin **Family** filter
-  (`3×3 cascade` vs `4×4 corner-mine`) keeps them apart from the plain cascades (which stay the default
-  `size=3` view), and `StartingPositionsView.js` renders them on a 6×6 board (`paintCornerPosCanvas`,
-  corner drawn as a flag) showing the total/max difficulty. Re-run the script to regenerate the sample.
+  real cascade. The script enumerates every surrounding ring layout (2²⁰), dedups by revealed-clue tuple
+  (76 352 distinct openings), and rates each **realistically**: it takes the lexicographically-smallest
+  consistent ring layout (the same concrete board the Analyze modal rebuilds), constructs the real board,
+  and solves it **with cascades** — recording **max** (hardest single deduction) and **total** (sum) from
+  the analyzer's own `maxComplexity`/`totalComplexity`. NB an earlier version analyzed the frozen opening
+  with no layout and no cascades, which forced the analyzer to case-split the whole underconstrained ring
+  and produced wildly inflated ratings (~11.7) for openings that are actually trivial; the realistic pass
+  spans bands 0–14 but **only ~60% of openings are fully solvable** (the ring is underconstrained — these
+  are families of boards, not single puzzles), so this family is a curiosity, not a real source of hard
+  puzzles. Forced safe/mine ring cells come from the exact brute-force closure (layout-independent). It
+  stores a **~200 sample**: always the single hardest opening, plus an even random sample across the
+  `floor(max)` bands. Stored as `size=4`, `variant="corner4"`, with `total_complexity`/`max_complexity`
+  columns — so the admin **Family** filter (`3×3 cascade` vs `4×4 corner-mine`) keeps them apart from the
+  plain cascades (default `size=3` view); `StartingPositionsView.js` renders them on a 6×6 board
+  (`paintCornerPosCanvas`, corner drawn as a flag) with an **Analyze** button (`GET
+  /api/starting-positions/:id/analyze` → `cornerStartingPuzzle` rebuilds the concrete board, reusing the
+  All-Puzzles solver-trace modal). Re-run the script to regenerate the sample.
 - `scripts/combine-patterns.js` — composes two start patterns into one board to test whether
   *combining* building blocks beats the single-opening ~cx-8 ceiling. It lays two blocks side by
   side so their unknown rings either share a seam column or sit a gap apart, solves for a concrete
