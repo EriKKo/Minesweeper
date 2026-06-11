@@ -2086,7 +2086,8 @@ function broadcastTerritory(room) {
 		roundDeadline: roundDeadlines[room.id] || null,
 		structures: tg.structureList(now), // extractors: position, beam recharge + construction state
 		energyLines: tg.energyLineList(now), // the auto-wired power grid + its build progress
-		energy: snap.energy, energyRate: snap.rate // banked energy + production rate per player
+		energy: snap.energy, energyRate: snap.rate, // banked energy + production rate per player
+		claims: tg.claimList(now) // crater cells still reserved for the launcher (the 5s bomb claim lock)
 	};
 	// A mine explosion re-covered + re-generated a patch this tick — tell clients to patch the
 	// changed clues and play the reverse-cascade animation. One-shot, then cleared.
@@ -3119,7 +3120,7 @@ io.on("connection", function (socket) {
 		var target = res.target;
 		setTimeout(function() {
 			if (!rooms[room.id] || room.phase !== "playing" || room.territory !== tg || !tg.playing) return;
-			tg.detonateBomb(target[0], target[1], Date.now());
+			tg.detonateBomb(target[0], target[1], playerID, Date.now());
 			broadcastTerritory(room);
 			maybeEndTerritory(room);
 		}, res.flightMs);

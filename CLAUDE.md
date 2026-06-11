@@ -107,18 +107,24 @@ Source is split into three trees under `src/`:
   that re-covers territory now is an opponent's **energy bomb** (see below). A re-cover that leaves a cell
   next to a revealed 0 is auto-revealed (`fillUncascaded`) but claimed by the OWNER OF THAT 0-cell, so a
   blast only ever feeds the player whose own open ground forced the reveal.
-  **Energy bombs** (`g.requestBomb` / `g.detonateBomb`): spend `BOMB_COST` (60) energy to launch a missile
+  **Energy bombs** (`g.requestBomb` / `g.detonateBomb`): spend `BOMB_COST` (1000) energy to launch a missile
   from a random generator (structure) you own at a target cell. After a distance-scaled flight the blast
-  re-covers a Euclidean `BOMB_RADIUS` (≈2.6) circle as **neutral** ground (up for grabs by anyone), wiping
-  flags + infrastructure (structures/lines) there. The mines under it are re-rolled at board density to a
-  **no-guess-solvable** layout (`regenPatch` — border-constrained backtracking + `solvableFromBorder`,
-  ≤`BOMB_REGEN_TRIES` tries; falls back to the existing layout if none found) and the changed clues are
-  patched to clients. Wiring: `territory_bomb` socket event → `requestBomb` (validate energy / pick silo /
-  stage `_missile`) + broadcast, then a `setTimeout(flightMs)` → `detonateBomb` + broadcast. The blast
-  reuses the `_explosion` payload (`{origin, recovered, clues, bomb:true}`); `bomb:true` makes the client
-  clear EVERYONE's flags in the area. Client: HUD `tv-bomb-btn` (cost + affordability, `territoryToggleAim`)
-  → aiming mode (crosshair, Esc cancels) → next board click emits the bomb (`territoryLaunchBomb`, intercepted
-  in `performAction`); the missile animates via `territoryMissiles`/`drawTerritoryMissiles`.
+  re-covers a Euclidean `BOMB_RADIUS` (≈2.6) circle as **neutral** ground, wiping flags + infrastructure
+  (structures/lines) there. The mines under it are re-rolled at board density to a **no-guess-solvable**
+  layout (`regenPatch` — border-constrained backtracking + `solvableFromBorder`, ≤`BOMB_REGEN_TRIES` tries;
+  falls back to the existing layout if none found) and the changed clues are patched to clients. **Claim
+  lock:** for `BOMB_CLAIM_LOCK_MS` (5 s) after impact only the launcher may take the crater — each crater
+  cell gets `g.bombClaim["r,c"] = {pid, until}`, and `g.claimLocked(pid,r,c)` blocks everyone else in
+  `canReveal`, the reveal cascade, and `fillUncascaded` (so neither a click nor a cascade nor an auto-fill
+  can grab it); after 5 s it opens to anyone. `g.claimList(now)` (broadcast as `claims`, also prunes
+  expired) drives the client overlay. Wiring: `territory_bomb` socket event → `requestBomb` (validate energy
+  / pick silo / stage `_missile`) + broadcast, then a `setTimeout(flightMs)` → `detonateBomb(tr,tc,pid,now)`
+  + broadcast. The blast reuses the `_explosion` payload (`{origin, recovered, clues, bomb:true}`);
+  `bomb:true` makes the client clear EVERYONE's flags in the area. Client: HUD `tv-bomb-btn`
+  (cost + affordability, `territoryToggleAim`) or the **S** hotkey → aiming mode (crosshair, Esc cancels) →
+  next board click emits the bomb (`territoryLaunchBomb`, intercepted in `performAction`); the missile
+  animates via `territoryMissiles`/`drawTerritoryMissiles`, and the claim lock pulses in the launcher's
+  colour via `territoryClaims`/`drawTerritoryClaims`.
   Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
   `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**

@@ -25,6 +25,32 @@ var territoryPackets = [];            // travelling energy blips on built lines:
 var territoryNextPacketAt = 0;        // perf.now ms before which we don't spawn the next packet ("sometimes")
 var territoryMissiles = [];           // energy bombs in flight: [{ from:[r,c], to:[r,c], color, start, dur }]
 var territoryAiming = false;          // true while the player is choosing a bomb target (next click = launch)
+var territoryClaims = [];             // crater cells reserved for a launcher: [{ r, c, color, until(perf.now) }]
+
+// True while any bomb-claim lock is still active (keeps the render loop alive so the overlay pulses + clears).
+function territoryClaimsActive() {
+	var now = performance.now();
+	for (var i = 0; i < territoryClaims.length; i++) if (territoryClaims[i].until > now) return true;
+	return false;
+}
+
+// Draw the claim lock: bombed cells reserved for their launcher pulse in that player's colour (a soft fill
+// + outline) until the 5s window ends, signalling that only they can take this ground for now.
+function drawTerritoryClaims(ctx, sw, sh) {
+	if (!territoryClaims.length) return;
+	var now = performance.now();
+	territoryClaims = territoryClaims.filter(function(cl) { return cl.until > now; });
+	var pulse = 0.5 + 0.5 * Math.sin(now / 220); // breathe
+	for (var i = 0; i < territoryClaims.length; i++) {
+		var cl = territoryClaims[i], x = cl.c * sw, y = cl.r * sh;
+		ctx.save();
+		ctx.fillStyle = cl.color; ctx.globalAlpha = 0.14 + 0.12 * pulse;
+		ctx.fillRect(x + 1, y + 1, sw - 2, sh - 2);
+		ctx.globalAlpha = 0.35 + 0.35 * pulse; ctx.strokeStyle = cl.color; ctx.lineWidth = Math.max(1, Math.min(sw, sh) * 0.06);
+		ctx.strokeRect(x + 1.5, y + 1.5, sw - 3, sh - 3);
+		ctx.restore();
+	}
+}
 
 // Draw any energy bombs mid-flight: a glowing projectile streaking from the launch silo to its target,
 // with a short fading tail. The blast itself arrives via the explosion broadcast when the flight ends.
@@ -52,6 +78,7 @@ function drawTerritoryMissiles(ctx, sw, sh) {
 // True while any extractor/line is under construction OR a packet is in flight (keeps the loop animating).
 function territoryInfraAnimating() {
 	if (territoryPackets.length || territoryMissiles.length) return true;
+	if (territoryClaimsActive()) return true;
 	var now = performance.now();
 	if (territoryStructures) for (var k in territoryStructures) { var s = territoryStructures[k]; if (s.buildMs && s.builtAt > now) return true; }
 	for (var i = 0; i < territoryEnergyLines.length; i++) { var l = territoryEnergyLines[i]; if (l.buildMs && l.builtAt > now) return true; }
@@ -199,15 +226,15 @@ function territoryEnsureHud() {
 	return hud;
 }
 
-var TV_BOMB_COST = 60; // mirror of the server's BOMB_COST (energy spent per launch)
+var TV_BOMB_COST = 1000; // mirror of the server's BOMB_COST (energy spent per launch)
 
-// Bomb hotkeys: B toggles aiming (same as the HUD button), Esc cancels it. Ignored while typing in a field.
+// Bomb hotkeys: S toggles aiming (same as the HUD button), Esc cancels it. Ignored while typing in a field.
 document.addEventListener("keydown", function(e) {
 	if (!territoryActive) return;
 	var el = document.activeElement, typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 	if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 	if (e.key === "Escape" && territoryAiming) { territoryAiming = false; territoryUpdateBombBtn(); }
-	else if (e.key === "b" || e.key === "B") { e.preventDefault(); territoryToggleAim(); }
+	else if (e.key === "s" || e.key === "S") { e.preventDefault(); territoryToggleAim(); }
 });
 
 // How many generators (structures) the local player owns — you need at least one to launch from.
@@ -228,7 +255,7 @@ function territoryUpdateBombBtn() {
 	document.body.classList.toggle("tv-aiming", territoryAiming); // crosshair cursor over the board
 	btn.textContent = territoryAiming ? "🎯 Pick a target…" : ("💣 Bomb · " + TV_BOMB_COST + "⚡");
 	btn.title = !hasGen ? "Build a generator (surround a mine) to launch from"
-		: !canAfford ? "Need " + TV_BOMB_COST + " energy" : "Launch an energy bomb at the enemy (hotkey: B)";
+		: !canAfford ? "Need " + TV_BOMB_COST + " energy" : "Launch an energy bomb at the enemy (hotkey: S)";
 }
 
 // Toggle bomb-aiming mode (click the button, then click the target on the board). No-op if you can't launch.
@@ -264,6 +291,7 @@ function territoryStart(data) {
 	territoryNextPacketAt = 0;
 	territoryMissiles = [];
 	territoryAiming = false;
+	territoryClaims = [];
 	if (territoryEnergyTick) clearInterval(territoryEnergyTick);
 	territoryEnergyTick = setInterval(territoryEnergyTickFn, 250); // count energy up + launch the odd packet
 	for (var r = 0; r < R; r++) { territoryOwnerColors.push(new Array(C).fill(null)); territoryFlags.push(new Array(C).fill(false)); }
@@ -341,6 +369,10 @@ function territoryBoard(data) {
 	});
 	if (data.energy) Object.keys(data.energy).forEach(function(pid) {
 		territoryEnergy[pid] = { value: data.energy[pid], rate: (data.energyRate && data.energyRate[pid]) || 0, at: sNow };
+	});
+	// Bomb claim locks: crater cells reserved for their launcher for a few seconds (msLeft → local expiry).
+	territoryClaims = (data.claims || []).map(function(cl) {
+		return { r: cl.r, c: cl.c, color: territoryColorHex(territoryColorOf(cl.owner)), until: sNow + cl.msLeft };
 	});
 	// An energy bomb was launched — animate the missile streaking to its target (the blast lands when an
 	// explosion broadcast arrives ~flightMs later).
@@ -518,6 +550,7 @@ function territoryReset() {
 	territoryNextPacketAt = 0;
 	territoryMissiles = [];
 	territoryAiming = false;
+	territoryClaims = [];
 	if (territoryEnergyTick) { clearInterval(territoryEnergyTick); territoryEnergyTick = null; }
 	territoryInfo = null;
 	var ov = document.getElementById("territory_result_overlay");

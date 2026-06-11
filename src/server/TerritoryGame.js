@@ -39,9 +39,10 @@ var LINE_RATE = 0.6;             // bonus energy/sec per completed line
 // Energy bombs: spend banked energy to launch a missile from one of your generators at a target area.
 // On impact it re-covers a circular blast (neutral, up for grabs), wiping flags + infrastructure there,
 // and the mines under it are re-rolled at board density to a no-guess-solvable layout.
-var BOMB_COST = 60;              // energy spent per launch
+var BOMB_COST = 1000;            // energy spent per launch
 var BOMB_RADIUS = 2.6;          // Euclidean blast radius (cells)
 var BOMB_REGEN_TRIES = 90;       // solvable-layout attempts before falling back to the existing layout
+var BOMB_CLAIM_LOCK_MS = 5000;   // after impact, only the launcher may claim the crater for this long
 
 function lineKey(a, b) {
 	var ka = a[0] + "," + a[1], kb = b[0] + "," + b[1];
@@ -67,6 +68,7 @@ function create(gen, players) {
 	g.energyLines = {}; // "r,c|r,c" (endpoints sorted) -> { owner, startedAt }
 	g.energy = {}; // pid -> banked energy
 	g.energyAt = 0; // server time energy was last accrued
+	g.bombClaim = {}; // "r,c" -> { pid, until } : crater cells only the launcher may claim until `until`
 	players.forEach(function(p) { g.frozenUntil[p] = 0; g.mineHits[p] = 0; g.mineKnown[p] = {}; g.energy[p] = 0; });
 
 	// Seed each player's starting cascade as their territory.
@@ -79,9 +81,16 @@ function create(gen, players) {
 	g.frozen = function(pid, now) { return now < (g.frozenUntil[pid] || 0); };
 
 	// Contiguity: a covered, non-claimed cell with an 8-neighbour this player already owns.
+	// A freshly bombed cell can only be claimed by the launcher for BOMB_CLAIM_LOCK_MS (then it opens up).
+	g.claimLocked = function(pid, r, c) {
+		var lk = g.bombClaim[r + "," + c];
+		return !!(lk && lk.pid !== pid && Date.now() < lk.until);
+	};
+
 	g.canReveal = function(pid, r, c) {
 		if (r < 0 || c < 0 || r >= R || c >= C) return false;
 		if (state[r][c] !== UNKNOWN) return false;
+		if (g.claimLocked(pid, r, c)) return false; // bombed ground reserved for the launcher
 		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
 			if (!dr && !dc) continue;
 			var nr = r + dr, nc = c + dc;
@@ -97,7 +106,7 @@ function create(gen, players) {
 		if (g.board[r][c] === MINE) return g.hitMine(pid, r, c, now);
 		var claimed = [];
 		BoardLogic.cascadeReveal(r, c, R, C,
-			function(a, b) { return state[a][b] === UNKNOWN && g.board[a][b] !== MINE; },
+			function(a, b) { return state[a][b] === UNKNOWN && g.board[a][b] !== MINE && !g.claimLocked(pid, a, b); },
 			function(a, b) { state[a][b] = KNOWN; owner[a][b] = pid; claimed.push([a, b]); return false; },
 			function(a, b) { return g.board[a][b]; });
 		// Newly walling something off captures it (enclosed covered ground becomes yours).
@@ -141,8 +150,9 @@ function create(gen, players) {
 				var into = owner[fr][fc];
 				nbrs(fr, fc).forEach(function(b) {
 					if (state[b[0]][b[1]] !== UNKNOWN || g.board[b[0]][b[1]] === MINE) return;
+					if (g.claimLocked(into, b[0], b[1])) return; // don't auto-feed bombed ground to a non-launcher
 					BoardLogic.cascadeReveal(b[0], b[1], R, C,
-						function(a, d) { return state[a][d] === UNKNOWN && g.board[a][d] !== MINE; },
+						function(a, d) { return state[a][d] === UNKNOWN && g.board[a][d] !== MINE && !g.claimLocked(into, a, d); },
 						function(a, d) { state[a][d] = KNOWN; owner[a][d] = into; return false; },
 						function(a, d) { return g.board[a][d]; });
 					changed = true;
@@ -227,19 +237,33 @@ function create(gen, players) {
 	// Bomb impact: re-roll the blasted mines to a solvable layout (fall back to the existing layout if none
 	// found), then re-cover the whole blast as NEUTRAL ground (up for grabs), wiping any infrastructure
 	// there. Flags are client-side, cleared by the client from the broadcast. Sets g._explosion (bomb:true).
-	g.detonateBomb = function(tr, tc, now) {
+	g.detonateBomb = function(tr, tc, pid, now) {
 		var bp = bombPatch(tr, tc, BOMB_RADIUS), patch = bp.patch, inPatch = bp.inPatch;
 		var regen = regenPatch(patch, inPatch, BOMB_REGEN_TRIES);
 		if (regen) for (var k in regen.clues) { var kp = k.split(","); g.board[+kp[0]][+kp[1]] = regen.clues[k]; }
+		var until = now + BOMB_CLAIM_LOCK_MS;
 		patch.forEach(function(p) {
 			state[p[0]][p[1]] = UNKNOWN; owner[p[0]][p[1]] = null; // neutral, up for grabs
 			delete g.structReadyAt[p[0] + "," + p[1]]; delete g.extractorStartedAt[p[0] + "," + p[1]]; // wipe infra
+			if (pid != null) g.bombClaim[p[0] + "," + p[1]] = { pid: pid, until: until }; // launcher-only window
 		});
 		fillUncascaded();
 		g.updateStructures(now);
 		g.recomputeLines(now);
 		g._explosion = { origin: [tr, tc], recovered: patch.slice(), clues: regen ? regen.clues : null, bomb: true };
 		return { recovered: patch };
+	};
+
+	// Active claim locks for the client (crater cells still reserved for their launcher). Prunes expired.
+	g.claimList = function(now) {
+		var out = [];
+		for (var k in g.bombClaim) {
+			var lk = g.bombClaim[k];
+			if (now >= lk.until) { delete g.bombClaim[k]; continue; }
+			var p = k.split(",");
+			out.push({ r: +p[0], c: +p[1], owner: lk.pid, msLeft: lk.until - now });
+		}
+		return out;
 	};
 
 	// New clue values for the patch + its neighbours under the candidate mine layout `ov`.
