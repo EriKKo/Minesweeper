@@ -45,9 +45,17 @@ Source is split into three trees under `src/`:
   curve, and rates a config. Reads each board's difficulty map off the template. Used by
   `scripts/generate-bot-pool.js`; no I/O of its own.
 - `CSPSolver.js` — constraint solver: `analyzeBoard(board, state, {revealCell, maxComplexity})`
-  returns per-move numeric `complexity` and `solved`. The `maxComplexity` cap prunes the
-  search and skips case-splits below 8 — it's both the generation difficulty ceiling and the
-  model for a bot's skill ceiling.
+  returns per-move numeric `complexity` and `solved`. The `maxComplexity` cap prunes the search —
+  it's both the generation difficulty ceiling and the model for a bot's skill ceiling. Hard
+  deductions (beyond trivial/subset) are resolved by **sound enumeration** (`findEnumSteps`: enumerate
+  every consistent mine configuration of a frontier component ≤ `ENUM_CAP`=18 and take only cells
+  forced safe/mine across ALL of them). **Soundness note:** an earlier 1-cell "case-split" heuristic
+  (cost `CASE_BASE`=8) was **removed** because its "cell is safe" branch revealed the hypothetical
+  cell and propagated using the TRUE board clues — i.e. it peeked at the hidden solution and could
+  "prove" a cell safe/mine that isn't actually forced by public information (it would, e.g., resolve a
+  genuine 50/50). This never affected the real game (generation/bots cap below 8, so they only ever
+  used trivial/subset/enum — verified: every stored puzzle's `csp_method` is trivial/subset/intersect/
+  union, none case/enum), only the uncapped Analyze modal and difficulty ratings of non-no-guess boards.
 - **Puzzle difficulty score** (`PuzzleGenerator.complexityScore`): sort the solve's per-move
   complexities high→low and sum `c / X^rank` with `X = 3.5`. The hardest move counts fully; each
   further hard move adds a geometrically-decaying share (bounded by `c_max · X/(X-1) ≈ 1.4×`), so
@@ -101,12 +109,15 @@ Source is split into three trees under `src/`:
   (76 352 distinct openings), and rates each **realistically**: it takes the lexicographically-smallest
   consistent ring layout (the same concrete board the Analyze modal rebuilds), constructs the real board,
   and solves it **with cascades** — recording **max** (hardest single deduction) and **total** (sum) from
-  the analyzer's own `maxComplexity`/`totalComplexity`. NB an earlier version analyzed the frozen opening
-  with no layout and no cascades, which forced the analyzer to case-split the whole underconstrained ring
-  and produced wildly inflated ratings (~11.7) for openings that are actually trivial; the realistic pass
-  spans bands 0–14 but **only ~60% of openings are fully solvable** (the ring is underconstrained — these
-  are families of boards, not single puzzles), so this family is a curiosity, not a real source of hard
-  puzzles. Forced safe/mine ring cells come from the exact brute-force closure (layout-independent). It
+  the analyzer's own `maxComplexity`/`totalComplexity`. NB this metric evolved twice: (1) an early version
+  analyzed the frozen opening with no layout and no cascades, inflating ratings; (2) it then relied on the
+  unsound case-split (which peeked at the solution). With the case-split removed, difficulty now comes only
+  from sound enumeration: most openings are trivial (cx ≤ 8), and the genuinely "hard" ones just have a
+  large ambiguous frontier the enum brute-forces (up to an 18-cell component, cx ~26 → rating ~6000) — hard
+  only in the degenerate "enumerate 18 cells" sense, not a real puzzle. **Only ~58% (44 091/76 352) are
+  fully solvable** — the ring is underconstrained, so these are families of boards, not single puzzles; the
+  family is a curiosity, not a source of hard puzzles. Forced safe/mine ring cells come from the exact
+  brute-force closure (layout-independent). It
   stores a **~200 sample**: always the single hardest opening, plus an even random sample across the
   `floor(max)` bands. Stored as `size=4`, `variant="corner4"`, with `total_complexity`/`max_complexity`
   columns — so the admin **Family** filter (`3×3 cascade` vs `4×4 corner-mine`) keeps them apart from the

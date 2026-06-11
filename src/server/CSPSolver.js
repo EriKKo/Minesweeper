@@ -44,10 +44,6 @@ var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
 var INTERSECT_COST = 2.5;
-// Base complexity of a 1-cell case split (added to the hardest branch's cost).
-// Also the floor: when a maxComplexity cap is below this, case analysis is skipped
-// entirely (the user-facing speedup for capped solves).
-var CASE_BASE = 8;
 // Per-cell surcharge added to each initial clue. Counting against five
 // covered cells is harder than against two; the surcharge propagates
 // through every derivation since parent complexities sum.
@@ -279,170 +275,6 @@ function findBestTrivialClue(initialClues, opts) {
 	return null;
 }
 
-// Case analysis (1-cell split + propagate). When the CSP search can't
-// reach a trivial clue, we try splitting on each frontier cell: simulate
-// safe/mine, propagate each branch via the same CSP pipeline (no enum,
-// no recursion), and intersect the determined cells. Any cell forced
-// identically in both branches is determined regardless of the split
-// cell's value; if one branch contradicts, the other value is forced
-// for the split cell itself plus everything it propagates.
-//
-// This catches the puzzle patterns a human spots without brute-forcing:
-// "what if THAT cell is a mine?" → propagate → see the contradiction
-// or the common conclusion. Cost: 3 + max(branch propagation cost),
-// modeling "do two scenarios and compare".
-
-function snapshotState(state) {
-	var out = new Array(state.length);
-	for (var i = 0; i < state.length; i++) out[i] = state[i].slice();
-	return out;
-}
-
-// Inconsistency check that also reports WHICH clue couldn't be satisfied
-// and why — used so the modal can highlight the cell that contradicts a
-// hypothetical branch.
-function findInconsistency(board, state) {
-	var rows = board.length, cols = board[0].length;
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			var flagged = 0, covered = 0;
-			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
-				if (state[nr][nc] === FLAGGED) flagged++;
-				else if (state[nr][nc] === UNKNOWN) covered++;
-			});
-			var need = board[r][c] - flagged;
-			if (need < 0) return { clue: [r, c], why: "too many mines (need " + board[r][c] + " but " + flagged + " already flagged)" };
-			if (need > covered) return { clue: [r, c], why: "not enough cells (need " + need + " more mines but only " + covered + " covered)" };
-		}
-	}
-	return null;
-}
-
-function stateConsistent(board, state) {
-	return findInconsistency(board, state) === null;
-}
-
-function makeCascadeFor(board, state) {
-	var rows = board.length, cols = board[0].length;
-	return function(rr, cc) {
-		BoardLogic.cascadeReveal(rr, cc, rows, cols,
-			function(r2, c2) { return state[r2][c2] === UNKNOWN; },
-			function(r2, c2) { state[r2][c2] = KNOWN; return false; },
-			function(r2, c2) { return board[r2][c2]; });
-	};
-}
-
-function propagateBranch(board, state, opts) {
-	var cascade = makeCascadeFor(board, state);
-	var maxC = 0;
-	var trace = [];
-	while (true) {
-		var bad = findInconsistency(board, state);
-		if (bad) return { contradiction: bad, moves: trace, maxC: maxC };
-		var initial = buildInitialClues(board, state);
-		if (!initial.length) break;
-		var direct = null;
-		for (var i = 0; i < initial.length; i++) {
-			if (isTrivial(initial[i]) && (!direct || initial[i].complexity < direct.complexity)) direct = initial[i];
-		}
-		var best = direct || findBestTrivialClue(initial, opts);
-		if (!best) break;
-		if (best.complexity > maxC) maxC = best.complexity;
-		var changed = [];
-		for (var ci = 0; ci < best.cells.length; ci++) {
-			if (state[best.cells[ci][0]][best.cells[ci][1]] === UNKNOWN) changed.push(best.cells[ci]);
-		}
-		trace.push({
-			action: best.mines === 0 ? "reveal" : "flag",
-			cells: best.cells,
-			changed: changed,
-			complexity: best.complexity,
-			depth: best.depth,
-			derivation: flattenDerivation(best)
-		});
-		applyTrivialClue(board, state, best, cascade);
-	}
-	return { contradiction: null, moves: trace, maxC: maxC };
-}
-
-function findCaseSplitStep(board, state, opts) {
-	var rows = board.length, cols = board[0].length;
-	// Frontier = covered cells adjacent to any KNOWN clue cell.
-	var frontierMap = {};
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
-				if (state[nr][nc] === UNKNOWN) frontierMap[nr + "," + nc] = [nr, nc];
-			});
-		}
-	}
-	var frontier = [];
-	for (var fk in frontierMap) frontier.push(frontierMap[fk]);
-
-	var best = null;
-	for (var fi = 0; fi < frontier.length; fi++) {
-		var cell = frontier[fi];
-		var pr = cell[0], pc = cell[1];
-
-		var sA = snapshotState(state);
-		sA[pr][pc] = KNOWN;
-		makeCascadeFor(board, sA)(pr, pc);
-		var resA = propagateBranch(board, sA, opts);
-
-		var sB = snapshotState(state);
-		sB[pr][pc] = FLAGGED;
-		var resB = propagateBranch(board, sB, opts);
-
-		var okA = !resA.contradiction, okB = !resB.contradiction;
-		if (!okA && !okB) continue; // both contradict — shouldn't happen on a valid puzzle
-
-		var revealed = [], flagged = [];
-		if (!okA && okB) {
-			flagged.push([pr, pc]);
-			for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
-				if (state[r2][c2] !== UNKNOWN || (r2 === pr && c2 === pc)) continue;
-				if (sB[r2][c2] === KNOWN) revealed.push([r2, c2]);
-				else if (sB[r2][c2] === FLAGGED) flagged.push([r2, c2]);
-			}
-		} else if (!okB && okA) {
-			revealed.push([pr, pc]);
-			for (var r3 = 0; r3 < rows; r3++) for (var c3 = 0; c3 < cols; c3++) {
-				if (state[r3][c3] !== UNKNOWN || (r3 === pr && c3 === pc)) continue;
-				if (sA[r3][c3] === KNOWN) revealed.push([r3, c3]);
-				else if (sA[r3][c3] === FLAGGED) flagged.push([r3, c3]);
-			}
-		} else {
-			for (var r4 = 0; r4 < rows; r4++) for (var c4 = 0; c4 < cols; c4++) {
-				if (state[r4][c4] !== UNKNOWN || (r4 === pr && c4 === pc)) continue;
-				if (sA[r4][c4] === KNOWN && sB[r4][c4] === KNOWN) revealed.push([r4, c4]);
-				else if (sA[r4][c4] === FLAGGED && sB[r4][c4] === FLAGGED) flagged.push([r4, c4]);
-			}
-		}
-		if (!revealed.length && !flagged.length) continue;
-		var branchMax = Math.max(okA ? resA.maxC : 0, okB ? resB.maxC : 0);
-		var complexity = CASE_BASE + branchMax;
-		var yieldCount = revealed.length + flagged.length;
-		if (!best
-			|| complexity < best.complexity
-			|| (complexity === best.complexity && yieldCount > best.yieldCount)) {
-			best = {
-				splitCell: [pr, pc],
-				revealed: revealed,
-				flagged: flagged,
-				complexity: complexity,
-				yieldCount: yieldCount,
-				branches: {
-					safe: { contradiction: resA.contradiction, moves: resA.moves, maxC: resA.maxC },
-					mine: { contradiction: resB.contradiction, moves: resB.moves, maxC: resB.maxC }
-				}
-			};
-		}
-	}
-	return best;
-}
-
 // Enum fallback. When the CSP search can't reach a trivial clue, we hand
 // off to the brute-force enum pass, but pick the **smallest yielding
 // component** — that way the move's complexity reflects only the case
@@ -560,41 +392,18 @@ function analyzeBoard(board, state, opts) {
 			});
 			continue;
 		}
-		// CSP search exhausted — try 1-cell case analysis (cheaper than enum).
-		// A case split costs at least CASE_BASE, so skip it entirely when the cap is
-		// below that (never pay for case analysis a capped solver isn't allowed to do).
-		var caseStep = (maxComplexity >= CASE_BASE) ? findCaseSplitStep(board, state, opts) : null;
-		if (caseStep && caseStep.complexity <= maxComplexity) {
-			var caseRevealed = [], caseFlagged = [];
-			for (var csi = 0; csi < caseStep.revealed.length; csi++) {
-				var crc = caseStep.revealed[csi];
-				if (state[crc[0]][crc[1]] === UNKNOWN) {
-					caseRevealed.push(crc);
-					if (opts.revealCell) opts.revealCell(crc[0], crc[1]);
-					else state[crc[0]][crc[1]] = KNOWN;
-				}
-			}
-			for (var cfi = 0; cfi < caseStep.flagged.length; cfi++) {
-				var cfc = caseStep.flagged[cfi];
-				if (state[cfc[0]][cfc[1]] !== FLAGGED) {
-					caseFlagged.push(cfc);
-					state[cfc[0]][cfc[1]] = FLAGGED;
-				}
-			}
-			moves.push({
-				complexity: caseStep.complexity,
-				action: "case",
-				splitCell: caseStep.splitCell,
-				cells: caseRevealed.concat(caseFlagged),
-				changed: caseRevealed.concat(caseFlagged),
-				revealed: caseRevealed,
-				flagged: caseFlagged,
-				branches: caseStep.branches
-			});
-			continue;
-		}
-		// Even case analysis can't progress — final fallback is brute-force enum
-		// on the smallest yielding frontier component.
+		// CSP subset search exhausted — fall back to SOUND case analysis: exhaustively enumerate the
+		// smallest frontier component's mine configurations (findEnumSteps) and take only the cells that
+		// are safe (or mine) in EVERY consistent configuration. This reasons purely over the visible clue
+		// sums and never reveals a covered cell to read its hidden number.
+		//
+		// NB this replaced an unsound 1-cell case-split that, in its "cell is safe" branch, REVEALED the
+		// hypothetical cell and cascaded using the TRUE board clues (and `propagateBranch` likewise read
+		// true clues for every cell it opened mid-branch). Because that fixes an unopened cell's clue to
+		// its real value, it silently discards consistent layouts where the cell would have a different
+		// clue — so it could "prove" a cell safe/mine that isn't actually forced by public information
+		// (e.g. concluding a 50/50 cell is safe just because it happens to be safe on this board). Enum
+		// is the sound equivalent: it only ever concludes a cell when it's forced across ALL layouts.
 		var enumStep = findSmallestEnumStep(board, state);
 		if (!enumStep || enumComplexity(enumStep.componentSize) > maxComplexity) break;
 		var revealed = [], flagged = [];
