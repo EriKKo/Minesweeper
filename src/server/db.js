@@ -177,6 +177,12 @@ addColumnIfMissing("starting_positions", "forced_mine_mask", "INTEGER NOT NULL D
 // removable (1 = redundant, 0 = essential).
 addColumnIfMissing("starting_positions", "is_prime", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("starting_positions", "removable_mask", "INTEGER NOT NULL DEFAULT 0");
+// Variant tag (NULL = the original plain cascade enumeration; "corner4" = the 4x4 opening-with-corner-mine
+// family) plus the full-solve difficulty: total_complexity = sum of every static deduction's complexity,
+// max_complexity = the hardest single deduction. Lets the admin filter variants and rank by full difficulty.
+addColumnIfMissing("starting_positions", "variant", "TEXT");
+addColumnIfMissing("starting_positions", "total_complexity", "REAL");
+addColumnIfMissing("starting_positions", "max_complexity", "REAL");
 
 // Patterns table: each row is a unique "first deduction" template —
 // the minimal set of clue cells (with values) that fed into the
@@ -608,9 +614,9 @@ function insertStartingPosition(p) {
 	try {
 		var info = db.prepare(
 			"INSERT INTO starting_positions " +
-			"(size, pattern, solutions, forced_safe, forced_mine, forced_safe_mask, forced_mine_mask, is_prime, removable_mask, first_action, first_complexity, rating) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.forcedSafeMask || 0, p.forcedMineMask || 0, p.isPrime ? 1 : 0, p.removableMask || 0, p.firstAction, p.firstComplexity, p.rating);
+			"(size, pattern, solutions, forced_safe, forced_mine, forced_safe_mask, forced_mine_mask, is_prime, removable_mask, first_action, first_complexity, rating, variant, total_complexity, max_complexity) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(p.size, p.pattern, p.solutions, p.forcedSafe, p.forcedMine, p.forcedSafeMask || 0, p.forcedMineMask || 0, p.isPrime ? 1 : 0, p.removableMask || 0, p.firstAction, p.firstComplexity, p.rating, p.variant || null, p.totalComplexity != null ? p.totalComplexity : null, p.maxComplexity != null ? p.maxComplexity : null);
 		return info.lastInsertRowid;
 	} catch (e) {
 		// UNIQUE constraint — pattern already exists for this size.
@@ -622,6 +628,10 @@ function insertStartingPosition(p) {
 function clearStartingPositions(size) {
 	if (size != null) db.prepare("DELETE FROM starting_positions WHERE size = ?").run(size);
 	else db.exec("DELETE FROM starting_positions");
+}
+
+function clearStartingPositionsVariant(variant) {
+	db.prepare("DELETE FROM starting_positions WHERE variant = ?").run(variant);
 }
 
 function startingPositionFilterClauses(opts) {
@@ -948,6 +958,7 @@ module.exports = {
 	// Starting positions
 	insertStartingPosition: insertStartingPosition,
 	clearStartingPositions: clearStartingPositions,
+	clearStartingPositionsVariant: clearStartingPositionsVariant,
 	listStartingPositions: listStartingPositions,
 	startingPositionCount: startingPositionCount,
 	// Patterns

@@ -93,6 +93,20 @@ Source is split into three trees under `src/`:
   corners-4/edges-2 rings force a deduction (always a cx-8 case-split) **iff neither H nor W ≡ 2
   (mod 3)**; otherwise the ring is fully ambiguous and forces nothing. This holds out to 9×9 — the
   difficulty never rises above 8, so larger blocks never mean harder building blocks.
+- **Corner-mine starting positions** (`scripts/generate-corner-positions.js` → `starting_positions`
+  table, admin "Starting positions" page `#/admin/starting-positions`, `StartingPositionsView.js`).
+  A separate family from the plain 3×3 cascades: a **4×4 opening with one corner a covered mine the
+  solver must deduce** (not pre-flagged) — the far interior still has a 0-cell, so it floods like a
+  real cascade, and unlike a fresh 3×3 it reaches genuinely hard deductions (max complexity up to
+  ~11.7, well past the ~8 starting ceiling). The script enumerates every surrounding ring layout
+  (2²⁰), dedups by revealed-clue tuple (76 352 distinct openings), and for each runs the analyzer to
+  record **total** difficulty (sum of every deduction's complexity) + **max**; forced safe/mine ring
+  cells come from the exact brute-force closure. It stores a **~200 sample**: always the single hardest
+  opening, plus an even random sample across the `floor(max)` difficulty bands. Stored as `size=4`,
+  `variant="corner4"`, with `total_complexity`/`max_complexity` columns — so the admin **Family** filter
+  (`3×3 cascade` vs `4×4 corner-mine`) keeps them apart from the plain cascades (which stay the default
+  `size=3` view), and `StartingPositionsView.js` renders them on a 6×6 board (`paintCornerPosCanvas`,
+  corner drawn as a flag) showing the total/max difficulty. Re-run the script to regenerate the sample.
 - `scripts/combine-patterns.js` — composes two start patterns into one board to test whether
   *combining* building blocks beats the single-opening ~cx-8 ceiling. It lays two blocks side by
   side so their unknown rings either share a seam column or sit a gap apart, solves for a concrete

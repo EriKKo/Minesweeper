@@ -41,6 +41,13 @@ var PRIME_OPTIONS = [
 	{ key: "true",  label: "Prime" },
 	{ key: "false", label: "Reducible" }
 ];
+// Which family of starting positions to browse. The plain enumerated cascades are size 3; the
+// "corner-mine" family (a 4x4 opening with one corner a deduced mine) is stored as size 4, variant
+// "corner4" — so the size selector doubles as the variant filter that keeps the two apart.
+var FAMILY_OPTIONS = [
+	{ key: 3, label: "3×3 cascade" },
+	{ key: 4, label: "4×4 corner-mine" }
+];
 
 function readStartingPosStateFromHash() {
 	if (!location.search) return;
@@ -76,6 +83,13 @@ function writeStartingPosStateToHash() {
 	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
 }
 
+function startingPosSubtitle() {
+	if (startingPosListState.size === 4) {
+		return "The 4x4 corner-mine family: a 4x4 opening where one corner is a covered mine the solver must deduce (flagged here), so it floods like a real cascade. The revealed interior is the player view; the outer ring marks the analyzer's deductions (flags = forced mines, checks = forced safe). Ranked by full-solve difficulty — total = sum of every deduction's complexity, max = the hardest single one. A random sample across difficulty bands, always keeping the single hardest opening.";
+	}
+	return "Enumerated cascade patterns where the analyzer can deduce at least one safe cell. The 3x3 cascade is the player view; the outer ring marks what the analyzer can deduce (flags = forced mines, dots = forced safe, dim = ambiguous). Symmetric duplicates are collapsed to the lex-smallest of each orbit. Rating is the complexity of the first analyzer move.";
+}
+
 function ratingBandRange(key) {
 	if (!key) return { min: null, max: null };
 	var parts = key.split("-");
@@ -95,7 +109,8 @@ function renderStartingPositions() {
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
-	sub.textContent = "Enumerated cascade patterns where the analyzer can deduce at least one safe cell. The 3x3 cascade is the player view; the outer ring marks what the analyzer can deduce (flags = forced mines, dots = forced safe, dim = ambiguous). Symmetric duplicates are collapsed to the lex-smallest of each orbit. Rating is the complexity of the first analyzer move.";
+	sub.id = "starting_positions_sub";
+	sub.textContent = startingPosSubtitle();
 	view.appendChild(sub);
 
 	var toolbar = document.createElement("div");
@@ -128,6 +143,12 @@ function renderStartingPositions() {
 	});
 	sortWrap.appendChild(sortSelect);
 	toolbar.appendChild(sortWrap);
+
+	// Family (size / variant) filter — switches between the 3x3 cascades and the 4x4 corner-mine set.
+	toolbar.appendChild(makeFilterRow("Family", "family", FAMILY_OPTIONS, startingPosListState.size, function(key) {
+		startingPosListState.size = key;
+		startingPosListState.page = 0;
+	}));
 
 	// Rating band filter
 	toolbar.appendChild(makeFilterRow("Rating", "band", RATING_BANDS, startingPosListState.ratingBand, function(key) {
@@ -218,6 +239,8 @@ function refreshStartingPosList() {
 	if (startingPosListState.unique) bits.push("unique=" + startingPosListState.unique);
 	if (startingPosListState.prime) bits.push("prime=" + startingPosListState.prime);
 	var qs = bits.join("&");
+	var subEl = document.getElementById("starting_positions_sub");
+	if (subEl) subEl.textContent = startingPosSubtitle();
 	fetch("/api/starting-positions?" + qs).then(function(r) { return r.json(); }).then(function(data) {
 		var positions = (data && data.positions) || [];
 		var total = data && typeof data.total === "number" ? data.total : positions.length;
@@ -284,10 +307,21 @@ function renderStartingPosCard(pos) {
 	head.appendChild(action);
 	card.appendChild(head);
 
-	// 5x5 canvas — drawn with the shared board renderer.
-	var canvas = buildStartingPosCanvas();
+	// Board canvas — drawn with the shared board renderer. The corner-mine family is a 4x4 opening
+	// (6x6 board) with one corner a deduced mine; everything else is a 3x3 cascade (5x5 board).
+	var isCorner = pos.variant === "corner4";
+	var canvas = buildStartingPosCanvas(pos.size || 3);
 	card.appendChild(canvas);
-	paintStartingPosCanvas(canvas, pos);
+	if (isCorner) paintCornerPosCanvas(canvas, pos);
+	else paintStartingPosCanvas(canvas, pos);
+
+	// For the corner-mine family we ranked by full-solve difficulty: show max + total complexity.
+	if (pos.total_complexity != null) {
+		var diff = document.createElement("div");
+		diff.className = "starting-pos-details";
+		diff.textContent = "max " + (+pos.max_complexity).toFixed(1) + " · total " + (+pos.total_complexity).toFixed(1) + " difficulty";
+		card.appendChild(diff);
+	}
 
 	var details = document.createElement("div");
 	details.className = "starting-pos-details";
@@ -301,14 +335,15 @@ function renderStartingPosCard(pos) {
 	return card;
 }
 
-function buildStartingPosCanvas() {
+function buildStartingPosCanvas(size) {
+	var N = (size || 3) + 2; // block size + the surrounding ring
 	var canvas = document.createElement("canvas");
 	canvas.className = "starting-pos-canvas";
 	var dpr = window.devicePixelRatio || 1;
-	canvas.width = Math.round(5 * STARTING_POS_CELL_PX * dpr);
-	canvas.height = Math.round(5 * STARTING_POS_CELL_PX * dpr);
-	canvas.style.width = (5 * STARTING_POS_CELL_PX) + "px";
-	canvas.style.height = (5 * STARTING_POS_CELL_PX) + "px";
+	canvas.width = Math.round(N * STARTING_POS_CELL_PX * dpr);
+	canvas.height = Math.round(N * STARTING_POS_CELL_PX * dpr);
+	canvas.style.width = (N * STARTING_POS_CELL_PX) + "px";
+	canvas.style.height = (N * STARTING_POS_CELL_PX) + "px";
 	return canvas;
 }
 
@@ -381,6 +416,77 @@ function paintStartingPosCanvas(canvas, pos) {
 			if (idx2 < 0) continue;
 			var bit2 = 1 << idx2;
 			if (!(safeMask & bit2)) continue;
+			if (state[r4][c4] !== COVERED) continue;
+			drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
+		}
+	}
+}
+
+// Ring-cell index for the 4x4 corner-mine family on a 6x6 board: row-major over every cell
+// outside the inner 4x4 rectangle (rows/cols 1..4) — matching the generator's mask ordering.
+//   row 0: 0..5 · rows 1..4: col 0 then col 5 (6,7 / 8,9 / 10,11 / 12,13) · row 5: 14..19
+function cornerOutsideIndex(r, c) {
+	if (r === 0) return c;
+	if (r === 5) return 14 + c;
+	if (c === 0) return 6 + (r - 1) * 2;
+	if (c === 5) return 6 + (r - 1) * 2 + 1;
+	return -1;
+}
+
+// Paint a 4x4 corner-mine opening on a 6x6 board. The pattern is 16 row-major tokens over the inner
+// rectangle (rows/cols 1..4): token 0 is "M" — the corner mine, drawn as a flag because the solver
+// deduces it — the rest are revealed clues. The outer ring uses the same forced-mine/safe masks.
+function paintCornerPosCanvas(canvas, pos) {
+	var tokens = pos.pattern.split(".");
+	var safeMask = pos.forced_safe_mask || 0;
+	var mineMask = pos.forced_mine_mask || 0;
+	var N = 6;
+	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
+	var state = [], isMine = [], clueValue = [];
+	for (var i = 0; i < N; i++) {
+		state.push(new Array(N).fill(COVERED));
+		isMine.push(new Array(N).fill(false));
+		clueValue.push(new Array(N).fill(0));
+	}
+	// Inner 4x4 rectangle: revealed clues, with the corner a flagged (deduced) mine.
+	var k = 0;
+	for (var rr = 1; rr <= 4; rr++) {
+		for (var cc = 1; cc <= 4; cc++) {
+			var tok = tokens[k++];
+			if (tok === "M") { state[rr][cc] = FLAGGED_S; isMine[rr][cc] = true; }
+			else { state[rr][cc] = REVEALED; clueValue[rr][cc] = parseInt(tok, 10) || 0; }
+		}
+	}
+	// Outer ring: flag forced mines; everything else stays covered (safe markers drawn on top).
+	for (var r2 = 0; r2 < N; r2++) {
+		for (var c2 = 0; c2 < N; c2++) {
+			var idx = cornerOutsideIndex(r2, c2);
+			if (idx < 0) continue;
+			if (mineMask & (1 << idx)) { state[r2][c2] = FLAGGED_S; isMine[r2][c2] = true; }
+		}
+	}
+
+	var view = {
+		rows: N, cols: N,
+		isCovered: function(r, c) { return state[r][c] === COVERED; },
+		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
+		isMine: function(r, c) { return isMine[r][c]; },
+		getClue: function(r, c) { return clueValue[r][c]; },
+		xray: false
+	};
+
+	var ctx = canvas.getContext("2d");
+	var sw = canvas.width / N, sh = canvas.height / N;
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	for (var r3 = 0; r3 < N; r3++) {
+		for (var c3 = 0; c3 < N; c3++) drawCell(ctx, r3, c3, view, sw, sh, null);
+	}
+	for (var r4 = 0; r4 < N; r4++) {
+		for (var c4 = 0; c4 < N; c4++) {
+			var idx2 = cornerOutsideIndex(r4, c4);
+			if (idx2 < 0) continue;
+			if (!(safeMask & (1 << idx2))) continue;
 			if (state[r4][c4] !== COVERED) continue;
 			drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
 		}
