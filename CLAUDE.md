@@ -56,6 +56,18 @@ Source is split into three trees under `src/`:
   *tier* (t1–t6) is bands on `maxComplexity` alone. Bump `db.CURRENT_SCORING_VERSION` when the
   formula changes — a startup backfill re-rates every stored puzzle below it.
 - `db.js` — SQLite (`node:sqlite`) for accounts, sessions, and ratings.
+- **Guests & auth.** There's no login wall: a visitor with no stored session auto-starts a **guest**
+  (client emits `guest_session` on connect → `db.createGuest()` makes a real `users` row flagged
+  `is_guest`, provider `"guest"`, name `"GuestNNNNN"`, default ratings; the server mints a session and
+  returns its token in the `authenticated` payload so the guest persists across reloads). Guests are
+  normal users — they play ranked and accumulate Elo — just hidden from the leaderboard (`topPlayers`
+  filters `is_guest = 0`). **Upgrading:** when a guest hits Sign in, the client threads its session token
+  as `?upgrade=<token>` into the OAuth login; the callback (`resolveOAuthUser` → `db.upgradeGuest`)
+  attaches the provider identity to the SAME row (keeping id/rating/stats) — unless that provider account
+  already exists, in which case it logs into the existing account and discards the guest (`switched`).
+  Sign-out drops back to a fresh guest, never a login wall. Client: `Auth.js` (`applyConnected` →
+  `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + shows the guest "Sign in"
+  button vs a real account's "Sign out"); the repurposed `#name_view` is the on-demand sign-in / rename card.
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
   canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues into

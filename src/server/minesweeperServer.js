@@ -115,9 +115,9 @@ function resolveStatic(pathname) {
 function handler (req, res) {
 	var url = new URL(req.url, OAUTH_BASE);
 	var pathname = url.pathname;
-	if (pathname === "/auth/github/login") return authGithubLogin(req, res);
+	if (pathname === "/auth/github/login") return authGithubLogin(req, res, url);
 	if (pathname === "/auth/github/callback") return authGithubCallback(req, res, url);
-	if (pathname === "/auth/google/login") return authGoogleLogin(req, res);
+	if (pathname === "/auth/google/login") return authGoogleLogin(req, res, url);
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/bots") return serveBots(req, res, url);
@@ -162,10 +162,32 @@ function handler (req, res) {
 	});
 }
 
-function authGithubLogin(req, res) {
-	if (!GITHUB_CLIENT_ID) { res.writeHead(500); res.end("GitHub OAuth is not configured (set GITHUB_CLIENT_ID/SECRET)."); return; }
+// OAuth `state` carries the CSRF nonce + (optionally) a guest session token to upgrade on callback.
+function makeOAuthState(url) {
 	var state = crypto.randomBytes(16).toString("hex");
-	oauthStates[state] = Date.now() + 10 * 60 * 1000;
+	oauthStates[state] = { exp: Date.now() + 10 * 60 * 1000, upgrade: (url && url.searchParams.get("upgrade")) || null };
+	return state;
+}
+// Validate + consume a state, returning its stored data (or null). One-shot.
+function takeOAuthState(state) {
+	var s = state && oauthStates[state];
+	if (!s || s.exp < Date.now()) return null;
+	delete oauthStates[state];
+	return s;
+}
+// Resolve the provider login to a user: if a valid guest upgrade token came along, upgrade that guest in
+// place (or fall back to a pre-existing account); otherwise a normal upsert.
+function resolveOAuthUser(provider, providerId, name, avatarUrl, email, upgradeToken) {
+	if (upgradeToken) {
+		var guest = db.getUserByToken(upgradeToken);
+		if (guest && guest.is_guest) return db.upgradeGuest(guest.id, provider, providerId, name, avatarUrl, email).user;
+	}
+	return db.upsertUser(provider, providerId, name, avatarUrl, email);
+}
+
+function authGithubLogin(req, res, url) {
+	if (!GITHUB_CLIENT_ID) { res.writeHead(500); res.end("GitHub OAuth is not configured (set GITHUB_CLIENT_ID/SECRET)."); return; }
+	var state = makeOAuthState(url);
 	var params = new URLSearchParams({
 		client_id: GITHUB_CLIENT_ID,
 		redirect_uri: OAUTH_BASE + "/auth/github/callback",
@@ -178,9 +200,8 @@ function authGithubLogin(req, res) {
 
 function authGithubCallback(req, res, url) {
 	var code = url.searchParams.get("code");
-	var state = url.searchParams.get("state");
-	if (!state || !oauthStates[state] || oauthStates[state] < Date.now()) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
-	delete oauthStates[state];
+	var stateData = takeOAuthState(url.searchParams.get("state"));
+	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
 	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
 	(async function() {
 		try {
@@ -216,7 +237,7 @@ function authGithubCallback(req, res, url) {
 					}
 				} catch (e) { /* email fetch optional */ }
 			}
-			var user = db.upsertUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url, ghEmail);
+			var user = resolveOAuthUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url, ghEmail, stateData.upgrade);
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("github oauth error", e);
@@ -225,10 +246,9 @@ function authGithubCallback(req, res, url) {
 	})();
 }
 
-function authGoogleLogin(req, res) {
+function authGoogleLogin(req, res, url) {
 	if (!GOOGLE_CLIENT_ID) { res.writeHead(500); res.end("Google OAuth is not configured (set GOOGLE_CLIENT_ID/SECRET)."); return; }
-	var state = crypto.randomBytes(16).toString("hex");
-	oauthStates[state] = Date.now() + 10 * 60 * 1000;
+	var state = makeOAuthState(url);
 	var params = new URLSearchParams({
 		client_id: GOOGLE_CLIENT_ID,
 		redirect_uri: OAUTH_BASE + "/auth/google/callback",
@@ -242,9 +262,8 @@ function authGoogleLogin(req, res) {
 
 function authGoogleCallback(req, res, url) {
 	var code = url.searchParams.get("code");
-	var state = url.searchParams.get("state");
-	if (!state || !oauthStates[state] || oauthStates[state] < Date.now()) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
-	delete oauthStates[state];
+	var stateData = takeOAuthState(url.searchParams.get("state"));
+	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
 	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
 	(async function() {
 		try {
@@ -266,7 +285,7 @@ function authGoogleCallback(req, res, url) {
 				headers: { "Authorization": "Bearer " + accessToken }
 			});
 			var g = await uResp.json();
-			var user = db.upsertUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, g.email);
+			var user = resolveOAuthUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, g.email, stateData.upgrade);
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("google oauth error", e);
@@ -277,7 +296,7 @@ function authGoogleCallback(req, res, url) {
 
 function authDev(req, res, url) {
 	var name = (url.searchParams.get("name") || "Dev").slice(0, 24);
-	var user = db.upsertUser("dev", name.toLowerCase(), name, null);
+	var user = resolveOAuthUser("dev", name.toLowerCase(), name, null, null, url.searchParams.get("upgrade"));
 	finishLogin(res, user.id);
 }
 
@@ -2595,6 +2614,53 @@ function tickBotDemo(socket, playerID) {
 	}, delay);
 }
 
+// Attach a (real or guest) user to this socket: populate accounts/names, mirror the name into any live
+// game, and emit the `authenticated` snapshot. `sendToken` includes the session token in the payload so a
+// freshly-created guest can persist it client-side (a normal token-login already has it).
+function loginSocket(socket, playerID, user, token, sendToken) {
+	accounts[playerID] = {
+		userId: user.id, token: token, played: user.played,
+		rating: user.rating,
+		ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
+		ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
+		ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
+		ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating
+	};
+	var isFirst = !names[playerID];
+	names[playerID] = user.name;
+	if (games[playerID]) {
+		games[playerID].playerName = user.name;
+		updateDraw(roomMapping[playerID]);
+	}
+	var today = db.todayUtc();
+	var dailyAttempt = db.getDailyAttempt(user.id, today);
+	var payload = {
+		name: user.name,
+		rating: user.rating,
+		ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
+		ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
+		ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
+		ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating,
+		avatarUrl: user.avatar_url,
+		wins: user.wins,
+		played: user.played,
+		provisional: user.played < PROVISIONAL_GAMES,
+		puzzleRating: user.puzzle_rating,
+		puzzlesSolved: user.puzzles_solved,
+		puzzlesAttempted: user.puzzles_attempted,
+		streakBest: user.streak_best,
+		stormBest: user.storm_best,
+		dailyStreak: db.dailyStreakForUser(user.id),
+		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
+		isAdmin: !!user.is_admin,
+		guest: !!user.is_guest
+	};
+	if (sendToken) payload.token = token;
+	socket.emit("authenticated", payload);
+	if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
+	else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
+}
+
 io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
@@ -2605,44 +2671,16 @@ io.on("connection", function (socket) {
 		var token = data && data.token;
 		var user = db.getUserByToken(token);
 		if (!user) { socket.emit("auth_failed"); return; }
-		accounts[playerID] = {
-			userId: user.id, token: token, played: user.played,
-			rating: user.rating,
-			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
-			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
-			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
-			ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating
-		};
-		var isFirst = !names[playerID];
-		names[playerID] = user.name;
-		if (games[playerID]) {
-			games[playerID].playerName = user.name;
-			updateDraw(roomMapping[playerID]);
-		}
-		var today = db.todayUtc();
-		var dailyAttempt = db.getDailyAttempt(user.id, today);
-		socket.emit("authenticated", {
-			name: user.name,
-			rating: user.rating,
-			ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
-			ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
-			ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
-			ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating,
-			avatarUrl: user.avatar_url,
-			wins: user.wins,
-			played: user.played,
-			provisional: user.played < PROVISIONAL_GAMES,
-			puzzleRating: user.puzzle_rating,
-			puzzlesSolved: user.puzzles_solved,
-			puzzlesAttempted: user.puzzles_attempted,
-			streakBest: user.streak_best,
-			stormBest: user.storm_best,
-			dailyStreak: db.dailyStreakForUser(user.id),
-			dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
-			isAdmin: !!user.is_admin
-		});
-		if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
-		else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
+		loginSocket(socket, playerID, user, token, false);
+	});
+
+	// No stored session → spin up a guest: a real user row (with ratings) flagged guest, plus a session
+	// token the client persists so the same guest survives reloads. Upgradable to a real account on sign-in.
+	socket.on("guest_session", function() {
+		if (accounts[playerID]) return; // already signed in / already a guest
+		var user = db.createGuest();
+		var token = db.createSession(user.id);
+		loginSocket(socket, playerID, user, token, true);
 	});
 
 	socket.on("sign_out", function() {
@@ -2660,6 +2698,8 @@ io.on("connection", function (socket) {
 		}
 		var isFirst = !names[playerID];
 		names[playerID] = name;
+		// Persist the chosen name for the logged-in row (guests rename themselves this way; it survives reloads).
+		if (accounts[playerID]) db.setUserName(accounts[playerID].userId, name);
 		if (games[playerID]) {
 			games[playerID].playerName = name;
 			updateDraw(roomMapping[playerID]);

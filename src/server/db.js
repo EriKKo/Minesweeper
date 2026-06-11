@@ -86,6 +86,9 @@ addColumnIfMissing("users", "daily_streak", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "daily_last_solved", "TEXT");
 addColumnIfMissing("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "email", "TEXT");
+// Guests: a real user row (with ratings/stats) that isn't linked to an auth provider yet.
+// provider = "guest", provider_id = a random token. Signing in later upgrades the row in place.
+addColumnIfMissing("users", "is_guest", "INTEGER NOT NULL DEFAULT 0");
 // Ranked is split into Sprint / Standard playstyles (and Tournament keeps
 // its own pool). Each playstyle carries its own Elo and provisional
 // counter so a player can be Bronze at Sprint and Gold at Standard.
@@ -224,6 +227,51 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 	return created;
 }
 
+// Create a fresh guest user: a normal row (default rating/stats) flagged is_guest, not yet auth-linked.
+// The display name is a random "GuestNNNNN".
+function createGuest() {
+	var name = "Guest" + (10000 + Math.floor(Math.random() * 90000));
+	var providerId = crypto.randomBytes(12).toString("hex");
+	var info = db.prepare(
+		"INSERT INTO users (provider, provider_id, name, is_guest, created_at) VALUES ('guest', ?, ?, 1, ?)"
+	).run(providerId, name, Date.now());
+	return db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+}
+
+// Turn a guest into a real account by attaching a provider identity. If that provider account already
+// EXISTS, we log into the existing account and discard the guest (its row + sessions are removed). If it's
+// new, we upgrade the guest row IN PLACE — same id, so its rating and stats carry over. Returns
+// { user, switched } where switched=true means we fell back to a pre-existing account.
+function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email) {
+	providerId = String(providerId);
+	var emailLower = email ? String(email).toLowerCase() : null;
+	var guest = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
+	if (!guest || !guest.is_guest) {
+		// Not actually a guest (e.g. a stale token) — treat as a normal login.
+		return { user: upsertUser(provider, providerId, name, avatarUrl, email), switched: false };
+	}
+	var existing = db.prepare("SELECT * FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
+	if (existing) {
+		// Collision: that account already exists → use it, drop the guest.
+		db.prepare("DELETE FROM sessions WHERE user_id = ?").run(guestUserId);
+		db.prepare("DELETE FROM users WHERE id = ?").run(guestUserId);
+		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
+			.run(name, avatarUrl || null, emailLower, existing.id);
+		var ex = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
+		applyAdminForEmail(ex);
+		return { user: ex, switched: true };
+	}
+	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, avatar_url = ?, email = ?, is_guest = 0 WHERE id = ?")
+		.run(provider, providerId, name, avatarUrl || null, emailLower, guestUserId);
+	var upgraded = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
+	applyAdminForEmail(upgraded);
+	return { user: upgraded, switched: false };
+}
+
+function setUserName(userId, name) {
+	db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
+}
+
 // Default admin email is hard-coded so the project owner is always admin
 // without any env-var setup. ADMIN_EMAILS extends the list with extra
 // addresses (comma-separated, case-insensitive). On upsert, if the user's
@@ -329,7 +377,7 @@ function deleteSession(token) {
 }
 
 function topPlayers(limit) {
-	return db.prepare("SELECT name, rating, wins, played FROM users ORDER BY rating DESC LIMIT ?").all(limit || 20);
+	return db.prepare("SELECT name, rating, wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?").all(limit || 20);
 }
 
 // Map the CSP-driven score (max complexity + small total bonus) to a
@@ -840,6 +888,9 @@ function applyPuzzleClassification(id, analysis) {
 
 module.exports = {
 	upsertUser: upsertUser,
+	createGuest: createGuest,
+	upgradeGuest: upgradeGuest,
+	setUserName: setUserName,
 	createSession: createSession,
 	getUserByToken: getUserByToken,
 	getUserById: getUserById,

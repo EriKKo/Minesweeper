@@ -29,7 +29,15 @@ var userBadge = document.getElementById("user_badge");
 var userBadgeName = document.getElementById("user_badge_name");
 var changeNameButton = document.getElementById("change_name_button");
 var signOutButton = document.getElementById("sign_out_button");
+var signinButton = document.getElementById("signin_button");
 var ratingChip = document.getElementById("rating_chip");
+
+// When we're a guest, carry the guest session token into the OAuth flow so the callback upgrades that
+// guest in place (keeping its rating/stats) instead of minting a brand-new account.
+function guestUpgradeQuery(sep) {
+	var token = localStorage.getItem("ms_session");
+	return (account && account.guest && token) ? (sep + "upgrade=" + encodeURIComponent(token)) : "";
+}
 var signinOptions = document.getElementById("signin_options");
 var githubSigninButton = document.getElementById("github_signin");
 var googleSigninButton = document.getElementById("google_signin");
@@ -64,16 +72,22 @@ changeNameButton.addEventListener("click", function() {
 });
 
 githubSigninButton.addEventListener("click", function() {
-	window.location.href = "/auth/github/login";
+	window.location.href = "/auth/github/login" + guestUpgradeQuery("?");
 });
 
 googleSigninButton.addEventListener("click", function() {
-	window.location.href = "/auth/google/login";
+	window.location.href = "/auth/google/login" + guestUpgradeQuery("?");
 });
 
 devSigninButton.addEventListener("click", function() {
 	var name = (prompt("Dev sign-in name:", "Dev") || "").trim();
-	if (name) window.location.href = "/auth/dev?name=" + encodeURIComponent(name);
+	if (name) window.location.href = "/auth/dev?name=" + encodeURIComponent(name) + guestUpgradeQuery("&");
+});
+
+// Guests tap "Sign in" to open the sign-in / rename card.
+signinButton.addEventListener("click", function() {
+	if (inRoom) socket.emit("leave_room");
+	showNameView();
 });
 
 signOutButton.addEventListener("click", function() {
@@ -83,7 +97,7 @@ signOutButton.addEventListener("click", function() {
 	if (inRoom) socket.emit("leave_room");
 	myName = "";
 	userBadge.style.display = "none";
-	showNameView();
+	socket.emit("guest_session"); // drop back to a fresh guest rather than a login wall
 });
 
 // Socket handler bodies — inline registers the events and calls these.
@@ -96,17 +110,24 @@ function applyConnected(data) {
 	signinOptions.style.display = (oauth.github || oauth.google || oauth.dev) ? "" : "none";
 	if (typeof noteServerDev === "function") noteServerDev(!!oauth.dev);
 	var token = localStorage.getItem("ms_session");
+	// Stored token → resume that account/guest. No token → start a guest session automatically
+	// (no login wall); the server mints a "GuestNNNNN" user and returns a token we persist.
 	if (token) socket.emit("authenticate", { token: token });
+	else socket.emit("guest_session");
 }
 
 function applyAuthenticated(data) {
 	account = data;
 	myName = data.name;
+	// A freshly-minted guest session ships its token back so it survives reloads.
+	if (data.token) localStorage.setItem("ms_session", data.token);
 	userBadgeName.textContent = myName;
 	ratingChip.title = "Ranked rating" + (data.provisional ? " (provisional)" : "");
 	renderRatingBadge();
+	// Guests get a "Sign in" button (to save/upgrade); real accounts get "Sign out".
+	signinButton.style.display = data.guest ? "" : "none";
+	signOutButton.style.display = data.guest ? "none" : "";
 	changeNameButton.style.display = "none";
-	signOutButton.style.display = "";
 	userBadge.style.display = "";
 	if (typeof refreshAdminNavLink === "function") refreshAdminNavLink();
 	// Prefetch the daily-puzzle state so the lobby hero card can render
@@ -118,6 +139,7 @@ function applyAuthenticated(data) {
 function applyAuthFailed() {
 	localStorage.removeItem("ms_session");
 	account = null;
+	socket.emit("guest_session"); // stale/expired token → start fresh as a guest
 }
 
 function applyNameRejected(data) {
@@ -126,10 +148,8 @@ function applyNameRejected(data) {
 
 function applyNameAccepted(data) {
 	myName = data.name;
+	if (account) account.name = data.name; // everyone has an account now (guest or real) — just relabel
 	userBadgeName.textContent = myName;
-	ratingChip.style.display = "none";
-	changeNameButton.style.display = "";
-	signOutButton.style.display = "none";
 	userBadge.style.display = "";
 	if (!inRoom) applyRouteFromHash();
 }
