@@ -201,9 +201,13 @@ function territoryEnsureHud() {
 
 var TV_BOMB_COST = 60; // mirror of the server's BOMB_COST (energy spent per launch)
 
-// Esc cancels bomb aiming (so you're not stuck in targeting mode).
+// Bomb hotkeys: B toggles aiming (same as the HUD button), Esc cancels it. Ignored while typing in a field.
 document.addEventListener("keydown", function(e) {
-	if (e.key === "Escape" && territoryActive && territoryAiming) { territoryAiming = false; territoryUpdateBombBtn(); }
+	if (!territoryActive) return;
+	var el = document.activeElement, typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+	if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+	if (e.key === "Escape" && territoryAiming) { territoryAiming = false; territoryUpdateBombBtn(); }
+	else if (e.key === "b" || e.key === "B") { e.preventDefault(); territoryToggleAim(); }
 });
 
 // How many generators (structures) the local player owns — you need at least one to launch from.
@@ -224,7 +228,7 @@ function territoryUpdateBombBtn() {
 	document.body.classList.toggle("tv-aiming", territoryAiming); // crosshair cursor over the board
 	btn.textContent = territoryAiming ? "🎯 Pick a target…" : ("💣 Bomb · " + TV_BOMB_COST + "⚡");
 	btn.title = !hasGen ? "Build a generator (surround a mine) to launch from"
-		: !canAfford ? "Need " + TV_BOMB_COST + " energy" : "Launch an energy bomb at the enemy";
+		: !canAfford ? "Need " + TV_BOMB_COST + " energy" : "Launch an energy bomb at the enemy (hotkey: B)";
 }
 
 // Toggle bomb-aiming mode (click the button, then click the target on the board). No-op if you can't launch.
