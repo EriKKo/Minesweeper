@@ -129,6 +129,8 @@ function handler (req, res) {
 	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
+	var startPosAnalyzeMatch = pathname.match(/^\/api\/starting-positions\/(\d+)\/analyze$/);
+	if (startPosAnalyzeMatch) return serveStartingPositionAnalyze(req, res, parseInt(startPosAnalyzeMatch[1], 10));
 	if (pathname === "/api/patterns") return servePatterns(req, res, url);
 	if (pathname === "/api/start-patterns") return serveStartPatterns(req, res);
 	if (pathname === "/api/combined-puzzles") return serveCombinedPuzzles(req, res);
@@ -1009,6 +1011,86 @@ function serveCombinedPuzzleAnalyze(req, res, puzzleId) {
 	}
 	var payload = analyzePuzzleBoard(puzzle);
 	payload.puzzleId = puzzleId;
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify(payload));
+}
+
+// Reconstruct a concrete, consistent board for a stored "corner-mine" (variant corner4) starting
+// position so the Analyze modal can render and solve it like any other puzzle. The pattern is 16
+// row-major tokens over the inner 4x4 (rows/cols 1..4) of a 6x6 board: token 0 is "M" (the corner
+// mine), the rest are revealed clues. The surrounding 20-cell ring is covered and underconstrained
+// (these openings are NOT fully solvable) — we just need ONE ring mine layout whose clues match the
+// pattern, and we pick the lexicographically-smallest arrangement so the result is deterministic
+// (the client board and the analyze trace are reconstructed from the same layout).
+function cornerStartingPuzzle(pos) {
+	if (pos.size !== 4) return null;
+	var tokens = String(pos.pattern).split(".");
+	if (tokens.length !== 16) return null;
+	var N = 6, cR = 1, cC = 1;
+	var inRect = function(r, c) { return r >= 1 && r <= 4 && c >= 1 && c <= 4; };
+	// Ring cells (row-major over everything outside the inner rectangle), with a bit index each.
+	var ringIdx = {}, ring = 0;
+	for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) if (!inRect(r, c)) ringIdx[r + "," + c] = ring++;
+	// Revealed interior clue cells (everything in the rectangle except the corner mine), each with
+	// its target clue and the ring-neighbour bitmask + whether it touches the corner mine.
+	var clueCells = [];
+	var k = 0;
+	for (var ir = 1; ir <= 4; ir++) {
+		for (var ic = 1; ic <= 4; ic++) {
+			var tok = tokens[k++];
+			if (ir === cR && ic === cC) continue; // the corner mine — not a clue
+			var mask = 0, adjM = false;
+			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+				if (!dr && !dc) continue;
+				var nr = ir + dr, nc = ic + dc;
+				if (nr === cR && nc === cC) { adjM = true; continue; }
+				if (ringIdx[nr + "," + nc] !== undefined) mask |= (1 << ringIdx[nr + "," + nc]);
+			}
+			clueCells.push({ r: ir, c: ic, clue: parseInt(tok, 10) || 0, mask: mask, adjM: adjM });
+		}
+	}
+	function popcount(x) { x = x - ((x >>> 1) & 0x55555555); x = (x & 0x33333333) + ((x >>> 2) & 0x33333333); return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24; }
+	// First ring arrangement consistent with every interior clue (corner counts as a mine).
+	var total = 1 << ring, found = -1;
+	for (var a = 0; a < total && found < 0; a++) {
+		var ok = true;
+		for (var i = 0; i < clueCells.length; i++) {
+			var cc2 = clueCells[i];
+			if (popcount(a & cc2.mask) + (cc2.adjM ? 1 : 0) !== cc2.clue) { ok = false; break; }
+		}
+		if (ok) found = a;
+	}
+	if (found < 0) return null;
+	var mines = [[cR, cC]];
+	for (var key in ringIdx) {
+		if (found & (1 << ringIdx[key])) { var p = key.split(","); mines.push([parseInt(p[0], 10), parseInt(p[1], 10)]); }
+	}
+	var revealed = [];
+	for (var rr = 1; rr <= 4; rr++) for (var rc = 1; rc <= 4; rc++) if (!(rr === cR && rc === cC)) revealed.push([rr, rc]);
+	return { rows: N, cols: N, mines: mines, revealed: revealed };
+}
+
+// Analyze a stored starting position: rebuild a concrete board and return the same trace payload the
+// Analyze modal uses elsewhere, plus the board layout so the client can render it.
+function serveStartingPositionAnalyze(req, res, posId) {
+	var pos = db.getStartingPositionById(posId);
+	if (!pos) {
+		res.writeHead(404, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Starting position not found" }));
+		return;
+	}
+	var puzzle = cornerStartingPuzzle(pos);
+	if (!puzzle) {
+		res.writeHead(400, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: "Analyze is only supported for the 4x4 corner-mine family" }));
+		return;
+	}
+	var payload = analyzePuzzleBoard(puzzle);
+	payload.rows = puzzle.rows;
+	payload.cols = puzzle.cols;
+	payload.mines = puzzle.mines;
+	payload.revealed = puzzle.revealed;
+	payload.positionId = posId;
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify(payload));
 }

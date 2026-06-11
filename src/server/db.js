@@ -634,6 +634,10 @@ function clearStartingPositionsVariant(variant) {
 	db.prepare("DELETE FROM starting_positions WHERE variant = ?").run(variant);
 }
 
+function getStartingPositionById(id) {
+	return db.prepare("SELECT * FROM starting_positions WHERE id = ?").get(id);
+}
+
 function startingPositionFilterClauses(opts) {
 	var clauses = [];
 	var params = [];
@@ -959,6 +963,7 @@ module.exports = {
 	insertStartingPosition: insertStartingPosition,
 	clearStartingPositions: clearStartingPositions,
 	clearStartingPositionsVariant: clearStartingPositionsVariant,
+	getStartingPositionById: getStartingPositionById,
 	listStartingPositions: listStartingPositions,
 	startingPositionCount: startingPositionCount,
 	// Patterns

@@ -620,7 +620,7 @@ function renderPuzzleListCard(p, analyzeBase) {
 // the CSP solver's move trace is fetched and displayed alongside. Each
 // move row shows the action (reveal/flag), affected cells, and the
 // complexity the solver assigned to the deduction.
-function openAnalyzeModal(p, analyzeBase) {
+function openAnalyzeModal(p, analyzeBase, prefetched) {
 	var base = analyzeBase || "/api/puzzles";
 	var prev = document.getElementById("analyze_modal");
 	if (prev) prev.remove();
@@ -711,7 +711,9 @@ function openAnalyzeModal(p, analyzeBase) {
 		}
 	}
 
-	fetch(base + "/" + p.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
+	var traceReady = prefetched ? Promise.resolve(prefetched)
+		: fetch(base + "/" + p.id + "/analyze").then(function(r) { return r.json(); });
+	traceReady.then(function(data) {
 		if (!document.getElementById("analyze_modal")) return;
 		if (data && data.error) {
 			traceStatus.textContent = "Error: " + data.error;

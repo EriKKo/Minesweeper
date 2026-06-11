@@ -332,7 +332,44 @@ function renderStartingPosCard(pos) {
 	patternRow.textContent = pos.pattern;
 	card.appendChild(patternRow);
 
+	// Analyze (corner-mine family only): rebuild a concrete board and open the shared solver-trace
+	// modal, so you can step the moves and see why the analyzer scores them (it case-splits the
+	// underconstrained outer ring — those are the cx-8+ moves, not real opening difficulty).
+	if (isCorner) {
+		var analyzeBtn = document.createElement("button");
+		analyzeBtn.className = "puzzle-card-analyze";
+		analyzeBtn.textContent = "Analyze";
+		analyzeBtn.addEventListener("click", function() { analyzeStartingPos(pos); });
+		card.appendChild(analyzeBtn);
+	}
+
 	return card;
+}
+
+// Tier (t1–t6) from a max-complexity value, for the analyze modal's header chip.
+function startingPosTier(mx) {
+	if (mx >= 8) return 6;
+	if (mx >= 6) return 5;
+	if (mx >= 4) return 4;
+	if (mx >= 2) return 3;
+	if (mx >= 1) return 2;
+	return 1;
+}
+
+// Open the shared Analyze modal for a corner-mine starting position. One fetch returns both the
+// reconstructed board layout and the solver trace; we hand the layout to the modal as the puzzle and
+// pass the same payload through as the prefetched trace so it isn't requested twice.
+function analyzeStartingPos(pos) {
+	fetch("/api/starting-positions/" + pos.id + "/analyze").then(function(r) { return r.json(); }).then(function(data) {
+		if (!data || data.error) { console.error("analyze failed:", data && data.error); return; }
+		var p = {
+			id: pos.id,
+			rows: data.rows, cols: data.cols, mines: data.mines, revealed: data.revealed,
+			rating: pos.rating, difficulty: startingPosTier(pos.max_complexity),
+			label: "corner-mine #" + pos.id
+		};
+		openAnalyzeModal(p, "/api/starting-positions", data);
+	}).catch(function(e) { console.error(e); });
 }
 
 function buildStartingPosCanvas(size) {
