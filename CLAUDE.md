@@ -329,8 +329,10 @@ hides the total.
 - `DEV_AUTH=1` — enables the `/auth/dev` login button. **Never set in production.**
 - `OAUTH_REDIRECT_BASE` — base URL for OAuth callbacks (`http://localhost:1337` local,
   `https://msbattle.net` prod).
-- `google_auth_client_id` / `google_auth_client_secret` (and GitHub equivalents) — OAuth
-  credentials. The server reads these plus `GOOGLE_CLIENT_ID`-style UPPER_CASE names.
+- `google_auth_client_id` / `google_auth_client_secret` (and `discord_*` equivalents; GitHub is still
+  wired server-side but no longer shown in the UI) — OAuth credentials. The server reads these plus
+  `GOOGLE_CLIENT_ID` / `DISCORD_CLIENT_ID`-style UPPER_CASE names. Sign-in offers **Google + Discord**
+  (Facebook is a planned addition); each provider's button only appears when its client ID is configured.
 
 Ranked data persists in SQLite at `ranked.db` (gitignored), or `RANKED_DB` if set.
 

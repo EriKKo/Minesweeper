@@ -1,6 +1,6 @@
 // Authentication, account state, and the user-badge UI.
 //
-// MSBattle plays guest-by-nickname (set_name) and signed-in (Google, GitHub,
+// MSBattle starts everyone as a guest and lets them upgrade by signing in (Google, Discord,
 // or a dev backdoor when DEV_AUTH=1 on the server). The OAuth callback round-
 // trips a session token through a URL hash, which the IIFE below strips and
 // stashes in localStorage so it survives reloads. socket.on("connected") is
@@ -39,8 +39,8 @@ function guestUpgradeQuery(sep) {
 	return (account && account.guest && token) ? (sep + "upgrade=" + encodeURIComponent(token)) : "";
 }
 var signinOptions = document.getElementById("signin_options");
-var githubSigninButton = document.getElementById("github_signin");
 var googleSigninButton = document.getElementById("google_signin");
+var discordSigninButton = document.getElementById("discord_signin");
 var devSigninButton = document.getElementById("dev_signin");
 
 function renderRatingBadge() {
@@ -71,12 +71,12 @@ changeNameButton.addEventListener("click", function() {
 	showNameView();
 });
 
-githubSigninButton.addEventListener("click", function() {
-	window.location.href = "/auth/github/login" + guestUpgradeQuery("?");
-});
-
 googleSigninButton.addEventListener("click", function() {
 	window.location.href = "/auth/google/login" + guestUpgradeQuery("?");
+});
+
+discordSigninButton.addEventListener("click", function() {
+	window.location.href = "/auth/discord/login" + guestUpgradeQuery("?");
 });
 
 devSigninButton.addEventListener("click", function() {
@@ -104,10 +104,10 @@ signOutButton.addEventListener("click", function() {
 function applyConnected(data) {
 	id = data.id;
 	var oauth = (data && data.oauth) || {};
-	githubSigninButton.style.display = oauth.github ? "" : "none";
 	googleSigninButton.style.display = oauth.google ? "" : "none";
+	discordSigninButton.style.display = oauth.discord ? "" : "none";
 	devSigninButton.style.display = oauth.dev ? "" : "none";
-	signinOptions.style.display = (oauth.github || oauth.google || oauth.dev) ? "" : "none";
+	signinOptions.style.display = (oauth.google || oauth.discord || oauth.dev) ? "" : "none";
 	if (typeof noteServerDev === "function") noteServerDev(!!oauth.dev);
 	var token = localStorage.getItem("ms_session");
 	// Stored token → resume that account/guest. No token → start a guest session automatically

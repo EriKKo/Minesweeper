@@ -87,6 +87,8 @@ var GITHUB_CLIENT_ID = envAny("GITHUB_CLIENT_ID", "GITHUB_AUTH_CLIENT_ID", "gith
 var GITHUB_CLIENT_SECRET = envAny("GITHUB_CLIENT_SECRET", "GITHUB_AUTH_CLIENT_SECRET", "github_auth_client_secret");
 var GOOGLE_CLIENT_ID = envAny("GOOGLE_CLIENT_ID", "GOOGLE_AUTH_CLIENT_ID", "google_auth_client_id");
 var GOOGLE_CLIENT_SECRET = envAny("GOOGLE_CLIENT_SECRET", "GOOGLE_AUTH_CLIENT_SECRET", "google_auth_client_secret");
+var DISCORD_CLIENT_ID = envAny("DISCORD_CLIENT_ID", "DISCORD_AUTH_CLIENT_ID", "discord_auth_client_id");
+var DISCORD_CLIENT_SECRET = envAny("DISCORD_CLIENT_SECRET", "DISCORD_AUTH_CLIENT_SECRET", "discord_auth_client_secret");
 var DEV_AUTH = process.env.DEV_AUTH === "1";
 var oauthStates = {}; // state -> expiry ms
 
@@ -119,6 +121,8 @@ function handler (req, res) {
 	if (pathname === "/auth/github/callback") return authGithubCallback(req, res, url);
 	if (pathname === "/auth/google/login") return authGoogleLogin(req, res, url);
 	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
+	if (pathname === "/auth/discord/login") return authDiscordLogin(req, res, url);
+	if (pathname === "/auth/discord/callback") return authDiscordCallback(req, res, url);
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/bots") return serveBots(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
@@ -291,6 +295,57 @@ function authGoogleCallback(req, res, url) {
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("google oauth error", e);
+			res.writeHead(500); res.end("OAuth error");
+		}
+	})();
+}
+
+function authDiscordLogin(req, res, url) {
+	if (!DISCORD_CLIENT_ID) { res.writeHead(500); res.end("Discord OAuth is not configured (set DISCORD_CLIENT_ID/SECRET)."); return; }
+	var state = makeOAuthState(url);
+	var params = new URLSearchParams({
+		client_id: DISCORD_CLIENT_ID,
+		redirect_uri: OAUTH_BASE + "/auth/discord/callback",
+		response_type: "code",
+		scope: "identify email",
+		state: state
+	});
+	res.writeHead(302, { Location: "https://discord.com/oauth2/authorize?" + params.toString() });
+	res.end();
+}
+
+function authDiscordCallback(req, res, url) {
+	var code = url.searchParams.get("code");
+	var stateData = takeOAuthState(url.searchParams.get("state"));
+	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
+	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
+	(async function() {
+		try {
+			var tokenResp = await fetch("https://discord.com/api/oauth2/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+				body: new URLSearchParams({
+					client_id: DISCORD_CLIENT_ID,
+					client_secret: DISCORD_CLIENT_SECRET,
+					grant_type: "authorization_code",
+					code: code,
+					redirect_uri: OAUTH_BASE + "/auth/discord/callback"
+				}).toString()
+			});
+			var tokenJson = await tokenResp.json();
+			var accessToken = tokenJson.access_token;
+			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
+			var uResp = await fetch("https://discord.com/api/users/@me", {
+				headers: { "Authorization": "Bearer " + accessToken }
+			});
+			var d = await uResp.json();
+			var name = d.global_name || d.username || ("user" + d.id);
+			var avatar = d.avatar ? ("https://cdn.discordapp.com/avatars/" + d.id + "/" + d.avatar + ".png") : null;
+			var email = d.verified ? d.email : null; // only trust a verified Discord email
+			var user = resolveOAuthUser("discord", d.id, name, avatar, email, stateData.upgrade);
+			finishLogin(res, user.id);
+		} catch (e) {
+			console.error("discord oauth error", e);
 			res.writeHead(500); res.end("OAuth error");
 		}
 	})();
@@ -2667,7 +2722,7 @@ io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
 	socket.join("lobby");
-	socket.emit("connected", { id: playerID, oauth: { github: !!GITHUB_CLIENT_ID, google: !!GOOGLE_CLIENT_ID, dev: DEV_AUTH } });
+	socket.emit("connected", { id: playerID, oauth: { google: !!GOOGLE_CLIENT_ID, discord: !!DISCORD_CLIENT_ID, dev: DEV_AUTH } });
 
 	socket.on("authenticate", function(data) {
 		var token = data && data.token;
