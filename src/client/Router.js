@@ -45,7 +45,7 @@ var RANKED_PICKER_META = {
 
 function showRankedPickerView(style) {
 	var meta = RANKED_PICKER_META[style];
-	if (!meta) { location.hash = "#/"; return; }
+	if (!meta) { navigate("/"); return; }
 	hideAllViews();
 	document.getElementById("ranked_picker_view").style.display = "";
 	setSiteNavActive("home");
@@ -82,9 +82,9 @@ function showRankedPickerView(style) {
 	var sixBtn = document.getElementById("ranked_picker_six");
 	// Territory's larger match is 4-player (territory_quad), not the "_six" used by the racing styles.
 	var bigMode = style === "territory" ? "territory_quad" : style + "_six";
-	duoBtn.onclick = function() { findRanked(style + "_duo"); location.hash = "#/"; };
-	sixBtn.onclick = function() { findRanked(bigMode); location.hash = "#/"; };
-	document.getElementById("ranked_picker_back").onclick = function() { location.hash = "#/"; };
+	duoBtn.onclick = function() { findRanked(style + "_duo"); navigate("/"); };
+	sixBtn.onclick = function() { findRanked(bigMode); navigate("/"); };
+	document.getElementById("ranked_picker_back").onclick = function() { navigate("/"); };
 }
 
 function showLobbyView() {
@@ -249,22 +249,19 @@ function setSiteNavActive(route) {
 // For an active (phase === "playing") multiplayer match, we first confirm —
 // leaving counts as a loss server-side. If they cancel, restore the prior
 // hash so the URL stays in sync with the still-current view.
-var lastAppliedHash = "";
-var suppressNextRoute = false;
+var lastAppliedHash = ""; // path+search currently routed to — used to restore the URL on a cancelled leave
 
 function applyRouteFromHash() {
-	if (suppressNextRoute) { suppressNextRoute = false; return; }
 	// Legal pages are public — viewable before sign-in/name entry (handled before the name gate below).
-	var legalHash = (location.hash || "").replace(/^#/, "");
-	if (legalHash === "/privacy") { lastAppliedHash = location.hash; return showPrivacyView(); }
-	if (legalHash === "/terms") { lastAppliedHash = location.hash; return showTermsView(); }
+	var path = location.pathname;
+	if (path === "/privacy") { lastAppliedHash = path; return showPrivacyView(); }
+	if (path === "/terms") { lastAppliedHash = path; return showTermsView(); }
 	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
 	if (inRoom) {
 		var inPlay = currentRoom && currentRoom.phase === "playing";
 		if (inPlay && !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) {
-			// Roll the hash back to whatever was showing the game view.
-			suppressNextRoute = true;
-			location.hash = lastAppliedHash || "#/";
+			// The navigation already changed the URL — put it back to the game's route.
+			if (location.pathname + location.search !== lastAppliedHash) history.pushState(null, "", lastAppliedHash || "/");
 			return;
 		}
 		exitGameFullscreen();
@@ -299,8 +296,8 @@ function applyRouteFromHash() {
 		prevPlayerState = null;
 		boardDecoder = null;
 	}
-	var hash = (location.hash || "#/").replace(/^#/, "");
-	lastAppliedHash = location.hash || "#/";
+	var hash = location.pathname; // match routes on the path; views that take filters read location.search
+	lastAppliedHash = location.pathname + location.search;
 	// Music only plays in actual play views — lobby/menu/admin stay quiet.
 	// Active ranked / 1v1 / tournament matches start music separately
 	// from the game-state event handlers.
@@ -313,7 +310,7 @@ function applyRouteFromHash() {
 	// Tournament has no size choice so it just queues immediately.
 	if (hash.indexOf("/ranked/") === 0) {
 		var style = hash.slice("/ranked/".length);
-		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); location.hash = "#/"; return; }
+		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); navigate("/"); return; }
 		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
 	if (hash === "/" || hash === "") return showLobbyView();
@@ -341,4 +338,25 @@ function applyRouteFromHash() {
 	showLobbyView();
 }
 
-window.addEventListener("hashchange", applyRouteFromHash);
+// Clean-path navigation via the History API (no "#/"). navigate() pushes a new path then routes;
+// back/forward fire popstate; and a delegated click handler turns same-origin <a href="/…"> clicks into
+// client-side navigations so ordinary links Just Work without per-link wiring.
+function navigate(to) {
+	if (!to) to = "/";
+	if (to[0] !== "/") to = "/" + to;
+	if (to !== location.pathname + location.search) history.pushState(null, "", to);
+	applyRouteFromHash();
+}
+window.addEventListener("popstate", applyRouteFromHash);
+document.addEventListener("click", function(e) {
+	if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+	var a = e.target && e.target.closest ? e.target.closest("a") : null;
+	if (!a) return;
+	var href = a.getAttribute("href");
+	// Only intercept internal absolute-path links; leave external, hash, download, new-tab, and
+	// server routes (/auth/…) to the browser.
+	if (!href || href[0] !== "/" || href.indexOf("/auth/") === 0) return;
+	if (a.target === "_blank" || a.hasAttribute("download")) return;
+	e.preventDefault();
+	navigate(href);
+});

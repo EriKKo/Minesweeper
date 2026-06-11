@@ -270,13 +270,21 @@ Source is split into three trees under `src/`:
   and DOM/state wiring. All other client modules are plain `<script>` tags
   loaded ahead of it (each becomes a global).
 - `style.css` — all styles.
+- **Routing** — clean History-API paths, no `#`. `Router.js`'s `navigate(path)` does `pushState` +
+  `applyRouteFromHash()` (name kept for history; it now reads `location.pathname`); `popstate` handles
+  back/forward; and a delegated document click handler turns same-origin `<a href="/…">` clicks into
+  client-side navigations (so links just need a path href — `/auth/…`, external, hash, download, and
+  new-tab links are left alone). Programmatic nav uses `navigate("/…")`. Filter views read state from
+  `location.search` and `replaceState` it back. **Server SPA fallback:** any path with no on-disk file
+  AND no file extension serves `index.html` (so `/learn`, `/privacy`, `/admin/bots` deep-link directly);
+  paths with an extension still 404. The OAuth callback still returns the session token in a `#token=`
+  fragment (orthogonal to routing — `Auth.js` strips it on load).
 - **Legal pages** — Privacy Policy / Terms of Service render as ordinary in-app SPA views
   (`#privacy_view` / `#terms_view` in `index.html`, the `.legal` block from `style.css`), so the
-  navbar stays like every other page. Routes `#/privacy` and `#/terms` (`showPrivacyView` /
+  navbar stays like every other page. Routes `/privacy` and `/terms` (`showPrivacyView` /
   `showTermsView` in `Router.js`) are handled at the TOP of `applyRouteFromHash`, before the
-  name-entry gate, so they're public (a signed-out OAuth reviewer can read them). The old clean
-  URLs `/privacy` and `/terms` still work — the server 302-redirects them to the hash routes. Linked
-  from the home page's `.site-footer` (`#/privacy` / `#/terms`). `logo.svg` is the square brand tile
+  name-entry gate, so they're public (a signed-out OAuth reviewer can read them), and deep-link directly
+  via the SPA fallback. Linked from the home page's `.site-footer`. `logo.svg` is the square brand tile
   (same design as `favicon.svg`); `logo-512.png` (repo root) is its rasterised 512×512
   PNG for upload as the OAuth consent-screen app logo.
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.

@@ -32,10 +32,8 @@ var BOT_MODES = [
 
 // --- hash persistence (#/admin/bots?sort=rating&dir=desc&page=2&minRating=…) ---
 function readBotListStateFromHash() {
-	var hash = location.hash || "";
-	var qi = hash.indexOf("?");
-	if (qi < 0) return;
-	var p = new URLSearchParams(hash.slice(qi + 1));
+	if (!location.search) return;
+	var p = new URLSearchParams(location.search);
 	var sort = p.get("sort");
 	if (BOT_SORT_OPTIONS.some(function(o) { return o.value === sort; })) botListState.sort = sort;
 	botListState.dir = p.get("dir") === "asc" ? "asc" : "desc";
@@ -52,8 +50,7 @@ function writeBotListStateToHash() {
 	if (botListState.maxRating != null) bits.push("maxRating=" + botListState.maxRating);
 	if (botListState.page) bits.push("page=" + botListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
-	var newHash = "#/admin/bots" + qs;
-	if (location.hash !== newHash) history.replaceState(null, "", newHash);
+	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
 }
 
 function renderBotsList() {

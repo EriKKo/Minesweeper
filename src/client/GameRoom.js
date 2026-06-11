@@ -140,7 +140,7 @@ function renderRoomState(state) {
 	// ticks would fade out the puzzle board mid-play, or fade the territory board after a match
 	// (territory has no series, so it should never go idle).
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
-	var inMpView = (location.hash === "" || location.hash === "#/" || location.hash.indexOf("#/?") === 0);
+	var inMpView = (location.pathname === "/");
 	if (inMpView && !inTerritory) {
 		document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
 	} else if (inTerritory) {

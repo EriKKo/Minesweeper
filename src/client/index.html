@@ -14,12 +14,12 @@
 			<span class="logo-name">MSBattle</span>
 		</div>
 		<nav id="site_nav" class="site-nav" aria-label="Main navigation">
-			<a href="#/" class="site-nav-link" data-route="home">Play</a>
-			<a href="#/learn" class="site-nav-link" data-route="learn">Learn</a>
-			<a href="#/practice" class="site-nav-link" data-route="practice">Practice</a>
-			<a href="#/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
-			<a href="#/profile" class="site-nav-link" data-route="profile">Profile</a>
-			<a href="#/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
+			<a href="/" class="site-nav-link" data-route="home">Play</a>
+			<a href="/learn" class="site-nav-link" data-route="learn">Learn</a>
+			<a href="/practice" class="site-nav-link" data-route="practice">Practice</a>
+			<a href="/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
+			<a href="/profile" class="site-nav-link" data-route="profile">Profile</a>
+			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
 		</nav>
 		<div class="topbar-right">
 			<div class="audio-control">
@@ -70,7 +70,7 @@
 				<aside class="lobby-modes">
 					<h3 class="lobby-modes-heading">Ranked</h3>
 					<div class="mode-card-list">
-						<a class="mode-card mode-card-sprint" href="#/ranked/sprint" data-style="sprint" aria-label="Play Sprint">
+						<a class="mode-card mode-card-sprint" href="/ranked/sprint" data-style="sprint" aria-label="Play Sprint">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<defs>
 									<linearGradient id="g_sprint" x1="0" y1="0" x2="1" y2="1">
@@ -94,7 +94,7 @@
 								<span class="mode-card-rank-rating" id="rank_rating_sprint"></span>
 							</div>
 						</a>
-						<a class="mode-card mode-card-standard" href="#/ranked/standard" data-style="standard" aria-label="Play Standard">
+						<a class="mode-card mode-card-standard" href="/ranked/standard" data-style="standard" aria-label="Play Standard">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<circle cx="160" cy="60" r="70" fill="none" stroke="#a78bfa" stroke-width="3" opacity="0.20"/>
 								<circle cx="160" cy="60" r="45" fill="none" stroke="#8b5cf6" stroke-width="3" opacity="0.30"/>
@@ -113,7 +113,7 @@
 								<span class="mode-card-rank-rating" id="rank_rating_standard"></span>
 							</div>
 						</a>
-						<a class="mode-card mode-card-tournament" href="#/ranked/tournament" data-style="tournament" aria-label="Play Tournament">
+						<a class="mode-card mode-card-tournament" href="/ranked/tournament" data-style="tournament" aria-label="Play Tournament">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<path d="M30 30 L80 30 L80 50 L70 50 L70 80 L60 80 L60 110 L75 110 L75 130 L55 130 L55 130" fill="none" stroke="#fca5a5" stroke-width="3" opacity="0.18"/>
 								<path d="M170 30 L120 30 L120 50 L130 50 L130 80 L140 80 L140 110 L125 110 L125 130 L145 130" fill="none" stroke="#f87171" stroke-width="3" opacity="0.20"/>
@@ -132,7 +132,7 @@
 								<span class="mode-card-rank-rating" id="rank_rating_tournament"></span>
 							</div>
 						</a>
-						<a class="mode-card mode-card-territory" href="#/ranked/territory" data-style="territory" aria-label="Play Territory">
+						<a class="mode-card mode-card-territory" href="/ranked/territory" data-style="territory" aria-label="Play Territory">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<rect x="20" y="20" width="70" height="70" fill="#22d3ee" opacity="0.16"/>
 								<rect x="110" y="110" width="70" height="70" fill="#fb923c" opacity="0.16"/>
@@ -154,7 +154,7 @@
 
 					<h3 class="lobby-modes-heading">Casual</h3>
 					<div class="mode-card-list">
-						<a class="mode-card mode-card-custom" href="#/custom" data-style="custom" aria-label="Open Custom rooms">
+						<a class="mode-card mode-card-custom" href="/custom" data-style="custom" aria-label="Open Custom rooms">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<circle cx="150" cy="50" r="45" fill="#34d399" opacity="0.16"/>
 								<circle cx="180" cy="100" r="30" fill="#10b981" opacity="0.20"/>
@@ -176,7 +176,7 @@
 
 					<h3 class="lobby-modes-heading">Solo puzzles</h3>
 					<div class="mode-card-list">
-						<a class="mode-card mode-card-puzzles" href="#/puzzles/play" data-style="puzzles" aria-label="Play Puzzles">
+						<a class="mode-card mode-card-puzzles" href="/puzzles/play" data-style="puzzles" aria-label="Play Puzzles">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<rect x="120" y="20" width="22" height="22" rx="3" fill="#60a5fa" opacity="0.22"/>
 								<rect x="150" y="20" width="22" height="22" rx="3" fill="#3b82f6" opacity="0.22"/>
@@ -197,7 +197,7 @@
 								<span class="mode-card-rank-rating" id="puzzle_solved_count"></span>
 							</div>
 						</a>
-						<a class="mode-card mode-card-streak" href="#/puzzles/streak" data-style="streak" aria-label="Play Streak">
+						<a class="mode-card mode-card-streak" href="/puzzles/streak" data-style="streak" aria-label="Play Streak">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<path d="M150 0 L120 90 L160 90 L130 200 L195 70 L155 70 z" fill="#fb923c" opacity="0.20"/>
 								<path d="M105 40 L90 90 L115 90 L100 150 L150 80 L120 80 z" fill="#f97316" opacity="0.28"/>
@@ -215,7 +215,7 @@
 								<span class="mode-card-rank-tier" id="puzzle_streak_best">—</span>
 							</div>
 						</a>
-						<a class="mode-card mode-card-storm" href="#/puzzles/storm" data-style="storm" aria-label="Play Storm">
+						<a class="mode-card mode-card-storm" href="/puzzles/storm" data-style="storm" aria-label="Play Storm">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<circle cx="160" cy="60" r="50" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.22"/>
 								<line x1="160" y1="60" x2="160" y2="30" stroke="#67e8f9" stroke-width="3" opacity="0.55" stroke-linecap="round"/>
@@ -797,8 +797,8 @@
 	<footer class="site-footer">
 		<span>© MSBattle</span>
 		<span class="site-footer-spacer"></span>
-		<a href="#/privacy">Privacy Policy</a>
-		<a href="#/terms">Terms of Service</a>
+		<a href="/privacy">Privacy Policy</a>
+		<a href="/terms">Terms of Service</a>
 	</footer>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -1131,7 +1131,7 @@ socket.on("puzzle_daily_status", function(data) {
 		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
 	}
 	// If we're actively on the daily route, decide whether to play or show result.
-	if (location.hash === "#/puzzles/daily") {
+	if (location.pathname === "/puzzles/daily") {
 		if (data.attempt) {
 			// Already attempted today — show the result panel without starting a new game.
 			showDailyAlreadyDone(data);
@@ -1542,7 +1542,7 @@ musicSlider.addEventListener("input", function() {
 });
 
 document.getElementById("open_daily_button").addEventListener("click", function() {
-	location.hash = "#/puzzles/daily";
+	navigate("/puzzles/daily");
 });
 
 document.getElementById("puzzle_hint_btn").addEventListener("click", function() {
@@ -1560,7 +1560,7 @@ document.getElementById("puzzle_skip_btn").addEventListener("click", function() 
 });
 
 document.getElementById("puzzle_side_back").addEventListener("click", function() {
-	location.hash = "#/";
+	navigate("/");
 });
 
 // Spectator: click a scoreboard row to switch which player's board shows
@@ -1642,7 +1642,7 @@ cancelRankedButton.addEventListener("click", function() {
 
 document.getElementById("leave_button").addEventListener("click", function() {
 	if (soloSession) { exitSolo(); return; }
-	if (puzzleSession) { location.hash = "#/"; return; }
+	if (puzzleSession) { navigate("/"); return; }
 	if (currentRoom && currentRoom.phase === "playing"
 		&& !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) return;
 	exitGameFullscreen();

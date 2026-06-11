@@ -64,43 +64,43 @@ function renderAdminLanding() {
 		"Puzzle Lab",
 		"Generate new puzzles, tune density and difficulty, inspect tier distribution.",
 		"Open Lab",
-		"#/admin/lab"
+		"/admin/lab"
 	));
 	cards.appendChild(makeAdminCard(
 		"All puzzles",
 		"Browse the entire pool. Sort by rating, filter by tier.",
 		"Browse pool",
-		"#/admin/puzzles"
+		"/admin/puzzles"
 	));
 	cards.appendChild(makeAdminCard(
 		"Ranked bots",
 		"Browse the benchmarked bot pool, inspect variables and per-mode Elo, and watch any bot play.",
 		"Browse bots",
-		"#/admin/bots"
+		"/admin/bots"
 	));
 	cards.appendChild(makeAdminCard(
 		"Starting positions",
 		"Enumerated cascade patterns rated by analyzer difficulty.",
 		"Browse positions",
-		"#/admin/starting-positions"
+		"/admin/starting-positions"
 	));
 	cards.appendChild(makeAdminCard(
 		"Deduction patterns",
 		"Minimal first-move templates extracted from starting positions.",
 		"Browse patterns",
-		"#/admin/patterns"
+		"/admin/patterns"
 	));
 	cards.appendChild(makeAdminCard(
 		"Start patterns",
 		"Unique first-deduction building blocks enumerated from 3×3 / 3×4 starting cascades.",
 		"Browse start patterns",
-		"#/admin/start-patterns"
+		"/admin/start-patterns"
 	));
 	cards.appendChild(makeAdminCard(
 		"Combined puzzles",
 		"Script-generated boards that compose two start patterns at a shared seam. Play and analyze each.",
 		"Browse combined puzzles",
-		"#/admin/combined-puzzles"
+		"/admin/combined-puzzles"
 	));
 	view.appendChild(cards);
 }
@@ -153,7 +153,7 @@ function renderPuzzleLab() {
 
 	var browseLink = document.createElement("p");
 	browseLink.className = "puzzles-list-footer";
-	browseLink.innerHTML = '<a href="#/admin/puzzles">Browse all puzzles →</a>';
+	browseLink.innerHTML = '<a href="/admin/puzzles">Browse all puzzles →</a>';
 	view.appendChild(browseLink);
 
 	var actions = document.createElement("div");

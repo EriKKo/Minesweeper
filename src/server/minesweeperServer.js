@@ -133,13 +133,15 @@ function handler (req, res) {
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
 
-	// Legal pages now render inside the SPA (with the navbar); keep the old standalone URLs working by
-	// redirecting them to the in-app hash routes.
-	if (pathname === "/privacy") { res.writeHead(302, { Location: "/#/privacy" }); res.end(); return; }
-	if (pathname === "/terms") { res.writeHead(302, { Location: "/#/terms" }); res.end(); return; }
-
 	var filePath = resolveStatic(pathname);
-	if (!filePath) { res.writeHead(404); res.end(); return; }
+	if (!filePath) {
+		// SPA fallback: client routes (/learn, /privacy, /admin/bots, …) have no file on disk — serve the
+		// app shell so the History-API router can render them. Anything with a file extension is treated as
+		// a (missing) asset and 404s rather than returning HTML.
+		var last = pathname.split("/").pop();
+		if (last.indexOf(".") === -1) filePath = resolveStatic("/index.html");
+		if (!filePath) { res.writeHead(404); res.end(); return; }
+	}
 	var extension = path.extname(filePath);
 	var contentType = "text/html";
 	if (extension == ".js") {

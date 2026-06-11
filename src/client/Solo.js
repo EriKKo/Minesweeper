@@ -65,14 +65,9 @@ function exitSolo() {
 	myState = null;
 	prevPlayerState = null;
 	boardDecoder = null;
-	// Solo lives at #/practice so the hash usually doesn't change — assigning
-	// the same hash wouldn't fire hashchange. Drive the view directly and
-	// keep the URL in sync.
-	if (location.hash === "#/practice") {
-		showPracticeView();
-	} else {
-		location.hash = "#/practice";
-	}
+	// Solo lives at /practice. navigate() routes even when the path is unchanged, so calling it
+	// unconditionally drives the view and keeps the URL in sync.
+	navigate("/practice");
 }
 
 function startSoloTimer() {

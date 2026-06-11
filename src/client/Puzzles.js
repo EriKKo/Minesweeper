@@ -33,10 +33,8 @@ var SCORE_BANDS = [
 // after the path can carry a query string like
 // #/admin/puzzles?diff=3&method=overlap&sort=desc&page=2.
 function readPuzzleListStateFromHash() {
-	var hash = location.hash || "";
-	var qi = hash.indexOf("?");
-	if (qi < 0) return;
-	var params = new URLSearchParams(hash.slice(qi + 1));
+	if (!location.search) return;
+	var params = new URLSearchParams(location.search);
 	var sort = params.get("sort");
 	if (sort === "score-asc" || sort === "score-desc") puzzleListState.sort = sort;
 	var diff = parseInt(params.get("diff"), 10);
@@ -61,8 +59,7 @@ function writePuzzleListStateToHash() {
 	if (puzzleListState.source) bits.push("source=" + puzzleListState.source);
 	if (puzzleListState.page) bits.push("page=" + puzzleListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
-	var newHash = "#/admin/puzzles" + qs;
-	if (location.hash !== newHash) history.replaceState(null, "", newHash);
+	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
 }
 
 function renderPuzzlesList() {
@@ -237,7 +234,7 @@ function renderPuzzlesList() {
 
 	var labLink = document.createElement("p");
 	labLink.className = "puzzles-list-footer";
-	labLink.innerHTML = '<a href="#/admin/lab">Open the Puzzle Lab →</a>';
+	labLink.innerHTML = '<a href="/admin/lab">Open the Puzzle Lab →</a>';
 	view.appendChild(labLink);
 
 	refreshPuzzleList();

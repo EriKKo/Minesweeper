@@ -43,10 +43,8 @@ var PRIME_OPTIONS = [
 ];
 
 function readStartingPosStateFromHash() {
-	var hash = location.hash || "";
-	var qi = hash.indexOf("?");
-	if (qi < 0) return;
-	var params = new URLSearchParams(hash.slice(qi + 1));
+	if (!location.search) return;
+	var params = new URLSearchParams(location.search);
 	var size = parseInt(params.get("size"), 10);
 	if (size >= 3 && size <= 9) startingPosListState.size = size;
 	var sort = params.get("sort");
@@ -75,8 +73,7 @@ function writeStartingPosStateToHash() {
 	if (startingPosListState.prime) bits.push("prime=" + startingPosListState.prime);
 	if (startingPosListState.page) bits.push("page=" + startingPosListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
-	var newHash = "#/admin/starting-positions" + qs;
-	if (location.hash !== newHash) history.replaceState(null, "", newHash);
+	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
 }
 
 function ratingBandRange(key) {

@@ -116,7 +116,7 @@ function exitPuzzle() {
 	myState = null;
 	prevPlayerState = null;
 	boardDecoder = null;
-	location.hash = "#/";
+	navigate("/");
 }
 
 function togglePuzzleChrome(on, mode) {

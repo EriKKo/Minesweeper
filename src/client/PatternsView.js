@@ -31,10 +31,8 @@ var VALID_METHODS = { trivial: 1, subset: 1, union: 1, intersect: 1, case: 1, en
 var PATTERN_CELL_PX = 36;
 
 function readPatternsStateFromHash() {
-	var hash = location.hash || "";
-	var qi = hash.indexOf("?");
-	if (qi < 0) return;
-	var params = new URLSearchParams(hash.slice(qi + 1));
+	if (!location.search) return;
+	var params = new URLSearchParams(location.search);
 	var sort = params.get("sort");
 	if (sort === "asc" || sort === "desc") patternsListState.sort = sort;
 	var orderBy = params.get("orderBy");
@@ -52,8 +50,7 @@ function writePatternsStateToHash() {
 	if (patternsListState.method) bits.push("method=" + patternsListState.method);
 	if (patternsListState.page) bits.push("page=" + patternsListState.page);
 	var qs = bits.length ? "?" + bits.join("&") : "";
-	var newHash = "#/admin/patterns" + qs;
-	if (location.hash !== newHash) history.replaceState(null, "", newHash);
+	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
 }
 
 function renderPatterns() {
