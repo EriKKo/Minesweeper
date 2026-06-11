@@ -3247,8 +3247,20 @@ function backfillOverlapClassification() {
 	setImmediate(step);
 }
 
+// Reap abandoned guest accounts (no games, no puzzles, older than the TTL) on startup and daily, so
+// drive-by visitors don't grow the users table without bound. Tune via GUEST_TTL_DAYS (default 7).
+var GUEST_TTL_DAYS = parseFloat(process.env.GUEST_TTL_DAYS || "7");
+function reapGuests() {
+	try {
+		var removed = db.pruneStaleGuests(GUEST_TTL_DAYS * 24 * 60 * 60 * 1000);
+		if (removed) console.log("[guests] pruned " + removed + " stale guest(s) older than " + GUEST_TTL_DAYS + "d");
+	} catch (e) { console.error("[guests] prune failed", e); }
+}
+
 app.listen(PORT, "0.0.0.0", function() {
 	console.log("listening on " + PORT);
 	backfillOverlapClassification();
 	ensurePuzzlePoolTopUp();
+	reapGuests();
+	setInterval(reapGuests, 24 * 60 * 60 * 1000);
 });

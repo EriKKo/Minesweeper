@@ -272,6 +272,27 @@ function setUserName(userId, name) {
 	db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
 }
 
+// Drive-by guests pile up — every tokenless visit makes a guest row. Periodically delete guests that
+// never engaged (no ranked games, no puzzle attempts) and are older than maxAgeMs, along with their
+// sessions. Guests who actually played something are kept (they may return via their stored token).
+// Uses a subquery (not an IN-list of ids) so it scales past SQLite's bound-parameter limit. Returns
+// the number of guests removed.
+function pruneStaleGuests(maxAgeMs) {
+	var cutoff = Date.now() - Math.max(0, maxAgeMs || 0);
+	var sel = "SELECT id FROM users WHERE is_guest = 1 AND played = 0 AND puzzles_attempted = 0 AND created_at < " + cutoff;
+	var n = db.prepare("SELECT COUNT(*) AS c FROM (" + sel + ")").get().c;
+	if (!n) return 0;
+	db.exec("BEGIN");
+	try {
+		db.exec("DELETE FROM sessions WHERE user_id IN (" + sel + ")");
+		db.exec("DELETE FROM puzzle_attempts WHERE user_id IN (" + sel + ")");
+		db.exec("DELETE FROM daily_attempts WHERE user_id IN (" + sel + ")");
+		db.exec("DELETE FROM users WHERE id IN (" + sel + ")"); // users last — the child deletes still need it
+		db.exec("COMMIT");
+	} catch (e) { db.exec("ROLLBACK"); throw e; }
+	return n;
+}
+
 // Default admin email is hard-coded so the project owner is always admin
 // without any env-var setup. ADMIN_EMAILS extends the list with extra
 // addresses (comma-separated, case-insensitive). On upsert, if the user's
@@ -891,6 +912,7 @@ module.exports = {
 	createGuest: createGuest,
 	upgradeGuest: upgradeGuest,
 	setUserName: setUserName,
+	pruneStaleGuests: pruneStaleGuests,
 	createSession: createSession,
 	getUserByToken: getUserByToken,
 	getUserById: getUserById,

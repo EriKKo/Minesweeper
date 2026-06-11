@@ -68,6 +68,10 @@ Source is split into three trees under `src/`:
   Sign-out drops back to a fresh guest, never a login wall. Client: `Auth.js` (`applyConnected` →
   `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + shows the guest "Sign in"
   button vs a real account's "Sign out"); the repurposed `#name_view` is the on-demand sign-in / rename card.
+  **Cleanup:** drive-by guests are reaped by `db.pruneStaleGuests(maxAgeMs)` (deletes `is_guest=1` rows
+  with `played=0` AND `puzzles_attempted=0` older than the TTL, plus their sessions/attempts; a guest who
+  played anything is kept). The server runs it on startup and daily (`reapGuests`, TTL = `GUEST_TTL_DAYS`
+  env, default 7).
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
   canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues into
