@@ -41,6 +41,8 @@ body {
 	align-items: center;
 	gap: 0.55rem;
 	user-select: none;
+	text-decoration: none;
+	cursor: pointer;
 }
 
 /* A raised minesweeper tile holding a bomb — the brand mark. */
