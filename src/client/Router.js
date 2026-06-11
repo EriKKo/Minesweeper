@@ -222,6 +222,21 @@ function showProfileView() {
 	renderProfile();
 }
 
+// Legal pages render as normal in-app views (navbar stays); not a main-nav item, so no link is marked active.
+function showPrivacyView() {
+	hideAllViews();
+	document.getElementById("privacy_view").style.display = "";
+	setSiteNavActive(null);
+	window.scrollTo(0, 0);
+}
+
+function showTermsView() {
+	hideAllViews();
+	document.getElementById("terms_view").style.display = "";
+	setSiteNavActive(null);
+	window.scrollTo(0, 0);
+}
+
 function setSiteNavActive(route) {
 	var links = document.querySelectorAll(".site-nav-link");
 	for (var i = 0; i < links.length; i++) {
@@ -239,6 +254,10 @@ var suppressNextRoute = false;
 
 function applyRouteFromHash() {
 	if (suppressNextRoute) { suppressNextRoute = false; return; }
+	// Legal pages are public — viewable before sign-in/name entry (handled before the name gate below).
+	var legalHash = (location.hash || "").replace(/^#/, "");
+	if (legalHash === "/privacy") { lastAppliedHash = location.hash; return showPrivacyView(); }
+	if (legalHash === "/terms") { lastAppliedHash = location.hash; return showTermsView(); }
 	if (nameView && nameView.style.display !== "none" && !account && !myName) return;
 	if (inRoom) {
 		var inPlay = currentRoom && currentRoom.phase === "playing";
@@ -317,6 +336,8 @@ function applyRouteFromHash() {
 	if (hash === "/admin/combined-puzzles") return showCombinedPuzzlesView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
+	if (hash === "/privacy") return showPrivacyView();
+	if (hash === "/terms") return showTermsView();
 	showLobbyView();
 }
 

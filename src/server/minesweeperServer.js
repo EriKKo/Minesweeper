@@ -103,8 +103,6 @@ var STATIC_ROOTS = [
 
 function resolveStatic(pathname) {
 	if (pathname === "/") pathname = "/index.html";
-	else if (pathname === "/privacy") pathname = "/privacy.html";
-	else if (pathname === "/terms") pathname = "/terms.html";
 	for (var i = 0; i < STATIC_ROOTS.length; i++) {
 		var full = path.join(STATIC_ROOTS[i], pathname);
 		// Guard against path traversal — must stay rooted under the static dir.
@@ -134,6 +132,11 @@ function handler (req, res) {
 	if (combinedAnalyzeMatch) return serveCombinedPuzzleAnalyze(req, res, parseInt(combinedAnalyzeMatch[1], 10));
 	var analyzeMatch = pathname.match(/^\/api\/puzzles\/(\d+)\/analyze$/);
 	if (analyzeMatch) return servePuzzleAnalyze(req, res, parseInt(analyzeMatch[1], 10));
+
+	// Legal pages now render inside the SPA (with the navbar); keep the old standalone URLs working by
+	// redirecting them to the in-app hash routes.
+	if (pathname === "/privacy") { res.writeHead(302, { Location: "/#/privacy" }); res.end(); return; }
+	if (pathname === "/terms") { res.writeHead(302, { Location: "/#/terms" }); res.end(); return; }
 
 	var filePath = resolveStatic(pathname);
 	if (!filePath) { res.writeHead(404); res.end(); return; }

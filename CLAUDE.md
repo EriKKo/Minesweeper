@@ -254,11 +254,13 @@ Source is split into three trees under `src/`:
   and DOM/state wiring. All other client modules are plain `<script>` tags
   loaded ahead of it (each becomes a global).
 - `style.css` — all styles.
-- `privacy.html` / `terms.html` — standalone server-rendered legal pages (not part of
-  the SPA), served at the clean URLs `/privacy` and `/terms` (rewritten in
-  `resolveStatic`). They reuse `style.css` (topbar/logo classes + the `.legal` block)
-  and exist so the Google OAuth consent screen can point at a real Privacy Policy / Terms
-  URL. Linked from the home page's `.site-footer`. `logo.svg` is the square brand tile
+- **Legal pages** — Privacy Policy / Terms of Service render as ordinary in-app SPA views
+  (`#privacy_view` / `#terms_view` in `index.html`, the `.legal` block from `style.css`), so the
+  navbar stays like every other page. Routes `#/privacy` and `#/terms` (`showPrivacyView` /
+  `showTermsView` in `Router.js`) are handled at the TOP of `applyRouteFromHash`, before the
+  name-entry gate, so they're public (a signed-out OAuth reviewer can read them). The old clean
+  URLs `/privacy` and `/terms` still work — the server 302-redirects them to the hash routes. Linked
+  from the home page's `.site-footer` (`#/privacy` / `#/terms`). `logo.svg` is the square brand tile
   (same design as `favicon.svg`); `logo-512.png` (repo root) is its rasterised 512×512
   PNG for upload as the OAuth consent-screen app logo.
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.

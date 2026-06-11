@@ -346,9 +346,8 @@ function create(gen, players) {
 		for (var r3 = 0; r3 < R; r3++) for (var c3 = 0; c3 < C; c3++) {
 			if (owner[r3][c3] === pid || free[r3][c3]) continue;                      // yours, or still connected to the edge
 			if (g.claimLocked(pid, r3, c3)) continue;                                 // bombed ground reserved for its launcher
-			if (state[r3][c3] === UNKNOWN && g.board[r3][c3] === MINE) { owner[r3][c3] = pid; }   // sealed mine → your covered structure
-			else { state[r3][c3] = KNOWN; owner[r3][c3] = pid; }                                  // sealed enemy land / covered safe → revealed + yours
-			captured.push([r3, c3]);
+			if (state[r3][c3] === UNKNOWN && g.board[r3][c3] === MINE) continue;       // covered mine → leave to updateStructures (it flips + build-stamps surrounded mines)
+			state[r3][c3] = KNOWN; owner[r3][c3] = pid; captured.push([r3, c3]);      // sealed enemy land / covered safe → revealed + yours
 		}
 		return captured;
 	};
