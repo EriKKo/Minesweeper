@@ -128,6 +128,19 @@ Source is split into three trees under `src/`:
   (`paintCornerPosCanvas`, corner drawn as a flag) with an **Analyze** button (`GET
   /api/starting-positions/:id/analyze` → `cornerStartingPuzzle` rebuilds the concrete board, reusing the
   All-Puzzles solver-trace modal). Re-run the script to regenerate the sample.
+- **Puzzle scouts** (`scripts/scout-corner-positions.js`, `scripts/template-scout.js`) — report-only search
+  tools for finding genuinely-hard *solvable* openings (the kind that require case analysis, not just a long
+  subset chain). `scout-corner-positions.js` sweeps the H×W corner-mine family (env H/W, MAX_MINES);
+  `template-scout.js` is the **general** version: you write a board template (text grid; tokens `0-8`
+  revealed-fixed, `?` revealed-any, `#` covered-any/free, `*` covered-mine, `s` covered-safe-any, `A-I`
+  covered-safe-fixed-0..8; aliases `.`=`#`, `M`=`*`) and it enumerates every consistent mine layout (sparse,
+  `MAX_MINES`), buckets by the opening, **skips openings with no forced-safe cell** (unsolvable — no first
+  move — found for free from the per-cell mine-frequency closure, never invoking the solver), solves the
+  rest WITH cascades (capped at `ANALYSIS_CAP` to skip non-human brute-enum), and prints the hardest
+  fully-solvable board. Findings so far: corner-mine families are nearly barren (3 case gems in 4×4, 0 in
+  4×5/5×5); two coupled mines hit far more; constructive generation (`InsideOutGenerator`) makes hard
+  *subset*-solvable puzzles (cap ~2600 rating) but structurally **cannot** produce case-analysis ones,
+  because it follows the analyzer's cheapest forced move so a cheap solving path always exists by construction.
 - `scripts/combine-patterns.js` — composes two start patterns into one board to test whether
   *combining* building blocks beats the single-opening ~cx-8 ceiling. It lays two blocks side by
   side so their unknown rings either share a seam column or sit a gap apart, solves for a concrete
