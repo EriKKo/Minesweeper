@@ -549,6 +549,11 @@ function puzzleSources() {
 	return db.prepare("SELECT source, COUNT(*) AS count FROM puzzles GROUP BY source ORDER BY count DESC, source").all();
 }
 
+// Remove all puzzles from one source — lets a template scout re-run replace its stored puzzles.
+function clearPuzzlesBySource(source) {
+	db.prepare("DELETE FROM puzzles WHERE source = ?").run(source);
+}
+
 function puzzleCount(difficulty, method, scoreBand, source) {
 	var clauses = [];
 	var params = [];
@@ -947,6 +952,7 @@ module.exports = {
 	listPuzzles: listPuzzles,
 	puzzleCount: puzzleCount,
 	puzzleSources: puzzleSources,
+	clearPuzzlesBySource: clearPuzzlesBySource,
 	puzzleStats: puzzleStats,
 	clearPuzzles: clearPuzzles,
 	getPuzzleById: getPuzzleById,

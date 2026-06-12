@@ -159,25 +159,37 @@ function resolveTemplate(){
 }
 
 // Persist the hardest distinct solvable boards into the puzzles table, tagged source="template:<id>".
+// Validation + scoring use the CSPSolver (the scout's analyzer) rather than the pool's pass-based solver:
+// case-only boards are unsolvable to the pass-solver, so it would reject exactly the puzzles we want. These
+// puzzles therefore aren't bot/pass-solver-solvable — they're a human case-analysis collection.
 function storePuzzles(out, id, t){
 	const db = require("../src/server/db");
 	const PG = require("../src/server/PuzzleGenerator");
 	const revealed = out.revealed.map(([r,c])=>[r,c]);
+	function tierOf(mx){ return mx<=1.5?1:mx<=3?2:mx<=5?3:mx<=7?4:mx<=10?5:6; }
+	var methodOrder = { trivial:0, subset:1, union:2, intersect:3, case:4, enum:5 };
+	db.clearPuzzlesBySource("template:"+id); // re-run replaces this template's stored puzzles
 	let inserted=0, dupes=0, considered=0; const seen=new Set();
 	for(const rec of out.tops){
 		if(considered>=STORE_COUNT) break;
 		const mines = rec.mineKeys.map(k=>k.split(",").map(Number));
 		const board = PG.buildBoard(t.rows, t.cols, mines);
-		const analysis = PG.analyzeWithTracking(board, revealed, mines.length);
-		if(!analysis.solved) continue;
+		const state=[]; for(let r=0;r<t.rows;r++) state.push(new Array(t.cols).fill(UNKNOWN));
+		revealed.forEach(([r,c])=>state[r][c]=KNOWN);
+		function casc(rr,cc){ BL.cascadeReveal(rr,cc,t.rows,t.cols,(r,c)=>state[r][c]===UNKNOWN,(r,c)=>{state[r][c]=KNOWN;return false;},(r,c)=>board[r][c]); }
+		const res = csp.analyzeBoard(board.map(r=>r.slice()), state, { revealCell: casc });
+		if(!res.solved) continue;
 		const key = PG.canonicalKey({ rows:t.rows, cols:t.cols, mines, revealed });
 		if(seen.has(key)) continue; seen.add(key); considered++;
+		let cspMethod="trivial", needsCase=false, maxEnum=0;
+		for(const m of res.moves){ const mm=m.method||"trivial"; if(mm==="case")needsCase=true;
+			if(methodOrder[mm]!=null && methodOrder[mm]>methodOrder[cspMethod]) cspMethod=mm;
+			if(mm==="enum" && m.componentSize>maxEnum) maxEnum=m.componentSize; }
 		const ok = db.insertPuzzle({
 			key, rows:t.rows, cols:t.cols, mines, revealed,
 			coveredSafe: t.rows*t.cols - mines.length - revealed.length,
-			difficulty: analysis.difficulty, score: analysis.score, passes: analysis.passes,
-			maxEnumSize: analysis.maxEnumSize, needsCaseSplit: analysis.needsCaseSplit,
-			cspMethod: analysis.cspMethod, source: "template:"+id
+			difficulty: tierOf(res.maxComplexity), score: PG.complexityScore(res.moves), passes: {},
+			maxEnumSize: maxEnum, needsCaseSplit: needsCase, cspMethod: cspMethod, source: "template:"+id
 		});
 		if(ok) inserted++; else dupes++;
 	}

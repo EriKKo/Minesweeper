@@ -362,30 +362,16 @@ function analyzeWithTracking(board, revealedList, numMines) {
 
 	// Highest-tier CSP op the analyzer needed for this puzzle.
 	// Ordering: trivial < subset < union < intersect < case < enum.
+	// analyzeBoard returns BUNDLED moves whose `method` field already carries the op (trivial/subset/
+	// union/intersect/case/enum) — earlier code read `mv.action`, which bundling drops, so every case/enum
+	// move was silently mislabeled as a lesser op and needsCaseSplit was always false.
 	var methodOrder = { trivial: 0, subset: 1, union: 2, intersect: 3, case: 4, enum: 5 };
 	var cspMethod = "trivial";
 	var needsCaseSplit = false;
 	for (var mi = 0; mi < (cspResult.moves || []).length; mi++) {
-		var mv = cspResult.moves[mi];
-		if (mv.action === "case") {
-			needsCaseSplit = true;
-			if (methodOrder[cspMethod] < methodOrder["case"]) cspMethod = "case";
-			continue;
-		}
-		if (mv.action === "enum") {
-			if (methodOrder[cspMethod] < methodOrder["enum"]) cspMethod = "enum";
-			continue;
-		}
-		// Regular CSP move — look at derivation steps for the hardest op
-		// used to derive the trivial clue.
-		if (mv.derivation) {
-			for (var di = 0; di < mv.derivation.length; di++) {
-				var src = mv.derivation[di].source;
-				if (src && methodOrder[src] != null && methodOrder[cspMethod] < methodOrder[src]) {
-					cspMethod = src;
-				}
-			}
-		}
+		var m = cspResult.moves[mi].method || "trivial";
+		if (m === "case") needsCaseSplit = true;
+		if (methodOrder[m] != null && methodOrder[cspMethod] < methodOrder[m]) cspMethod = m;
 	}
 	return {
 		solved: solved,
