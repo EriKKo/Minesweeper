@@ -7,12 +7,6 @@
 
 var puzzleListState = { sort: "score-asc", diff: null, method: null, scoreBand: null, source: null, page: 0, pageSize: 50 };
 
-var SOURCE_OPTIONS = [
-	{ key: null, label: "Any" },
-	{ key: "random", label: "Random" },
-	{ key: "inside_out", label: "Inside-out" }
-];
-
 // Complexity bands shown in the All Puzzles filter. The score column
 // already carries CSP maxComplexity + total/20, so these map directly to
 // the difficulty bands the user sees in the rating curve.
@@ -45,7 +39,7 @@ function readPuzzleListStateFromHash() {
 	var validBand = SCORE_BANDS.some(function(b) { return b.key === score; });
 	puzzleListState.scoreBand = (validBand && score) ? score : null;
 	var source = params.get("source");
-	puzzleListState.source = (source === "random" || source === "inside_out") ? source : null;
+	puzzleListState.source = source || null; // any source (random, inside_out, template:<id>, …)
 	var page = parseInt(params.get("page"), 10);
 	puzzleListState.page = (page > 0) ? page : 0;
 }
@@ -198,21 +192,30 @@ function renderPuzzlesList() {
 	sourceLabel.className = "puzzles-filter-label";
 	sourceLabel.textContent = "Source";
 	sourceRow.appendChild(sourceLabel);
-	SOURCE_OPTIONS.forEach(function(opt) {
+	function addSourceChip(key, label) {
 		var btn = document.createElement("button");
 		btn.className = "puzzles-filter-chip";
-		btn.dataset.source = opt.key == null ? "any" : opt.key;
-		btn.textContent = opt.label;
-		if (opt.key === puzzleListState.source) btn.classList.add("active");
+		btn.dataset.source = key == null ? "any" : key;
+		btn.textContent = label;
+		if (key === puzzleListState.source) btn.classList.add("active");
 		btn.addEventListener("click", function() {
-			puzzleListState.source = opt.key;
+			puzzleListState.source = key;
 			puzzleListState.page = 0;
 			writePuzzleListStateToHash();
 			updatePuzzleListSourceChips();
 			refreshPuzzleList();
 		});
 		sourceRow.appendChild(btn);
-	});
+	}
+	addSourceChip(null, "Any");
+	// The rest of the sources are whatever's actually in the pool (random, inside_out, template:<id>, …),
+	// fetched so dynamically-tagged sources show up without hardcoding.
+	fetch("/api/puzzle-sources").then(function(r) { return r.json(); }).then(function(data) {
+		(data && data.sources || []).forEach(function(s) {
+			if (s.source == null || s.source === "") return;
+			addSourceChip(s.source, s.source + " (" + s.count + ")");
+		});
+	}).catch(function() {});
 	toolbar.appendChild(sourceRow);
 
 	view.appendChild(toolbar);

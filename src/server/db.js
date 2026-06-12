@@ -511,7 +511,7 @@ function methodClause(method) {
 }
 
 function sourceClause(source) {
-	if (source === "random" || source === "inside_out") return { sql: "source = ?", param: source };
+	if (source) return { sql: "source = ?", param: source }; // any source (random, inside_out, template:<id>, …)
 	return null;
 }
 
@@ -541,6 +541,12 @@ function listPuzzles(opts) {
 	params.push(pageSize, page * pageSize);
 	var stmt = db.prepare(sql);
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
+}
+
+// Distinct puzzle sources present in the pool, with counts — drives the All-Puzzles source filter so
+// dynamic sources (e.g. "template:<id>") show up automatically.
+function puzzleSources() {
+	return db.prepare("SELECT source, COUNT(*) AS count FROM puzzles GROUP BY source ORDER BY count DESC, source").all();
 }
 
 function puzzleCount(difficulty, method, scoreBand, source) {
@@ -940,6 +946,7 @@ module.exports = {
 	insertPuzzle: insertPuzzle,
 	listPuzzles: listPuzzles,
 	puzzleCount: puzzleCount,
+	puzzleSources: puzzleSources,
 	puzzleStats: puzzleStats,
 	clearPuzzles: clearPuzzles,
 	getPuzzleById: getPuzzleById,

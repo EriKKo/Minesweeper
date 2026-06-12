@@ -126,6 +126,7 @@ function handler (req, res) {
 	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
 	if (pathname === "/api/bots") return serveBots(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
+	if (pathname === "/api/puzzle-sources") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ sources: db.puzzleSources() })); return; }
 	if (pathname === "/api/puzzles/stats") return servePuzzleStats(req, res);
 	if (pathname === "/api/puzzles/clear") return servePuzzlesClear(req, res, url);
 	if (pathname === "/api/starting-positions") return serveStartingPositions(req, res, url);
@@ -822,7 +823,8 @@ function servePuzzles(req, res, url) {
 	var scoreBandRaw = url.searchParams.get("score");
 	var scoreBand = (scoreBandRaw && /^(\d+(\.\d+)?-\d+(\.\d+)?|\d+(\.\d+)?\+)$/.test(scoreBandRaw)) ? scoreBandRaw : null;
 	var listSourceRaw = url.searchParams.get("source");
-	var listSource = (listSourceRaw === "random" || listSourceRaw === "inside_out") ? listSourceRaw : null;
+	// Accept any well-formed source (random, inside_out, template:<id>, …); the DB query is parameterized.
+	var listSource = (listSourceRaw && /^[\w:.-]+$/.test(listSourceRaw)) ? listSourceRaw : null;
 	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, source: listSource, page: page, pageSize: pageSize, sort: sort });
 	var total = db.puzzleCount(diffFilter, method, scoreBand, listSource);
 	res.writeHead(200, { "Content-Type": "application/json" });
