@@ -38,7 +38,15 @@ Source is split into three trees under `src/`:
   plus `io`. A singleton — `minesweeperServer` aliases each locally (`var rooms =
   appState.rooms`, mutated in place, never reassigned), and the handler modules split
   out of the server share the same objects by requiring it. Primitive id counters
-  (`nextRoomId`/`nextBotId`) and config constants (`RANKED_MODES`, …) are not in it.
+  (`nextRoomId`/`nextBotId`) are not in it.
+- `ranked.js` — ranked matchmaking: the per-mode queues, the bot-trickle filler, and
+  `formRankedMatch` (builds the room, seats humans + bots, hands off to the series start).
+  Owns the `RANKED_MODES` catalogue + match-reveal/bot-join timings. Coupled to the core
+  like territory, so its core services (`createPlayerGame`, `addBotToRoom`, `botCount`,
+  `broadcastRoomState`, `startSeries`, `readUserRating`, a room-id source, `RANKED_RULES`,
+  `MAX_BOTS_PER_ROOM`, `PROVISIONAL_GAMES`, `io`) are injected via `ranked.init(deps)`; queue
+  state is `appState`. The server delegates `find_ranked`/`cancel_ranked`/disconnect to
+  `ranked.isValidMode`/`enqueue`/`dequeue`.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
