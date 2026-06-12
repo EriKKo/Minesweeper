@@ -12,7 +12,7 @@
 //     per frontier component is the real ceiling on active area.
 //
 // Each returned puzzle carries { rows, cols, mines, revealed, coveredSafe,
-// difficulty, passes } so the caller can sort / bucket / display.
+// difficulty, maxEnumSize } so the caller can sort / bucket / display.
 
 var BoardLogic = require("../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
@@ -115,7 +115,6 @@ function tryGenerateLayout(opts) {
 			coveredSafe: coveredSafe,
 			difficulty: analysis.difficulty,
 			score: analysis.score,
-			passes: analysis.passes,
 			maxEnumSize: analysis.maxEnumSize || 0
 		};
 		puzzle.key = canonicalKey(puzzle);
@@ -244,97 +243,42 @@ function cascadeFrom(board, start) {
 	return revealed;
 }
 
-// Per-pass tracking solver. Mirrors NoGuessGenerator.analyzeSolvability but
-// adds a subset-rule pass between trivial and enum, and tracks how each
-// pass progressed so we can pick a finer difficulty level.
-//
-// Pass hierarchy (cheapest → most expensive):
-//   trivialPass — forced mines (board - km == |unk|) and satisfied clear
-//                 (board == km). Pure counting on one clue at a time.
-//   subsetPass  — for each pair of revealed clue cells A, B with A's covered
-//                 candidates ⊆ B's, derive a sub-constraint on B's extras.
-//                 If A's remaining mine count == B's, extras are all safe;
-//                 if (B - A) == |extras|, extras are all mines.
-//   enumPass    — brute-force enumeration over each independent frontier
-//                 component (catches 1-2-1 patterns, multi-clue chains,
-//                 case analysis). Capped at ENUM_CAP variables per component.
-//
-// Difficulty derived from the trace. Counts per pass + the largest enum
-// component size encountered (`maxEnumSize`). The enum component size maps
-// directly to "how many cells did you have to mentally test together" —
-// the backtracking depth that humans perceive as hard.
-//   1 — only trivial.
-//   2 — exactly one subset deduction (small non-trivial step).
-//   3 — chain of subset deductions (subsetCount ≥ 2).
-//   4 — case analysis on 2–4 frontier cells (light backtracking — "what if
-//       this one cell is a mine?").
-//   5 — case analysis on 5–6 frontier cells (medium backtracking — chain
-//       reasoning over multiple coupled cells).
-//   6 — case analysis on ≥ 7 frontier cells OR multiple enum passes
-//       (deep backtracking — long inference chains).
-//
-// If the puzzle isn't fully solved by these passes, the frontier was too
-// big to enumerate (>ENUM_CAP=18 cells) OR the puzzle genuinely needs a
-// guess. Both cases get rejected upstream — those puzzles are never shown.
+// Rates a board with the CSP analyzer and returns { solved, difficulty, score,
+// complexityScore, maxEnumSize, needsCaseSplit, cspMethod, ... } so the caller
+// can sort / bucket / display. The difficulty tier is a band on the hardest
+// single deduction's complexity (the bands below); score/rating come from
+// complexityScore. `maxEnumSize` is the largest frontier component the solver
+// had to enumerate — "how many cells you had to mentally test together".
+// A board the capped solver can't finish is reported `solved: false` and
+// rejected upstream, so it's never shown.
 
 function analyzeWithTracking(board, revealedList, numMines) {
 	var rows = board.length, cols = board[0].length;
-	// Build the standard state grid the shared solver operates on.
+	// Build the state grid the CSP solver operates on (covered everywhere
+	// except the pre-revealed cells), plus a cascade helper that opens a
+	// deduced-safe cell and its zero-neighbours like a player's click would.
 	var state = new Array(rows);
 	for (var r = 0; r < rows; r++) {
 		state[r] = new Array(cols);
 		for (var c = 0; c < cols; c++) state[r][c] = UNKNOWN;
 	}
 	revealedList.forEach(function(p) { state[p[0]][p[1]] = KNOWN; });
-
-	// Cascade-reveal helper passed into each apply* pass: when a safe cell
-	// is determined, open it and its zero-neighbours just like the player's
-	// click would. Stops at flagged cells (mineKnown equivalent).
-	function cascadeReveal(r, c) {
-		BoardLogic.cascadeReveal(r, c, rows, cols,
-			function(rr, cc) { return state[rr][cc] === UNKNOWN; },
-			function(rr, cc) { state[rr][cc] = KNOWN; return false; },
-			function(rr, cc) { return board[rr][cc]; }
+	function cascade(rr, cc) {
+		BoardLogic.cascadeReveal(rr, cc, rows, cols,
+			function(a, b) { return state[a][b] === UNKNOWN; },
+			function(a, b) { state[a][b] = KNOWN; return false; },
+			function(a, b) { return board[a][b]; }
 		);
 	}
 
-	// The pass-based PuzzleSolver loop that used to count techniques here was removed with that module.
-	// Per-technique pass counts are no longer tracked (kept at 0 for schema compatibility); maxEnumSize
-	// is derived from the CSP analyzer's enum moves below.
-	var trivCount = 0, subsetCount = 0, overlapCount = 0, chainCount = 0, enumCount = 0;
-	var maxEnumSize = 0;
-
-	var revealedSafe = 0;
-	for (var rr = 0; rr < rows; rr++) {
-		for (var cc2 = 0; cc2 < cols; cc2++) if (state[rr][cc2] === KNOWN) revealedSafe++;
-	}
-	var totalSafe = rows * cols - numMines;
-	var solved = revealedSafe === totalSafe;
-
-	// The pass-based analyzer above gives us the method classification
-	// (which the All Puzzles filter uses). Score, difficulty, and rating
-	// now come from the CSP analyzer's max-complexity instead — a more
-	// principled measure that tracks the cost of the hardest deduction
-	// the player had to do. Run it on a fresh state copy since both
-	// analyzers mutate.
-	var cspState = new Array(rows);
-	for (var rr2 = 0; rr2 < rows; rr2++) {
-		cspState[rr2] = new Array(cols);
-		for (var cc3 = 0; cc3 < cols; cc3++) cspState[rr2][cc3] = UNKNOWN;
-	}
-	revealedList.forEach(function(p) { cspState[p[0]][p[1]] = KNOWN; });
-	function cspCascade(rrr, ccc) {
-		BoardLogic.cascadeReveal(rrr, ccc, rows, cols,
-			function(rr3, cc4) { return cspState[rr3][cc4] === UNKNOWN; },
-			function(rr3, cc4) { cspState[rr3][cc4] = KNOWN; return false; },
-			function(rr3, cc4) { return board[rr3][cc4]; }
-		);
-	}
-	var cspResult = cspSolver.analyzeBoard(board, cspState, { revealCell: cspCascade });
+	// The CSP analyzer is the single source of truth: solvability, the per-move
+	// complexities behind score/difficulty/rating, the hardest-op classification
+	// (cspMethod / needsCaseSplit), and the largest enum component (maxEnumSize).
+	var cspResult = cspSolver.analyzeBoard(board, state, { revealCell: cascade });
 	var maxC = cspResult.maxComplexity;
 	var totalC = cspResult.totalComplexity;
-	// Solvability comes from the sound CSP analyzer (the only solver now); maxEnumSize from its enum moves.
-	solved = cspResult.solved;
+	var solved = cspResult.solved;
+	var maxEnumSize = 0;
 	cspResult.moves.forEach(function(mv) { if (mv.componentSize > maxEnumSize) maxEnumSize = mv.componentSize; });
 	// Geometric difficulty score (see complexityScore): rewards many hard moves, saturates length.
 	// `cscore` is computed regardless of solvability so callers that rate not-fully-solvable boards
@@ -370,7 +314,6 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		difficulty: difficulty,
 		score: score,
 		complexityScore: cscore,
-		passes: { trivial: trivCount, subset: subsetCount, overlap: overlapCount, chain: chainCount, enum: enumCount },
 		maxEnumSize: maxEnumSize,
 		needsCaseSplit: needsCaseSplit,
 		cspMethod: cspMethod,

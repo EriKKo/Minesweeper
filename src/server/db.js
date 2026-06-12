@@ -45,9 +45,6 @@ db.exec(
 	"  difficulty INTEGER NOT NULL," +
 	"  score REAL NOT NULL," +
 	"  rating INTEGER NOT NULL," +
-	"  trivial_passes INTEGER NOT NULL DEFAULT 0," +
-	"  subset_passes INTEGER NOT NULL DEFAULT 0," +
-	"  enum_passes INTEGER NOT NULL DEFAULT 0," +
 	"  max_enum_size INTEGER NOT NULL DEFAULT 0," +
 	"  attempts INTEGER NOT NULL DEFAULT 0," +
 	"  solves INTEGER NOT NULL DEFAULT 0," +
@@ -111,11 +108,19 @@ try {
 		"WHERE rating_sprint = 1000 AND rating_standard = 1000 AND rating_tournament = 1000 AND rating <> 1000"
 	);
 } catch (e) { /* columns may already be backfilled */ }
-// `overlap_passes` was added later. Default -1 marks rows that pre-date the
-// overlap solver — startup re-runs the analyzer on those and stamps a real
-// value so their pass counts / difficulty / score reflect the new pass.
-addColumnIfMissing("puzzles", "overlap_passes", "INTEGER NOT NULL DEFAULT -1");
-addColumnIfMissing("puzzles", "chain_passes", "INTEGER NOT NULL DEFAULT 0");
+// Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
+// product of the old pass-based PuzzleSolver, which has been removed. The CSP
+// analyzer's `csp_method` / `needs_case_split` classification replaced them, so
+// drop the legacy columns from any existing DB.
+function dropColumnIfExists(table, column) {
+	var cols = db.prepare("PRAGMA table_info(" + table + ")").all();
+	if (!cols.some(function(c) { return c.name === column; })) return;
+	try { db.exec("ALTER TABLE " + table + " DROP COLUMN " + column); }
+	catch (e) { /* older SQLite without DROP COLUMN: leave the unused column in place */ }
+}
+["trivial_passes", "subset_passes", "overlap_passes", "chain_passes", "enum_passes"].forEach(function(col) {
+	dropColumnIfExists("puzzles", col);
+});
 // Set to 1 when the CSP analyzer fell back to case-split for at least
 // one move — used by the All Puzzles "Case" filter.
 addColumnIfMissing("puzzles", "needs_case_split", "INTEGER NOT NULL DEFAULT 0");
@@ -419,18 +424,12 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" trivial_passes, subset_passes, overlap_passes, chain_passes, enum_passes, max_enum_size, " +
-		" needs_case_split, csp_method, source, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" max_enum_size, needs_case_split, csp_method, source, scoring_version, created_at) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
 		p.coveredSafe, p.difficulty, p.score, scoreToRating(p.score),
-		(p.passes && p.passes.trivial) || 0,
-		(p.passes && p.passes.subset) || 0,
-		(p.passes && p.passes.overlap) || 0,
-		(p.passes && p.passes.chain) || 0,
-		(p.passes && p.passes.enum) || 0,
 		p.maxEnumSize || 0,
 		p.needsCaseSplit ? 1 : 0,
 		p.cspMethod || "trivial",
@@ -453,13 +452,6 @@ function deserializePuzzle(row) {
 		difficulty: row.difficulty,
 		score: row.score,
 		rating: row.rating,
-		passes: {
-			trivial: row.trivial_passes,
-			subset: row.subset_passes,
-			overlap: row.overlap_passes > 0 ? row.overlap_passes : 0,
-			chain: row.chain_passes || 0,
-			enum: row.enum_passes
-		},
 		maxEnumSize: row.max_enum_size,
 		cspMethod: row.csp_method || "trivial",
 		needsCaseSplit: !!row.needs_case_split,
@@ -487,18 +479,8 @@ function scoreBandClause(band) {
 }
 
 function methodClause(method) {
-	// "trivial" — only the trivial pass made progress
-	// "subset"  — subset rule used, no overlap or enum
-	// "overlap" — generalized constraint subtraction used, no enum
-	// "enum"    — enum pass involved
-	// overlap_passes can be 0 (no overlap deductions) or -1 (legacy row,
-	// pre-overlap classification — treat as "we don't know", so include it
-	// in any non-overlap-specific bucket).
-	// Filter on the CSP analyzer's hardest-op tag. Old pass-tag columns
-	// (subset_passes / overlap_passes / chain_passes / enum_passes) are
-	// retained but no longer drive the filter, since they reflected the
-	// pre-CSP pass-based analyzer's path through a puzzle, not the proof
-	// the current solver actually constructs.
+	// Filter on the CSP analyzer's hardest-op tag (`csp_method`): the single
+	// most expensive deduction the solver needed to crack the puzzle.
 	if (method === "trivial")   return "csp_method = 'trivial'";
 	if (method === "subset")    return "csp_method = 'subset'";
 	if (method === "union")     return "csp_method = 'union'";
@@ -900,30 +882,24 @@ function pickPuzzleNearRating(targetRating, excludeIds, windows) {
 }
 
 // Startup backfill: pick up rows that pre-date the current solver / scoring
-// version and re-run the analyzer so pass counts, difficulty, score, and
-// rating all reflect the latest code.
+// version and re-run the analyzer so difficulty, score, rating, and the CSP
+// method classification all reflect the latest code.
 function legacyPuzzleRows() {
 	return db.prepare(
 		"SELECT id, rows, cols, mines, revealed FROM puzzles " +
-		"WHERE overlap_passes < 0 OR scoring_version < ?"
+		"WHERE scoring_version < ?"
 	).all(CURRENT_SCORING_VERSION);
 }
 
 function applyPuzzleClassification(id, analysis) {
 	db.prepare(
 		"UPDATE puzzles SET difficulty = ?, score = ?, rating = ?, " +
-		"trivial_passes = ?, subset_passes = ?, overlap_passes = ?, chain_passes = ?, enum_passes = ?, " +
 		"max_enum_size = ?, needs_case_split = ?, csp_method = ?, scoring_version = ? " +
 		"WHERE id = ?"
 	).run(
 		analysis.difficulty,
 		analysis.score,
 		scoreToRating(analysis.score),
-		analysis.passes.trivial || 0,
-		analysis.passes.subset || 0,
-		analysis.passes.overlap || 0,
-		analysis.passes.chain || 0,
-		analysis.passes.enum || 0,
 		analysis.maxEnumSize || 0,
 		analysis.needsCaseSplit ? 1 : 0,
 		analysis.cspMethod || "trivial",

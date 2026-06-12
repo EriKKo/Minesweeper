@@ -422,7 +422,6 @@ function generatePuzzles(opts) {
 			coveredSafe: coveredSafe,
 			difficulty: analysis.difficulty,
 			score: analysis.score,
-			passes: analysis.passes,
 			maxEnumSize: analysis.maxEnumSize,
 			needsCaseSplit: !!analysis.needsCaseSplit,
 			cspMethod: analysis.cspMethod || "trivial",

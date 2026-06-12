@@ -152,7 +152,7 @@ function makePuzzle(label, group, ms) {
 		rows: rows, cols: cols, mines: mines, revealed: revealed.slice().sort(comparePos),
 		coveredSafe: coveredSafe, difficulty: difficulty, score: score, rating: scoreToRating(score),
 		solved: a.solved, cspMethod: a.cspMethod, needsCaseSplit: a.needsCaseSplit,
-		cspMaxComplexity: maxC, passes: a.passes
+		cspMaxComplexity: maxC
 	};
 	console.log("  " + label.padEnd(40) + " " + rows + "x" + cols + "  cx " + maxC.toFixed(2)
 		+ "  t" + difficulty + "  r" + p.rating + "  " + (a.solved ? "solvable" : "partial ") + "  via " + a.cspMethod);

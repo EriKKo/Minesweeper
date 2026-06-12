@@ -29,11 +29,9 @@ function cascadeFor(board, state) {
 }
 
 function tag(p) {
-	if (p.passes.enum > 0) return "enum";
-	if (p.passes.chain > 0) return "chain";
-	if (p.passes.overlap > 0) return "overlap";
-	if (p.passes.subset > 0) return "subset";
-	return "trivial";
+	// The CSP analyzer's hardest-op classification (trivial/subset/union/
+	// intersect/case/enum) — replaces the old per-technique pass counts.
+	return p.cspMethod || "trivial";
 }
 
 var all = [];

@@ -178,7 +178,7 @@ function storePuzzles(out, id, t){
 		const ok = db.insertPuzzle({
 			key, rows:t.rows, cols:t.cols, mines, revealed,
 			coveredSafe: t.rows*t.cols - mines.length - revealed.length,
-			difficulty: a.difficulty, score: a.score, passes: a.passes,
+			difficulty: a.difficulty, score: a.score,
 			maxEnumSize: a.maxEnumSize, needsCaseSplit: a.needsCaseSplit, cspMethod: a.cspMethod,
 			source: "template:"+id
 		});
