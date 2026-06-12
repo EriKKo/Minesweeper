@@ -54,8 +54,6 @@ appState.io = io; // share the socket.io server with the handler modules
 territory.init({
 	io: io,
 	COUNT_DOWN_TIME: COUNT_DOWN_TIME,
-	obfuscateBoard: obfuscateBoard,
-	isBot: isBot,
 	clearRoundTimer: clearRoundTimer,
 	applyRankedElo: elo.applyRankedElo,
 	broadcastRoomState: roomState.broadcastRoomState,
@@ -117,22 +115,20 @@ var MAX_BOTS_PER_ROOM = 15;
 var RANKED_RULES = { gameCount: 1, roundSeconds: 120, deathPenalty: 5 };
 var RANKED_BOT_RATING = 1000;
 
-// The Elo math lives in elo.js; give it the bot predicate + rating constants.
-elo.init({ isBot: isBot, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
-standings.init({ isBot: isBot, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
-roomState.init({ isBot: isBot, io: io, MAX_BOTS_PER_ROOM: MAX_BOTS_PER_ROOM, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
-session.init({ updateDraw: updateDraw, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
+// The Elo math lives in elo.js; give it the rating constants (shared predicates come from gameUtil).
+elo.init({ RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
+standings.init({ RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
+roomState.init({ io: io, MAX_BOTS_PER_ROOM: MAX_BOTS_PER_ROOM, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
+session.init({ PROVISIONAL_GAMES: PROVISIONAL_GAMES });
 
-// Racing-bot orchestration lives in botMgr.js; give it the game-loop services + shared predicates.
+// Racing-bot orchestration lives in botMgr.js; give it the game-loop services it needs.
 botMgr.init({
-	isBot: isBot, botCount: botCount, getRoomBotNames: getRoomBotNames,
-	updateDraw: updateDraw, createPlayerGame: createPlayerGame,
+	createPlayerGame: createPlayerGame,
 	newBotId: function() { return nextBotId++; },
 	RANKED_BOT_RATING: RANKED_BOT_RATING, MAX_BOTS_PER_ROOM: MAX_BOTS_PER_ROOM
 });
 
-// Single-player puzzle play lives in puzzlePlay.js; it only needs obfuscateBoard from the core.
-puzzleMode.init({ obfuscateBoard: obfuscateBoard });
+// Single-player puzzle play lives in puzzlePlay.js; it's self-contained (obfuscateBoard via gameUtil).
 botDemo.init({ isSocketAdmin: isSocketAdmin, RANKED_RULES: RANKED_RULES });
 
 // Wire the ranked module with the core services it needs (breaks the circular require).
@@ -146,7 +142,6 @@ ranked.init({
 	readUserRating: elo.readUserRating,
 	createPlayerGame: createPlayerGame,
 	addBotToRoom: botMgr.addBotToRoom,
-	botCount: botCount,
 	broadcastRoomState: roomState.broadcastRoomState,
 	startSeries: startSeries
 });

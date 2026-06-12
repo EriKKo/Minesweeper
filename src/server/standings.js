@@ -7,12 +7,14 @@
 
 var appState = require("./appState");
 var db = require("./db");
+var gameUtil = require("./gameUtil");
 
 var roundStarts = appState.roundStarts, games = appState.games, accounts = appState.accounts;
 var names = appState.names, botRating = appState.botRating;
+var isBot = gameUtil.isBot;
 
-var isBot, RANKED_BOT_RATING, PROVISIONAL_GAMES;
-function init(deps) { isBot = deps.isBot; RANKED_BOT_RATING = deps.RANKED_BOT_RATING; PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
+var RANKED_BOT_RATING, PROVISIONAL_GAMES;
+function init(deps) { RANKED_BOT_RATING = deps.RANKED_BOT_RATING; PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
 
 function computeSeriesWinner(room) {
 	var best = -1;

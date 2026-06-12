@@ -2,17 +2,19 @@
 // guest) user to a socket — populating accounts/names, mirroring the name into any live
 // game, and emitting the `authenticated` snapshot — and registers the connect-time auth
 // socket events (authenticate / guest_session / sign_out / set_name). Reads appState + db
-// + roomState; updateDraw + PROVISIONAL_GAMES are injected via init to avoid a circular
+// + roomState + gameUtil; PROVISIONAL_GAMES is injected via init to avoid a circular
 // require. (The OAuth redirect flow lives in oauth.js; clients then `authenticate` here.)
 
 var appState = require("./appState");
 var db = require("./db");
 var roomState = require("./roomState");
+var gameUtil = require("./gameUtil");
 
 var accounts = appState.accounts, names = appState.names, games = appState.games, roomMapping = appState.roomMapping;
+var updateDraw = gameUtil.updateDraw;
 
-var updateDraw, PROVISIONAL_GAMES;
-function init(deps) { updateDraw = deps.updateDraw; PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
+var PROVISIONAL_GAMES;
+function init(deps) { PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
 
 function loginSocket(socket, playerID, user, token, sendToken) {
 	accounts[playerID] = {

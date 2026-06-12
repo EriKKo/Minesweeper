@@ -9,6 +9,7 @@
 
 var appState = require("./appState");
 var botPlayer = require("./BotPlayer");
+var gameUtil = require("./gameUtil");
 
 // Per-bot state (same objects the server holds).
 var bots = appState.bots, botTickHandles = appState.botTickHandles, botLastClick = appState.botLastClick;
@@ -17,13 +18,10 @@ var botDifficulty = appState.botDifficulty, botSpeedMs = appState.botSpeedMs, bo
 var botDistanceMult = appState.botDistanceMult, botMaxDifficulty = appState.botMaxDifficulty, botRating = appState.botRating;
 var botMistake = appState.botMistake, botChord = appState.botChord;
 
-// Core services + shared predicates injected at boot to avoid a circular require.
-var isBot, botCount, getRoomBotNames, updateDraw, createPlayerGame, newBotId, RANKED_BOT_RATING, MAX_BOTS_PER_ROOM;
+var isBot = gameUtil.isBot, botCount = gameUtil.botCount, getRoomBotNames = gameUtil.getRoomBotNames, updateDraw = gameUtil.updateDraw;
+// Core services injected at boot to avoid a circular require.
+var createPlayerGame, newBotId, RANKED_BOT_RATING, MAX_BOTS_PER_ROOM;
 function init(deps) {
-	isBot = deps.isBot;
-	botCount = deps.botCount;
-	getRoomBotNames = deps.getRoomBotNames;
-	updateDraw = deps.updateDraw;
 	createPlayerGame = deps.createPlayerGame;
 	newBotId = deps.newBotId;
 	RANKED_BOT_RATING = deps.RANKED_BOT_RATING;

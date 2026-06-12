@@ -42,29 +42,28 @@ Source is split into three trees under `src/`:
 - `ranked.js` — ranked matchmaking: the per-mode queues, the bot-trickle filler, and
   `formRankedMatch` (builds the room, seats humans + bots, hands off to the series start).
   Owns the `RANKED_MODES` catalogue + match-reveal/bot-join timings. Coupled to the core
-  like territory, so its core services (`createPlayerGame`, `addBotToRoom`, `botCount`,
+  like territory, so its core services (`createPlayerGame`, `addBotToRoom`,
   `broadcastRoomState`, `startSeries`, `readUserRating`, a room-id source, `RANKED_RULES`,
   `MAX_BOTS_PER_ROOM`, `PROVISIONAL_GAMES`, `io`) are injected via `ranked.init(deps)`; queue
-  state is `appState`. The server delegates `find_ranked`/`cancel_ranked`/disconnect to
-  `ranked.isValidMode`/`enqueue`/`dequeue`.
+  state is `appState` and `botCount` comes from `gameUtil`. The server delegates
+  `find_ranked`/`cancel_ranked`/disconnect to `ranked.isValidMode`/`enqueue`/`dequeue`.
 - `elo.js` — the rating math: the pairwise-Elo formula (`applyRankedElo`), the per-style
   rating reader (`readUserRating`), and the tournament per-player variants
   (`applyEloForPlayer`/`tournamentEloParts`, so a cut player is rated the moment they're
   eliminated). Pure math over `db` + the `appState` accounts/botRating; the standings it
-  consumes are built in the core. `isBot` + `RANKED_BOT_RATING`/`PROVISIONAL_GAMES` are
-  injected via `elo.init(deps)`. Consumed by the core endgame, `ranked`, and `territory`.
+  consumes are built in the core. `RANKED_BOT_RATING`/`PROVISIONAL_GAMES` are injected via
+  `elo.init(deps)` (`isBot` comes from `gameUtil`). Consumed by the core endgame, `ranked`, and `territory`.
 - `bots.js` — racing/casual/ranked bot orchestration: add/remove bots, apply their per-move
   config to the game, and the per-move tick (`decideMove` → a delayed `handleLeftClick`, then
-  reschedule). The bots play through the same game objects + move path as humans, so the
-  game-loop services they touch (`updateDraw`, `createPlayerGame`) and the shared predicates
-  (`isBot`/`botCount`/`getRoomBotNames`, which stay in the core — used everywhere) are injected
-  via `bots.init(deps)`; per-bot state is `appState`. (Territory has its own bot tick in
-  `territory.js`.) NB the server requires it as `botMgr` to avoid colliding with the `bots`
-  state map (`botId → true`) that `isBot` reads.
+  reschedule). The bots play through the same game objects + move path as humans; `createPlayerGame`
+  is injected via `bots.init(deps)`, and the game-loop helpers (`updateDraw`) + shared predicates
+  (`isBot`/`botCount`/`getRoomBotNames`) come from `gameUtil`. Per-bot state is `appState`. (Territory
+  has its own bot tick in `territory.js`.) NB the server requires it as `botMgr` to avoid colliding
+  with the `bots` state map (`botId → true`) that `isBot` reads.
 - `puzzlePlay.js` — single-player puzzle play (rated / streak / storm / daily): the run
   lifecycle, serving puzzles near the player's rating, building the game, the hint pointer,
-  and finalising with the puzzle-Elo exchange. Self-contained on `db` + the generators/solver;
-  the one core dep, `obfuscateBoard`, is injected via `puzzlePlay.init(deps)`; state
+  and finalising with the puzzle-Elo exchange. Self-contained on `db` + the generators/solver +
+  `gameUtil` (`obfuscateBoard`) — no `init` needed; state
   (`puzzlePlay`/`puzzleRun`) is `appState`. The server delegates the `puzzle_*` socket events
   (`registerSocketHandlers`), the puzzle branch of `left_click`/`right_click`
   (`handleLeftClick`/`handleRightClick`), and disconnect (`cleanup`). Required as `puzzleMode`
@@ -78,14 +77,14 @@ Source is split into three trees under `src/`:
 - `standings.js` — turns a room's game results into ranked arrays: per-round standings
   (finishers first, then by finish time / safe count), the series winner, the cumulative-score
   series standings, and the tournament final standings. Reads game/room state + the accounts
-  cache; `isBot` + the rating constants are injected via `standings.init(deps)`.
+  cache; the rating constants are injected via `standings.init(deps)` (`isBot` comes from `gameUtil`).
 - `roomState.js` — room serialization + broadcast: the lobby summary (`room_list`) and the
   full `room_state` payload the client renders, pushed over socket.io. Reads room/game/account
-  state from appState; `isBot`/`io`/the bot+rating constants are injected via `roomState.init(deps)`.
+  state from appState; `io`/the bot+rating constants are injected via `roomState.init(deps)` (`isBot` from `gameUtil`).
 - `session.js` — session/auth attach: `loginSocket` binds a real-or-guest user to a socket
   (accounts/names + the `authenticated` snapshot) and registers the auth socket events
-  (`authenticate`/`guest_session`/`sign_out`/`set_name`). Reads appState + db + roomState;
-  `updateDraw` + `PROVISIONAL_GAMES` injected via `session.init(deps)`. (OAuth redirect is `oauth.js`;
+  (`authenticate`/`guest_session`/`sign_out`/`set_name`). Reads appState + db + roomState + `gameUtil`
+  (`updateDraw`); `PROVISIONAL_GAMES` injected via `session.init(deps)`. (OAuth redirect is `oauth.js`;
   clients then `authenticate` here.)
 - `gameUtil.js` — small shared game helpers depending only on appState + crypto: the bot/player
   predicates (`isBot`/`humanCount`/`botCount`/`getRoomBotNames`), the board obfuscator
@@ -274,9 +273,9 @@ Source is split into three trees under `src/`:
   Server wiring lives in `territory.js` (extracted from `minesweeperServer`): it owns the
   territory socket handlers + helpers (start/end/broadcast/bot-tick/world-tick) and the
   territory board sizes/density. Because it's both called from the core (start/leave/click)
-  and calls back into it (`obfuscateBoard`, `isBot`, `clearRoundTimer`, `applyRankedElo`,
-  `broadcastRoomState`/`List`), those few helpers + `io`/`COUNT_DOWN_TIME` are injected once via
-  `territory.init(deps)` to avoid a circular require; everything else is `appState`. The server
+  and calls back into it (`clearRoundTimer`, `applyRankedElo`, `broadcastRoomState`/`List`), those
+  few callbacks + `io`/`COUNT_DOWN_TIME` are injected once via `territory.init(deps)` to avoid a
+  circular require; `obfuscateBoard`/`isBot` come from `gameUtil` and everything else is `appState`. The server
   delegates: `room.gameMode === "territory"` →
   `territory.startGame` builds one shared game; `left_click` routes to `territory.handleReveal` → `tg.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**

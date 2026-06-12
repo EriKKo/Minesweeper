@@ -14,6 +14,7 @@ var territoryGame = require("./TerritoryGame");
 var territoryGen = require("./TerritoryGenerator");
 var botPlayer = require("./BotPlayer");
 var BoardLogic = require("../common/BoardLogic");
+var gameUtil = require("./gameUtil");
 
 // Shared state (mutated in place; same objects the server holds).
 var rooms = appState.rooms, sockets = appState.sockets, names = appState.names, roomMapping = appState.roomMapping;
@@ -28,13 +29,12 @@ var TERRITORY_COLORS = ["cyan", "amber", "violet", "rose"]; // index = player sl
 // Board dims for a territory game by player count.
 function territoryDims(players) { return players === 4 ? { rows: TERRITORY_ROWS_4, cols: TERRITORY_COLS_4 } : { rows: TERRITORY_ROWS, cols: TERRITORY_COLS }; }
 
+var obfuscateBoard = gameUtil.obfuscateBoard, isBot = gameUtil.isBot;
 // Core helpers + shared values injected at boot to avoid a circular require on the server.
-var io, COUNT_DOWN_TIME, obfuscateBoard, isBot, clearRoundTimer, applyRankedElo, broadcastRoomState, broadcastRoomList;
+var io, COUNT_DOWN_TIME, clearRoundTimer, applyRankedElo, broadcastRoomState, broadcastRoomList;
 function init(deps) {
 	io = deps.io;
 	COUNT_DOWN_TIME = deps.COUNT_DOWN_TIME;
-	obfuscateBoard = deps.obfuscateBoard;
-	isBot = deps.isBot;
 	clearRoundTimer = deps.clearRoundTimer;
 	applyRankedElo = deps.applyRankedElo;
 	broadcastRoomState = deps.broadcastRoomState;

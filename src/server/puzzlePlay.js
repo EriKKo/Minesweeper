@@ -1,10 +1,9 @@
 // Single-player puzzle play (rated / streak / storm / daily), extracted from
 // minesweeperServer. Owns the run lifecycle, serving puzzles near the player's rating,
 // building the game, the hint pointer, and finalising with the puzzle-Elo exchange.
-// Self-contained on db + the generators/solver; the only core dependency is
-// obfuscateBoard (injected via init). State (puzzlePlay / puzzleRun) lives in appState.
-// The server delegates the puzzle_* socket events here, plus the puzzle branch of
-// left_click/right_click and the disconnect cleanup.
+// Self-contained on db + the generators/solver + gameUtil (obfuscateBoard). State
+// (puzzlePlay / puzzleRun) lives in appState. The server delegates the puzzle_* socket
+// events here, plus the puzzle branch of left_click/right_click and the disconnect cleanup.
 
 var appState = require("./appState");
 var db = require("./db");
@@ -12,18 +11,16 @@ var puzzleGen = require("./PuzzleGenerator");
 var gameCreator = require("./GameCreator");
 var cspSolver = require("./CSPSolver");
 var BoardLogic = require("../common/BoardLogic");
+var gameUtil = require("./gameUtil");
 
 var puzzlePlay = appState.puzzlePlay, puzzleRun = appState.puzzleRun, accounts = appState.accounts;
+var obfuscateBoard = gameUtil.obfuscateBoard;
 
 // Streak / Storm tuning.
 var RUN_START_RATING = 100;
 var RUN_STEP = 60;
 var STORM_DURATION_MS = 3 * 60 * 1000;
 var STORM_MISS_PENALTY_MS = 10 * 1000;
-
-// obfuscateBoard is a core helper (also used by the live game / territory); injected at boot.
-var obfuscateBoard;
-function init(deps) { obfuscateBoard = deps.obfuscateBoard; }
 
 function startPuzzleRun(socket, playerID, user, mode) {
 	clearStormTimer(playerID);
@@ -439,7 +436,6 @@ function registerSocketHandlers(socket, playerID) {
 }
 
 module.exports = {
-	init: init,
 	registerSocketHandlers: registerSocketHandlers,
 	handleLeftClick: handleLeftClick,
 	handleRightClick: handleRightClick,

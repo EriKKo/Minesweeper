@@ -5,13 +5,14 @@
 
 var appState = require("./appState");
 var botPlayer = require("./BotPlayer");
+var gameUtil = require("./gameUtil");
 
 var names = appState.names, rooms = appState.rooms, roundDeadlines = appState.roundDeadlines;
 var games = appState.games, accounts = appState.accounts, botRating = appState.botRating, botDifficulty = appState.botDifficulty;
+var isBot = gameUtil.isBot;
 
-var isBot, io, MAX_BOTS_PER_ROOM, RANKED_BOT_RATING, PROVISIONAL_GAMES;
+var io, MAX_BOTS_PER_ROOM, RANKED_BOT_RATING, PROVISIONAL_GAMES;
 function init(deps) {
-	isBot = deps.isBot;
 	io = deps.io;
 	MAX_BOTS_PER_ROOM = deps.MAX_BOTS_PER_ROOM;
 	RANKED_BOT_RATING = deps.RANKED_BOT_RATING;

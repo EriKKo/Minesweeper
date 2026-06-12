@@ -13,6 +13,7 @@ var db = require("./db");
 var botPlayer = require("./BotPlayer");
 var roomCreator = require("./RoomCreator");
 var territory = require("./territory");
+var gameUtil = require("./gameUtil");
 
 // Shared queue state (same objects the server holds).
 var rankedQueues = appState.rankedQueues, pendingBotsLists = appState.pendingBotsLists;
@@ -41,9 +42,10 @@ var RANKED_MATCH_REVEAL_MS = {
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
 
+var botCount = gameUtil.botCount;
 // Core services injected at boot to avoid a circular require on the server.
 var io, RANKED_RULES, MAX_BOTS_PER_ROOM, PROVISIONAL_GAMES, newRoomId,
-    readUserRating, createPlayerGame, addBotToRoom, botCount, broadcastRoomState, startSeries;
+    readUserRating, createPlayerGame, addBotToRoom, broadcastRoomState, startSeries;
 function init(deps) {
 	io = deps.io;
 	RANKED_RULES = deps.RANKED_RULES;
@@ -53,7 +55,6 @@ function init(deps) {
 	readUserRating = deps.readUserRating;
 	createPlayerGame = deps.createPlayerGame;
 	addBotToRoom = deps.addBotToRoom;
-	botCount = deps.botCount;
 	broadcastRoomState = deps.broadcastRoomState;
 	startSeries = deps.startSeries;
 }

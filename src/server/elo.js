@@ -7,12 +7,13 @@
 
 var db = require("./db");
 var appState = require("./appState");
+var gameUtil = require("./gameUtil");
 
 var accounts = appState.accounts, botRating = appState.botRating;
+var isBot = gameUtil.isBot;
 
-var isBot, RANKED_BOT_RATING, PROVISIONAL_GAMES;
+var RANKED_BOT_RATING, PROVISIONAL_GAMES;
 function init(deps) {
-	isBot = deps.isBot;
 	RANKED_BOT_RATING = deps.RANKED_BOT_RATING;
 	PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES;
 }
