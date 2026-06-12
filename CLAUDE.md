@@ -47,6 +47,12 @@ Source is split into three trees under `src/`:
   `MAX_BOTS_PER_ROOM`, `PROVISIONAL_GAMES`, `io`) are injected via `ranked.init(deps)`; queue
   state is `appState`. The server delegates `find_ranked`/`cancel_ranked`/disconnect to
   `ranked.isValidMode`/`enqueue`/`dequeue`.
+- `elo.js` — the rating math: the pairwise-Elo formula (`applyRankedElo`), the per-style
+  rating reader (`readUserRating`), and the tournament per-player variants
+  (`applyEloForPlayer`/`tournamentEloParts`, so a cut player is rated the moment they're
+  eliminated). Pure math over `db` + the `appState` accounts/botRating; the standings it
+  consumes are built in the core. `isBot` + `RANKED_BOT_RATING`/`PROVISIONAL_GAMES` are
+  injected via `elo.init(deps)`. Consumed by the core endgame, `ranked`, and `territory`.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
