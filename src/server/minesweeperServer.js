@@ -23,47 +23,15 @@ var http = require("http")
   , botDemo = require("./botDemo")
   , standings = require("./standings")
   , roomState = require("./roomState")
-  , session = require("./session");
+  , session = require("./session")
+  , gameUtil = require("./gameUtil");
+
+var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
+    humanCount = gameUtil.humanCount, botCount = gameUtil.botCount, getRoomBotNames = gameUtil.getRoomBotNames, updateDraw = gameUtil.updateDraw;
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
 
-// Pack the full board into a XOR-masked byte blob the client can decode lazily
-// from inside a closure. This isn't real anti-cheat — anyone with the JS console
-// can call the decoder for every cell — but it does mean the over-the-wire bytes
-// aren't a trivially-readable JSON board, and `window.myBoard` doesn't exist.
-function obfuscateBoard(board, rows, cols) {
-	var bytes = Buffer.alloc(rows * cols);
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			bytes[r * cols + c] = board[r][c] === -1 ? 9 : board[r][c];
-		}
-	}
-	var mask = crypto.randomBytes(256);
-	for (var j = 0; j < bytes.length; j++) bytes[j] = bytes[j] ^ mask[j % mask.length];
-	return { data: bytes.toString("base64"), mask: mask.toString("base64") };
-}
-
-// Game objects carry the full board (mines + numbers) — we don't ship that in
-// per-tick broadcasts anymore, since the client received the obfuscated board
-// once at game start and renders from it.
-function gameForBroadcast(g, pid) {
-	if (!g) return null;
-	var safeCount = g.revealedSafeCount ? g.revealedSafeCount() : 0;
-	var totalSafe = g.totalSafeSquares || 0;
-	return {
-		id: pid,
-		playerName: g.playerName,
-		state: g.state,
-		finished: g.finished,
-		finishedAt: g.finishedAt,
-		safeCount: safeCount,
-		totalSafe: totalSafe,
-		progress: totalSafe > 0 ? safeCount / totalSafe : 0,
-		frozenUntil: g.frozenUntil,
-		playing: g.playing
-	};
-}
 
 var COUNT_DOWN_TIME = 3;
 var BETWEEN_GAMES_DELAY = 3000;
@@ -188,9 +156,6 @@ var pendingBotsLists = appState.pendingBotsLists;
 var rankedFillTimers = appState.rankedFillTimers;
 var rankedQueueMode = appState.rankedQueueMode; // playerID -> mode key
 
-function isBot(playerID) {
-	return !!bots[playerID];
-}
 
 
 function clearRoundTimer(roomId) {
@@ -202,29 +167,8 @@ function clearRoundTimer(roomId) {
 }
 
 
-function humanCount(room) {
-	var n = 0;
-	for (var i = 0; i < room.players.length; i++) {
-		if (!isBot(room.players[i])) n++;
-	}
-	return n;
-}
 
-function botCount(room) {
-	var n = 0;
-	for (var i = 0; i < room.players.length; i++) {
-		if (isBot(room.players[i])) n++;
-	}
-	return n;
-}
 
-function getRoomBotNames(room) {
-	var ret = [];
-	for (var i = 0; i < room.players.length; i++) {
-		if (isBot(room.players[i])) ret.push(names[room.players[i]] || "");
-	}
-	return ret;
-}
 
 
 function deleteRoomIfEmpty(room) {
@@ -270,38 +214,6 @@ function getGamesWithPlayerOnTop(playerID, players) {
 	return g;
 }
 
-function updateDraw(room) {
-	for (var i = 0; i < room.players.length; i++) {
-		var playerID = room.players[i];
-		if (sockets[playerID]) {
-			// Carry the ids in the broadcast so the client can key live progress
-			// per player instead of relying on positional matching.
-			var orderedIds = [playerID];
-			for (var k = 0; k < room.players.length; k++) {
-				if (room.players[k] !== playerID) orderedIds.push(room.players[k]);
-			}
-			var stripped = orderedIds.map(function(pid) { return gameForBroadcast(games[pid], pid); });
-			sockets[playerID].emit("draw_board", {games: stripped});
-		}
-	}
-	// Tournament spectators: players who were cut earlier in this match
-	// still want to watch the bracket play out. Send them a frame where
-	// slot 0 is intentionally empty (they no longer have a "me" board)
-	// and slots 1+ carry the surviving players' games.
-	if (room.tournamentEliminated) {
-		var elimIds = Object.keys(room.tournamentEliminated);
-		if (elimIds.length) {
-			var spectatorGames = [null];
-			for (var sp = 0; sp < room.players.length; sp++) {
-				spectatorGames.push(gameForBroadcast(games[room.players[sp]], room.players[sp]));
-			}
-			for (var e = 0; e < elimIds.length; e++) {
-				var elimSock = sockets[elimIds[e]];
-				if (elimSock) elimSock.emit("draw_board", { games: spectatorGames });
-			}
-		}
-	}
-}
 
 
 function endIndividualGame(room, reason) {

@@ -87,6 +87,10 @@ Source is split into three trees under `src/`:
   (`authenticate`/`guest_session`/`sign_out`/`set_name`). Reads appState + db + roomState;
   `updateDraw` + `PROVISIONAL_GAMES` injected via `session.init(deps)`. (OAuth redirect is `oauth.js`;
   clients then `authenticate` here.)
+- `gameUtil.js` — small shared game helpers depending only on appState + crypto: the bot/player
+  predicates (`isBot`/`humanCount`/`botCount`/`getRoomBotNames`), the board obfuscator
+  (`obfuscateBoard`), the per-game broadcast payload (`gameForBroadcast`), and `updateDraw`
+  (push each player their `draw_board` frame). Required across the server + modules.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
