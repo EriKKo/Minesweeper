@@ -49,8 +49,7 @@ function writePatternsStateToHash() {
 	if (patternsListState.orderBy !== "rating") bits.push("orderBy=" + patternsListState.orderBy);
 	if (patternsListState.method) bits.push("method=" + patternsListState.method);
 	if (patternsListState.page) bits.push("page=" + patternsListState.page);
-	var qs = bits.length ? "?" + bits.join("&") : "";
-	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
+	applyQueryString(bits);
 }
 
 function renderPatterns() {
@@ -283,28 +282,9 @@ function paintPatternCanvas(canvas, pat) {
 }
 
 function renderPatternsPager(total) {
-	var pager = document.getElementById("patterns_pager");
-	if (!pager) return;
-	pager.innerHTML = "";
-	var pageSize = patternsListState.pageSize;
-	var page = patternsListState.page;
-	var totalPages = Math.max(1, Math.ceil(total / pageSize));
-	if (totalPages <= 1) return;
-	function addBtn(label, target, disabled) {
-		var b = document.createElement("button");
-		b.className = "puzzles-pager-btn" + (target === page ? " current" : "");
-		b.textContent = label;
-		b.disabled = !!disabled || target === page;
-		b.addEventListener("click", function() {
-			patternsListState.page = Math.max(0, Math.min(totalPages - 1, target));
-			writePatternsStateToHash();
-			refreshPatternsList();
-		});
-		pager.appendChild(b);
-	}
-	addBtn("← Prev", page - 1, page <= 0);
-	var lo = Math.max(0, page - 3);
-	var hi = Math.min(totalPages - 1, page + 3);
-	for (var i = lo; i <= hi; i++) addBtn(String(i + 1), i);
-	addBtn("Next →", page + 1, page >= totalPages - 1);
+	renderPager("patterns_pager", total, patternsListState.page, patternsListState.pageSize, function(p) {
+		patternsListState.page = p;
+		writePatternsStateToHash();
+		refreshPatternsList();
+	});
 }

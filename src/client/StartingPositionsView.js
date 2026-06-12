@@ -79,8 +79,7 @@ function writeStartingPosStateToHash() {
 	if (startingPosListState.unique) bits.push("unique=" + startingPosListState.unique);
 	if (startingPosListState.prime) bits.push("prime=" + startingPosListState.prime);
 	if (startingPosListState.page) bits.push("page=" + startingPosListState.page);
-	var qs = bits.length ? "?" + bits.join("&") : "";
-	if (location.search !== qs) history.replaceState(null, "", location.pathname + qs);
+	applyQueryString(bits);
 }
 
 function startingPosSubtitle() {
@@ -496,28 +495,9 @@ function ratingTier(rating) {
 }
 
 function renderStartingPosPager(total) {
-	var pager = document.getElementById("starting_positions_pager");
-	if (!pager) return;
-	pager.innerHTML = "";
-	var pageSize = startingPosListState.pageSize;
-	var page = startingPosListState.page;
-	var totalPages = Math.max(1, Math.ceil(total / pageSize));
-	if (totalPages <= 1) return;
-	function addBtn(label, target, disabled) {
-		var b = document.createElement("button");
-		b.className = "puzzles-pager-btn" + (target === page ? " current" : "");
-		b.textContent = label;
-		b.disabled = !!disabled || target === page;
-		b.addEventListener("click", function() {
-			startingPosListState.page = Math.max(0, Math.min(totalPages - 1, target));
-			writeStartingPosStateToHash();
-			refreshStartingPosList();
-		});
-		pager.appendChild(b);
-	}
-	addBtn("← Prev", page - 1, page <= 0);
-	var lo = Math.max(0, page - 3);
-	var hi = Math.min(totalPages - 1, page + 3);
-	for (var i = lo; i <= hi; i++) addBtn(String(i + 1), i);
-	addBtn("Next →", page + 1, page >= totalPages - 1);
+	renderPager("starting_positions_pager", total, startingPosListState.page, startingPosListState.pageSize, function(p) {
+		startingPosListState.page = p;
+		writeStartingPosStateToHash();
+		refreshStartingPosList();
+	});
 }
