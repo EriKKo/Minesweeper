@@ -219,8 +219,14 @@ Source is split into three trees under `src/`:
   next board click emits the bomb (`territoryLaunchBomb`, intercepted in `performAction`); the missile
   animates via `territoryMissiles`/`drawTerritoryMissiles`, and the claim lock pulses in the launcher's
   colour via `territoryClaims`/`drawTerritoryClaims`.
-  Server wiring in `minesweeperServer.js`: `room.gameMode === "territory"` →
-  `startTerritoryGame` builds one shared game; `left_click` routes to `territory.reveal(pid,r,c,now)`
+  Server wiring lives in `territory.js` (extracted from `minesweeperServer`): it owns the
+  territory socket handlers + helpers (start/end/broadcast/bot-tick/world-tick) and the
+  territory board sizes/density. Because it's both called from the core (start/leave/click)
+  and calls back into it (`obfuscateBoard`, `isBot`, `clearRoundTimer`, `applyRankedElo`,
+  `broadcastRoomState`/`List`), those few helpers + `io`/`COUNT_DOWN_TIME` are injected once via
+  `territory.init(deps)` to avoid a circular require; everything else is `appState`. The server
+  delegates: `room.gameMode === "territory"` →
+  `territory.startGame` builds one shared game; `left_click` routes to `territory.handleReveal` → `tg.reveal(pid,r,c,now)`
   and broadcasts `territory_board` (`state`+`owner`+`scores`+`frozenUntil`); **there is no round clock**
   (`roundSeconds: 0` — and ranked formation now honors an explicit `0` via
   `typeof modeDef.roundSeconds === "number"`, so territory no longer silently inherits the
