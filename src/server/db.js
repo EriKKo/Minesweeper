@@ -3,6 +3,7 @@
 var sqlite = require("node:sqlite");
 var crypto = require("node:crypto");
 var path = require("path");
+var BoardLogic = require("../common/BoardLogic");
 
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
@@ -411,11 +412,8 @@ function topPlayers(limit) {
 // chess-style puzzle rating. Linear `240·(score − 0.5)`, clamped at 0,
 // so the easiest possible puzzle (a single trivial cascade reveal,
 // score ≈ 0.5) lands right at 0 and the deepest current puzzles
-// (score ≈ 13) reach ~3000.
-function scoreToRating(score) {
-	if (!score || score <= 0) return 0;
-	return Math.max(0, Math.round(240 * (score - 0.5)));
-}
+// (score ≈ 13) reach ~3000. Shared formula lives in BoardLogic.scoreToRating.
+var scoreToRating = BoardLogic.scoreToRating;
 
 function insertPuzzle(p) {
 	var info = db.prepare(

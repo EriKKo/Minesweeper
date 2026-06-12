@@ -78,11 +78,7 @@ function initsKey(inits) {
 //                   in the deduced set). They're geometrically part of
 //                   the pattern even when the bundled moves don't
 //                   decide them.
-function popcount32Inline(x) {
-	x = x - ((x >>> 1) & 0x55555555);
-	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
-	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
-}
+var popcount32Inline = BoardLogic.popcount;
 
 // Brute-force the union of UNKNOWN neighbours of the init source
 // clues and find every cell that is forced safe or forced mine across
@@ -476,7 +472,7 @@ function patternBoundingBox(pattern) {
 	return { height: maxR + 1, width: maxC + 1 };
 }
 
-function scoreToRating(score) { return Math.max(0, Math.round(240 * (score - 0.5))); }
+var scoreToRating = BoardLogic.scoreToRating;
 
 // Boundary cell positions in the 5x5-with-3x3-cascade setup,
 // clockwise from (1,1). Their bitmask of outside-neighbour cells in
@@ -518,11 +514,7 @@ function outsideCellFromIndex(idx) {
 	return [4, idx - 11];
 }
 
-function popcount32(x) {
-	x = x - ((x >>> 1) & 0x55555555);
-	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
-	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
-}
+var popcount32 = BoardLogic.popcount;
 
 // Given the 8 boundary clue values and a bitmask of clue indices to
 // keep "active", brute-force every mine arrangement of the 16-cell

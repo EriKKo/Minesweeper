@@ -20,8 +20,7 @@ const BL = require("../src/common/BoardLogic");
 const csp = require("../src/server/CSPSolver");
 const db = require("../src/server/db");
 const MINE = BL.MINE, KNOWN = BL.KNOWN, UNKNOWN = BL.UNKNOWN;
-function popcount(x){ x=x-((x>>>1)&0x55555555); x=(x&0x33333333)+((x>>>2)&0x33333333); return (((x+(x>>>4))&0x0f0f0f0f)*0x01010101)>>>24; }
-function scoreToRating(x){ return Math.max(0, Math.round(240 * (x - 0.5))); }
+const popcount = BL.popcount, scoreToRating = BL.scoreToRating;
 
 const H=4,W=4,BR=6,BC=6,r0=1,c0=1,cR=1,cC=1;
 const inRect=(r,c)=> r>=r0&&r<r0+H&&c>=c0&&c<c0+W;

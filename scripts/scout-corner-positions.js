@@ -15,7 +15,7 @@
 const BL = require("../src/common/BoardLogic");
 const csp = require("../src/server/CSPSolver");
 const MINE = BL.MINE, KNOWN = BL.KNOWN, UNKNOWN = BL.UNKNOWN;
-function popcount(x){ x=x-((x>>>1)&0x55555555); x=(x&0x33333333)+((x>>>2)&0x33333333); return (((x+(x>>>4))&0x0f0f0f0f)*0x01010101)>>>24; }
+const popcount = BL.popcount;
 
 const MAX_RING_MINES = parseInt(process.env.MAX_RING_MINES || "7", 10);
 const RESIDUE_CAP = parseInt(process.env.RESIDUE_CAP || "8", 10);

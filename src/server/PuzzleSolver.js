@@ -148,7 +148,7 @@ function findOverlapSteps(board, state) {
 	return steps;
 }
 
-function popcount(x) { var c = 0; while (x) { x &= x - 1; c++; } return c; }
+var popcount = BoardLogic.popcount;
 
 // Chain deduction: combine two or more clues whose covered sets are
 // disjoint subsets of a single "super-clue", then compare their summed

@@ -33,18 +33,7 @@ var MINE = BoardLogic.MINE;
 
 function randInt(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
 
-function neighbours(rows, cols, r, c) {
-	var out = [];
-	for (var dr = -1; dr <= 1; dr++) {
-		for (var dc = -1; dc <= 1; dc++) {
-			if (dr === 0 && dc === 0) continue;
-			var nr = r + dr, nc = c + dc;
-			if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
-			out.push([nr, nc]);
-		}
-	}
-	return out;
-}
+function neighbours(rows, cols, r, c) { return BoardLogic.neighbours(r, c, rows, cols); }
 
 function cloneState(state) {
 	var n = state.length;
@@ -369,9 +358,7 @@ function constructFromSeed(board, state, startRevealed, rows, cols, opts) {
 // through the shared analyzer to confirm solvability and score them,
 // dedupes by canonical key. Returns an array of puzzle objects ready
 // for db.insertPuzzle. Each is stamped source="inside_out".
-function scoreToRating(score) {
-	return Math.max(0, Math.round(240 * (score - 0.5)));
-}
+var scoreToRating = BoardLogic.scoreToRating;
 
 function generatePuzzles(opts) {
 	opts = opts || {};

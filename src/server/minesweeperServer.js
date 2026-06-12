@@ -1051,7 +1051,7 @@ function cornerStartingPuzzle(pos) {
 			clueCells.push({ r: ir, c: ic, clue: parseInt(tok, 10) || 0, mask: mask, adjM: adjM });
 		}
 	}
-	function popcount(x) { x = x - ((x >>> 1) & 0x55555555); x = (x & 0x33333333) + ((x >>> 2) & 0x33333333); return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24; }
+	var popcount = BoardLogic.popcount;
 	// First ring arrangement consistent with every interior clue (corner counts as a mine).
 	var total = 1 << ring, found = -1;
 	for (var a = 0; a < total && found < 0; a++) {

@@ -15,11 +15,7 @@ var UNKNOWN = BoardLogic.UNKNOWN;
 // analyzer's own deduced cells, so any block size still works (just without re-derivation).
 var BRUTE_LIMIT = 24;
 
-function popcount(x) {
-	x = x - ((x >>> 1) & 0x55555555);
-	x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
-	return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
-}
+var popcount = BoardLogic.popcount;
 
 // Geometry for an H×W revealed block at rows 1..H, cols 1..W of an (H+2)×(W+2) board.
 // `walls` (optional) marks board edges the block sits flush against: { top, bottom, left,

@@ -67,6 +67,17 @@
 				else if (isCovered(nr, nc)) covered.push([nr, nc]);
 			});
 			return { flagCount: flagCount, covered: covered };
+		},
+		// 32-bit population count — shared by the ring/clue-tuple bitmask enumerators.
+		popcount: function(x) {
+			x = x - ((x >>> 1) & 0x55555555);
+			x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+			return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+		},
+		// Puzzle rating from a complexity score. The max(0,…) already floors scores ≤ 0.5 to 0,
+		// so no separate null/negative guard is needed.
+		scoreToRating: function(score) {
+			return Math.max(0, Math.round(240 * (score - 0.5)));
 		}
 	};
 

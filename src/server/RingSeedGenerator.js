@@ -22,7 +22,7 @@ var IO = require("./InsideOutGenerator");
 var puzzleGen = require("./PuzzleGenerator");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic.FLAGGED, MINE = BoardLogic.MINE;
 
-function scoreToRating(s) { return (!s || s <= 0) ? 0 : Math.max(0, Math.round(240 * (s - 0.5))); }
+var scoreToRating = BoardLogic.scoreToRating;
 
 // The corners4-edges2 ring start for an H×W block centred in an (H+2·pad)×(W+2·pad) board.
 // Each block cell's clue counts the mines among its neighbours OUTSIDE the block (corner cells
