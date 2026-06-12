@@ -70,6 +70,11 @@ Source is split into three trees under `src/`:
   (`handleLeftClick`/`handleRightClick`), and disconnect (`cleanup`). Required as `puzzleMode`
   (the `puzzlePlay` name is the appState map). Solo free-play board gen (`request_solo_board`)
   stays in the server.
+- `botDemo.js` — the admin "watch a bot play" demo: builds a standalone no-guess game with a
+  pool bot's variables and streams its play (one frame per move) to the watching socket. The
+  admin gate (`isSocketAdmin`) and `RANKED_RULES` are injected via `botDemo.init(deps)`; state
+  (`botDemos`) is `appState`. Server delegates `bot_demo_start`/`bot_demo_stop`
+  (`registerSocketHandlers`) and disconnect (`stopBotDemo`).
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
