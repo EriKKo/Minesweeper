@@ -62,5 +62,22 @@ test("adding a bot and readying starts a game", async function() {
 		c.emit("player_ready");
 		var payload = await started;
 		assert.ok(payload, "start_game payload arrived (game state created)");
+
+		// The bot should actually play: within a few seconds a draw_board carries a
+		// bot game (id "bot:…") with revealed cells — exercising the bot tick + move path.
+		var botProgressed = await new Promise(function(resolve) {
+			var done = false;
+			var timer = setTimeout(function() { if (!done) { done = true; resolve(false); } }, 8000);
+			c.on("draw_board", function(d) {
+				var gs = (d && d.games) || [];
+				for (var i = 0; i < gs.length; i++) {
+					if (/^bot:/.test(gs[i].id) && gs[i].safeCount > 0) {
+						if (!done) { done = true; clearTimeout(timer); resolve(true); }
+						return;
+					}
+				}
+			});
+		});
+		assert.ok(botProgressed, "a bot revealed cells (bot tick + move ran)");
 	} finally { c.close(); }
 });

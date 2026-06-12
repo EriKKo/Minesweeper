@@ -17,7 +17,8 @@ var http = require("http")
   , appState = require("./appState")
   , territory = require("./territory")
   , ranked = require("./ranked")
-  , elo = require("./elo");
+  , elo = require("./elo")
+  , botMgr = require("./bots");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -425,6 +426,14 @@ var RANKED_BOT_RATING = 1000;
 // The Elo math lives in elo.js; give it the bot predicate + rating constants.
 elo.init({ isBot: isBot, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
 
+// Racing-bot orchestration lives in botMgr.js; give it the game-loop services + shared predicates.
+botMgr.init({
+	isBot: isBot, botCount: botCount, getRoomBotNames: getRoomBotNames,
+	updateDraw: updateDraw, createPlayerGame: createPlayerGame,
+	newBotId: function() { return nextBotId++; },
+	RANKED_BOT_RATING: RANKED_BOT_RATING, MAX_BOTS_PER_ROOM: MAX_BOTS_PER_ROOM
+});
+
 // Wire the ranked module with the core services it needs (breaks the circular require).
 // Placed after the consts above so they're assigned; the injected fns are hoisted declarations.
 ranked.init({
@@ -435,7 +444,7 @@ ranked.init({
 	newRoomId: function() { return nextRoomId++; },
 	readUserRating: elo.readUserRating,
 	createPlayerGame: createPlayerGame,
-	addBotToRoom: addBotToRoom,
+	addBotToRoom: botMgr.addBotToRoom,
 	botCount: botCount,
 	broadcastRoomState: broadcastRoomState,
 	startSeries: startSeries
@@ -543,93 +552,6 @@ function clearRoundTimer(roomId) {
 	delete roundDeadlines[roomId];
 }
 
-function clearBotTick(botId) {
-	if (botTickHandles[botId]) {
-		clearTimeout(botTickHandles[botId]);
-		delete botTickHandles[botId];
-	}
-}
-
-function clearRoomBotTicks(room) {
-	for (var i = 0; i < room.players.length; i++) {
-		var pid = room.players[i];
-		if (isBot(pid)) clearBotTick(pid);
-	}
-}
-
-function readyAllBots(room) {
-	for (var i = 0; i < room.players.length; i++) {
-		if (isBot(room.players[i])) room.playerReady(room.players[i]);
-	}
-}
-
-function scheduleBotTick(room, botId) {
-	clearBotTick(botId);
-	if (!rooms[room.id]) return;
-	if (roomMapping[botId] !== room) return;
-	if (room.phase !== "playing") return;
-	var game = games[botId];
-	if (!game || !game.playing) return;
-
-	var now = Date.now();
-	if (now < game.frozenUntil) {
-		botTickHandles[botId] = setTimeout(function() {
-			delete botTickHandles[botId];
-			scheduleBotTick(room, botId);
-		}, game.frozenUntil - now + 50);
-		return;
-	}
-
-	var move;
-	try {
-		move = botPlayer.decideMove(game);
-	} catch (e) {
-		console.error("bot decideMove error", e);
-		return;
-	}
-	if (!move) return;
-
-	var delay = botPlayer.computeMoveDelay(game, botLastClick[botId] || null, move);
-	botTickHandles[botId] = setTimeout(function() {
-		delete botTickHandles[botId];
-		runBotMove(room, botId, move);
-	}, delay);
-}
-
-function runBotMove(room, botId, move) {
-	if (!rooms[room.id]) return;
-	if (roomMapping[botId] !== room) return;
-	if (room.phase !== "playing") return;
-	var game = games[botId];
-	if (!game || !game.playing) return;
-	if (Date.now() < game.frozenUntil) {
-		// got frozen while waiting — re-plan after the freeze ends
-		scheduleBotTick(room, botId);
-		return;
-	}
-	try {
-		if (move.type === "left") game.handleLeftClick(move.r, move.c);
-		else if (move.type === "right") game.handleRightClick(move.r, move.c);
-		botLastClick[botId] = { r: move.r, c: move.c };
-		updateDraw(room);
-	} catch (e) {
-		console.error("bot runMove error", e);
-	}
-	if (game.playing) {
-		scheduleBotTick(room, botId);
-	}
-}
-
-function startBotTicksForRoom(room) {
-	for (var i = 0; i < room.players.length; i++) {
-		var pid = room.players[i];
-		if (isBot(pid)) {
-			// New round — bot hasn't looked at the board yet
-			delete botLastClick[pid];
-			scheduleBotTick(room, pid);
-		}
-	}
-}
 
 function humanCount(room) {
 	var n = 0;
@@ -655,80 +577,6 @@ function getRoomBotNames(room) {
 	return ret;
 }
 
-// Copy a bot's stored per-move variables onto its current game object (decideMove /
-// computeMoveDelay read them from there). The per-board difficulty map is set
-// separately at round start (it comes from the template, not the bot).
-function applyBotConfigToGame(botId) {
-	var g = games[botId];
-	if (!g) return;
-	g.botSpeedMs = botSpeedMs[botId];
-	g.botDifficultyMs = botDifficultyMs[botId];
-	g.botDistanceMult = botDistanceMult[botId];
-	g.botMaxDifficulty = botMaxDifficulty[botId];
-	g.botMistakeRate = botMistake[botId];
-	g.botChordRate = botChord[botId];
-}
-
-function addBotToRoom(room, config, prechosenName) {
-	if (room.phase !== "planning") return false;
-	if (room.isFull()) return false;
-	if (botCount(room) >= MAX_BOTS_PER_ROOM) return false;
-	var botId = "bot:" + (nextBotId++);
-	bots[botId] = true;
-	names[botId] = prechosenName || botPlayer.pickBotName(getRoomBotNames(room));
-	games[botId] = createPlayerGame(botId, room.rows, room.cols);
-	if (config) {
-		// Elo-tuned bot (ranked, from the pool): explicit per-move variables + rating.
-		botDifficulty[botId] = null;
-	} else {
-		// Casual room: derive the variable set from the difficulty preset.
-		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
-		config = botPlayer.configForDifficulty(botDifficulty[botId]);
-		config.rating = RANKED_BOT_RATING;
-	}
-	botSpeedMs[botId] = config.speedMs;
-	botDifficultyMs[botId] = config.difficultyMs;
-	botDistanceMult[botId] = config.distanceMult;
-	botMaxDifficulty[botId] = config.maxDifficulty;
-	botMistake[botId] = config.mistakeRate;
-	botChord[botId] = (typeof config.chordRate === "number") ? config.chordRate : 0;
-	botRating[botId] = config.rating || RANKED_BOT_RATING;
-	applyBotConfigToGame(botId);
-	roomMapping[botId] = room;
-	room.addPlayer(botId);
-	room.playerReady(botId);
-	return true;
-}
-
-function removeOneBotFromRoom(room) {
-	for (var i = room.players.length - 1; i >= 0; i--) {
-		var pid = room.players[i];
-		if (isBot(pid)) {
-			removeBotEntirely(pid);
-			return true;
-		}
-	}
-	return false;
-}
-
-function removeBotEntirely(botId) {
-	var room = roomMapping[botId];
-	clearBotTick(botId);
-	if (room) room.deletePlayer(botId);
-	delete roomMapping[botId];
-	delete games[botId];
-	delete names[botId];
-	delete bots[botId];
-	delete botDifficulty[botId];
-	delete botSpeedMs[botId];
-	delete botDifficultyMs[botId];
-	delete botDistanceMult[botId];
-	delete botMaxDifficulty[botId];
-	delete botRating[botId];
-	delete botMistake[botId];
-	delete botChord[botId];
-	delete botLastClick[botId];
-}
 
 function deleteRoomIfEmpty(room) {
 	if (room.players.length === 0) {
@@ -876,7 +724,7 @@ function buildStandings(room) {
 function endIndividualGame(room, reason) {
 	if (room.phase !== "playing") return;
 	clearRoundTimer(room.id);
-	clearRoomBotTicks(room);
+	botMgr.clearRoomBotTicks(room);
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
@@ -924,7 +772,7 @@ function endIndividualGame(room, reason) {
 					provisional: eloInfo ? eloInfo.provisional : null
 				});
 			}
-			if (isBot(sCut.id)) clearBotTick(sCut.id);
+			if (isBot(sCut.id)) botMgr.clearBotTick(sCut.id);
 			room.deletePlayer(sCut.id);
 		}
 		tournamentSurvivors = room.players.length;
@@ -1095,7 +943,7 @@ function endSeries(room) {
 		if (!rooms[room.id]) return;
 		room.resetScores();
 		room.resetReady();
-		readyAllBots(room);
+		botMgr.readyAllBots(room);
 		broadcastRoomState(room);
 	}, SERIES_END_DELAY);
 }
@@ -1117,7 +965,7 @@ function gameWin(playerID) {
 	}
 
 	if (isBot(playerID)) {
-		clearBotTick(playerID);
+		botMgr.clearBotTick(playerID);
 	}
 
 	updateDraw(room);
@@ -1155,7 +1003,7 @@ function startGame(room) {
 		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
 		games[pid] = createPlayerGame(pid, room.rows, room.cols);
 		if (isBot(pid)) {
-			applyBotConfigToGame(pid);
+			botMgr.applyBotConfigToGame(pid);
 			// The board's per-cell difficulty map (computed once at generation) drives
 			// each bot's pacing and its max-difficulty skill gate.
 			games[pid].botDifficultyByCell = template.difficultyByCell || null;
@@ -1225,7 +1073,7 @@ function startGame(room) {
 		}
 		broadcastRoomState(room);
 		updateDraw(room);
-		startBotTicksForRoom(room);
+		botMgr.startBotTicksForRoom(room);
 	}, COUNT_DOWN_TIME * 1000);
 }
 
@@ -1325,7 +1173,7 @@ function removePlayerFromRoom(playerID) {
 	// If no humans remain, evict all bots so the room can be cleaned up.
 	if (humanCount(room) === 0) {
 		while (botCount(room) > 0) {
-			removeOneBotFromRoom(room);
+			botMgr.removeOneBotFromRoom(room);
 		}
 	}
 
@@ -1879,7 +1727,7 @@ io.on("connection", function (socket) {
 		botMaxDifficulty[botId] = cfg.maxDifficulty;
 		botMistake[botId] = cfg.mistakeRate;
 		botChord[botId] = cfg.chordRate;
-		applyBotConfigToGame(botId);
+		botMgr.applyBotConfigToGame(botId);
 		broadcastRoomState(room);
 	});
 
@@ -1887,7 +1735,7 @@ io.on("connection", function (socket) {
 		var room = roomMapping[playerID];
 		if (!room) return;
 		if (room.owner !== playerID) return;
-		if (!addBotToRoom(room)) return;
+		if (!botMgr.addBotToRoom(room)) return;
 		broadcastRoomState(room);
 		broadcastRoomList();
 		// If the owner had already readied before adding the bot, start now.
@@ -1901,7 +1749,7 @@ io.on("connection", function (socket) {
 		if (!room) return;
 		if (room.owner !== playerID) return;
 		if (room.phase !== "planning") return;
-		if (!removeOneBotFromRoom(room)) return;
+		if (!botMgr.removeOneBotFromRoom(room)) return;
 		broadcastRoomState(room);
 		broadcastRoomList();
 	});

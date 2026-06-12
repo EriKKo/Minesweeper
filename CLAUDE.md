@@ -53,6 +53,14 @@ Source is split into three trees under `src/`:
   eliminated). Pure math over `db` + the `appState` accounts/botRating; the standings it
   consumes are built in the core. `isBot` + `RANKED_BOT_RATING`/`PROVISIONAL_GAMES` are
   injected via `elo.init(deps)`. Consumed by the core endgame, `ranked`, and `territory`.
+- `bots.js` — racing/casual/ranked bot orchestration: add/remove bots, apply their per-move
+  config to the game, and the per-move tick (`decideMove` → a delayed `handleLeftClick`, then
+  reschedule). The bots play through the same game objects + move path as humans, so the
+  game-loop services they touch (`updateDraw`, `createPlayerGame`) and the shared predicates
+  (`isBot`/`botCount`/`getRoomBotNames`, which stay in the core — used everywhere) are injected
+  via `bots.init(deps)`; per-bot state is `appState`. (Territory has its own bot tick in
+  `territory.js`.) NB the server requires it as `botMgr` to avoid colliding with the `bots`
+  state map (`botId → true`) that `isBot` reads.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
