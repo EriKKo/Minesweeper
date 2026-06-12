@@ -236,61 +236,50 @@ function paintPatternCanvas(canvas, pat) {
 	var state = [];
 	var isMine = [];
 	var clueValue = [];
-	var safeOverlay = [];
 	var isWall = [];
 	for (var r = 0; r < R; r++) {
 		inPattern.push(new Array(C).fill(false));
-		state.push(new Array(C).fill(CELL_COVERED));
+		state.push(new Array(C).fill(UNKNOWN));
 		isMine.push(new Array(C).fill(false));
 		clueValue.push(new Array(C).fill(0));
-		safeOverlay.push(new Array(C).fill(false));
 		isWall.push(new Array(C).fill(false));
 	}
+	var safeCells = [];
 	// Wall cells mark the board edge — drawn as solid dark tiles, not via the cell renderer.
 	wallCells.forEach(function(c) { if (c[0] >= 0 && c[0] < R && c[1] >= 0 && c[1] < C) isWall[c[0]][c[1]] = true; });
 	// Ambiguous covered cells first — drawn as plain blue covered tiles
 	// with no marker. They establish the pattern's footprint.
 	coveredCells.forEach(function(c) { inPattern[c[0]][c[1]] = true; });
 	clueCells.forEach(function(c) {
-		state[c[0]][c[1]] = CELL_REVEALED;
+		state[c[0]][c[1]] = KNOWN;
 		clueValue[c[0]][c[1]] = c[2];
 		inPattern[c[0]][c[1]] = true;
 	});
 	deducedCells.forEach(function(c) {
 		inPattern[c[0]][c[1]] = true;
 		if (c[2] === "M") {
-			state[c[0]][c[1]] = CELL_FLAGGED;
+			state[c[0]][c[1]] = FLAGGED;
 			isMine[c[0]][c[1]] = true;
 		} else {
-			safeOverlay[c[0]][c[1]] = true;
+			safeCells.push([c[0], c[1]]);
 		}
 	});
 
-	var view = makeGridView(R, C, state, isMine, clueValue);
-
-	var ctx = canvas.getContext("2d");
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-	var sw = canvas.width / C, sh = canvas.height / R;
+	var bv = new BoardView(canvas, R, C, state,
+		function(r, c) { return isMine[r][c] ? MINE : clueValue[r][c]; },
+		{ includeCell: function(r, c) { return inPattern[r][c]; } });
 	// Board-edge (wall) cells: solid dark tiles so wall/corner patterns read as bounded.
-	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
-	ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-	for (var wr = 0; wr < R; wr++) {
-		for (var wc = 0; wc < C; wc++) {
-			if (isWall[wr][wc]) ctx.fillRect(wc * sw + gap / 2, wr * sh + gap / 2, sw - gap, sh - gap);
+	bv.underlay(function(ctx, sw, sh) {
+		var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+		ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+		for (var wr = 0; wr < R; wr++) {
+			for (var wc = 0; wc < C; wc++) {
+				if (isWall[wr][wc]) ctx.fillRect(wc * sw + gap / 2, wr * sh + gap / 2, sw - gap, sh - gap);
+			}
 		}
-	}
-	for (var rr = 0; rr < R; rr++) {
-		for (var cc = 0; cc < C; cc++) {
-			if (!inPattern[rr][cc]) continue;
-			drawCell(ctx, rr, cc, view, sw, sh, null);
-		}
-	}
-	// Overlay green checkmarks on the safe-deduced cells.
-	for (var r4 = 0; r4 < R; r4++) {
-		for (var c4 = 0; c4 < C; c4++) {
-			if (safeOverlay[r4][c4]) drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
-		}
-	}
+	});
+	bv.markSafe(safeCells);   // green checkmarks on the safe-deduced cells
+	bv.draw();
 }
 
 function renderPatternsPager(total) {

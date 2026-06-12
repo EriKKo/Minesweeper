@@ -407,21 +407,17 @@ function drawDemoBoard(lastMove) {
 	canvas.height = Math.round(rows * cellPx * DPR);
 	canvas.style.width = (cols * cellPx) + "px";
 	canvas.style.height = (rows * cellPx) + "px";
-	var ctx = canvas.getContext("2d");
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-
 	var board = d.board, state = d.state;
-	var view = makeBoardView(rows, cols, state, function(r, c) { return board[r][c]; });
-	var sw = canvas.width / cols, sh = canvas.height / rows;
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) drawCell(ctx, r, c, view, sw, sh, null);
-	}
+	var bv = new BoardView(canvas, rows, cols, state, function(r, c) { return board[r][c]; });
 	// Outline the bot's most recent move so the eye can follow it.
 	if (lastMove) {
-		ctx.save();
-		ctx.strokeStyle = lastMove.stuck ? "rgba(248,113,113,0.95)" : "rgba(250,204,21,0.95)";
-		ctx.lineWidth = Math.max(2, sw * 0.08);
-		ctx.strokeRect(lastMove.c * sw + ctx.lineWidth / 2, lastMove.r * sh + ctx.lineWidth / 2, sw - ctx.lineWidth, sh - ctx.lineWidth);
-		ctx.restore();
+		bv.overlay(function(ctx, sw, sh) {
+			ctx.save();
+			ctx.strokeStyle = lastMove.stuck ? "rgba(248,113,113,0.95)" : "rgba(250,204,21,0.95)";
+			ctx.lineWidth = Math.max(2, sw * 0.08);
+			ctx.strokeRect(lastMove.c * sw + ctx.lineWidth / 2, lastMove.r * sh + ctx.lineWidth / 2, sw - ctx.lineWidth, sh - ctx.lineWidth);
+			ctx.restore();
+		});
 	}
+	bv.draw();
 }

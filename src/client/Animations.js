@@ -1,8 +1,8 @@
 // Live game board canvas: the RAF animation loop, the reveal/flag/mine
 // per-cell timing (cellAnims keyed by "r,c"), pressed-cell + keyboard-focus
 // highlights, and the renderPlayerBoard function that paints the player's
-// own board through drawCell each frame. Also owns drawBoardStatic for the
-// opponent thumbnails and the BoardView adapter makeLiveView.
+// own board each frame. Also owns drawBoardStatic for the opponent thumbnails
+// and liveBoardView, which builds the game's BoardView (board + territory hooks).
 
 var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
 var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
@@ -45,83 +45,73 @@ function redrawOwnBoardWithFocus() {
 	renderPlayerBoard();
 }
 
-// The live game's board view: the shared sentinel-based BoardView (makeBoardView,
-// reading the decoded board via boardCell) plus the territory-only accessors the
-// renderer consults when present (no-ops in racing/solo/puzzle, which share this path).
-function makeLiveView(state) {
-	var view = makeBoardView(rows, cols, state, boardCell);
-	// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
-	// colours never bleed into the racing/solo/puzzle boards (they share this render path).
-	view.getOwner = function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; };
-	// Territory "fog of clues": you see clue numbers on cells YOU control, plus any opponent cell
-	// that borders one of yours (so the contested frontier is readable). Opponent cells deeper in
-	// their territory show their owner tint but no clue. Off (always show) in every other mode.
-	view.hideClue = function(r, c) {
-		if (typeof territoryActive === "undefined" || !territoryActive || !territoryOwnerColors || typeof territoryInfo === "undefined" || !territoryInfo) return false;
-		var mineColor = territoryColorHex(territoryColorOf(territoryInfo.myId));
-		if (territoryOwnerColors[r][c] === mineColor) return false; // your own cell — always shown
-		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (!dr && !dc) continue;
-			var nr = r + dr, nc = c + dc;
-			if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && territoryOwnerColors[nr][nc] === mineColor) return false; // borders your territory
+// The live game's board: a BoardView over the decoded board (boardCell) plus the
+// territory-only accessors the renderer consults when present (no-ops in racing/
+// solo/puzzle, which share this path). Callers add per-cell animation and overlays.
+function liveBoardView(canvas, state) {
+	return new BoardView(canvas, rows, cols, state, boardCell, {
+		// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
+		// colours never bleed into the racing/solo/puzzle boards (they share this render path).
+		getOwner: function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; },
+		// Territory "fog of clues": you see clue numbers on cells YOU control, plus any opponent cell
+		// that borders one of yours (so the contested frontier is readable). Opponent cells deeper in
+		// their territory show their owner tint but no clue. Off (always show) in every other mode.
+		hideClue: function(r, c) {
+			if (typeof territoryActive === "undefined" || !territoryActive || !territoryOwnerColors || typeof territoryInfo === "undefined" || !territoryInfo) return false;
+			var mineColor = territoryColorHex(territoryColorOf(territoryInfo.myId));
+			if (territoryOwnerColors[r][c] === mineColor) return false; // your own cell — always shown
+			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+				if (!dr && !dc) continue;
+				var nr = r + dr, nc = c + dc;
+				if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && territoryOwnerColors[nr][nc] === mineColor) return false; // borders your territory
+			}
+			return true; // not yours and not touching you — hidden
+		},
+		// Territory structure charge (0..1), interpolated live from the last broadcast so the gauge fills
+		// smoothly between updates. null/1 when not a structure.
+		structureCharge: function(r, c) {
+			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+			var s = territoryStructures[r + "," + c];
+			if (!s || !s.cooldownMs) return 1;
+			var remaining = s.readyAt - performance.now();
+			return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
+		},
+		// Extractor construction progress (0..1). 1 = built/operational. Interpolated from the broadcast.
+		structureBuild: function(r, c) {
+			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+			var s = territoryStructures[r + "," + c];
+			if (!s || !s.buildMs) return 1;
+			var remaining = s.builtAt - performance.now();
+			return remaining <= 0 ? 1 : 1 - remaining / s.buildMs;
 		}
-		return true; // not yours and not touching you — hidden
-	};
-	// Territory structure charge (0..1), interpolated live from the last broadcast so the gauge fills
-	// smoothly between updates. null/1 when not a structure.
-	view.structureCharge = function(r, c) {
-		if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
-		var s = territoryStructures[r + "," + c];
-		if (!s || !s.cooldownMs) return 1;
-		var remaining = s.readyAt - performance.now();
-		return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
-	};
-	// Extractor construction progress (0..1). 1 = built/operational. Interpolated from the broadcast.
-	view.structureBuild = function(r, c) {
-		if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
-		var s = territoryStructures[r + "," + c];
-		if (!s || !s.buildMs) return 1;
-		var remaining = s.builtAt - performance.now();
-		return remaining <= 0 ? 1 : 1 - remaining / s.buildMs;
-	};
-	return view;
+	});
 }
 
 // ---- whole boards ------------------------------------------------------
 function drawBoardStatic(state, canvas) {
-	var ctx = canvas.getContext("2d");
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-	var sw = canvas.width / cols, sh = canvas.height / rows;
-	var view = makeLiveView(state);
-	for (var r = 0; r < rows; r++) {
-		for (var c = 0; c < cols; c++) {
-			drawCell(ctx, r, c, view, sw, sh, null);
-		}
-	}
+	liveBoardView(canvas, state).draw();
 }
 
 function renderPlayerBoard() {
-	var ctx = playerCanvas.getContext("2d");
-	ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
 	if (boardDecoder && myState) {
-		var view = makeLiveView(myState);
-		var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
 		var now = performance.now();
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				var a = cellAnims[r + "," + c];
-				var animArg = null;
-				if (a) {
-					var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
-					animArg = { type: a.type, t: (now - a.start) / dur };
-				}
-				drawCell(ctx, r, c, view, sw, sh, animArg);
-			}
-		}
-		if (typeof drawTerritoryClaims === "function") drawTerritoryClaims(ctx, sw, sh); // territory: bomb claim locks
-		if (typeof drawTerritoryEnergyLines === "function") drawTerritoryEnergyLines(ctx, sw, sh); // territory: power grid
-		if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
-		if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
+		var bv = liveBoardView(playerCanvas, myState);
+		bv.animAt = function(r, c) {
+			var a = cellAnims[r + "," + c];
+			if (!a) return null;
+			var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
+			return { type: a.type, t: (now - a.start) / dur };
+		};
+		bv.overlay(function(ctx, sw, sh) {
+			if (typeof drawTerritoryClaims === "function") drawTerritoryClaims(ctx, sw, sh); // territory: bomb claim locks
+			if (typeof drawTerritoryEnergyLines === "function") drawTerritoryEnergyLines(ctx, sw, sh); // territory: power grid
+			if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
+			if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
+		});
+		bv.draw();
+	} else {
+		var ctx = playerCanvas.getContext("2d");
+		ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
 	}
 	drawPressedHighlight();
 	drawFocusHighlight();

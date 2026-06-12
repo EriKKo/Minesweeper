@@ -775,7 +775,8 @@ var LEARN_CELL_PX = 32;
 
 function buildBoardState(spec, isMineArr, clueValue) {
 	var R = spec.rows, C = spec.cols;
-	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
+	// Aliases onto the canonical BoardLogic sentinels (one board encoding everywhere).
+	var COVERED = UNKNOWN, REVEALED = KNOWN, FLAGGED_S = FLAGGED;
 	var s = [];
 	for (var r = 0; r < R; r++) s[r] = new Array(C).fill(COVERED);
 	if (spec.revealAll) {
@@ -796,8 +797,12 @@ function buildBoardState(spec, isMineArr, clueValue) {
 	return s;
 }
 
-function buildBoardView(spec, isMineArr, clueValue, state) {
-	return makeGridView(spec.rows, spec.cols, state, isMineArr, clueValue, { xray: spec.xray });
+// A BoardView for a Learn board: cellAt reads the mine grid (→ MINE) then the
+// clue grid. The caller supplies the canvas and the (mutable) state matrix.
+function learnBoardView(canvas, spec, isMineArr, clueValue, state) {
+	return new BoardView(canvas, spec.rows, spec.cols, state,
+		function(r, c) { return isMineArr[r][c] ? MINE : clueValue[r][c]; },
+		{ xray: spec.xray });
 }
 
 function buildBoardCanvas(R, C) {
@@ -817,14 +822,11 @@ function renderDemoBoard(demo) {
 	var isMineArr = buildMineGrid(demo);
 	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
 	var state = buildBoardState(demo, isMineArr, clueValue);
-	var view = buildBoardView(demo, isMineArr, clueValue, state);
 	var wrap = document.createElement("div");
 	wrap.className = "learn-board";
 	var canvas = buildBoardCanvas(R, C);
 	wrap.appendChild(canvas);
-	var ctx = canvas.getContext("2d");
-	var sw = canvas.width / C, sh = canvas.height / R;
-	for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) drawCell(ctx, r, c, view, sw, sh, null);
+	learnBoardView(canvas, demo, isMineArr, clueValue, state).draw();
 	return wrap;
 }
 
@@ -872,12 +874,13 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	wrap.appendChild(title);
 
 	var R = puzzle.rows, C = puzzle.cols;
-	var COVERED = 0, REVEALED = 1, FLAGGED = 2;
+	// Aliases onto the canonical BoardLogic sentinels; the play logic below mutates
+	// `state` with these (FLAGGED is the global sentinel). One board encoding everywhere.
+	var COVERED = UNKNOWN, REVEALED = KNOWN;
 
 	var isMineArr = buildMineGrid(puzzle);
 	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
 	var state = buildBoardState(puzzle, isMineArr, clueValue);
-	var view = buildBoardView(puzzle, isMineArr, clueValue, state);
 
 	var boardWrap = document.createElement("div");
 	boardWrap.className = "learn-board";
@@ -885,7 +888,6 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	canvas.style.cursor = "pointer";
 	boardWrap.appendChild(canvas);
 	wrap.appendChild(boardWrap);
-	var ctx = canvas.getContext("2d");
 
 	// highlightedCells can be either:
 	//   * an array of [r,c] (single gold-outlined group, the simple case), or
@@ -893,7 +895,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	//     gold and context draws softer blue — used to visualize a proof
 	//     step against the cells of its parent clues.
 	var highlightedCells = null;
-	function drawOutlines(sw, sh, cells, stroke, shadow) {
+	function drawOutlines(ctx, sw, sh, cells, stroke, shadow) {
 		if (!cells || !cells.length) return;
 		ctx.save();
 		ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.08);
@@ -908,20 +910,23 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 		}
 		ctx.restore();
 	}
-	function renderAll() {
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		var sw = canvas.width / C, sh = canvas.height / R;
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) drawCell(ctx, r, c, view, sw, sh, null);
-		if (highlightedCells) {
+	// The board renders itself; the highlight overlay reads the live `highlightedCells`.
+	var bv;
+	function buildBoardRenderer() {
+		bv = learnBoardView(canvas, puzzle, isMineArr, clueValue, state);
+		bv.overlay(function(ctx, sw, sh) {
+			if (!highlightedCells) return;
 			if (Array.isArray(highlightedCells)) {
-				drawOutlines(sw, sh, highlightedCells, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
+				drawOutlines(ctx, sw, sh, highlightedCells, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
 			} else {
 				// Context drawn first so primary outlines sit on top.
-				drawOutlines(sw, sh, highlightedCells.context, "rgba(96, 165, 250, 0.85)", "rgba(96, 165, 250, 0.5)");
-				drawOutlines(sw, sh, highlightedCells.primary, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
+				drawOutlines(ctx, sw, sh, highlightedCells.context, "rgba(96, 165, 250, 0.85)", "rgba(96, 165, 250, 0.5)");
+				drawOutlines(ctx, sw, sh, highlightedCells.primary, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
 			}
-		}
+		});
 	}
+	buildBoardRenderer();
+	function renderAll() { bv.draw(); }
 	renderAll();
 
 	var status = document.createElement("span");
@@ -1060,8 +1065,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 
 	function resetPuzzle() {
 		state = buildBoardState(puzzle, isMineArr, clueValue);
-		// rebuild view's state reference
-		view = buildBoardView(puzzle, isMineArr, clueValue, state);
+		buildBoardRenderer();   // rebind the renderer to the fresh state matrix
 		gameOver = false;
 		puzzleSolved = false;
 		solvedTick.textContent = "";

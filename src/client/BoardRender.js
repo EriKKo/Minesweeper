@@ -1,8 +1,8 @@
-// Canvas-based board rendering. Used by every interactive board surface on
-// the site: the live game's playerCanvas, the opponent thumbnails, the Learn
-// demos, and the Learn puzzles. Each surface supplies a BoardView object —
-// isCovered/isRevealed/isFlagged/isMine/getClue/xray — so the same paint code
-// works against different cell-state schemas.
+// Canvas-based board rendering. Every interactive board surface on the site —
+// the live game's playerCanvas, the opponent thumbnails, the bot-demo board, the
+// Learn demos/puzzles, and the pattern / starting-position admin cards — builds a
+// BoardView (below) bound to its canvas and calls draw(); the cell loop and the
+// drawCell primitive live here, so no surface re-implements them.
 //
 // Loaded via a plain <script> tag before the main inline script. Everything
 // declared here becomes a global the main script can reach.
@@ -56,45 +56,67 @@ function roundRectPath(ctx, x, y, w, h, r) {
 	ctx.closePath();
 }
 
-// ---- shared board-surface helpers -------------------------------------
-// Every non-live board surface (Learn demos/puzzles, the pattern and starting-
-// position admin cards) describes a board with three per-cell arrays — a state
-// grid (CELL_COVERED/CELL_REVEALED/CELL_FLAGGED), a mine grid, and a clue grid —
-// then paints it with drawCell. makeGridView wraps those arrays in the BoardView
-// interface so each surface doesn't hand-roll the same five accessors.
-var CELL_COVERED = 0, CELL_REVEALED = 1, CELL_FLAGGED = 2;
-
-function makeGridView(rows, cols, state, isMine, clueValue, opts) {
+// ---- BoardView: a board bound to a canvas, that renders itself ----------
+// One object both *represents* a board (the cell-state accessors drawCell reads)
+// and *renders* it: draw() clears the canvas and paints every cell, so no caller
+// loops cells itself. There is one canonical board encoding — `state` uses the
+// BoardLogic sentinels (UNKNOWN/KNOWN/FLAGGED) and `cellAt(r, c)` returns MINE or
+// a clue value — used everywhere from the live game to the admin cards (it
+// replaced the old makeGridView/makeBoardView split).
+//
+// Callers shape the picture without touching the loop:
+//   .overlay(fn) / .underlay(fn)  — fn(ctx, sw, sh) run after / before the cells
+//   .markSafe(cells)              — green "proved safe" check on covered cells
+//   .animAt = fn(r, c)            — per-cell reveal/flag/mine animation (live game)
+//   .includeCell = fn(r, c)       — limit which cells are painted (pattern footprint)
+//   .getOwner/.hideClue/.structureCharge/.structureBuild — territory-only accessors
+// The sentinels/MINE are page globals assigned after the scripts load, so they're
+// only read inside these methods (at call time), never at module-eval time.
+function BoardView(canvas, rows, cols, state, cellAt, opts) {
 	opts = opts || {};
-	return {
-		rows: rows, cols: cols,
-		isCovered: function(r, c) { return state[r][c] === CELL_COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === CELL_REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === CELL_FLAGGED; },
-		isMine: function(r, c) { return !!(isMine && isMine[r][c]); },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: !!opts.xray
-	};
+	this.canvas = canvas;
+	this.rows = rows;
+	this.cols = cols;
+	this._state = state;
+	this._cellAt = cellAt;
+	this.xray = !!opts.xray;
+	this.animAt = opts.animAt || null;
+	this.includeCell = opts.includeCell || null;
+	this.getOwner = opts.getOwner || null;
+	this.hideClue = opts.hideClue || null;
+	this.structureCharge = opts.structureCharge || null;
+	this.structureBuild = opts.structureBuild || null;
+	this._underlays = [];
+	this._overlays = [];
 }
-
-// Live-board BoardView: the same five accessors over the runtime state matrix
-// (UNKNOWN/KNOWN/FLAGGED sentinels) and a board accessor cellAt(r, c) that returns
-// a clue value or MINE. Shared by the live game (Animations.makeLiveView, which
-// layers the territory accessors on top) and the bot-demo board in the admin.
-// The sentinels are page globals assigned after the scripts load, so they're only
-// read inside these closures (at call time), never at module-eval time.
-function makeBoardView(rows, cols, state, cellAt, opts) {
-	opts = opts || {};
-	return {
-		rows: rows, cols: cols,
-		isCovered: function(r, c) { return state[r][c] === UNKNOWN; },
-		isRevealed: function(r, c) { return state[r][c] === KNOWN; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
-		isMine: function(r, c) { return cellAt(r, c) === MINE; },
-		getClue: function(r, c) { var v = cellAt(r, c); return v > 0 ? v : 0; },
-		xray: !!opts.xray
-	};
-}
+// Cell-state interface drawCell consumes.
+BoardView.prototype.isCovered  = function(r, c) { return this._state[r][c] === UNKNOWN; };
+BoardView.prototype.isRevealed = function(r, c) { return this._state[r][c] === KNOWN; };
+BoardView.prototype.isFlagged  = function(r, c) { return this._state[r][c] === FLAGGED; };
+BoardView.prototype.isMine     = function(r, c) { return this._cellAt(r, c) === MINE; };
+BoardView.prototype.getClue    = function(r, c) { var v = this._cellAt(r, c); return v > 0 ? v : 0; };
+// Influence the picture (each returns this, so calls chain).
+BoardView.prototype.underlay = function(fn) { this._underlays.push(fn); return this; };
+BoardView.prototype.overlay  = function(fn) { this._overlays.push(fn); return this; };
+BoardView.prototype.markSafe = function(cells) {
+	return this.overlay(function(ctx, sw, sh) {
+		for (var i = 0; i < cells.length; i++) drawSafeMarker(ctx, cells[i][1] * sw, cells[i][0] * sh, sw, sh);
+	});
+};
+BoardView.prototype.draw = function() {
+	var ctx = this.canvas.getContext("2d");
+	var sw = this.canvas.width / this.cols, sh = this.canvas.height / this.rows;
+	ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+	var i, r, c;
+	for (i = 0; i < this._underlays.length; i++) this._underlays[i](ctx, sw, sh);
+	for (r = 0; r < this.rows; r++) {
+		for (c = 0; c < this.cols; c++) {
+			if (this.includeCell && !this.includeCell(r, c)) continue;
+			drawCell(ctx, r, c, this, sw, sh, this.animAt ? this.animAt(r, c) : null);
+		}
+	}
+	for (i = 0; i < this._overlays.length; i++) this._overlays[i](ctx, sw, sh);
+};
 
 // Create a DPR-scaled canvas sized to a cols×rows grid of `cellPx` logical px.
 // Shared by the Learn / pattern / starting-position canvas factories.

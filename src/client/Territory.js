@@ -9,7 +9,7 @@
 //
 // State arrives via territory_start / territory_board / territory_result (forwarded from the inline
 // socket handlers in index.html). Globals territoryActive / territoryOwnerColors are read by
-// Input.currentActionMode and Animations.makeLiveView respectively.
+// Input.currentActionMode and Animations.liveBoardView respectively.
 
 var territoryActive = false;          // Input.currentActionMode → "territory" while true
 var territoryOwnerColors = null;      // [r][c] -> owner colour hex (or null) for drawCell tint
