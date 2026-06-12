@@ -21,7 +21,10 @@ const MAX_RING_MINES = parseInt(process.env.MAX_RING_MINES || "7", 10);
 const RESIDUE_CAP = parseInt(process.env.RESIDUE_CAP || "8", 10);
 const EXAMPLE = "M.2.1.1.2.1.0.1.2.0.0.1.2.1.1.1";
 
-const H=4,W=4,BR=6,BC=6,r0=1,c0=1,cR=1,cC=1;
+// Block size (env H/W). The block is fully revealed except one corner mine; the surrounding border is the
+// covered ring. Bigger blocks have more interior room for genuine case-analysis structure.
+const H=parseInt(process.env.H||"4",10), W=parseInt(process.env.W||"4",10);
+const BR=H+2, BC=W+2, r0=1,c0=1,cR=1,cC=1;
 const inRect=(r,c)=> r>=r0&&r<r0+H&&c>=c0&&c<c0+W;
 const ringIdx={}; let ring=0;
 for(let r=0;r<BR;r++)for(let c=0;c<BC;c++) if(!inRect(r,c)){ ringIdx[r+","+c]=ring++; }
@@ -51,7 +54,7 @@ for(let a=0;a<total;a++){
   b.sol++;
 }
 const t1=Date.now();
-console.log(`sparse sweep (<=${MAX_RING_MINES} ring mines): ${swept} arrangements -> ${buckets.size} unique openings  [${t1-t0}ms]`);
+console.log(`${H}x${W} block, ring=${ring} | sparse sweep (<=${MAX_RING_MINES} ring mines): ${swept} arrangements -> ${buckets.size} unique openings  [${t1-t0}ms]`);
 
 function buildConcrete(layout){
   const board=[],state=[];
@@ -104,7 +107,8 @@ console.log(`pure case-split (no brute enum): ${pureCase} / ${gems.length}`);
 console.log("\ntop 12 by max complexity:");
 for(const g of gems.slice(0,12)) console.log(`  max ${g.max}  total ${g.total}  sol ${g.sol}  residue ${g.residue}  ${g.enum?"(+enum)":"(case)"}  ${g.pattern}`);
 
-// Example sanity check
+// Example sanity check (only meaningful for the 4x4 family the example came from)
+if(H!==4||W!==4){ return; }
 const ex=gems.find(g=>g.pattern===EXAMPLE);
 console.log(`\nexample ${EXAMPLE}: ` + (ex ? `FOUND as a gem (max ${ex.max}, sol ${ex.sol}, residue ${ex.residue})` : "NOT in gem set"));
 if(!ex){
