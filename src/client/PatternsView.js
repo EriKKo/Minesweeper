@@ -220,14 +220,7 @@ function renderPatternCard(pat) {
 }
 
 function buildPatternCanvas(width, height) {
-	var canvas = document.createElement("canvas");
-	canvas.className = "pattern-card-canvas";
-	var dpr = window.devicePixelRatio || 1;
-	canvas.width = Math.round(width * PATTERN_CELL_PX * dpr);
-	canvas.height = Math.round(height * PATTERN_CELL_PX * dpr);
-	canvas.style.width = (width * PATTERN_CELL_PX) + "px";
-	canvas.style.height = (height * PATTERN_CELL_PX) + "px";
-	return canvas;
+	return buildCellCanvas(width, height, PATTERN_CELL_PX, "pattern-card-canvas");
 }
 
 function paintPatternCanvas(canvas, pat) {
@@ -238,7 +231,6 @@ function paintPatternCanvas(canvas, pat) {
 	var coveredCells = cells.covered || [];   // [[r, c, "?"], ...]  ambiguous covered cells
 	var wallCells = cells.walls || [];        // [[r, c, "W"], ...]  off-board (board edge)
 	var R = pat.height, C = pat.width;
-	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
 
 	var inPattern = [];
 	var state = [];
@@ -248,7 +240,7 @@ function paintPatternCanvas(canvas, pat) {
 	var isWall = [];
 	for (var r = 0; r < R; r++) {
 		inPattern.push(new Array(C).fill(false));
-		state.push(new Array(C).fill(COVERED));
+		state.push(new Array(C).fill(CELL_COVERED));
 		isMine.push(new Array(C).fill(false));
 		clueValue.push(new Array(C).fill(0));
 		safeOverlay.push(new Array(C).fill(false));
@@ -260,29 +252,21 @@ function paintPatternCanvas(canvas, pat) {
 	// with no marker. They establish the pattern's footprint.
 	coveredCells.forEach(function(c) { inPattern[c[0]][c[1]] = true; });
 	clueCells.forEach(function(c) {
-		state[c[0]][c[1]] = REVEALED;
+		state[c[0]][c[1]] = CELL_REVEALED;
 		clueValue[c[0]][c[1]] = c[2];
 		inPattern[c[0]][c[1]] = true;
 	});
 	deducedCells.forEach(function(c) {
 		inPattern[c[0]][c[1]] = true;
 		if (c[2] === "M") {
-			state[c[0]][c[1]] = FLAGGED_S;
+			state[c[0]][c[1]] = CELL_FLAGGED;
 			isMine[c[0]][c[1]] = true;
 		} else {
 			safeOverlay[c[0]][c[1]] = true;
 		}
 	});
 
-	var view = {
-		rows: R, cols: C,
-		isCovered: function(r, c) { return state[r][c] === COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
-		isMine: function(r, c) { return isMine[r][c]; },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: false
-	};
+	var view = makeGridView(R, C, state, isMine, clueValue);
 
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);

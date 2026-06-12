@@ -56,6 +56,58 @@ function roundRectPath(ctx, x, y, w, h, r) {
 	ctx.closePath();
 }
 
+// ---- shared board-surface helpers -------------------------------------
+// Every non-live board surface (Learn demos/puzzles, the pattern and starting-
+// position admin cards) describes a board with three per-cell arrays — a state
+// grid (CELL_COVERED/CELL_REVEALED/CELL_FLAGGED), a mine grid, and a clue grid —
+// then paints it with drawCell. makeGridView wraps those arrays in the BoardView
+// interface so each surface doesn't hand-roll the same five accessors.
+var CELL_COVERED = 0, CELL_REVEALED = 1, CELL_FLAGGED = 2;
+
+function makeGridView(rows, cols, state, isMine, clueValue, opts) {
+	opts = opts || {};
+	return {
+		rows: rows, cols: cols,
+		isCovered: function(r, c) { return state[r][c] === CELL_COVERED; },
+		isRevealed: function(r, c) { return state[r][c] === CELL_REVEALED; },
+		isFlagged: function(r, c) { return state[r][c] === CELL_FLAGGED; },
+		isMine: function(r, c) { return !!(isMine && isMine[r][c]); },
+		getClue: function(r, c) { return clueValue[r][c]; },
+		xray: !!opts.xray
+	};
+}
+
+// Create a DPR-scaled canvas sized to a cols×rows grid of `cellPx` logical px.
+// Shared by the Learn / pattern / starting-position canvas factories.
+function buildCellCanvas(cols, rows, cellPx, className) {
+	var canvas = document.createElement("canvas");
+	if (className) canvas.className = className;
+	canvas.width = Math.round(cols * cellPx * DPR);
+	canvas.height = Math.round(rows * cellPx * DPR);
+	canvas.style.width = (cols * cellPx) + "px";
+	canvas.style.height = (rows * cellPx) + "px";
+	return canvas;
+}
+
+// Small green checkmark overlay marking a covered cell the solver proved safe.
+// Used by the pattern and starting-position admin cards (it lives here, with the
+// other cell-drawing primitives, rather than in one view file the others reach into).
+function drawSafeMarker(ctx, x, y, sw, sh) {
+	var cx = x + sw / 2, cy = y + sh / 2;
+	var s = Math.min(sw, sh) * 0.28;
+	ctx.save();
+	ctx.strokeStyle = "#4ade80";
+	ctx.lineWidth = Math.max(2, s * 0.35);
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+	ctx.beginPath();
+	ctx.moveTo(cx - s, cy + s * 0.05);
+	ctx.lineTo(cx - s * 0.25, cy + s * 0.65);
+	ctx.lineTo(cx + s, cy - s * 0.55);
+	ctx.stroke();
+	ctx.restore();
+}
+
 // ---- one cell ---------------------------------------------------------
 // drawCell paints a single cell into the canvas at logical position (r, c).
 // `view` is the BoardView interface — isCovered/isRevealed/isFlagged/isMine/

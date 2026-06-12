@@ -374,14 +374,7 @@ function analyzeStartingPos(pos) {
 
 function buildStartingPosCanvas(size) {
 	var N = (size || 3) + 2; // block size + the surrounding ring
-	var canvas = document.createElement("canvas");
-	canvas.className = "starting-pos-canvas";
-	var dpr = window.devicePixelRatio || 1;
-	canvas.width = Math.round(N * STARTING_POS_CELL_PX * dpr);
-	canvas.height = Math.round(N * STARTING_POS_CELL_PX * dpr);
-	canvas.style.width = (N * STARTING_POS_CELL_PX) + "px";
-	canvas.style.height = (N * STARTING_POS_CELL_PX) + "px";
-	return canvas;
+	return buildCellCanvas(N, N, STARTING_POS_CELL_PX, "starting-pos-canvas");
 }
 
 function paintStartingPosCanvas(canvas, pos) {
@@ -397,17 +390,16 @@ function paintStartingPosCanvas(canvas, pos) {
 
 	// Build the per-cell grids the renderer's view interface expects.
 	var R = 5, C = 5;
-	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
 	var state = [], isMine = [], clueValue = [];
 	for (var r = 0; r < R; r++) {
-		state.push(new Array(C).fill(COVERED));
+		state.push(new Array(C).fill(CELL_COVERED));
 		isMine.push(new Array(C).fill(false));
 		clueValue.push(new Array(C).fill(0));
 	}
 	// Inner 3x3 cascade: REVEALED with the right clue values.
 	for (var rr = 1; rr <= 3; rr++) {
 		for (var cc = 1; cc <= 3; cc++) {
-			state[rr][cc] = REVEALED;
+			state[rr][cc] = CELL_REVEALED;
 			if (rr === 2 && cc === 2) clueValue[rr][cc] = 0;
 			else clueValue[rr][cc] = boundary[rr + "," + cc];
 		}
@@ -421,21 +413,13 @@ function paintStartingPosCanvas(canvas, pos) {
 			if (idx < 0) continue;
 			var bit = 1 << idx;
 			if (mineMask & bit) {
-				state[r2][c2] = FLAGGED_S;
+				state[r2][c2] = CELL_FLAGGED;
 				isMine[r2][c2] = true;
 			}
 		}
 	}
 
-	var view = {
-		rows: R, cols: C,
-		isCovered: function(r, c) { return state[r][c] === COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
-		isMine: function(r, c) { return isMine[r][c]; },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: false
-	};
+	var view = makeGridView(R, C, state, isMine, clueValue);
 
 	var ctx = canvas.getContext("2d");
 	var sw = canvas.width / C, sh = canvas.height / R;
@@ -453,7 +437,7 @@ function paintStartingPosCanvas(canvas, pos) {
 			if (idx2 < 0) continue;
 			var bit2 = 1 << idx2;
 			if (!(safeMask & bit2)) continue;
-			if (state[r4][c4] !== COVERED) continue;
+			if (state[r4][c4] !== CELL_COVERED) continue;
 			drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
 		}
 	}
@@ -478,10 +462,9 @@ function paintCornerPosCanvas(canvas, pos) {
 	var safeMask = pos.forced_safe_mask || 0;
 	var mineMask = pos.forced_mine_mask || 0;
 	var N = 6;
-	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
 	var state = [], isMine = [], clueValue = [];
 	for (var i = 0; i < N; i++) {
-		state.push(new Array(N).fill(COVERED));
+		state.push(new Array(N).fill(CELL_COVERED));
 		isMine.push(new Array(N).fill(false));
 		clueValue.push(new Array(N).fill(0));
 	}
@@ -490,8 +473,8 @@ function paintCornerPosCanvas(canvas, pos) {
 	for (var rr = 1; rr <= 4; rr++) {
 		for (var cc = 1; cc <= 4; cc++) {
 			var tok = tokens[k++];
-			if (tok === "M") { state[rr][cc] = FLAGGED_S; isMine[rr][cc] = true; }
-			else { state[rr][cc] = REVEALED; clueValue[rr][cc] = parseInt(tok, 10) || 0; }
+			if (tok === "M") { state[rr][cc] = CELL_FLAGGED; isMine[rr][cc] = true; }
+			else { state[rr][cc] = CELL_REVEALED; clueValue[rr][cc] = parseInt(tok, 10) || 0; }
 		}
 	}
 	// Outer ring: flag forced mines; everything else stays covered (safe markers drawn on top).
@@ -499,19 +482,11 @@ function paintCornerPosCanvas(canvas, pos) {
 		for (var c2 = 0; c2 < N; c2++) {
 			var idx = cornerOutsideIndex(r2, c2);
 			if (idx < 0) continue;
-			if (mineMask & (1 << idx)) { state[r2][c2] = FLAGGED_S; isMine[r2][c2] = true; }
+			if (mineMask & (1 << idx)) { state[r2][c2] = CELL_FLAGGED; isMine[r2][c2] = true; }
 		}
 	}
 
-	var view = {
-		rows: N, cols: N,
-		isCovered: function(r, c) { return state[r][c] === COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED_S; },
-		isMine: function(r, c) { return isMine[r][c]; },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: false
-	};
+	var view = makeGridView(N, N, state, isMine, clueValue);
 
 	var ctx = canvas.getContext("2d");
 	var sw = canvas.width / N, sh = canvas.height / N;
@@ -524,26 +499,10 @@ function paintCornerPosCanvas(canvas, pos) {
 			var idx2 = cornerOutsideIndex(r4, c4);
 			if (idx2 < 0) continue;
 			if (!(safeMask & (1 << idx2))) continue;
-			if (state[r4][c4] !== COVERED) continue;
+			if (state[r4][c4] !== CELL_COVERED) continue;
 			drawSafeMarker(ctx, c4 * sw, r4 * sh, sw, sh);
 		}
 	}
-}
-
-function drawSafeMarker(ctx, x, y, sw, sh) {
-	var cx = x + sw / 2, cy = y + sh / 2;
-	var s = Math.min(sw, sh) * 0.28;
-	ctx.save();
-	ctx.strokeStyle = "#4ade80";
-	ctx.lineWidth = Math.max(2, s * 0.35);
-	ctx.lineCap = "round";
-	ctx.lineJoin = "round";
-	ctx.beginPath();
-	ctx.moveTo(cx - s, cy + s * 0.05);
-	ctx.lineTo(cx - s * 0.25, cy + s * 0.65);
-	ctx.lineTo(cx + s, cy - s * 0.55);
-	ctx.stroke();
-	ctx.restore();
 }
 
 function ratingTier(rating) {

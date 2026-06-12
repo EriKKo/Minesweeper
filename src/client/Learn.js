@@ -773,8 +773,6 @@ var LEARN_CELL_PX = 32;
 //   guess: true + goodGuessCells: [[r,c]...] — smart-guessing puzzles
 //   why: "..."                 — explanation text (demos)
 
-var LEARN_CELL_PX = 32;
-
 function buildBoardState(spec, isMineArr, clueValue) {
 	var R = spec.rows, C = spec.cols;
 	var COVERED = 0, REVEALED = 1, FLAGGED_S = 2;
@@ -799,26 +797,11 @@ function buildBoardState(spec, isMineArr, clueValue) {
 }
 
 function buildBoardView(spec, isMineArr, clueValue, state) {
-	var R = spec.rows, C = spec.cols;
-	var COVERED = 0, REVEALED = 1, FLAGGED = 2;
-	return {
-		rows: R, cols: C,
-		isCovered: function(r, c) { return state[r][c] === COVERED; },
-		isRevealed: function(r, c) { return state[r][c] === REVEALED; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
-		isMine: function(r, c) { return isMineArr[r][c]; },
-		getClue: function(r, c) { return clueValue[r][c]; },
-		xray: !!spec.xray
-	};
+	return makeGridView(spec.rows, spec.cols, state, isMineArr, clueValue, { xray: spec.xray });
 }
 
 function buildBoardCanvas(R, C) {
-	var canvas = document.createElement("canvas");
-	canvas.width = Math.round(C * LEARN_CELL_PX * DPR);
-	canvas.height = Math.round(R * LEARN_CELL_PX * DPR);
-	canvas.style.width = (C * LEARN_CELL_PX) + "px";
-	canvas.style.height = (R * LEARN_CELL_PX) + "px";
-	return canvas;
+	return buildCellCanvas(C, R, LEARN_CELL_PX);
 }
 
 function buildMineGrid(spec) {
