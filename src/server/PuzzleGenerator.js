@@ -344,6 +344,11 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var cspResult = cspSolver.analyzeBoard(board, cspState, { revealCell: cspCascade });
 	var maxC = cspResult.maxComplexity;
 	var totalC = cspResult.totalComplexity;
+	// Solvability is decided by the sound CSP analyzer, not the legacy pass-based solver above: the
+	// pass solver lacks case-analysis, so it wrongly rejects case-only boards. (The pass counts it
+	// produced are kept for information.) Generated puzzles cap at GEN_MAX_COMPLEXITY < the case
+	// threshold, so for them the two solvers agree — this only matters for genuinely hard boards.
+	solved = cspResult.solved;
 	// Geometric difficulty score (see complexityScore): rewards many hard moves, saturates length.
 	// `cscore` is computed regardless of solvability so callers that rate not-fully-solvable boards
 	// (e.g. the combined-puzzles experiment) can still surface a difficulty; the pool keeps the

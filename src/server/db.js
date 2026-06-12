@@ -7,7 +7,7 @@ var path = require("path");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 18;
+var CURRENT_SCORING_VERSION = 20;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
@@ -793,11 +793,13 @@ function getOrPickDailyPuzzle(date) {
 }
 
 function pickDailyCandidate() {
-	var row = db.prepare("SELECT * FROM puzzles WHERE rating BETWEEN 1400 AND 1700 ORDER BY RANDOM() LIMIT 1").get();
+	// Never serve a case-analysis puzzle as the daily — those need reasoning beyond the in-game
+	// (pass-based) solver and aren't accessible to casual players.
+	var row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND rating BETWEEN 1400 AND 1700 ORDER BY RANDOM() LIMIT 1").get();
 	if (row) return deserializePuzzle(row);
-	row = db.prepare("SELECT * FROM puzzles WHERE rating BETWEEN 1100 AND 2000 ORDER BY RANDOM() LIMIT 1").get();
+	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND rating BETWEEN 1100 AND 2000 ORDER BY RANDOM() LIMIT 1").get();
 	if (row) return deserializePuzzle(row);
-	row = db.prepare("SELECT * FROM puzzles ORDER BY RANDOM() LIMIT 1").get();
+	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 ORDER BY RANDOM() LIMIT 1").get();
 	return row ? deserializePuzzle(row) : null;
 }
 
