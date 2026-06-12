@@ -31,17 +31,10 @@ const TOP_N = parseInt(process.env.TOP_N || "5", 10);
 // Cap analyzer complexity: skips giant brute-force enumerations (cost grows with component size, ~26 for an
 // 18-cell frontier) — not human-solvable "good" puzzles anyway. Case-analysis gems sit well under this.
 const ANALYSIS_CAP = parseFloat(process.env.ANALYSIS_CAP || "14");
-
-const DEMO = `
-; 4x4 corner-mine demo: revealed 4x4 interior (any numbers), one corner a covered mine,
-; surrounded by a covered border the search fills with mines.
-# # # # # #
-# * ? ? ? #
-# ? ? ? ? #
-# ? ? ? ? #
-# ? ? ? ? #
-# # # # # #
-`;
+const path = require("path");
+const REG = require("./templates");
+const STORE = !!process.env.STORE;                              // STORE=1 -> persist generated puzzles
+const STORE_COUNT = parseInt(process.env.STORE_COUNT || "10", 10);
 
 function parseCell(tok){
 	if(/^[0-8]$/.test(tok)) return { kind:"clue", clue:+tok };
@@ -121,7 +114,7 @@ function search(t){
 	}
 
 	// Pass 2: skip openings with no forced-safe cell (unsolvable — no possible first move), solve the rest.
-	let solved=0, skippedUnsolvable=0, best=null; const tops=[];
+	let solved=0, skippedUnsolvable=0; const tops=[];
 	for(const b of buckets.values()){
 		let forcedSafe = hasSafe; // any guaranteed-safe covered cell always gives a candidate first move
 		if(!forcedSafe) for(let i=0;i<free.length;i++) if(b.orCount[i]===0){ forcedSafe=true; break; }
@@ -137,11 +130,11 @@ function search(t){
 			solved++;
 			const method=res.moves.reduce((acc,m)=> m.complexity>(acc.c||-1)?{m:m.method,c:m.complexity}:acc,{}).m;
 			const rec={ max:res.maxComplexity, total:res.totalComplexity, method, board, mineKeys:[...mset] };
-			tops.push(rec); if(!best||rec.max>best.max) best=rec;
+			tops.push(rec);
 		}
 	}
 	tops.sort((a,b)=>b.max-a.max||b.total-a.total);
-	return { tried, valid, skippedUnsolvable, solved, best, tops:tops.slice(0,TOP_N), forced, free, revealed };
+	return { tried, valid, skippedUnsolvable, solved, best: tops[0]||null, tops, forced, free, revealed };
 }
 
 function renderBoard(res, info, t){
@@ -156,11 +149,45 @@ function renderBoard(res, info, t){
 	return player+"\n"+truth;
 }
 
+// Resolve the template arg to { id, name, text }: a registry id, a file path, or default to "corner4".
+function resolveTemplate(){
+	const arg = process.argv[2];
+	if(arg && REG[arg]) return { id: arg, name: REG[arg].name, text: REG[arg].grid };
+	if(arg && fs.existsSync(arg)) return { id: path.basename(arg).replace(/\.[^.]+$/,""), name: arg, text: fs.readFileSync(arg,"utf8") };
+	if(arg){ console.error(`unknown template '${arg}'. Registry ids: ${Object.keys(REG).join(", ")} (or pass a file path).`); process.exit(1); }
+	return { id: "corner4", name: REG.corner4.name, text: REG.corner4.grid };
+}
+
+// Persist the hardest distinct solvable boards into the puzzles table, tagged source="template:<id>".
+function storePuzzles(out, id, t){
+	const db = require("../src/server/db");
+	const PG = require("../src/server/PuzzleGenerator");
+	const revealed = out.revealed.map(([r,c])=>[r,c]);
+	let inserted=0, dupes=0, considered=0; const seen=new Set();
+	for(const rec of out.tops){
+		if(considered>=STORE_COUNT) break;
+		const mines = rec.mineKeys.map(k=>k.split(",").map(Number));
+		const board = PG.buildBoard(t.rows, t.cols, mines);
+		const analysis = PG.analyzeWithTracking(board, revealed, mines.length);
+		if(!analysis.solved) continue;
+		const key = PG.canonicalKey({ rows:t.rows, cols:t.cols, mines, revealed });
+		if(seen.has(key)) continue; seen.add(key); considered++;
+		const ok = db.insertPuzzle({
+			key, rows:t.rows, cols:t.cols, mines, revealed,
+			coveredSafe: t.rows*t.cols - mines.length - revealed.length,
+			difficulty: analysis.difficulty, score: analysis.score, passes: analysis.passes,
+			maxEnumSize: analysis.maxEnumSize, needsCaseSplit: analysis.needsCaseSplit,
+			cspMethod: analysis.cspMethod, source: "template:"+id
+		});
+		if(ok) inserted++; else dupes++;
+	}
+	return { inserted, dupes, considered };
+}
+
 function main(){
-	const file=process.argv[2];
-	const text = file ? fs.readFileSync(file,"utf8") : DEMO;
-	const t = parseTemplate(text);
-	console.log(`template ${t.rows}x${t.cols}, MAX_MINES=${MAX_MINES}, ANALYSIS_CAP=${ANALYSIS_CAP}`);
+	const tmpl = resolveTemplate();
+	const t = parseTemplate(tmpl.text);
+	console.log(`template "${tmpl.id}" (${tmpl.name}) ${t.rows}x${t.cols}, MAX_MINES=${MAX_MINES}, ANALYSIS_CAP=${ANALYSIS_CAP}`);
 	const t0=Date.now();
 	const out = search(t);
 	const t1=Date.now();
@@ -169,9 +196,13 @@ function main(){
 	if(!out.best){ console.log("\nno fully-solvable board satisfies this template (try raising MAX_MINES)."); return; }
 	console.log(`\nHARDEST solvable: max complexity ${out.best.max.toFixed(2)} (hardest move: ${out.best.method}), total ${out.best.total.toFixed(2)}\n`);
 	console.log(renderBoard(out.best, out, t));
-	if(out.tops.length>1){
-		console.log("top solvable boards by max complexity:");
-		for(const r of out.tops) console.log(`  max ${r.max.toFixed(2)}  total ${r.total.toFixed(2)}  hardest-move ${r.method}  mines ${r.mineKeys.length}`);
+	console.log("top solvable boards by max complexity:");
+	for(const r of out.tops.slice(0,TOP_N)) console.log(`  max ${r.max.toFixed(2)}  total ${r.total.toFixed(2)}  hardest-move ${r.method}  mines ${r.mineKeys.length}`);
+	if(STORE){
+		const s = storePuzzles(out, tmpl.id, t);
+		console.log(`\nstored ${s.inserted} puzzle(s) as source="template:${tmpl.id}" (${s.dupes} already present). Find them: All-puzzles admin filtered by that source, or SELECT * FROM puzzles WHERE source='template:${tmpl.id}'.`);
+	} else {
+		console.log(`\n(report only — set STORE=1 to persist the top ${STORE_COUNT} as source="template:${tmpl.id}")`);
 	}
 }
 main();
