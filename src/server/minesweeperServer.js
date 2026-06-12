@@ -12,7 +12,6 @@ var http = require("http")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
   , BoardLogic = require("../common/BoardLogic")
-  , puzzleSolver = require("./PuzzleSolver")
   , cspSolver = require("./CSPSolver");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
@@ -509,12 +508,10 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 	});
 }
 
-// Find the deduction the player should look at next. Delegates to the
-// shared PuzzleSolver so trivial / subset / *enum* logic is the same as
-// what the puzzle generator's analyzer uses to classify difficulty —
-// previously the hint had its own copy that lacked the enum pass.
+// Find the deduction the player should look at next, via the CSP analyzer's findNextSafeStep — the same
+// solver that rates puzzles and drives the Analyze modal, so the hint always matches what's deducible.
 function findHintPointer(game) {
-	var safe = puzzleSolver.findFirstSafeStep(game.board, game.state);
+	var safe = cspSolver.findNextSafeStep(game.board, game.state, {});
 	if (safe && safe.safeCells && safe.safeCells.length) {
 		return {
 			type: safe.kind,
@@ -549,7 +546,7 @@ function findFrontierFallback(game) {
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (state[r][c] !== BoardLogic.KNOWN || board[r][c] <= 0) continue;
-			var ctx = puzzleSolver.constraintAt(board, state, r, c);
+			var ctx = cspSolver.constraintAt(board, state, r, c);
 			if (!ctx.covered.length) continue;
 			if (ctx.covered.length < bestSize) {
 				bestSize = ctx.covered.length;

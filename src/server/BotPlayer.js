@@ -1,7 +1,11 @@
 var fs = require("fs");
 var gameCreator = require("./GameCreator");
 var BoardLogic = require("../common/BoardLogic");
-var puzzleSolver = require("./PuzzleSolver");
+var cspSolver = require("./CSPSolver");
+// Bots reason with the CSP analyzer but never at/above the case-split threshold (CASE_BASE = 8): a
+// human-skill bot shouldn't crack case-analysis boards. Their actual skill ceiling is the per-cell
+// difficulty gate (maxDifficulty) applied to whatever safe move this surfaces.
+var BOT_COMPLEXITY_CAP = 7.999;
 
 var MINE = BoardLogic.MINE;
 var FLAGGED = BoardLogic.FLAGGED;
@@ -375,7 +379,7 @@ function computeBestMove(game) {
 	// move the bot can actually make — a safe deduction off the bot's frontier won't be returned and
 	// then discarded into a guess; the solver keeps looking for a frontier-safe move instead.
 	var maxDifficulty = (typeof game.botMaxDifficulty === "number") ? game.botMaxDifficulty : TRIVIAL_DIFFICULTY;
-	var hint = puzzleSolver.findFirstSafeStepCapped(board, state, "enum", game.canTarget);
+	var hint = cspSolver.findNextSafeStep(board, state, { allow: game.canTarget, maxComplexity: BOT_COMPLEXITY_CAP });
 	if (hint) {
 		var hintCells = (hint.safeCells && hint.safeCells.length) ? hint.safeCells : (hint.mineCells || []);
 		var hintType = (hint.safeCells && hint.safeCells.length) ? "left" : "right";

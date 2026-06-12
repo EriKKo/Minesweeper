@@ -33,8 +33,8 @@
 // comparison.
 
 var BoardLogic = require("../common/BoardLogic");
-var puzzleSolver = require("./PuzzleSolver");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic.FLAGGED;
+var popcount = BoardLogic.popcount;
 var MINE = BoardLogic.MINE;
 
 var DEFAULT_MAX_CELLS = 8;
@@ -442,8 +442,91 @@ function enumComplexity(componentSize) {
 	return 2 + 0.6 * Math.pow(componentSize - 1, 1.3);
 }
 
+// A revealed clue's local constraint: its covered (UNKNOWN) neighbours and how many more mines they
+// must contain. Shared primitive for the enum step + the frontier-fallback hint.
+function constraintAt(board, state, r, c) {
+	var rows = board.length, cols = board[0].length;
+	var flagged = 0, covered = [];
+	BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+		if (state[nr][nc] === FLAGGED) flagged++;
+		else if (state[nr][nc] === UNKNOWN) covered.push([nr, nc]);
+	});
+	return { clue: board[r][c], flagged: flagged, covered: covered, need: board[r][c] - flagged };
+}
+
+// Brute-force enumeration of each frontier component (≤ ENUM_CAP cells): for every component, enumerate
+// the mine assignments consistent with the visible clues and keep cells that are safe (mine in none) or
+// mine (mine in all) across ALL of them. Sound and complete within the cap. Returns one step per
+// component that yields a determination.
+var ENUM_CAP = 18;
+function findEnumSteps(board, state, opts) {
+	opts = opts || {};
+	var cap = opts.cap || ENUM_CAP;
+	var rows = board.length, cols = board[0].length;
+	var varId = {}, varList = [], raw = [];
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var ctx = constraintAt(board, state, r, c);
+			if (!ctx.covered.length) continue;
+			var ids = [];
+			for (var k = 0; k < ctx.covered.length; k++) {
+				var key = ctx.covered[k][0] + "," + ctx.covered[k][1];
+				if (varId[key] === undefined) { varId[key] = varList.length; varList.push(ctx.covered[k]); }
+				ids.push(varId[key]);
+			}
+			raw.push({ clueR: r, clueC: c, ids: ids, need: ctx.need });
+		}
+	}
+	if (varList.length === 0) return [];
+	var parent = [];
+	for (var v = 0; v < varList.length; v++) parent.push(v);
+	function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+	for (var ci = 0; ci < raw.length; ci++) {
+		var idsC = raw[ci].ids;
+		for (var t = 1; t < idsC.length; t++) parent[find(idsC[t])] = find(idsC[0]);
+	}
+	var comps = {};
+	for (var w = 0; w < varList.length; w++) { var root = find(w); (comps[root] || (comps[root] = [])).push(w); }
+	var steps = [];
+	for (var rootKey in comps) {
+		var vars = comps[rootKey];
+		var k2 = vars.length;
+		if (k2 > cap) continue;
+		var rootKeyInt = parseInt(rootKey, 10);
+		var local = {};
+		for (var li = 0; li < k2; li++) local[vars[li]] = li;
+		var cons = [], clueCellSet = {}, clueCells = [];
+		for (var rc2 = 0; rc2 < raw.length; rc2++) {
+			if (find(raw[rc2].ids[0]) !== rootKeyInt) continue;
+			var mask = 0;
+			for (var m = 0; m < raw[rc2].ids.length; m++) mask |= (1 << local[raw[rc2].ids[m]]);
+			cons.push({ mask: mask, need: raw[rc2].need });
+			var ck = raw[rc2].clueR + "," + raw[rc2].clueC;
+			if (!clueCellSet[ck]) { clueCellSet[ck] = true; clueCells.push([raw[rc2].clueR, raw[rc2].clueC]); }
+		}
+		var orCount = new Array(k2).fill(0), solCount = 0, total = 1 << k2;
+		for (var a = 0; a < total; a++) {
+			var ok = true;
+			for (var cc = 0; cc < cons.length; cc++) { if (popcount(a & cons[cc].mask) !== cons[cc].need) { ok = false; break; } }
+			if (!ok) continue;
+			solCount++;
+			for (var b = 0; b < k2; b++) if (a & (1 << b)) orCount[b]++;
+		}
+		if (solCount === 0) continue;
+		var safeCells = [], mineCells = [];
+		for (var f = 0; f < k2; f++) {
+			var cell = varList[vars[f]];
+			if (orCount[f] === 0) safeCells.push(cell);
+			else if (orCount[f] === solCount) mineCells.push(cell);
+		}
+		if (safeCells.length || mineCells.length) steps.push({ clueCells: clueCells, safeCells: safeCells, mineCells: mineCells, componentSize: k2 });
+	}
+	return steps;
+}
+
 function findSmallestEnumStep(board, state) {
-	var steps = puzzleSolver.findEnumSteps(board, state);
+	var steps = findEnumSteps(board, state);
 	if (!steps.length) return null;
 	var best = steps[0];
 	for (var i = 1; i < steps.length; i++) {
@@ -725,6 +808,51 @@ function bundleMoves(moves) {
 	return bundles;
 }
 
+// Clue cells justifying a bundled move (for the hint UI's highlight). Best-effort: the initial-clue
+// origins from the derivation, or the move's own clueCells (enum), or the split cell (case).
+function moveClueCells(mv) {
+	if (mv.clueCells && mv.clueCells.length) return mv.clueCells;
+	var out = [], seen = {};
+	(mv.derivation || []).forEach(function(d) {
+		if (d.source === "initial" && d.from) { var k = d.from[0] + "," + d.from[1]; if (!seen[k]) { seen[k] = true; out.push(d.from); } }
+	});
+	if (!out.length && mv.splitCell) out.push(mv.splitCell);
+	return out;
+}
+
+// Easiest forced-safe move from the current state — drives in-game hints and bot move selection. Runs
+// the analyzer (optionally capped via opts.maxComplexity so bots stay under the case-split threshold),
+// then returns the first move that reveals a safe cell the caller may take (opts.allow(r,c), e.g. a
+// territory bot's own frontier). Falls back to the first forced-mine (flag) move if no safe reveal is
+// reachable. Returns { kind, clueCells, safeCells, mineCells, componentSize } or null.
+function findNextSafeStep(board, state, opts) {
+	opts = opts || {};
+	var R = board.length, C = board[0].length;
+	var s = snapshotState(state);
+	function cascade(rr, cc) {
+		BoardLogic.cascadeReveal(rr, cc, R, C,
+			function(r, c) { return s[r][c] === UNKNOWN; },
+			function(r, c) { s[r][c] = KNOWN; return false; },
+			function(r, c) { return board[r][c]; });
+	}
+	var res;
+	try { res = analyzeBoard(board, s, { revealCell: cascade, maxComplexity: opts.maxComplexity }); }
+	catch (e) { return null; }
+	var allow = opts.allow, firstFlag = null;
+	for (var i = 0; i < res.moves.length; i++) {
+		var mv = res.moves[i];
+		var revealed = mv.revealed || [];
+		if (revealed.length) {
+			var safe = allow ? revealed.filter(function(c) { return allow(c[0], c[1]); }) : revealed.slice();
+			if (safe.length) return { kind: mv.method, clueCells: moveClueCells(mv), safeCells: safe, mineCells: [], componentSize: mv.componentSize || 0 };
+		}
+		if (!firstFlag && (mv.flagged || []).length) {
+			firstFlag = { kind: mv.method + "-flag", clueCells: moveClueCells(mv), safeCells: [], mineCells: mv.flagged.slice(), componentSize: mv.componentSize || 0 };
+		}
+	}
+	return firstFlag;
+}
+
 module.exports = {
 	makeClue: makeClue,
 	isTrivial: isTrivial,
@@ -734,5 +862,8 @@ module.exports = {
 	combineIntersection: combineIntersection,
 	findBestTrivialClue: findBestTrivialClue,
 	applyTrivialClue: applyTrivialClue,
-	analyzeBoard: analyzeBoard
+	analyzeBoard: analyzeBoard,
+	constraintAt: constraintAt,
+	findEnumSteps: findEnumSteps,
+	findNextSafeStep: findNextSafeStep
 };

@@ -36,7 +36,9 @@ Source is split into three trees under `src/`:
 - `BotPlayer.js` — bot AI. Each bot has six per-move variables (`speedMs`, `difficultyMs`,
   `distanceMult`, `maxDifficulty`, `mistakeRate`, `chordRate`); `computeMoveDelay` scales the
   pause by the move's actual numeric difficulty (from the board's difficulty map) and the bot
-  guesses when the easiest available move exceeds `maxDifficulty`. Also the random-knob
+  guesses when the easiest available move exceeds `maxDifficulty`. It finds that easiest safe move
+  with `CSPSolver.findNextSafeStep` (capped at `BOT_COMPLEXITY_CAP` = 7.999 so bots never use the
+  case split — they top out below it and guess instead). Also the random-knob
   generator (`randomBotConfig`), pool loader/picker (`loadPool` / `pickBotFromPool`), and
   casual presets (`configForDifficulty`). `configForElo` survives only as the offline
   calibration anchor — nothing at runtime calls it.
@@ -44,8 +46,13 @@ Source is split into three trees under `src/`:
   virtual clock to measure solve time, calibrates time→Elo against the `configForElo`
   curve, and rates a config. Reads each board's difficulty map off the template. Used by
   `scripts/generate-bot-pool.js`; no I/O of its own.
-- `CSPSolver.js` — constraint solver: `analyzeBoard(board, state, {revealCell, maxComplexity})`
-  returns per-move numeric `complexity` and `solved`. The `maxComplexity` cap prunes the search —
+- `CSPSolver.js` — the **one and only solver** (the old pass-based `PuzzleSolver` was removed; CSP both
+  rates a whole board and serves the next move). `analyzeBoard(board, state, {revealCell, maxComplexity})`
+  returns per-move numeric `complexity` and `solved`; `findNextSafeStep(board, state, {maxComplexity, allow})`
+  returns the single easiest forced move (`{kind, clueCells, safeCells, mineCells, componentSize}`) — used by
+  the in-game hint pointer and by bots (with `allow = canTarget` to restrict to a bot's reachable frontier in
+  territory). It absorbed `constraintAt` + `findEnumSteps` so it has no dependency on any other solver.
+  The `maxComplexity` cap prunes the search —
   it's both the generation difficulty ceiling and the model for a bot's skill ceiling. Hard deductions
   (beyond trivial/subset) use, in order: a **sound 1-cell case split** (`findCaseSplitStep`, cost
   `CASE_BASE`=8 + branch) then **sound enumeration** (`findEnumSteps`: enumerate every consistent mine
@@ -232,7 +239,8 @@ Source is split into three trees under `src/`:
   `scripts/calibrate-territory.js` (fanned across `territory-bench-worker.js`) maps clear time to an Elo
   and writes `ratings.territory` onto every pool bot; matchmaking calls `pickBotFromPool(elo, w,
   "territory")` and targets the lobby's territory Elo. So the bot doesn't needlessly guess into mines,
-  `findFirstSafeStepCapped` takes the bot's `canTarget` predicate (territory only) and only counts a
+  `CSPSolver.findNextSafeStep` takes the bot's `canTarget` predicate via its `allow` option (territory only)
+  and only counts a
   safe deduction as a result when it has a cell on the bot's own frontier — a safe move the bot can't
   reach no longer short-circuits it into a guess; it keeps searching for a frontier-safe move. This
   both cuts territory mine-hits and gives the calibration real resolution across the Elo range.

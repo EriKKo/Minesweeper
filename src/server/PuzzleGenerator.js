@@ -15,7 +15,6 @@
 // difficulty, passes } so the caller can sort / bucket / display.
 
 var BoardLogic = require("../common/BoardLogic");
-var puzzleSolver = require("./PuzzleSolver");
 var cspSolver = require("./CSPSolver");
 var MINE = BoardLogic.MINE;
 var KNOWN = BoardLogic.KNOWN;
@@ -299,21 +298,11 @@ function analyzeWithTracking(board, revealedList, numMines) {
 		);
 	}
 
+	// The pass-based PuzzleSolver loop that used to count techniques here was removed with that module.
+	// Per-technique pass counts are no longer tracked (kept at 0 for schema compatibility); maxEnumSize
+	// is derived from the CSP analyzer's enum moves below.
 	var trivCount = 0, subsetCount = 0, overlapCount = 0, chainCount = 0, enumCount = 0;
 	var maxEnumSize = 0;
-	while (true) {
-		if (puzzleSolver.applyTrivialPass(board, state, cascadeReveal)) { trivCount++; continue; }
-		if (puzzleSolver.applySubsetPass(board, state, cascadeReveal))  { subsetCount++; continue; }
-		if (puzzleSolver.applyOverlapPass(board, state, cascadeReveal)) { overlapCount++; continue; }
-		if (puzzleSolver.applyChainPass(board, state, cascadeReveal))   { chainCount++; continue; }
-		var enumResult = puzzleSolver.applyEnumPass(board, state, cascadeReveal);
-		if (enumResult.progress) {
-			enumCount++;
-			if (enumResult.maxComponentSize > maxEnumSize) maxEnumSize = enumResult.maxComponentSize;
-			continue;
-		}
-		break;
-	}
 
 	var revealedSafe = 0;
 	for (var rr = 0; rr < rows; rr++) {
@@ -344,11 +333,9 @@ function analyzeWithTracking(board, revealedList, numMines) {
 	var cspResult = cspSolver.analyzeBoard(board, cspState, { revealCell: cspCascade });
 	var maxC = cspResult.maxComplexity;
 	var totalC = cspResult.totalComplexity;
-	// Solvability is decided by the sound CSP analyzer, not the legacy pass-based solver above: the
-	// pass solver lacks case-analysis, so it wrongly rejects case-only boards. (The pass counts it
-	// produced are kept for information.) Generated puzzles cap at GEN_MAX_COMPLEXITY < the case
-	// threshold, so for them the two solvers agree — this only matters for genuinely hard boards.
+	// Solvability comes from the sound CSP analyzer (the only solver now); maxEnumSize from its enum moves.
 	solved = cspResult.solved;
+	cspResult.moves.forEach(function(mv) { if (mv.componentSize > maxEnumSize) maxEnumSize = mv.componentSize; });
 	// Geometric difficulty score (see complexityScore): rewards many hard moves, saturates length.
 	// `cscore` is computed regardless of solvability so callers that rate not-fully-solvable boards
 	// (e.g. the combined-puzzles experiment) can still surface a difficulty; the pool keeps the
