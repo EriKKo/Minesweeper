@@ -322,9 +322,15 @@ Source is split into three trees under `src/`:
   UNKNOWN/KNOWN state sentinels.
 
 **`src/client/`** — browser frontend, each file a single feature:
-- `index.html` — entry page: markup + the inline live-game socket handlers
-  and DOM/state wiring. All other client modules are plain `<script>` tags
-  loaded ahead of it (each becomes a global).
+- `index.html` — entry page: markup only. Every client module is a plain `<script>`
+  tag (each becomes a global); they load in dependency order, with `Main.js` last.
+- `Main.js` — the client entry / live-game core: the socket connection and all its
+  `socket.on(...)` handlers (puzzle / solo / ranked / territory / game / tournament),
+  the shared live-game state (`rows`, `cols`, `myState`, `playerCanvas`, the cell-state
+  sentinels) the feature modules read as globals, and the top-level DOM/state wiring.
+  Loaded last so those globals exist before anything uses them.
+- `AdminList.js` — shared helpers for the paginated admin views: `renderPager` and the
+  `applyQueryString` URL-filter-state write (All Puzzles / Bots / Patterns / Starting positions).
 - `style.css` — all styles.
 - **Routing** — clean History-API paths, no `#`. `Router.js`'s `navigate(path)` does `pushState` +
   `applyRouteFromHash()` (name kept for history; it now reads `location.pathname`); `popstate` handles
