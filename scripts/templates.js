@@ -34,5 +34,15 @@ module.exports = {
 # # # # #
 1 2 2 1 #
 # # # # #`
+	},
+	"ring4224": {
+		name: "corners-4 / edges-2 ring with a 0-core, mined border + a corner 2",
+		grid: `
+2 # # # # #
+* * # # * *
+# 4 2 2 4 #
+* 2 0 0 2 *
+# 4 2 2 4 #
+* * # # * *`
 	}
 };
