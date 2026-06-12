@@ -61,6 +61,15 @@ Source is split into three trees under `src/`:
   via `bots.init(deps)`; per-bot state is `appState`. (Territory has its own bot tick in
   `territory.js`.) NB the server requires it as `botMgr` to avoid colliding with the `bots`
   state map (`botId → true`) that `isBot` reads.
+- `puzzlePlay.js` — single-player puzzle play (rated / streak / storm / daily): the run
+  lifecycle, serving puzzles near the player's rating, building the game, the hint pointer,
+  and finalising with the puzzle-Elo exchange. Self-contained on `db` + the generators/solver;
+  the one core dep, `obfuscateBoard`, is injected via `puzzlePlay.init(deps)`; state
+  (`puzzlePlay`/`puzzleRun`) is `appState`. The server delegates the `puzzle_*` socket events
+  (`registerSocketHandlers`), the puzzle branch of `left_click`/`right_click`
+  (`handleLeftClick`/`handleRightClick`), and disconnect (`cleanup`). Required as `puzzleMode`
+  (the `puzzlePlay` name is the appState map). Solo free-play board gen (`request_solo_board`)
+  stays in the server.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no

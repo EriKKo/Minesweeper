@@ -16,6 +16,12 @@ async function startServer(opts) {
 	var port = opts.port || 13799;
 	var dbPath = path.join(os.tmpdir(), "ms-test-" + process.pid + "-" + port + ".db");
 	try { fs.unlinkSync(dbPath); } catch (e) {}
+	// Optionally seed a puzzle into the fresh DB (a separate node process so the file is
+	// closed before the server opens it) — lets puzzle-play tests actually be served a board.
+	if (opts.seedPuzzle) {
+		var seed = "var db=require('./src/server/db');db.insertPuzzle(" + JSON.stringify(opts.seedPuzzle) + ");";
+		require("node:child_process").execFileSync("node", ["-e", seed], { cwd: ROOT, env: Object.assign({}, process.env, { RANKED_DB: dbPath }) });
+	}
 	var child = spawn("node", ["src/server/minesweeperServer.js"], {
 		cwd: ROOT,
 		env: Object.assign({}, process.env, { PORT: String(port), RANKED_DB: dbPath, DEV_AUTH: "1" }),
