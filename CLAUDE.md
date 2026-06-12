@@ -82,6 +82,11 @@ Source is split into three trees under `src/`:
 - `roomState.js` — room serialization + broadcast: the lobby summary (`room_list`) and the
   full `room_state` payload the client renders, pushed over socket.io. Reads room/game/account
   state from appState; `isBot`/`io`/the bot+rating constants are injected via `roomState.init(deps)`.
+- `session.js` — session/auth attach: `loginSocket` binds a real-or-guest user to a socket
+  (accounts/names + the `authenticated` snapshot) and registers the auth socket events
+  (`authenticate`/`guest_session`/`sign_out`/`set_name`). Reads appState + db + roomState;
+  `updateDraw` + `PROVISIONAL_GAMES` injected via `session.init(deps)`. (OAuth redirect is `oauth.js`;
+  clients then `authenticate` here.)
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
