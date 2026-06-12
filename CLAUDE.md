@@ -75,6 +75,10 @@ Source is split into three trees under `src/`:
   admin gate (`isSocketAdmin`) and `RANKED_RULES` are injected via `botDemo.init(deps)`; state
   (`botDemos`) is `appState`. Server delegates `bot_demo_start`/`bot_demo_stop`
   (`registerSocketHandlers`) and disconnect (`stopBotDemo`).
+- `standings.js` — turns a room's game results into ranked arrays: per-round standings
+  (finishers first, then by finish time / safe count), the series winner, the cumulative-score
+  series standings, and the tournament final standings. Reads game/room state + the accounts
+  cache; `isBot` + the rating constants are injected via `standings.init(deps)`.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
