@@ -853,17 +853,12 @@ function findNextSafeStep(board, state, opts) {
 	return firstFlag;
 }
 
+// Public API. analyzeBoard rates a whole board; findNextSafeStep returns the next
+// forced move (hints + bots); constraintAt is used by the server's frontier fallback.
+// Everything else (makeClue, combine*, findEnumSteps, the trivial-clue helpers, …)
+// is an internal building block and intentionally not exported.
 module.exports = {
-	makeClue: makeClue,
-	isTrivial: isTrivial,
-	buildInitialClues: buildInitialClues,
-	combineSubset: combineSubset,
-	combineDisjointUnion: combineDisjointUnion,
-	combineIntersection: combineIntersection,
-	findBestTrivialClue: findBestTrivialClue,
-	applyTrivialClue: applyTrivialClue,
 	analyzeBoard: analyzeBoard,
 	constraintAt: constraintAt,
-	findEnumSteps: findEnumSteps,
 	findNextSafeStep: findNextSafeStep
 };
