@@ -1,5 +1,4 @@
 var http = require("http")
-  , fs = require("fs")
   , path = require("path")
   , crypto = require("node:crypto")
   , gameCreator = require("./GameCreator")
@@ -13,7 +12,8 @@ var http = require("http")
   , BoardLogic = require("../common/BoardLogic")
   , cspSolver = require("./CSPSolver")
   , oauth = require("./oauth")
-  , puzzleApi = require("./puzzleApi");
+  , puzzleApi = require("./puzzleApi")
+  , staticServer = require("./staticServer");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -79,60 +79,13 @@ var PORT = process.env.PORT || 1337;
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
 
-// Static file roots, tried in order. Client assets (HTML, CSS, .js modules)
-// live in src/client; the one shared module (BoardLogic.js) lives in
-// src/common and is fetched by both runtimes.
-var STATIC_ROOTS = [
-	path.join(__dirname, "..", "client"),
-	path.join(__dirname, "..", "common")
-];
-
-function resolveStatic(pathname) {
-	if (pathname === "/") pathname = "/index.html";
-	for (var i = 0; i < STATIC_ROOTS.length; i++) {
-		var full = path.join(STATIC_ROOTS[i], pathname);
-		// Guard against path traversal — must stay rooted under the static dir.
-		if (full.indexOf(STATIC_ROOTS[i]) !== 0) continue;
-		try { fs.accessSync(full, fs.constants.R_OK); return full; } catch (e) {}
-	}
-	return null;
-}
-
+// The HTTP handler is a pure router: provider auth, then the /api admin surface,
+// then static client assets (each module early-returns if it owns the path).
 function handler (req, res) {
 	var url = new URL(req.url, oauth.OAUTH_BASE);
-	var pathname = url.pathname;
 	if (oauth.handleAuthRoute(req, res, url)) return;
 	if (puzzleApi.handleApiRoute(req, res, url)) return;
-
-	var filePath = resolveStatic(pathname);
-	if (!filePath) {
-		// SPA fallback: client routes (/learn, /privacy, /admin/bots, …) have no file on disk — serve the
-		// app shell so the History-API router can render them. Anything with a file extension is treated as
-		// a (missing) asset and 404s rather than returning HTML.
-		var last = pathname.split("/").pop();
-		if (last.indexOf(".") === -1) filePath = resolveStatic("/index.html");
-		if (!filePath) { res.writeHead(404); res.end(); return; }
-	}
-	var extension = path.extname(filePath);
-	var contentType = "text/html";
-	if (extension == ".js") {
-		contentType = "text/javascript";
-	} else if (extension == ".css") {
-		contentType = "text/css";
-	} else if (extension == ".svg") {
-		contentType = "image/svg+xml";
-	} else if (extension == ".png") {
-		contentType = "image/png";
-	}
-	fs.readFile(filePath, function(err, data) {
-		if (err) {
-			res.writeHead(500);
-			res.end("Error while loading "+filePath);
-		} else {
-			res.writeHead(200, { "Content-Type" : contentType});
-			res.end(data);
-		}
-	});
+	staticServer.serve(res, url.pathname);
 }
 
 

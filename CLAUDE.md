@@ -28,8 +28,10 @@ Source is split into three trees under `src/`:
 
 **`src/server/`** — Node + socket.io backend:
 - `minesweeperServer.js` — HTTP + socket.io entry: rooms, series, ranked matchmaking,
-  bot orchestration. Also serves static client assets out of `src/client/` and
-  `src/common/`, and delegates `/auth/*` to `oauth.js` and `/api/*` to `puzzleApi.js`.
+  bot orchestration. Its HTTP handler is a pure router — `/auth/*` → `oauth.js`,
+  `/api/*` → `puzzleApi.js`, everything else → `staticServer.js`.
+- `staticServer.js` — serves client assets out of `src/client/` and `src/common/`,
+  with the SPA fallback (extensionless unknown paths serve `index.html`).
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
