@@ -7,7 +7,8 @@
     "start": "node src/server/minesweeperServer.js",
     "dev": "DEV_AUTH=1 node src/server/minesweeperServer.js",
     "stop": "pkill -f 'node src/server/minesweeperServer.js' || true",
-    "restart": "npm run stop; sleep 1; npm run dev"
+    "restart": "npm run stop; sleep 1; npm run dev",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"
