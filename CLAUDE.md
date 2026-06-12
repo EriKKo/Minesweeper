@@ -15,9 +15,12 @@ Run from this directory (`Minesweeper/`):
 
 Requires **Node ≥ 22** (uses the built-in `node:sqlite`).
 
-There is no build step and no test suite. To verify changes, run the server and drive
-the app in a browser at http://localhost:1337. Pure logic (board generation, the
-no-guess solver, bot behaviour, Elo) can be checked with short `node -e` scripts.
+There is no build step. `npm test` runs the integration tests (`node --test`,
+`test/*.test.js`) — they boot the real server on an isolated port + throwaway DB and
+check the `/api/*` surface; `test/helpers.js` is the spawn harness. To verify UI
+changes, run the server and drive the app in a browser at http://localhost:1337.
+Pure logic (board generation, the no-guess solver, bot behaviour, Elo) can be checked
+with short `node -e` scripts.
 
 ## Layout
 
@@ -26,7 +29,12 @@ Source is split into three trees under `src/`:
 **`src/server/`** — Node + socket.io backend:
 - `minesweeperServer.js` — HTTP + socket.io entry: rooms, series, ranked matchmaking,
   bot orchestration. Also serves static client assets out of `src/client/` and
-  `src/common/`, and delegates `/auth/*` to `oauth.js`.
+  `src/common/`, and delegates `/auth/*` to `oauth.js` and `/api/*` to `puzzleApi.js`.
+- `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
+  Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
+  puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
+  room/game/socket state. Exposes `handleApiRoute(req,res,url)` and `ensurePoolTopUp()`.
+  (Live puzzle *play* — `serveRunPuzzle` and its socket flow — stays in the server.)
 - `oauth.js` — provider login (Google / Discord, GitHub server-side, and the
   `DEV_AUTH` dev shortcut): reads its config from the environment, manages the CSRF
   `state` nonces, exchanges codes, resolves/upserts the user via `db`, and redirects
