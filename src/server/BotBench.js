@@ -121,6 +121,28 @@ function avgSolveTime(config, templates, opts) {
 	return total / templates.length;
 }
 
+// The per-Elo reference-bot curve — the calibration anchor (relocated here from
+// BotPlayer, whose runtime no longer needs it; this offline module is its only
+// caller). Higher Elo = faster pace, less per-difficulty thinking, a higher
+// max-difficulty ceiling, fewer blunders, more chording. configForElo(600) is the
+// weak reference and configForElo(1800) the strong one; below 600 it extrapolates
+// toward an even slower, sloppier bot so the calibrated pool can reach 0 Elo.
+var ELO_MIN = 600, ELO_MAX = 1800, ELO_FLOOR = 0;
+function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function configForElo(elo) {
+	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), (ELO_FLOOR - ELO_MIN) / (ELO_MAX - ELO_MIN), 1);
+	return {
+		rating: Math.round(elo),
+		speedMs: Math.round(clamp(lerp(950, 130, s), 70, 1400)),       // pace; faster as s rises
+		difficultyMs: Math.round(clamp(lerp(320, 60, s), 20, 600)),    // per-difficulty thinking; less as s rises
+		distanceMult: 1,                                                // strength-neutral; varied only in the pool
+		maxDifficulty: clamp(lerp(1.2, 8, s), 1, 9),                    // skill ceiling; trivial-only at the floor
+		mistakeRate: clamp(lerp(0.06, 0.002, s), 0, 0.4),              // blunder chance; lower as s rises
+		chordRate: clamp(lerp(0.05, 0.85, s), 0, 1)
+	};
+}
+
 // Build the solve-time↔Elo calibration: for each density, benchmark configForElo
 // across the Elo grid. configForElo randomizes a strength-neutral "style" per
 // call, so we average `samples` configs per grid point. Returns a curve per
@@ -137,7 +159,7 @@ function calibrate(templatesByDensity, opts) {
 			var elo = ELO_GRID[g];
 			var sum = 0;
 			for (var s = 0; s < samples; s++) {
-				sum += avgSolveTime(botPlayer.configForElo(elo), templates, opts);
+				sum += avgSolveTime(configForElo(elo), templates, opts);
 			}
 			pairs.push([elo, sum / samples]);
 		}
@@ -194,4 +216,5 @@ exports.simulateSolveTime = simulateSolveTime;
 exports.avgSolveTime = avgSolveTime;
 exports.calibrate = calibrate;
 exports.timeToElo = timeToElo;
+exports.configForElo = configForElo;
 exports.ratingForConfig = ratingForConfig;

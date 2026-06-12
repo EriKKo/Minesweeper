@@ -17,7 +17,6 @@ var fs = require("fs");
 var os = require("os");
 var path = require("path");
 var Worker = require("worker_threads").Worker;
-var botPlayer = require("../src/server/BotPlayer");
 var bench = require("../src/server/BotBench");
 var tbench = require("../src/server/TerritoryBench");
 
@@ -63,7 +62,7 @@ function runConfigs(configs) {
 	t0 = Date.now();
 	var calConfigs = [], calElo = [];
 	for (var g = 0; g < tbench.ELO_GRID.length; g++) {
-		for (var s = 0; s < CAL_SAMPLES; s++) { calConfigs.push(botPlayer.configForElo(tbench.ELO_GRID[g])); calElo.push(tbench.ELO_GRID[g]); }
+		for (var s = 0; s < CAL_SAMPLES; s++) { calConfigs.push(bench.configForElo(tbench.ELO_GRID[g])); calElo.push(tbench.ELO_GRID[g]); }
 	}
 	var calTimes = await runConfigs(calConfigs);
 	var byElo = {};

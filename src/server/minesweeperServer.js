@@ -1121,7 +1121,8 @@ var roundDeadlines = {};
 var roundStarts = {}; // roomId -> ms timestamp when the current round's play began
 var bots = {}; // botId -> true
 // Ranked filler bots are drawn from a pre-benchmarked pool (scripts/generate-bot-pool.js).
-// Load it once at boot; pickBotFromPool falls back to the configForElo curve if absent.
+// Load it once at boot; if it's absent pickBotFromPool returns null and addBotToRoom
+// degrades to a casual-preset bot, so a seat is always fillable.
 var BOT_POOL_PATH = process.env.BOT_POOL_PATH || path.join(__dirname, "..", "..", "bots-pool.json");
 console.log("Loaded " + botPlayer.loadPool(BOT_POOL_PATH) + " ranked bots from pool (" + BOT_POOL_PATH + ")");
 var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)

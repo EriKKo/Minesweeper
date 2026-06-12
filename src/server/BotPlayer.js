@@ -48,41 +48,14 @@ function configForDifficulty(difficulty) {
 // by itself without the solver, so they're the easiest possible move.
 var TRIVIAL_DIFFICULTY = 1;
 
-// Anchor points the bot-strength curve is calibrated to: configForElo(600) is the
-// weak reference, configForElo(1800) the strong one. The curve extrapolates below
-// 600 (down to ELO_FLOOR) toward an even slower, sloppier bot, so the pool can cover
-// near-helpless play all the way to 0 Elo; output for elo in [600,1800] is unchanged.
-var ELO_MIN = 600, ELO_MAX = 1800, ELO_FLOOR = 0;
-
-function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 var PENALTY_MS = 5000;     // ranked death-penalty freeze (used by the benchmark clock)
 
-// Build a reference bot for `elo` along a single strength curve: higher Elo = faster
-// pace, less per-difficulty thinking, a higher max-difficulty ceiling, fewer blunders,
-// and more chording.
-//
-// NOTE: nothing at runtime calls configForElo any more — ranked filler bots are drawn
-// from a pre-benchmarked pool (pickBotFromPool / scripts/generate-bot-pool.js). It is
-// retained as the *calibration anchor*: the generator benchmarks configForElo(0..1800)
-// to learn the solve-time↔Elo curve, then maps each random pool bot's measured times
-// onto the same scale so the ladder's Elo numbers keep their meaning. (Also the
-// pool-missing fallback in pickBotFromPool.)
-function configForElo(elo) {
-	// Allow s below 0 (down to ELO_FLOOR) so the curve extrapolates to weaker-than-600
-	// reference bots; the clamps below keep the extrapolation sane.
-	var s = clamp((elo - ELO_MIN) / (ELO_MAX - ELO_MIN), (ELO_FLOOR - ELO_MIN) / (ELO_MAX - ELO_MIN), 1);
-	return {
-		rating: Math.round(elo),
-		speedMs: Math.round(clamp(lerp(950, 130, s), 70, 1400)),       // pace; faster as s rises
-		difficultyMs: Math.round(clamp(lerp(320, 60, s), 20, 600)),    // per-difficulty thinking; less as s rises
-		distanceMult: 1,                                                // strength-neutral; varied only in the pool
-		maxDifficulty: clamp(lerp(1.2, 8, s), 1, 9),                    // skill ceiling; trivial-only at the floor
-		mistakeRate: clamp(lerp(0.06, 0.002, s), 0, 0.4),              // blunder chance; lower as s rises
-		chordRate: clamp(lerp(0.05, 0.85, s), 0, 1)
-	};
-}
+// The per-Elo reference-bot curve (configForElo) used to live here as the bot-strength
+// calibration anchor, but nothing at runtime needs it — ranked filler bots come from the
+// pre-benchmarked pool (pickBotFromPool / bots-pool.json). It now lives in BotBench, the
+// offline calibration module that's its only consumer.
 
 // Knob ranges for randomly-generated pool bots. Spans (and slightly overshoots) the
 // playable range so the pool covers 0–1800 after benchmarking. maxDifficulty runs from
@@ -138,14 +111,14 @@ function getPoolMeta() { return botPoolMeta || {}; }
 // Pick a ranked filler bot whose measured rating sits near `targetElo`. Selecting
 // at random within a ±window gives the natural rating spread that jitterBotElo used
 // to add by hand. If the window is empty (sparse pool edge) it widens; if the pool
-// is missing entirely (bots-pool.json absent), it falls back to the configForElo
-// curve so matchmaking can never fail to fill a seat.
+// is missing entirely (bots-pool.json absent) it returns null, and addBotToRoom
+// degrades to a casual-preset bot so matchmaking can never fail to fill a seat.
 // `ratingKey` selects which measured rating to match on: undefined → the overall racing `rating`;
 // otherwise a per-mode rating in `b.ratings` (e.g. "territory"), falling back to `b.rating` for any
 // bot that predates that calibration. The returned bot's `rating` is set to the matched value so the
 // rest of matchmaking (display, Elo seeding) uses the right ladder; the pool entry isn't mutated.
 function pickBotFromPool(targetElo, window, ratingKey) {
-	if (!botPool || !botPool.length) return configForElo(targetElo);
+	if (!botPool || !botPool.length) return null;
 	function ratingOf(b) { return ratingKey && b.ratings && b.ratings[ratingKey] != null ? b.ratings[ratingKey] : b.rating; }
 	function chosen(b) { return ratingKey ? Object.assign({}, b, { rating: ratingOf(b) }) : b; }
 	var w = window > 0 ? window : 60;
@@ -489,7 +462,6 @@ exports.pickBotName = pickBotName;
 exports.DIFFICULTIES = DIFFICULTIES;
 exports.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY;
 exports.configForDifficulty = configForDifficulty;
-exports.configForElo = configForElo;
 exports.randomBotConfig = randomBotConfig;
 exports.loadPool = loadPool;
 exports.pickBotFromPool = pickBotFromPool;

@@ -99,7 +99,7 @@ function calibrate(boards, opts) {
 	var pairs = [];
 	for (var g = 0; g < ELO_GRID.length; g++) {
 		var elo = ELO_GRID[g], sum = 0;
-		for (var s = 0; s < samples; s++) sum += avgClearTime(botPlayer.configForElo(elo), boards, opts);
+		for (var s = 0; s < samples; s++) sum += avgClearTime(bench.configForElo(elo), boards, opts);
 		pairs.push([elo, sum / samples]);
 	}
 	return pairs;
