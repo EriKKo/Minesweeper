@@ -77,6 +77,25 @@ function makeGridView(rows, cols, state, isMine, clueValue, opts) {
 	};
 }
 
+// Live-board BoardView: the same five accessors over the runtime state matrix
+// (UNKNOWN/KNOWN/FLAGGED sentinels) and a board accessor cellAt(r, c) that returns
+// a clue value or MINE. Shared by the live game (Animations.makeLiveView, which
+// layers the territory accessors on top) and the bot-demo board in the admin.
+// The sentinels are page globals assigned after the scripts load, so they're only
+// read inside these closures (at call time), never at module-eval time.
+function makeBoardView(rows, cols, state, cellAt, opts) {
+	opts = opts || {};
+	return {
+		rows: rows, cols: cols,
+		isCovered: function(r, c) { return state[r][c] === UNKNOWN; },
+		isRevealed: function(r, c) { return state[r][c] === KNOWN; },
+		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
+		isMine: function(r, c) { return cellAt(r, c) === MINE; },
+		getClue: function(r, c) { var v = cellAt(r, c); return v > 0 ? v : 0; },
+		xray: !!opts.xray
+	};
+}
+
 // Create a DPR-scaled canvas sized to a cols×rows grid of `cellPx` logical px.
 // Shared by the Learn / pattern / starting-position canvas factories.
 function buildCellCanvas(cols, rows, cellPx, className) {

@@ -45,50 +45,46 @@ function redrawOwnBoardWithFocus() {
 	renderPlayerBoard();
 }
 
+// The live game's board view: the shared sentinel-based BoardView (makeBoardView,
+// reading the decoded board via boardCell) plus the territory-only accessors the
+// renderer consults when present (no-ops in racing/solo/puzzle, which share this path).
 function makeLiveView(state) {
-	return {
-		rows: rows, cols: cols,
-		isCovered: function(r, c) { return state[r][c] === UNKNOWN; },
-		isRevealed: function(r, c) { return state[r][c] === KNOWN; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
-		isMine: function(r, c) { return boardCell(r, c) === MINE; },
-		getClue: function(r, c) { var v = boardCell(r, c); return v > 0 ? v : 0; },
-		// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
-		// colours never bleed into the racing/solo/puzzle boards (they share this render path).
-		getOwner: function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; },
-		// Territory "fog of clues": you see clue numbers on cells YOU control, plus any opponent cell
-		// that borders one of yours (so the contested frontier is readable). Opponent cells deeper in
-		// their territory show their owner tint but no clue. Off (always show) in every other mode.
-		hideClue: function(r, c) {
-			if (typeof territoryActive === "undefined" || !territoryActive || !territoryOwnerColors || typeof territoryInfo === "undefined" || !territoryInfo) return false;
-			var mineColor = territoryColorHex(territoryColorOf(territoryInfo.myId));
-			if (territoryOwnerColors[r][c] === mineColor) return false; // your own cell — always shown
-			for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-				if (!dr && !dc) continue;
-				var nr = r + dr, nc = c + dc;
-				if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && territoryOwnerColors[nr][nc] === mineColor) return false; // borders your territory
-			}
-			return true; // not yours and not touching you — hidden
-		},
-		// Territory structure charge (0..1), interpolated live from the last broadcast so the gauge fills
-		// smoothly between updates. null/1 when not a structure.
-		structureCharge: function(r, c) {
-			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
-			var s = territoryStructures[r + "," + c];
-			if (!s || !s.cooldownMs) return 1;
-			var remaining = s.readyAt - performance.now();
-			return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
-		},
-		// Extractor construction progress (0..1). 1 = built/operational. Interpolated from the broadcast.
-		structureBuild: function(r, c) {
-			if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
-			var s = territoryStructures[r + "," + c];
-			if (!s || !s.buildMs) return 1;
-			var remaining = s.builtAt - performance.now();
-			return remaining <= 0 ? 1 : 1 - remaining / s.buildMs;
-		},
-		xray: false
+	var view = makeBoardView(rows, cols, state, boardCell);
+	// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
+	// colours never bleed into the racing/solo/puzzle boards (they share this render path).
+	view.getOwner = function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; };
+	// Territory "fog of clues": you see clue numbers on cells YOU control, plus any opponent cell
+	// that borders one of yours (so the contested frontier is readable). Opponent cells deeper in
+	// their territory show their owner tint but no clue. Off (always show) in every other mode.
+	view.hideClue = function(r, c) {
+		if (typeof territoryActive === "undefined" || !territoryActive || !territoryOwnerColors || typeof territoryInfo === "undefined" || !territoryInfo) return false;
+		var mineColor = territoryColorHex(territoryColorOf(territoryInfo.myId));
+		if (territoryOwnerColors[r][c] === mineColor) return false; // your own cell — always shown
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (!dr && !dc) continue;
+			var nr = r + dr, nc = c + dc;
+			if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && territoryOwnerColors[nr][nc] === mineColor) return false; // borders your territory
+		}
+		return true; // not yours and not touching you — hidden
 	};
+	// Territory structure charge (0..1), interpolated live from the last broadcast so the gauge fills
+	// smoothly between updates. null/1 when not a structure.
+	view.structureCharge = function(r, c) {
+		if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+		var s = territoryStructures[r + "," + c];
+		if (!s || !s.cooldownMs) return 1;
+		var remaining = s.readyAt - performance.now();
+		return remaining <= 0 ? 1 : 1 - remaining / s.cooldownMs;
+	};
+	// Extractor construction progress (0..1). 1 = built/operational. Interpolated from the broadcast.
+	view.structureBuild = function(r, c) {
+		if (typeof territoryStructures === "undefined" || !territoryStructures) return 1;
+		var s = territoryStructures[r + "," + c];
+		if (!s || !s.buildMs) return 1;
+		var remaining = s.builtAt - performance.now();
+		return remaining <= 0 ? 1 : 1 - remaining / s.buildMs;
+	};
+	return view;
 }
 
 // ---- whole boards ------------------------------------------------------

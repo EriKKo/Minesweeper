@@ -411,13 +411,7 @@ function drawDemoBoard(lastMove) {
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 	var board = d.board, state = d.state;
-	var view = {
-		xray: false,
-		isRevealed: function(r, c) { return state[r][c] === KNOWN; },
-		isFlagged: function(r, c) { return state[r][c] === FLAGGED; },
-		isMine: function(r, c) { return board[r][c] === MINE; },
-		getClue: function(r, c) { var v = board[r][c]; return v > 0 ? v : 0; }
-	};
+	var view = makeBoardView(rows, cols, state, function(r, c) { return board[r][c]; });
 	var sw = canvas.width / cols, sh = canvas.height / rows;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) drawCell(ctx, r, c, view, sw, sh, null);
