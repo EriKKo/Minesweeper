@@ -13,7 +13,8 @@ var http = require("http")
   , cspSolver = require("./CSPSolver")
   , oauth = require("./oauth")
   , puzzleApi = require("./puzzleApi")
-  , staticServer = require("./staticServer");
+  , staticServer = require("./staticServer")
+  , appState = require("./appState");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -78,6 +79,7 @@ var PORT = process.env.PORT || 1337;
 
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
+appState.io = io; // share the socket.io server with the (future) handler modules
 
 // The HTTP handler is a pure router: provider auth, then the /api admin surface,
 // then static client assets (each module early-returns if it owns the path).
@@ -104,8 +106,8 @@ function handler (req, res) {
 // misses, finalizePuzzle hands off to the run controller below instead of
 // applying Elo. The run advances the target rating, picks the next puzzle,
 // and reuses startPuzzlePlay to set up another game on the same socket.
-var puzzlePlay = {};
-var puzzleRun = {};   // playerID -> { mode, targetRating, solves, startedAt, endsAt, timerHandle }
+var puzzlePlay = appState.puzzlePlay;
+var puzzleRun = appState.puzzleRun;   // playerID -> { mode, targetRating, solves, startedAt, endsAt, timerHandle }
 
 // Streak / Storm tuning.
 var RUN_START_RATING = 100;
@@ -376,33 +378,33 @@ function finalizePuzzle(socket, playerID, solved) {
 }
 
 
-var games = {};
-var roomMapping = {};
-var rooms = {};
+var games = appState.games;
+var roomMapping = appState.roomMapping;
+var rooms = appState.rooms;
 var nextRoomId = 1;
-var sockets = {};
-var names = {};
-var accounts = {}; // socketId -> { userId, token } for signed-in players
-var nextGameTimers = {};
-var roundTimers = {};
-var roundDeadlines = {};
-var roundStarts = {}; // roomId -> ms timestamp when the current round's play began
-var bots = {}; // botId -> true
+var sockets = appState.sockets;
+var names = appState.names;
+var accounts = appState.accounts; // socketId -> { userId, token } for signed-in players
+var nextGameTimers = appState.nextGameTimers;
+var roundTimers = appState.roundTimers;
+var roundDeadlines = appState.roundDeadlines;
+var roundStarts = appState.roundStarts; // roomId -> ms timestamp when the current round's play began
+var bots = appState.bots; // botId -> true
 // Ranked filler bots are drawn from a pre-benchmarked pool (scripts/generate-bot-pool.js).
 // Load it once at boot; if it's absent pickBotFromPool returns null and addBotToRoom
 // degrades to a casual-preset bot, so a seat is always fillable.
 var BOT_POOL_PATH = process.env.BOT_POOL_PATH || path.join(__dirname, "..", "..", "bots-pool.json");
 console.log("Loaded " + botPlayer.loadPool(BOT_POOL_PATH) + " ranked bots from pool (" + BOT_POOL_PATH + ")");
-var botDifficulty = {}; // botId -> "easy" | "medium" | "hard" (casual rooms)
-var botSpeedMs = {}; // botId -> flat per-move pace (ms)
-var botDifficultyMs = {}; // botId -> ms of thinking per unit of move difficulty
-var botDistanceMult = {}; // botId -> multiplier on the mouse-travel term
-var botMaxDifficulty = {}; // botId -> hardest move (CSP difficulty) the bot can deduce
-var botRating = {}; // botId -> Elo used for ranked rating math
-var botMistake = {}; // botId -> blunder rate (re-applied to the game each round)
-var botChord = {}; // botId -> chord rate (re-applied to the game each round)
-var botTickHandles = {}; // botId -> setTimeout handle
-var botLastClick = {}; // botId -> {r, c} of the bot's most recent click in the current round
+var botDifficulty = appState.botDifficulty; // botId -> "easy" | "medium" | "hard" (casual rooms)
+var botSpeedMs = appState.botSpeedMs; // botId -> flat per-move pace (ms)
+var botDifficultyMs = appState.botDifficultyMs; // botId -> ms of thinking per unit of move difficulty
+var botDistanceMult = appState.botDistanceMult; // botId -> multiplier on the mouse-travel term
+var botMaxDifficulty = appState.botMaxDifficulty; // botId -> hardest move (CSP difficulty) the bot can deduce
+var botRating = appState.botRating; // botId -> Elo used for ranked rating math
+var botMistake = appState.botMistake; // botId -> blunder rate (re-applied to the game each round)
+var botChord = appState.botChord; // botId -> chord rate (re-applied to the game each round)
+var botTickHandles = appState.botTickHandles; // botId -> setTimeout handle
+var botLastClick = appState.botLastClick; // botId -> {r, c} of the bot's most recent click in the current round
 var nextBotId = 1;
 var MAX_BOTS_PER_ROOM = 15;
 
@@ -446,10 +448,10 @@ var RANKED_BOT_RATING = 1000;
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
-var rankedQueues = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [], territory_quad: [] };
-var pendingBotsLists = { sprint_duo: [], sprint_six: [], standard_duo: [], standard_six: [], tournament: [], territory_duo: [], territory_quad: [] };
-var rankedFillTimers = { sprint_duo: null, sprint_six: null, standard_duo: null, standard_six: null, tournament: null, territory_duo: null, territory_quad: null };
-var rankedQueueMode = {}; // playerID -> mode key
+var rankedQueues = appState.rankedQueues;
+var pendingBotsLists = appState.pendingBotsLists;
+var rankedFillTimers = appState.rankedFillTimers;
+var rankedQueueMode = appState.rankedQueueMode; // playerID -> mode key
 
 function isBot(playerID) {
 	return !!bots[playerID];
@@ -1425,8 +1427,8 @@ function startTerritoryGame(room) {
 // restricted to cells adjacent to the bot's own territory (canTarget), it never flags/chords
 // (revealsOnly), and its KNOWN cells are everything claimed on the shared board plus mines it
 // has already detonated (so it deduces from the full visible board but expands only its own front).
-var territoryBotTimers = {}; // roomId -> { botId: timeoutHandle }
-var territoryBotFocus = {};  // botId -> { r, c } (locality focus persisted across ticks)
+var territoryBotTimers = appState.territoryBotTimers; // roomId -> { botId: timeoutHandle }
+var territoryBotFocus = appState.territoryBotFocus;  // botId -> { r, c } (locality focus persisted across ticks)
 
 function startTerritoryBots(room, tg) {
 	territoryBotTimers[room.id] = territoryBotTimers[room.id] || {};
@@ -1490,7 +1492,7 @@ function clearTerritoryBots(roomId) {
 
 // Steady ~1/s heartbeat that advances the energy economy even when nobody is clicking: bank produced
 // energy, re-wire the extractor network, and push the updated infra/energy to clients so the HUD counts.
-var territoryWorldTimers = {}; // roomId -> intervalHandle
+var territoryWorldTimers = appState.territoryWorldTimers; // roomId -> intervalHandle
 function startTerritoryWorldTick(room, tg) {
 	clearTerritoryWorldTick(room.id);
 	territoryWorldTimers[room.id] = setInterval(function() {
@@ -1960,7 +1962,7 @@ function removePlayerFromRoom(playerID) {
 
 // Admin bot-play demos: one standalone (room-less) bot game per socket, streamed move
 // by move at the bot's real cadence. Keyed by socket id.
-var botDemos = {}; // socketId -> { game, lastClick, timer, moves }
+var botDemos = appState.botDemos; // socketId -> { game, lastClick, timer, moves }
 
 function isSocketAdmin(playerID) {
 	if (oauth.DEV_AUTH) return true;

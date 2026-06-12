@@ -32,6 +32,13 @@ Source is split into three trees under `src/`:
   `/api/*` → `puzzleApi.js`, everything else → `staticServer.js`.
 - `staticServer.js` — serves client assets out of `src/client/` and `src/common/`,
   with the SPA fallback (extensionless unknown paths serve `index.html`).
+- `appState.js` — the server's shared mutable state in one place: the live collections
+  the socket handlers operate on (`rooms`, `games`, `sockets`, `names`, `accounts`,
+  round/series timers, the bot registries, the ranked queues, territory/puzzle timers),
+  plus `io`. A singleton — `minesweeperServer` aliases each locally (`var rooms =
+  appState.rooms`, mutated in place, never reassigned), and the handler modules split
+  out of the server share the same objects by requiring it. Primitive id counters
+  (`nextRoomId`/`nextBotId`) and config constants (`RANKED_MODES`, …) are not in it.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
