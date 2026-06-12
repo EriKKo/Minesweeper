@@ -21,7 +21,8 @@ var http = require("http")
   , botMgr = require("./bots")
   , puzzleMode = require("./puzzlePlay")
   , botDemo = require("./botDemo")
-  , standings = require("./standings");
+  , standings = require("./standings")
+  , roomState = require("./roomState");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
@@ -88,8 +89,8 @@ territory.init({
 	isBot: isBot,
 	clearRoundTimer: clearRoundTimer,
 	applyRankedElo: elo.applyRankedElo,
-	broadcastRoomState: broadcastRoomState,
-	broadcastRoomList: broadcastRoomList
+	broadcastRoomState: roomState.broadcastRoomState,
+	broadcastRoomList: roomState.broadcastRoomList
 });
 
 // The HTTP handler is a pure router: provider auth, then the /api admin surface,
@@ -150,6 +151,7 @@ var RANKED_BOT_RATING = 1000;
 // The Elo math lives in elo.js; give it the bot predicate + rating constants.
 elo.init({ isBot: isBot, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
 standings.init({ isBot: isBot, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
+roomState.init({ isBot: isBot, io: io, MAX_BOTS_PER_ROOM: MAX_BOTS_PER_ROOM, RANKED_BOT_RATING: RANKED_BOT_RATING, PROVISIONAL_GAMES: PROVISIONAL_GAMES });
 
 // Racing-bot orchestration lives in botMgr.js; give it the game-loop services + shared predicates.
 botMgr.init({
@@ -175,7 +177,7 @@ ranked.init({
 	createPlayerGame: createPlayerGame,
 	addBotToRoom: botMgr.addBotToRoom,
 	botCount: botCount,
-	broadcastRoomState: broadcastRoomState,
+	broadcastRoomState: roomState.broadcastRoomState,
 	startSeries: startSeries
 });
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
@@ -188,90 +190,6 @@ function isBot(playerID) {
 	return !!bots[playerID];
 }
 
-function roomSummary(room) {
-	return {
-		id: room.id,
-		ownerName: names[room.owner] || "Anonymous",
-		playerCount: room.players.length,
-		humanCount: room.players.filter(function(pid) { return !isBot(pid); }).length,
-		maxPlayers: room.maxPlayers,
-		phase: room.phase,
-		gameMode: room.gameMode || "race",
-		gameCount: room.gameCount,
-		gamesPlayed: room.gamesPlayed,
-		roundSeconds: room.roundSeconds,
-		deathPenalty: room.deathPenalty,
-		players: room.players.map(function(pid) { return names[pid] || "Anonymous"; })
-	};
-}
-
-function getRoomList() {
-	return Object.keys(rooms)
-		.filter(function(id) { return !rooms[id].ranked; })
-		.map(function(id) { return roomSummary(rooms[id]); });
-}
-
-function broadcastRoomList() {
-	io.to("lobby").emit("room_list", { rooms: getRoomList() });
-}
-
-function buildRoomState(room) {
-	return {
-		id: room.id,
-		owner: room.owner,
-		ranked: !!room.ranked,
-		rankedMode: room.rankedMode || null,
-		gameMode: room.gameMode || "race",
-		phase: room.phase,
-		gameCount: room.gameCount,
-		gamesPlayed: room.gamesPlayed,
-		scoreTarget: room.scoreTarget || null,
-		tournamentSchedule: room.tournamentSchedule || null,
-		roundSeconds: room.roundSeconds,
-		deathPenalty: room.deathPenalty,
-		mineDensity: room.mineDensity,
-		boardSize: room.boardSize,
-		rows: room.rows,
-		cols: room.cols,
-		roundDeadline: roundDeadlines[room.id] || null,
-		lastGameWinner: room.lastGameWinner,
-		lastGameWinnerName: room.lastGameWinner ? names[room.lastGameWinner] : null,
-		seriesWinner: room.seriesWinner,
-		seriesWinnerName: room.seriesWinner ? names[room.seriesWinner] : null,
-		gameCountOptions: room.gameCountOptions,
-		roundSecondsOptions: room.roundSecondsOptions,
-		deathPenaltyOptions: room.deathPenaltyOptions,
-		mineDensityOptions: room.mineDensityOptions,
-		boardSizeOptions: room.boardSizeOptions,
-		botDifficultyOptions: botPlayer.DIFFICULTIES,
-		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
-		maxBots: MAX_BOTS_PER_ROOM,
-		players: room.players.map(function(pid) {
-			var g = games[pid];
-			var bot = isBot(pid);
-			var rating = bot ? (botRating[pid] || RANKED_BOT_RATING)
-				: (accounts[pid] ? accounts[pid].rating : null);
-			var provisional = bot ? false
-				: (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
-			return {
-				id: pid,
-				name: names[pid] || "Anonymous",
-				ready: room.isReady(pid),
-				score: room.scores[pid] || 0,
-				isOwner: pid === room.owner,
-				isBot: bot,
-				difficulty: bot ? (botDifficulty[pid] || null) : null,
-				rating: rating,
-				provisional: provisional,
-				finished: g ? !!g.finished : false
-			};
-		})
-	};
-}
-
-function broadcastRoomState(room) {
-	io.to("room:" + room.id).emit("room_state", buildRoomState(room));
-}
 
 function clearRoundTimer(roomId) {
 	if (roundTimers[roomId]) {
@@ -463,7 +381,7 @@ function endIndividualGame(room, reason) {
 		reason: reason || "cleared",
 		standings: standings
 	});
-	broadcastRoomState(room);
+	roomState.broadcastRoomState(room);
 
 	var seriesOver;
 	if (tournamentSurvivors !== null) {
@@ -543,8 +461,8 @@ function endSeries(room) {
 			return { id: s.id, name: s.name, score: s.score };
 		})
 	});
-	broadcastRoomState(room);
-	broadcastRoomList();
+	roomState.broadcastRoomState(room);
+	roomState.broadcastRoomList();
 
 	// Ranked rooms are single-match: don't auto-reset bots or scores. The client
 	// shows "Play another" (re-queues) and "Back to menu" (leaves the room).
@@ -555,7 +473,7 @@ function endSeries(room) {
 		room.resetScores();
 		room.resetReady();
 		botMgr.readyAllBots(room);
-		broadcastRoomState(room);
+		roomState.broadcastRoomState(room);
 	}, SERIES_END_DELAY);
 }
 
@@ -580,7 +498,7 @@ function gameWin(playerID) {
 	}
 
 	updateDraw(room);
-	broadcastRoomState(room);
+	roomState.broadcastRoomState(room);
 
 	// As soon as only one (or zero) players are still active, end the round.
 	// The 20s timer reduction above still applies as a safety for the case where
@@ -682,7 +600,7 @@ function startGame(room) {
 				handleRoundTimeUp(room);
 			}, room.roundSeconds * 1000);
 		}
-		broadcastRoomState(room);
+		roomState.broadcastRoomState(room);
 		updateDraw(room);
 		botMgr.startBotTicksForRoom(room);
 	}, COUNT_DOWN_TIME * 1000);
@@ -690,8 +608,8 @@ function startGame(room) {
 
 function startSeries(room) {
 	room.startSeries();
-	broadcastRoomState(room);
-	broadcastRoomList();
+	roomState.broadcastRoomState(room);
+	roomState.broadcastRoomList();
 	startGame(room);
 }
 
@@ -714,8 +632,8 @@ function addPlayerToRoom(socket, room) {
 	socket.leave("lobby");
 	socket.join("room:" + room.id);
 	socket.emit("joined_room", { roomId: room.id });
-	broadcastRoomState(room);
-	broadcastRoomList();
+	roomState.broadcastRoomState(room);
+	roomState.broadcastRoomList();
 }
 
 // Apply a ranked-Elo loss to a player who's bailing on a live match. For 1v1
@@ -789,7 +707,7 @@ function removePlayerFromRoom(playerID) {
 	}
 
 	if (deleteRoomIfEmpty(room)) {
-		broadcastRoomList();
+		roomState.broadcastRoomList();
 		return;
 	}
 
@@ -806,8 +724,8 @@ function removePlayerFromRoom(playerID) {
 	if (wasPlaying && room.gameMode === "territory") {
 		// A territory game can't continue with a player gone — award it to whoever's left.
 		if (room.territory) territory.endGame(room, "opponent-left");
-		else { room.phase = "planning"; broadcastRoomState(room); }
-		broadcastRoomList();
+		else { room.phase = "planning"; roomState.broadcastRoomState(room); }
+		roomState.broadcastRoomList();
 		return leaveEloInfo;
 	}
 
@@ -823,9 +741,9 @@ function removePlayerFromRoom(playerID) {
 			}
 		}
 	} else {
-		broadcastRoomState(room);
+		roomState.broadcastRoomState(room);
 	}
-	broadcastRoomList();
+	roomState.broadcastRoomList();
 	return leaveEloInfo;
 }
 
@@ -884,8 +802,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 	};
 	if (sendToken) payload.token = token;
 	socket.emit("authenticated", payload);
-	if (isFirst) socket.emit("room_list", { rooms: getRoomList() });
-	else if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
+	if (isFirst) socket.emit("room_list", { rooms: roomState.getRoomList() });
+	else if (roomMapping[playerID]) roomState.broadcastRoomState(roomMapping[playerID]);
 }
 
 io.on("connection", function (socket) {
@@ -933,15 +851,15 @@ io.on("connection", function (socket) {
 		}
 		socket.emit("name_accepted", { name: name });
 		if (isFirst) {
-			socket.emit("room_list", { rooms: getRoomList() });
+			socket.emit("room_list", { rooms: roomState.getRoomList() });
 		} else {
-			if (roomMapping[playerID]) broadcastRoomState(roomMapping[playerID]);
-			broadcastRoomList();
+			if (roomMapping[playerID]) roomState.broadcastRoomState(roomMapping[playerID]);
+			roomState.broadcastRoomList();
 		}
 	});
 
 	socket.on("list_rooms", function() {
-		socket.emit("room_list", { rooms: getRoomList() });
+		socket.emit("room_list", { rooms: roomState.getRoomList() });
 	});
 
 	socket.on("find_ranked", function(data) {
@@ -1039,7 +957,7 @@ io.on("connection", function (socket) {
 				rating: leaveEloInfo.newRating,
 				provisional: leaveEloInfo.provisional
 			} : null);
-			socketRef.emit("room_list", { rooms: getRoomList() });
+			socketRef.emit("room_list", { rooms: roomState.getRoomList() });
 		}
 	});
 
@@ -1049,8 +967,8 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		var count = data && parseInt(data.count, 10);
 		if (room.setGameCount(count)) {
-			broadcastRoomState(room);
-			broadcastRoomList();
+			roomState.broadcastRoomState(room);
+			roomState.broadcastRoomList();
 		}
 	});
 
@@ -1060,8 +978,8 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		var seconds = data && parseInt(data.seconds, 10);
 		if (room.setRoundSeconds(seconds)) {
-			broadcastRoomState(room);
-			broadcastRoomList();
+			roomState.broadcastRoomState(room);
+			roomState.broadcastRoomList();
 		}
 	});
 
@@ -1071,8 +989,8 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		var seconds = data && parseInt(data.seconds, 10);
 		if (room.setDeathPenalty(seconds)) {
-			broadcastRoomState(room);
-			broadcastRoomList();
+			roomState.broadcastRoomState(room);
+			roomState.broadcastRoomList();
 		}
 	});
 
@@ -1082,8 +1000,8 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		var density = data && parseFloat(data.density);
 		if (room.setMineDensity(density)) {
-			broadcastRoomState(room);
-			broadcastRoomList();
+			roomState.broadcastRoomState(room);
+			roomState.broadcastRoomList();
 		}
 	});
 
@@ -1092,8 +1010,8 @@ io.on("connection", function (socket) {
 		if (!room) return;
 		if (room.owner !== playerID) return;
 		if (room.setBoardSize(data && data.size)) {
-			broadcastRoomState(room);
-			broadcastRoomList();
+			roomState.broadcastRoomState(room);
+			roomState.broadcastRoomList();
 		}
 	});
 
@@ -1115,7 +1033,7 @@ io.on("connection", function (socket) {
 		botMistake[botId] = cfg.mistakeRate;
 		botChord[botId] = cfg.chordRate;
 		botMgr.applyBotConfigToGame(botId);
-		broadcastRoomState(room);
+		roomState.broadcastRoomState(room);
 	});
 
 	socket.on("add_bot", function() {
@@ -1123,8 +1041,8 @@ io.on("connection", function (socket) {
 		if (!room) return;
 		if (room.owner !== playerID) return;
 		if (!botMgr.addBotToRoom(room)) return;
-		broadcastRoomState(room);
-		broadcastRoomList();
+		roomState.broadcastRoomState(room);
+		roomState.broadcastRoomList();
 		// If the owner had already readied before adding the bot, start now.
 		if (room.players.length > 1 && room.allReady() && humanCount(room) > 0) {
 			startSeries(room);
@@ -1137,8 +1055,8 @@ io.on("connection", function (socket) {
 		if (room.owner !== playerID) return;
 		if (room.phase !== "planning") return;
 		if (!botMgr.removeOneBotFromRoom(room)) return;
-		broadcastRoomState(room);
-		broadcastRoomList();
+		roomState.broadcastRoomState(room);
+		roomState.broadcastRoomList();
 	});
 
 	socket.on("player_ready", function() {
@@ -1146,7 +1064,7 @@ io.on("connection", function (socket) {
 		if (!room) return;
 		if (room.phase !== "planning") return;
 		room.playerReady(playerID);
-		broadcastRoomState(room);
+		roomState.broadcastRoomState(room);
 		if (room.players.length > 1 && room.allReady()) {
 			startSeries(room);
 		}

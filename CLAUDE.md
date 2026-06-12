@@ -79,6 +79,9 @@ Source is split into three trees under `src/`:
   (finishers first, then by finish time / safe count), the series winner, the cumulative-score
   series standings, and the tournament final standings. Reads game/room state + the accounts
   cache; `isBot` + the rating constants are injected via `standings.init(deps)`.
+- `roomState.js` — room serialization + broadcast: the lobby summary (`room_list`) and the
+  full `room_state` payload the client renders, pushed over socket.io. Reads room/game/account
+  state from appState; `isBot`/`io`/the bot+rating constants are injected via `roomState.init(deps)`.
 - `puzzleApi.js` — the admin/puzzle HTTP API: everything behind `/api/*` (the All-Puzzles,
   Bots, Patterns, Starting-positions, Combined-puzzles pages), the background
   puzzle-generation job, and the startup pool top-up. Pure HTTP + db + generators, no
