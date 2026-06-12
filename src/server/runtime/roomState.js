@@ -4,7 +4,7 @@
 // bot/rating constants are injected via init to avoid a circular require.
 
 var appState = require("./appState");
-var botPlayer = require("./BotPlayer");
+var botPlayer = require("../engine/BotPlayer");
 var gameUtil = require("./gameUtil");
 
 var names = appState.names, rooms = appState.rooms, roundDeadlines = appState.roundDeadlines;

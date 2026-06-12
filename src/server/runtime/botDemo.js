@@ -5,10 +5,10 @@
 // injected via init. State (botDemos) is appState.
 
 var appState = require("./appState");
-var botPlayer = require("./BotPlayer");
-var gameCreator = require("./GameCreator");
-var noGuess = require("./NoGuessGenerator");
-var roomCreator = require("./RoomCreator");
+var botPlayer = require("../engine/BotPlayer");
+var gameCreator = require("../engine/GameCreator");
+var noGuess = require("../engine/NoGuessGenerator");
+var roomCreator = require("../engine/RoomCreator");
 
 var botDemos = appState.botDemos; // socketId -> { game, lastClick, timer, moves }
 

@@ -6,7 +6,7 @@
 // DEV_AUTH / OAUTH_BASE / providerFlags() for the connected payload and admin checks.
 
 var crypto = require("node:crypto");
-var db = require("./db");
+var db = require("../db");
 
 // Return the first set value among several candidate env var names, so both the
 // conventional UPPER_CASE names and the fly.io secret names work.

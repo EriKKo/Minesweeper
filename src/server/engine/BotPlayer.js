@@ -1,6 +1,6 @@
 var fs = require("fs");
 var gameCreator = require("./GameCreator");
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
 // Bots reason with the CSP analyzer but never at/above the case-split threshold (CASE_BASE = 8): a
 // human-skill bot shouldn't crack case-analysis boards. Their actual skill ceiling is the per-cell

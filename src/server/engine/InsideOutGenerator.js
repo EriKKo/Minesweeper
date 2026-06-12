@@ -23,7 +23,7 @@
 // state (every cell KNOWN or FLAGGED). That guarantees solvability by
 // construction — no analyzer-blind-spot puzzles survive.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var puzzleGen = require("./PuzzleGenerator");
 var cspSolver = require("./CSPSolver");
 var KNOWN = BoardLogic.KNOWN;

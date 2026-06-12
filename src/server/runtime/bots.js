@@ -8,7 +8,7 @@
 // the racing/casual/ranked one.
 
 var appState = require("./appState");
-var botPlayer = require("./BotPlayer");
+var botPlayer = require("../engine/BotPlayer");
 var gameUtil = require("./gameUtil");
 
 // Per-bot state (same objects the server holds).

@@ -13,7 +13,7 @@
 //
 // Tunables: MAX_RING_MINES (default 7), RESIDUE_CAP (default 8). e.g. MAX_RING_MINES=8 node scripts/scout-corner-positions.js
 const BL = require("../src/common/BoardLogic");
-const csp = require("../src/server/CSPSolver");
+const csp = require("../src/server/engine/CSPSolver");
 const MINE = BL.MINE, KNOWN = BL.KNOWN, UNKNOWN = BL.UNKNOWN;
 const popcount = BL.popcount;
 

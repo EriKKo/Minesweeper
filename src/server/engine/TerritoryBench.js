@@ -15,7 +15,7 @@ var territoryGen = require("./TerritoryGenerator");
 var territoryGame = require("./TerritoryGame");
 var botPlayer = require("./BotPlayer");
 var bench = require("./BotBench");
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN;
 

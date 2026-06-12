@@ -26,9 +26,20 @@ with short `node -e` scripts.
 
 Source is split into three trees under `src/`:
 
-**`src/server/`** — Node + socket.io backend:
-- `minesweeperServer.js` — HTTP + socket.io entry: rooms, series, ranked matchmaking,
-  bot orchestration. Its HTTP handler is a pure router — `/auth/*` → `oauth.js`,
+**`src/server/`** — Node + socket.io backend. Organised into role subfolders; the entry
+(`minesweeperServer.js`) and shared persistence (`db.js`) sit at the root, and everything
+else is grouped:
+- **`src/server/engine/`** — pure game logic / generators / solvers / benches, no http/socket/db
+  coupling (`GameCreator`, `NoGuessGenerator`, `RoomCreator`, `BotPlayer`, `CSPSolver`,
+  `PuzzleGenerator`, `InsideOutGenerator`, `RingSeedGenerator`, `StartPatterns`, `Patterns`,
+  `TerritoryGame`, `TerritoryGenerator`, `BotBench`, `TerritoryBench`). The files `scripts/` import.
+- **`src/server/runtime/`** — the http + socket runtime: shared state + the socket-handler modules
+  (`appState`, `gameUtil`, `ranked`, `elo`, `bots`, `puzzlePlay`, `botDemo`, `standings`,
+  `roomState`, `session`, `territory`, `staticServer`, `oauth`, `puzzleApi`).
+
+(File bullets below use bare names; resolve them under `engine/` or `runtime/` per the lists above.)
+- `minesweeperServer.js` — HTTP + socket.io entry (at `src/server/` root): rooms, series, ranked
+  matchmaking, bot orchestration. Its HTTP handler is a pure router — `/auth/*` → `oauth.js`,
   `/api/*` → `puzzleApi.js`, everything else → `staticServer.js`.
 - `staticServer.js` — serves client assets out of `src/client/` and `src/common/`,
   with the SPA fallback (extensionless unknown paths serve `index.html`).
@@ -401,7 +412,18 @@ Source is split into three trees under `src/`:
 - `BoardLogic.js` — cascade, chord, neighbour iteration, the MINE/FLAGGED/
   UNKNOWN/KNOWN state sentinels.
 
-**`src/client/`** — browser frontend, each file a single feature:
+**`src/client/`** — browser frontend, each file a single feature. `index.html`, `style.css`,
+`favicon.svg`, `logo.svg` sit at the root; the JS modules are grouped into subfolders (served
+transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main.js`):
+- **`core/`** — the live-game runtime (`Main`, `Input`, `BoardRender`, `Animations`, `BoardDecoder`).
+- **`ui/`** — cross-cutting UI infra (`Router`, `Auth`, `Overlay`, `Sound`, `Music`, `MobileLayout`,
+  `Fullscreen`, `RoundTimer`, `DangerWarning`, `Keybindings`).
+- **`views/`** — page/feature views (`Lobby`, `GameRoom`, `Profile`, `Leaderboard`, `Learn`, `Solo`,
+  `Territory`, `PuzzlePlay`, `Ranking`, `MatchPanels`).
+- **`admin/`** — admin views (`AdminList`, `BotsAdmin`, `PatternsView`, `StartPatternsView`,
+  `StartingPositionsView`, `CombinedPuzzlesView`, `PuzzleLab`, `Puzzles`).
+
+(File bullets below use bare names; resolve them under `core/`, `ui/`, `views/`, or `admin/`.)
 - `index.html` — entry page: markup only. Every client module is a plain `<script>`
   tag (each becomes a global); they load in dependency order, with `Main.js` last.
 - `Main.js` — the client entry / live-game core: the socket connection and all its

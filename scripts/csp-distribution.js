@@ -7,8 +7,8 @@ var path = require("path");
 process.env.RANKED_DB = process.env.RANKED_DB || path.join(__dirname, "..", "ranked.db");
 
 var db = require("../src/server/db");
-var puzzleGen = require("../src/server/PuzzleGenerator");
-var csp = require("../src/server/CSPSolver");
+var puzzleGen = require("../src/server/engine/PuzzleGenerator");
+var csp = require("../src/server/engine/CSPSolver");
 var BoardLogic = require("../src/common/BoardLogic");
 var K = BoardLogic.KNOWN, U = BoardLogic.UNKNOWN;
 

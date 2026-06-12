@@ -11,8 +11,8 @@ var path = require("path");
 // Static file roots, tried in order. Client assets (HTML, CSS, .js modules) live in
 // src/client; the one shared module (BoardLogic.js) lives in src/common.
 var STATIC_ROOTS = [
-	path.join(__dirname, "..", "client"),
-	path.join(__dirname, "..", "common")
+	path.join(__dirname, "..", "..", "client"),
+	path.join(__dirname, "..", "..", "common")
 ];
 
 var CONTENT_TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png" };

@@ -9,9 +9,9 @@
 // isValidMode + enqueue + dequeue.
 
 var appState = require("./appState");
-var db = require("./db");
-var botPlayer = require("./BotPlayer");
-var roomCreator = require("./RoomCreator");
+var db = require("../db");
+var botPlayer = require("../engine/BotPlayer");
+var roomCreator = require("../engine/RoomCreator");
 var territory = require("./territory");
 var gameUtil = require("./gameUtil");
 

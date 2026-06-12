@@ -1,4 +1,4 @@
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 
 var DEFAULT_MINES = 30;
 var DEFAULT_ROWS = 15;

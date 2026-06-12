@@ -5,7 +5,7 @@
 // the core (which reads game state). isBot + the rating constants are injected via init(deps)
 // to avoid a circular require; accounts/botRating come from appState.
 
-var db = require("./db");
+var db = require("../db");
 var appState = require("./appState");
 var gameUtil = require("./gameUtil");
 

@@ -16,10 +16,10 @@
 
 var fs = require("fs");
 var path = require("path");
-var SP = require("../src/server/StartPatterns");
-var puzzleGen = require("../src/server/PuzzleGenerator");
-var CSP = require("../src/server/CSPSolver");
-var RingSeed = require("../src/server/RingSeedGenerator");
+var SP = require("../src/server/engine/StartPatterns");
+var puzzleGen = require("../src/server/engine/PuzzleGenerator");
+var CSP = require("../src/server/engine/CSPSolver");
+var RingSeed = require("../src/server/engine/RingSeedGenerator");
 var BoardLogic = require("../src/common/BoardLogic");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN;
 

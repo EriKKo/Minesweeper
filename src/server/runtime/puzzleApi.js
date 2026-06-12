@@ -10,12 +10,12 @@
 
 var path = require("path");
 var fs = require("fs");
-var puzzleGen = require("./PuzzleGenerator");
-var insideOut = require("./InsideOutGenerator");
-var cspSolver = require("./CSPSolver");
-var BoardLogic = require("../common/BoardLogic");
-var botPlayer = require("./BotPlayer");
-var db = require("./db");
+var puzzleGen = require("../engine/PuzzleGenerator");
+var insideOut = require("../engine/InsideOutGenerator");
+var cspSolver = require("../engine/CSPSolver");
+var BoardLogic = require("../../common/BoardLogic");
+var botPlayer = require("../engine/BotPlayer");
+var db = require("../db");
 var oauth = require("./oauth");
 
 var puzzleJob = null; // { id, target, diff, density, done, dupes, stalls, startedAt }
@@ -248,7 +248,7 @@ function serveStartingPositions(req, res, url) {
 // The start-pattern catalogue (scripts/generate-patterns.js → deduction-patterns.json):
 // unique first-deduction patterns from 3x3/3x4 starting cascades. Tiny file, read once and
 // cached; re-read if it changes on disk (so a regenerate shows up without a restart).
-var START_PATTERNS_PATH = process.env.START_PATTERNS_PATH || path.join(__dirname, "..", "..", "deduction-patterns.json");
+var START_PATTERNS_PATH = process.env.START_PATTERNS_PATH || path.join(__dirname, "..", "..", "..", "deduction-patterns.json");
 var startPatternsCache = null, startPatternsMtime = 0;
 function loadStartPatterns() {
 	try {
@@ -347,7 +347,7 @@ function servePuzzleAnalyze(req, res, puzzleId) {
 // Combined-puzzle catalogue (scripts/combine-patterns.js -> combined-puzzles.json): starting
 // patterns composed at a shared seam, emitted as real {rows,cols,mines,revealed} boards. Served
 // to the "Combined puzzles" admin page, which reuses the All-Puzzles card + Analyze modal.
-var COMBINED_PUZZLES_PATH = process.env.COMBINED_PUZZLES_PATH || path.join(__dirname, "..", "..", "combined-puzzles.json");
+var COMBINED_PUZZLES_PATH = process.env.COMBINED_PUZZLES_PATH || path.join(__dirname, "..", "..", "..", "combined-puzzles.json");
 var combinedPuzzlesCache = null, combinedPuzzlesMtime = 0;
 function loadCombinedPuzzles() {
 	try {

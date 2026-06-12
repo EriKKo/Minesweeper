@@ -32,7 +32,7 @@
 // existing trivial / subset / overlap / chain / enum pipeline for
 // comparison.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, FLAGGED = BoardLogic.FLAGGED;
 var popcount = BoardLogic.popcount;
 var MINE = BoardLogic.MINE;

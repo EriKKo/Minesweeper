@@ -6,7 +6,7 @@
 // require. (The OAuth redirect flow lives in oauth.js; clients then `authenticate` here.)
 
 var appState = require("./appState");
-var db = require("./db");
+var db = require("../db");
 var roomState = require("./roomState");
 var gameUtil = require("./gameUtil");
 

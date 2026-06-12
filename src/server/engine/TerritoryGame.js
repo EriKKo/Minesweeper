@@ -12,7 +12,7 @@
 // currently hold (it can shift, or shrink to a last stand). The game ends when every safe cell is
 // claimed (or the room timer expires); most cells wins.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
 var KNOWN = BoardLogic.KNOWN, UNKNOWN = BoardLogic.UNKNOWN, MINE = BoardLogic.MINE;
 

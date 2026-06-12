@@ -19,8 +19,8 @@ var fs = require("fs");
 var os = require("os");
 var path = require("path");
 var Worker = require("worker_threads").Worker;
-var botPlayer = require("../src/server/BotPlayer");
-var bench = require("../src/server/BotBench");
+var botPlayer = require("../src/server/engine/BotPlayer");
+var bench = require("../src/server/engine/BotBench");
 
 var POOL_SIZE = parseInt(process.env.POOL_SIZE, 10) || 1200;
 var BOARDS = parseInt(process.env.BOARDS, 10) || 24;       // boards per density (shared by all bots)

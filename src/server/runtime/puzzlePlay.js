@@ -6,11 +6,11 @@
 // events here, plus the puzzle branch of left_click/right_click and the disconnect cleanup.
 
 var appState = require("./appState");
-var db = require("./db");
-var puzzleGen = require("./PuzzleGenerator");
-var gameCreator = require("./GameCreator");
-var cspSolver = require("./CSPSolver");
-var BoardLogic = require("../common/BoardLogic");
+var db = require("../db");
+var puzzleGen = require("../engine/PuzzleGenerator");
+var gameCreator = require("../engine/GameCreator");
+var cspSolver = require("../engine/CSPSolver");
+var BoardLogic = require("../../common/BoardLogic");
 var gameUtil = require("./gameUtil");
 
 var puzzlePlay = appState.puzzlePlay, puzzleRun = appState.puzzleRun, accounts = appState.accounts;

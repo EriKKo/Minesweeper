@@ -17,7 +17,7 @@
 // We keep the single hardest opening plus an even random sample across difficulty bands (~200 total), tagged
 // variant="corner4", size=4 — so the admin Start-positions page can filter them apart from the 3x3 cascades.
 const BL = require("../src/common/BoardLogic");
-const csp = require("../src/server/CSPSolver");
+const csp = require("../src/server/engine/CSPSolver");
 const db = require("../src/server/db");
 const MINE = BL.MINE, KNOWN = BL.KNOWN, UNKNOWN = BL.UNKNOWN;
 const popcount = BL.popcount, scoreToRating = BL.scoreToRating;

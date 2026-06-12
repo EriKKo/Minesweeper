@@ -10,10 +10,10 @@
 // appState or territory-internal.
 
 var appState = require("./appState");
-var territoryGame = require("./TerritoryGame");
-var territoryGen = require("./TerritoryGenerator");
-var botPlayer = require("./BotPlayer");
-var BoardLogic = require("../common/BoardLogic");
+var territoryGame = require("../engine/TerritoryGame");
+var territoryGen = require("../engine/TerritoryGenerator");
+var botPlayer = require("../engine/BotPlayer");
+var BoardLogic = require("../../common/BoardLogic");
 var gameUtil = require("./gameUtil");
 
 // Shared state (mutated in place; same objects the server holds).

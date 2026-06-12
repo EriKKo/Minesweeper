@@ -16,7 +16,7 @@
 //
 // Result: a board that opens from the recognisable 4s/2s ring but is fully deducible.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var csp = require("./CSPSolver");
 var IO = require("./InsideOutGenerator");
 var puzzleGen = require("./PuzzleGenerator");

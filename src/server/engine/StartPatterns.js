@@ -5,7 +5,7 @@
 // clues, what they force) and its canonical key come from the geometry-agnostic helpers in
 // Patterns.js, so keys are directly comparable across block sizes.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var patterns = require("./Patterns");
 var KNOWN = BoardLogic.KNOWN;
 var UNKNOWN = BoardLogic.UNKNOWN;

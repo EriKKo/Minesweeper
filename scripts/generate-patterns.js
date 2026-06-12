@@ -11,7 +11,7 @@
 
 var fs = require("fs");
 var path = require("path");
-var SP = require("../src/server/StartPatterns");
+var SP = require("../src/server/engine/StartPatterns");
 
 // Exhaustively enumerated sizes (every ring arrangement, every placement). 4×4-open alone is
 // ~6 min and adds only larger versions of the same case rings the curiosity sweep already finds,

@@ -5,7 +5,7 @@
 // patterns that differ only by where they sit on the board collapse
 // to a single record.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
 var puzzleGen = require("./PuzzleGenerator");
 var KNOWN = BoardLogic.KNOWN;

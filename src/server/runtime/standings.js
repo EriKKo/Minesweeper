@@ -6,7 +6,7 @@
 // injected via init to avoid a circular require.
 
 var appState = require("./appState");
-var db = require("./db");
+var db = require("../db");
 var gameUtil = require("./gameUtil");
 
 var roundStarts = appState.roundStarts, games = appState.games, accounts = appState.accounts;

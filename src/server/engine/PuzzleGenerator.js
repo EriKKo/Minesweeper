@@ -14,7 +14,7 @@
 // Each returned puzzle carries { rows, cols, mines, revealed, coveredSafe,
 // difficulty, maxEnumSize } so the caller can sort / bucket / display.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var cspSolver = require("./CSPSolver");
 var MINE = BoardLogic.MINE;
 var KNOWN = BoardLogic.KNOWN;

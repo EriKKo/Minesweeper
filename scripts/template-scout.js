@@ -23,7 +23,7 @@
 //   MAX_MINES=8 ANALYSIS_CAP=14 node scripts/template-scout.js my-layout.txt
 const fs = require("fs");
 const BL = require("../src/common/BoardLogic");
-const csp = require("../src/server/CSPSolver");
+const csp = require("../src/server/engine/CSPSolver");
 const MINE = BL.MINE, KNOWN = BL.KNOWN, UNKNOWN = BL.UNKNOWN;
 
 const MAX_MINES = parseInt(process.env.MAX_MINES || "6", 10);
@@ -163,7 +163,7 @@ function resolveTemplate(){
 // correctly. These puzzles aren't pass-solver/bot-solvable — they're a human case-analysis collection.
 function storePuzzles(out, id, t){
 	const db = require("../src/server/db");
-	const PG = require("../src/server/PuzzleGenerator");
+	const PG = require("../src/server/engine/PuzzleGenerator");
 	const revealed = out.revealed.map(([r,c])=>[r,c]);
 	db.clearPuzzlesBySource("template:"+id); // re-run replaces this template's stored puzzles
 	let inserted=0, dupes=0, considered=0; const seen=new Set();

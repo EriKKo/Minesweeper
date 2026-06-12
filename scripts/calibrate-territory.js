@@ -17,8 +17,8 @@ var fs = require("fs");
 var os = require("os");
 var path = require("path");
 var Worker = require("worker_threads").Worker;
-var bench = require("../src/server/BotBench");
-var tbench = require("../src/server/TerritoryBench");
+var bench = require("../src/server/engine/BotBench");
+var tbench = require("../src/server/engine/TerritoryBench");
 
 var BOARDS = parseInt(process.env.BOARDS, 10) || 12;
 var CAL_SAMPLES = parseInt(process.env.CAL_SAMPLES, 10) || 5;

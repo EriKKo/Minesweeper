@@ -10,7 +10,7 @@
 // The interior between the corners stays random. Mine hits are part of the mode (no full no-guess
 // guarantee), so this is a plain mine layout, not a no-guess template.
 
-var BoardLogic = require("../common/BoardLogic");
+var BoardLogic = require("../../common/BoardLogic");
 var noGuess = require("./NoGuessGenerator");
 var MINE = BoardLogic.MINE; // -1
 
