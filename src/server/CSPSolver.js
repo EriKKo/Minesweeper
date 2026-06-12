@@ -44,6 +44,13 @@ var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
 var INTERSECT_COST = 2.5;
+// Base complexity of a 1-cell case split (added to the hardest branch's propagation cost). Also the
+// floor: when a maxComplexity cap is below this, case analysis is skipped entirely (capped-solve speedup).
+var CASE_BASE = 8;
+// Solver-internal cell state used ONLY inside case-split hypotheses: "deduced not-a-mine, clue unknown".
+// A SAFE cell is removed from its neighbours' mine candidates but is NEVER revealed and its clue is NEVER
+// read — that's what keeps the case-split sound (a hypothesis must not consult the hidden solution).
+var SAFE = -5;
 // Per-cell surcharge added to each initial clue. Counting against five
 // covered cells is harder than against two; the surcharge propagates
 // through every derivation since parent complexities sum.
@@ -275,6 +282,155 @@ function findBestTrivialClue(initialClues, opts) {
 	return null;
 }
 
+function snapshotState(state) {
+	var out = new Array(state.length);
+	for (var i = 0; i < state.length; i++) out[i] = state[i].slice();
+	return out;
+}
+
+// Sound inconsistency check: for every revealed clue, the number of still-covered (UNKNOWN) neighbours
+// must be able to hold exactly `clue - flaggedNeighbours` more mines. SAFE/KNOWN neighbours are determined
+// non-mines (ignored); FLAGGED are mines. Reads only revealed clues — never an unopened cell's number.
+function findInconsistency(board, state) {
+	var rows = board.length, cols = board[0].length;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			var flagged = 0, covered = 0;
+			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+				if (state[nr][nc] === FLAGGED) flagged++;
+				else if (state[nr][nc] === UNKNOWN) covered++;
+			});
+			var need = board[r][c] - flagged;
+			if (need < 0) return { clue: [r, c], why: "too many mines (need " + board[r][c] + " but " + flagged + " already flagged)" };
+			if (need > covered) return { clue: [r, c], why: "not enough cells (need " + need + " more mines but only " + covered + " covered)" };
+		}
+	}
+	return null;
+}
+
+// Apply a trivial clue inside a hypothesis: a forced-safe conclusion marks the cell SAFE (NOT revealed —
+// we must not read its clue), a forced-mine conclusion flags it. Mirrors applyTrivialClue's safe/mine split.
+function applyDeductionSound(state, clue) {
+	var prog = false;
+	var mark = (clue.hi === 0) ? SAFE : FLAGGED;
+	for (var i = 0; i < clue.cells.length; i++) {
+		var r = clue.cells[i][0], c = clue.cells[i][1];
+		if (state[r][c] === UNKNOWN) { state[r][c] = mark; prog = true; }
+	}
+	return prog;
+}
+
+// Propagate a single hypothesis to a fixpoint using ONLY the visible clues. Flags forced mines and marks
+// forced-safe cells SAFE; it never reveals a cell or consults board[][] for a covered cell, so it can only
+// chain through the numbers the player can already see — exactly what makes the case split sound. Returns
+// { contradiction, moves, maxC }.
+function propagateBranchSound(board, state, opts) {
+	var maxC = 0, trace = [];
+	while (true) {
+		var bad = findInconsistency(board, state);
+		if (bad) return { contradiction: bad, moves: trace, maxC: maxC };
+		var initial = buildInitialClues(board, state);
+		if (!initial.length) break;
+		var direct = null;
+		for (var i = 0; i < initial.length; i++) {
+			if (isTrivial(initial[i]) && (!direct || initial[i].complexity < direct.complexity)) direct = initial[i];
+		}
+		var best = direct || findBestTrivialClue(initial, opts);
+		if (!best) break;
+		if (best.complexity > maxC) maxC = best.complexity;
+		var changed = [];
+		for (var ci = 0; ci < best.cells.length; ci++) {
+			if (state[best.cells[ci][0]][best.cells[ci][1]] === UNKNOWN) changed.push(best.cells[ci]);
+		}
+		trace.push({
+			action: best.hi === 0 ? "reveal" : "flag",
+			cells: best.cells,
+			changed: changed,
+			complexity: best.complexity,
+			depth: best.depth,
+			derivation: flattenDerivation(best)
+		});
+		if (!applyDeductionSound(state, best)) break;
+	}
+	return { contradiction: null, moves: trace, maxC: maxC };
+}
+
+// SOUND 1-cell case split. For each frontier cell, try both hypotheses ("safe" = mark SAFE, "mine" = flag)
+// and propagate each with propagateBranchSound (visible clues only — no peeking). Conclusions:
+//   - one branch contradicts  → the split cell takes the other value, plus everything that branch forced;
+//   - both branches survive    → any cell determined the SAME way in BOTH is forced regardless of the split.
+// Because neither branch ever reads a deduced cell's clue, every conclusion is forced by public information
+// alone. Cheaper/broader than full enumeration on large frontiers, where a single hypothesis still cracks a
+// contradiction that exhaustive enumeration can't reach within ENUM_CAP.
+function findCaseSplitStep(board, state, opts) {
+	var rows = board.length, cols = board[0].length;
+	var frontierMap = {};
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
+			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+				if (state[nr][nc] === UNKNOWN) frontierMap[nr + "," + nc] = [nr, nc];
+			});
+		}
+	}
+	var frontier = [];
+	for (var fk in frontierMap) frontier.push(frontierMap[fk]);
+
+	var best = null;
+	for (var fi = 0; fi < frontier.length; fi++) {
+		var pr = frontier[fi][0], pc = frontier[fi][1];
+
+		var sA = snapshotState(state);
+		sA[pr][pc] = SAFE;                 // hypothesis: split cell is safe (no reveal, no clue read)
+		var resA = propagateBranchSound(board, sA, opts);
+
+		var sB = snapshotState(state);
+		sB[pr][pc] = FLAGGED;              // hypothesis: split cell is a mine
+		var resB = propagateBranchSound(board, sB, opts);
+
+		var okA = !resA.contradiction, okB = !resB.contradiction;
+		if (!okA && !okB) continue; // both contradict — only on an already-inconsistent board
+
+		var revealed = [], flagged = [];
+		function gather(snap, wantSafe, wantMine) {
+			for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
+				if (state[r2][c2] !== UNKNOWN || (r2 === pr && c2 === pc)) continue;
+				if (wantSafe(r2, c2)) revealed.push([r2, c2]);
+				else if (wantMine(r2, c2)) flagged.push([r2, c2]);
+			}
+		}
+		if (!okA && okB) {            // "safe" impossible → split cell is a mine
+			flagged.push([pr, pc]);
+			gather(sB, function(r2, c2) { return sB[r2][c2] === SAFE; }, function(r2, c2) { return sB[r2][c2] === FLAGGED; });
+		} else if (!okB && okA) {     // "mine" impossible → split cell is safe
+			revealed.push([pr, pc]);
+			gather(sA, function(r2, c2) { return sA[r2][c2] === SAFE; }, function(r2, c2) { return sA[r2][c2] === FLAGGED; });
+		} else {                      // both consistent → agreement deductions
+			gather(null, function(r2, c2) { return sA[r2][c2] === SAFE && sB[r2][c2] === SAFE; },
+			              function(r2, c2) { return sA[r2][c2] === FLAGGED && sB[r2][c2] === FLAGGED; });
+		}
+		if (!revealed.length && !flagged.length) continue;
+		var branchMax = Math.max(okA ? resA.maxC : 0, okB ? resB.maxC : 0);
+		var complexity = CASE_BASE + branchMax;
+		var yieldCount = revealed.length + flagged.length;
+		if (!best || complexity < best.complexity || (complexity === best.complexity && yieldCount > best.yieldCount)) {
+			best = {
+				splitCell: [pr, pc],
+				revealed: revealed,
+				flagged: flagged,
+				complexity: complexity,
+				yieldCount: yieldCount,
+				branches: {
+					safe: { contradiction: resA.contradiction, moves: resA.moves, maxC: resA.maxC },
+					mine: { contradiction: resB.contradiction, moves: resB.moves, maxC: resB.maxC }
+				}
+			};
+		}
+	}
+	return best;
+}
+
 // Enum fallback. When the CSP search can't reach a trivial clue, we hand
 // off to the brute-force enum pass, but pick the **smallest yielding
 // component** — that way the move's complexity reflects only the case
@@ -392,18 +548,42 @@ function analyzeBoard(board, state, opts) {
 			});
 			continue;
 		}
-		// CSP subset search exhausted — fall back to SOUND case analysis: exhaustively enumerate the
-		// smallest frontier component's mine configurations (findEnumSteps) and take only the cells that
-		// are safe (or mine) in EVERY consistent configuration. This reasons purely over the visible clue
-		// sums and never reveals a covered cell to read its hidden number.
-		//
-		// NB this replaced an unsound 1-cell case-split that, in its "cell is safe" branch, REVEALED the
-		// hypothetical cell and cascaded using the TRUE board clues (and `propagateBranch` likewise read
-		// true clues for every cell it opened mid-branch). Because that fixes an unopened cell's clue to
-		// its real value, it silently discards consistent layouts where the cell would have a different
-		// clue — so it could "prove" a cell safe/mine that isn't actually forced by public information
-		// (e.g. concluding a 50/50 cell is safe just because it happens to be safe on this board). Enum
-		// is the sound equivalent: it only ever concludes a cell when it's forced across ALL layouts.
+		// CSP subset search exhausted. First try a SOUND 1-cell case split (findCaseSplitStep): hypothesise
+		// the cell is safe vs a mine, propagate each branch over the VISIBLE clues only (never revealing a
+		// cell or reading its hidden number), and take what a contradiction forces / both branches agree on.
+		// Cheaper than full enumeration and works on frontiers larger than ENUM_CAP. Skipped below CASE_BASE.
+		var caseStep = (maxComplexity >= CASE_BASE) ? findCaseSplitStep(board, state, opts) : null;
+		if (caseStep && caseStep.complexity <= maxComplexity) {
+			var caseRevealed = [], caseFlagged = [];
+			for (var csi = 0; csi < caseStep.revealed.length; csi++) {
+				var crc = caseStep.revealed[csi];
+				if (state[crc[0]][crc[1]] === UNKNOWN) {
+					caseRevealed.push(crc);
+					// The cell is forced safe by public info, so revealing it (and cascading) is legitimate.
+					if (opts.revealCell) opts.revealCell(crc[0], crc[1]); else state[crc[0]][crc[1]] = KNOWN;
+				}
+			}
+			for (var cfi = 0; cfi < caseStep.flagged.length; cfi++) {
+				var cfc = caseStep.flagged[cfi];
+				if (state[cfc[0]][cfc[1]] !== FLAGGED) { caseFlagged.push(cfc); state[cfc[0]][cfc[1]] = FLAGGED; }
+			}
+			if (caseRevealed.length || caseFlagged.length) {
+				moves.push({
+					complexity: caseStep.complexity,
+					action: "case",
+					splitCell: caseStep.splitCell,
+					cells: caseRevealed.concat(caseFlagged),
+					changed: caseRevealed.concat(caseFlagged),
+					revealed: caseRevealed,
+					flagged: caseFlagged,
+					branches: caseStep.branches
+				});
+				continue;
+			}
+		}
+		// Final fallback: exhaustively enumerate the smallest frontier component's mine configurations
+		// (findEnumSteps) and take only cells that are safe/mine in EVERY consistent configuration. Like the
+		// case split, this reasons purely over visible clue sums — it never reads a covered cell's number.
 		var enumStep = findSmallestEnumStep(board, state);
 		if (!enumStep || enumComplexity(enumStep.componentSize) > maxComplexity) break;
 		var revealed = [], flagged = [];
