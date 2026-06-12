@@ -25,8 +25,14 @@ Source is split into three trees under `src/`:
 
 **`src/server/`** — Node + socket.io backend:
 - `minesweeperServer.js` — HTTP + socket.io entry: rooms, series, ranked matchmaking,
-  OAuth/dev auth endpoints, bot orchestration. Also serves static client assets
-  out of `src/client/` and `src/common/`.
+  bot orchestration. Also serves static client assets out of `src/client/` and
+  `src/common/`, and delegates `/auth/*` to `oauth.js`.
+- `oauth.js` — provider login (Google / Discord, GitHub server-side, and the
+  `DEV_AUTH` dev shortcut): reads its config from the environment, manages the CSRF
+  `state` nonces, exchanges codes, resolves/upserts the user via `db`, and redirects
+  to `/#token=<session>`. Exposes `handleAuthRoute(req,res,url)` (the server's HTTP
+  handler early-returns on it), `DEV_AUTH`, `OAUTH_BASE`, and `providerFlags()` (which
+  providers the client shows buttons for).
 - `GameCreator.js` — board/game state factory + mine placement.
 - `NoGuessGenerator.js` — `createNoGuessTemplate` + `analyzeSolvability`, which verifies
   no-guess solvability by running the **capped CSP solver** (`GEN_MAX_COMPLEXITY`, kept

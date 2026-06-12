@@ -12,19 +12,11 @@ var http = require("http")
   , botPlayer = require("./BotPlayer")
   , db = require("./db")
   , BoardLogic = require("../common/BoardLogic")
-  , cspSolver = require("./CSPSolver");
+  , cspSolver = require("./CSPSolver")
+  , oauth = require("./oauth");
 
 // Load a local .env if present (no-op in production, where env vars are set directly).
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
-
-// Return the first set value among several candidate env var names, so both the
-// conventional UPPER_CASE names and the fly.io secret names work.
-function envAny() {
-	for (var i = 0; i < arguments.length; i++) {
-		if (process.env[arguments[i]]) return process.env[arguments[i]];
-	}
-	return "";
-}
 
 // Pack the full board into a XOR-masked byte blob the client can decode lazily
 // from inside a closure. This isn't real anti-cheat — anyone with the JS console
@@ -81,15 +73,8 @@ var SERIES_END_DELAY = 6000;
 var PROVISIONAL_GAMES = 5;
 
 var PORT = process.env.PORT || 1337;
-var OAUTH_BASE = process.env.OAUTH_REDIRECT_BASE || ("http://localhost:" + PORT);
-var GITHUB_CLIENT_ID = envAny("GITHUB_CLIENT_ID", "GITHUB_AUTH_CLIENT_ID", "github_auth_client_id");
-var GITHUB_CLIENT_SECRET = envAny("GITHUB_CLIENT_SECRET", "GITHUB_AUTH_CLIENT_SECRET", "github_auth_client_secret");
-var GOOGLE_CLIENT_ID = envAny("GOOGLE_CLIENT_ID", "GOOGLE_AUTH_CLIENT_ID", "google_auth_client_id");
-var GOOGLE_CLIENT_SECRET = envAny("GOOGLE_CLIENT_SECRET", "GOOGLE_AUTH_CLIENT_SECRET", "google_auth_client_secret");
-var DISCORD_CLIENT_ID = envAny("DISCORD_CLIENT_ID", "DISCORD_AUTH_CLIENT_ID", "discord_auth_client_id");
-var DISCORD_CLIENT_SECRET = envAny("DISCORD_CLIENT_SECRET", "DISCORD_AUTH_CLIENT_SECRET", "discord_auth_client_secret");
-var DEV_AUTH = process.env.DEV_AUTH === "1";
-var oauthStates = {}; // state -> expiry ms
+// OAuth provider login + config lives in oauth.js; the server delegates /auth/*
+// routes to it and reads oauth.DEV_AUTH / oauth.providerFlags() where needed.
 
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
@@ -114,15 +99,9 @@ function resolveStatic(pathname) {
 }
 
 function handler (req, res) {
-	var url = new URL(req.url, OAUTH_BASE);
+	var url = new URL(req.url, oauth.OAUTH_BASE);
 	var pathname = url.pathname;
-	if (pathname === "/auth/github/login") return authGithubLogin(req, res, url);
-	if (pathname === "/auth/github/callback") return authGithubCallback(req, res, url);
-	if (pathname === "/auth/google/login") return authGoogleLogin(req, res, url);
-	if (pathname === "/auth/google/callback") return authGoogleCallback(req, res, url);
-	if (pathname === "/auth/discord/login") return authDiscordLogin(req, res, url);
-	if (pathname === "/auth/discord/callback") return authDiscordCallback(req, res, url);
-	if (DEV_AUTH && pathname === "/auth/dev") return authDev(req, res, url);
+	if (oauth.handleAuthRoute(req, res, url)) return;
 	if (pathname === "/api/bots") return serveBots(req, res, url);
 	if (pathname === "/api/puzzles") return servePuzzles(req, res, url);
 	if (pathname === "/api/puzzle-sources") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ sources: db.puzzleSources() })); return; }
@@ -170,200 +149,6 @@ function handler (req, res) {
 	});
 }
 
-// OAuth `state` carries the CSRF nonce + (optionally) a guest session token to upgrade on callback.
-function makeOAuthState(url) {
-	var state = crypto.randomBytes(16).toString("hex");
-	oauthStates[state] = { exp: Date.now() + 10 * 60 * 1000, upgrade: (url && url.searchParams.get("upgrade")) || null };
-	return state;
-}
-// Validate + consume a state, returning its stored data (or null). One-shot.
-function takeOAuthState(state) {
-	var s = state && oauthStates[state];
-	if (!s || s.exp < Date.now()) return null;
-	delete oauthStates[state];
-	return s;
-}
-// Resolve the provider login to a user: if a valid guest upgrade token came along, upgrade that guest in
-// place (or fall back to a pre-existing account); otherwise a normal upsert.
-function resolveOAuthUser(provider, providerId, name, avatarUrl, email, upgradeToken) {
-	if (upgradeToken) {
-		var guest = db.getUserByToken(upgradeToken);
-		if (guest && guest.is_guest) return db.upgradeGuest(guest.id, provider, providerId, name, avatarUrl, email).user;
-	}
-	return db.upsertUser(provider, providerId, name, avatarUrl, email);
-}
-
-function authGithubLogin(req, res, url) {
-	if (!GITHUB_CLIENT_ID) { res.writeHead(500); res.end("GitHub OAuth is not configured (set GITHUB_CLIENT_ID/SECRET)."); return; }
-	var state = makeOAuthState(url);
-	var params = new URLSearchParams({
-		client_id: GITHUB_CLIENT_ID,
-		redirect_uri: OAUTH_BASE + "/auth/github/callback",
-		scope: "read:user user:email",
-		state: state
-	});
-	res.writeHead(302, { Location: "https://github.com/login/oauth/authorize?" + params.toString() });
-	res.end();
-}
-
-function authGithubCallback(req, res, url) {
-	var code = url.searchParams.get("code");
-	var stateData = takeOAuthState(url.searchParams.get("state"));
-	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
-	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
-	(async function() {
-		try {
-			var tokenResp = await fetch("https://github.com/login/oauth/access_token", {
-				method: "POST",
-				headers: { "Accept": "application/json", "Content-Type": "application/json" },
-				body: JSON.stringify({
-					client_id: GITHUB_CLIENT_ID,
-					client_secret: GITHUB_CLIENT_SECRET,
-					code: code,
-					redirect_uri: OAUTH_BASE + "/auth/github/callback"
-				})
-			});
-			var tokenJson = await tokenResp.json();
-			var accessToken = tokenJson.access_token;
-			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
-			var ghResp = await fetch("https://api.github.com/user", {
-				headers: { "Authorization": "Bearer " + accessToken, "User-Agent": "minesweeper", "Accept": "application/vnd.github+json" }
-			});
-			var gh = await ghResp.json();
-			// /user doesn't return private emails — fetch /user/emails separately
-			// (requires `user:email` scope, which we ask for in the OAuth login).
-			var ghEmail = gh.email || null;
-			if (!ghEmail) {
-				try {
-					var emailsResp = await fetch("https://api.github.com/user/emails", {
-						headers: { "Authorization": "Bearer " + accessToken, "User-Agent": "minesweeper", "Accept": "application/vnd.github+json" }
-					});
-					var emails = await emailsResp.json();
-					if (Array.isArray(emails)) {
-						var primary = emails.find(function(e) { return e.primary && e.verified; });
-						if (primary) ghEmail = primary.email;
-					}
-				} catch (e) { /* email fetch optional */ }
-			}
-			var user = resolveOAuthUser("github", gh.id, gh.name || gh.login || ("user" + gh.id), gh.avatar_url, ghEmail, stateData.upgrade);
-			finishLogin(res, user.id);
-		} catch (e) {
-			console.error("github oauth error", e);
-			res.writeHead(500); res.end("OAuth error");
-		}
-	})();
-}
-
-function authGoogleLogin(req, res, url) {
-	if (!GOOGLE_CLIENT_ID) { res.writeHead(500); res.end("Google OAuth is not configured (set GOOGLE_CLIENT_ID/SECRET)."); return; }
-	var state = makeOAuthState(url);
-	var params = new URLSearchParams({
-		client_id: GOOGLE_CLIENT_ID,
-		redirect_uri: OAUTH_BASE + "/auth/google/callback",
-		response_type: "code",
-		scope: "openid email profile",
-		state: state
-	});
-	res.writeHead(302, { Location: "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString() });
-	res.end();
-}
-
-function authGoogleCallback(req, res, url) {
-	var code = url.searchParams.get("code");
-	var stateData = takeOAuthState(url.searchParams.get("state"));
-	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
-	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
-	(async function() {
-		try {
-			var tokenResp = await fetch("https://oauth2.googleapis.com/token", {
-				method: "POST",
-				headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-				body: new URLSearchParams({
-					code: code,
-					client_id: GOOGLE_CLIENT_ID,
-					client_secret: GOOGLE_CLIENT_SECRET,
-					redirect_uri: OAUTH_BASE + "/auth/google/callback",
-					grant_type: "authorization_code"
-				}).toString()
-			});
-			var tokenJson = await tokenResp.json();
-			var accessToken = tokenJson.access_token;
-			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
-			var uResp = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-				headers: { "Authorization": "Bearer " + accessToken }
-			});
-			var g = await uResp.json();
-			var user = resolveOAuthUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, g.email, stateData.upgrade);
-			finishLogin(res, user.id);
-		} catch (e) {
-			console.error("google oauth error", e);
-			res.writeHead(500); res.end("OAuth error");
-		}
-	})();
-}
-
-function authDiscordLogin(req, res, url) {
-	if (!DISCORD_CLIENT_ID) { res.writeHead(500); res.end("Discord OAuth is not configured (set DISCORD_CLIENT_ID/SECRET)."); return; }
-	var state = makeOAuthState(url);
-	var params = new URLSearchParams({
-		client_id: DISCORD_CLIENT_ID,
-		redirect_uri: OAUTH_BASE + "/auth/discord/callback",
-		response_type: "code",
-		scope: "identify email",
-		state: state
-	});
-	res.writeHead(302, { Location: "https://discord.com/oauth2/authorize?" + params.toString() });
-	res.end();
-}
-
-function authDiscordCallback(req, res, url) {
-	var code = url.searchParams.get("code");
-	var stateData = takeOAuthState(url.searchParams.get("state"));
-	if (!stateData) { res.writeHead(400); res.end("Invalid OAuth state"); return; }
-	if (!code) { res.writeHead(400); res.end("Missing code"); return; }
-	(async function() {
-		try {
-			var tokenResp = await fetch("https://discord.com/api/oauth2/token", {
-				method: "POST",
-				headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-				body: new URLSearchParams({
-					client_id: DISCORD_CLIENT_ID,
-					client_secret: DISCORD_CLIENT_SECRET,
-					grant_type: "authorization_code",
-					code: code,
-					redirect_uri: OAUTH_BASE + "/auth/discord/callback"
-				}).toString()
-			});
-			var tokenJson = await tokenResp.json();
-			var accessToken = tokenJson.access_token;
-			if (!accessToken) { res.writeHead(401); res.end("OAuth token exchange failed"); return; }
-			var uResp = await fetch("https://discord.com/api/users/@me", {
-				headers: { "Authorization": "Bearer " + accessToken }
-			});
-			var d = await uResp.json();
-			var name = d.global_name || d.username || ("user" + d.id);
-			var avatar = d.avatar ? ("https://cdn.discordapp.com/avatars/" + d.id + "/" + d.avatar + ".png") : null;
-			var email = d.verified ? d.email : null; // only trust a verified Discord email
-			var user = resolveOAuthUser("discord", d.id, name, avatar, email, stateData.upgrade);
-			finishLogin(res, user.id);
-		} catch (e) {
-			console.error("discord oauth error", e);
-			res.writeHead(500); res.end("OAuth error");
-		}
-	})();
-}
-
-function authDev(req, res, url) {
-	var name = (url.searchParams.get("name") || "Dev").slice(0, 24);
-	var user = resolveOAuthUser("dev", name.toLowerCase(), name, null, null, url.searchParams.get("upgrade"));
-	finishLogin(res, user.id);
-}
-
-function finishLogin(res, userId) {
-	var token = db.createSession(userId);
-	res.writeHead(302, { Location: OAUTH_BASE + "/#token=" + token });
-	res.end();
-}
 
 // Puzzles live in SQLite (see db.js). The Lab GETs them via /api/puzzles;
 // POST /api/puzzles kicks off a background generation job that inserts new
@@ -714,7 +499,7 @@ function startPuzzleJob(target, diff, density, source, targetRating) {
 // server resolves it to a user and checks `is_admin`. DEV_AUTH=1
 // still opens the gate locally for convenience.
 function isPuzzleAdmin(req) {
-	if (DEV_AUTH) return true;
+	if (oauth.DEV_AUTH) return true;
 	var token = req.headers["x-session-token"];
 	if (!token) return false;
 	var user = db.getUserByToken(token);
@@ -2695,7 +2480,7 @@ function removePlayerFromRoom(playerID) {
 var botDemos = {}; // socketId -> { game, lastClick, timer, moves }
 
 function isSocketAdmin(playerID) {
-	if (DEV_AUTH) return true;
+	if (oauth.DEV_AUTH) return true;
 	var acc = accounts[playerID];
 	if (!acc) return false;
 	var u = db.getUserById(acc.userId);
@@ -2804,7 +2589,7 @@ io.on("connection", function (socket) {
 	var playerID = socket.id;
 	sockets[playerID] = socket;
 	socket.join("lobby");
-	socket.emit("connected", { id: playerID, oauth: { google: !!GOOGLE_CLIENT_ID, discord: !!DISCORD_CLIENT_ID, dev: DEV_AUTH } });
+	socket.emit("connected", { id: playerID, oauth: oauth.providerFlags() });
 
 	socket.on("authenticate", function(data) {
 		var token = data && data.token;
