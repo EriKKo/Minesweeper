@@ -145,16 +145,78 @@ For 16-player tournaments, "watch the final" button after eliminated cuts.
 - **Recent matches** strip on home page so returning players see "Welcome
   back — you went 3-1 last night, ▲14 rating."
 
-## 6. Design language
+## 6. Visual & game-feel language
 
-Current style works (dark, indigo, modal cards) — preserve it.
+The dark/indigo base is good and stays. But today the product speaks in two
+registers: the **chrome** (home, picker, leaderboard, profile) reads like a calm
+dark SaaS dashboard, while the **game** (the duel HUD, board, countdown) is
+genuinely vivid. The energy only switches on once you're in a match. The job is
+to carry that in-game vividness *outward* into the menus, and to make the calm
+parts calm *on purpose* (focus) rather than under-designed.
 
-- **Icons:** small set per section. Existing emoji/symbols (🏆 🎯 📺 ⚙) are
-  fine — don't introduce an icon library just for this.
-- **Page transitions:** 120ms fade between views keeps the SPA feel (already
-  used on `.view`).
-- **Cards:** the home-card chassis is reusable. Practice mode, Learn topic,
-  Achievement — same card, different content. Don't reinvent.
+### Principles (hold everything to these)
+
+1. **Clarity is sacred.** The board + live state read in a glance; chrome never
+   competes with play. Nothing below overrides this.
+2. **Juice the verbs.** Every action and transition (reveal, flag, chord, queue
+   pop, win, rank-up) gets disproportionate feedback — easing, motion, a flash,
+   a sound. Cheapest, highest-yield quality multiplier we have.
+3. **Dramatize the contest.** Make other players present and the stakes visible
+   — opponent boards, the live tug, KOs, "N playing now", spectating.
+4. **Identity is the retention engine.** Tier, rating, streak, badges, name —
+   surfaced everywhere and *celebrated when they change*. The ladder is the draw.
+5. **One primary action per screen.** Land → instantly know the one thing to do.
+6. **One language.** A single type scale, disciplined colour logic, motion
+   grammar, and one motif (the minesweeper tile), applied consistently.
+
+The ritual that ties them together — **anticipation → payoff**: queue →
+match-found → reveal → countdown → GO → result. It's the spine of the UX.
+
+### The system (formalized)
+
+- **Type.** One display face (geometric grotesk, `--font-display`) for headings,
+  brand, names, and **numbers** (ratings, timers, %, KO counts — heavy weight,
+  tabular figures); system sans for body. Scale: `12 · 14 · 16 · 20 · 28 · 40 · 56`.
+  A single flat weight is the #1 reason the menus feel inert.
+- **Colour.** Keep navy + indigo as the base, layered as a *system*:
+  - **Per-mode accents** (`--mode-sprint` amber, `--mode-standard` violet,
+    `--mode-tournament` gold, `--mode-territory` cyan) tint a mode's card edge,
+    hover glow, and in-game chrome — so each mode has identity.
+  - **Energy accents** (`--energy-win` lime, `--energy-gold`, `--energy-streak`
+    orange), used *rarely* so they punch — wins, streaks, rank-ups.
+  - Raise interactive contrast: elevated card surface + a hairline that brightens
+    on hover.
+- **Motion grammar.** Three tokens — `--motion-micro 120ms` (hover/press),
+  `--motion-standard 220ms` (cards, view transitions), `--motion-emphatic 400ms`
+  (reveals, celebrations) — on a shared ease (`--ease`). Numbers count up, never
+  snap. Respect `prefers-reduced-motion`.
+- **Depth / the tile motif.** The board's tiles already have the right
+  physicality (top highlight, gradient, bottom shadow). Make that the brand
+  language: primary buttons and key cards are "tiles" — raised, with a press-down.
+  The minesweeper cell *is* the identity; reuse it as button, logo, empty state.
+- **Sound.** `Sound.js` is procedural and underused. Distinct cues for reveal /
+  flag / chord / match-found / countdown / win / lose / rank-up. Toggleable.
+- **Icons:** small set per section; existing emoji/symbols are fine — no icon
+  library. **Cards:** one reusable chassis (mode / practice / learn / achievement).
+  **Page transitions:** the 120ms `.view` fade stays.
+
+### Build order (each multiplies the next)
+
+1. **Foundations** — type scale + display face, motion tokens, mode-accent +
+   energy colour system, the tile/elevation language. Low risk, lifts every
+   screen at once. *(In progress.)*
+2. **Result moments** — win/lose/rank-up celebration, rating count-up, sound.
+   Highest emotional payoff.
+3. **Home as a launcher** — a "you" strip (rank · rating · streak · ▲ week) + one
+   hero CTA + vivid, differentiated mode cards.
+4. **Leaderboard podium + profile identity** (rank badge + progress-to-next-tier).
+5. **Polish pass** — hover/press juice, view transitions, count-ups everywhere.
+
+**Guardrails:** clarity beats flash; stay asset-light (≤ one display face, no
+heavy images); evolve the base, don't reskin it; honour reduced-motion + contrast.
+
+**North star:** make the menus feel like the lobby of a competitive game, and
+make every win feel earned.
 
 ## 7. Out of scope (for now)
 

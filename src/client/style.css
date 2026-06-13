@@ -10,6 +10,62 @@
 	--danger: #ef4444;
 	--success: #22c55e;
 	--shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
+
+	/* === Design language (see DESIGN.md §6) === */
+	/* Display face for headings, brand, and numbers; body stays system sans. */
+	--font-display: "Space Grotesk", var(--ui-font, system-ui), -apple-system, BlinkMacSystemFont, sans-serif;
+
+	/* Motion grammar — one ease, three durations. */
+	--ease: cubic-bezier(.34, 1.2, .44, 1);
+	--ease-out: cubic-bezier(.22, 1, .36, 1);
+	--motion-micro: 120ms;
+	--motion-standard: 220ms;
+	--motion-emphatic: 400ms;
+
+	/* Per-mode accents — each mode's identity colour (card edge, hover glow, in-game chrome). */
+	--mode-sprint: #fbbf24;      /* amber */
+	--mode-standard: #a78bfa;    /* violet */
+	--mode-tournament: #fb7185;  /* rose */
+	--mode-territory: #22d3ee;   /* cyan */
+	--mode-custom: #6366f1;      /* indigo (house accent) */
+
+	/* Energy accents — wins / streaks / rank-ups. Used rarely so they punch. */
+	--energy-win: #4ade80;
+	--energy-gold: #fcd34d;
+	--energy-streak: #fb923c;
+
+	/* Raised "tile" elevation — the board-cell physicality, reused on buttons/cards. */
+	--tile-hi: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	--tile-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 8px 22px -10px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* === Display face: headings, brand, and section titles === */
+h1, h2, h3,
+.logo-name,
+.lobby-modes-heading, .lobby-daily-title,
+.ranked-picker-title, .ranked-picker-option-title,
+.section-page-title, .section-title,
+.mode-card-title, .side-title,
+.profile-summary-name, .result-header {
+	font-family: var(--font-display);
+	letter-spacing: -0.01em;
+}
+
+/* === Numbers get the display face + tabular figures so they line up and read as "data" === */
+.rating-chip, .round-timer,
+.mode-card-rank-rating, .ranked-picker-rating-num, .lobby-daily-meta-value,
+.duel-bar-pct, .duel-id-name, .duel-id-rating, .duel-vs,
+.rank-badge-numeral,
+.lb-rank, .lb-rating,
+.profile-summary-rating, .profile-stat-value,
+.solo-stat-value, .puzzle-run-stat-value, .puzzle-side-rating {
+	font-family: var(--font-display);
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum" 1;
 }
 
 * { box-sizing: border-box; }
@@ -1876,21 +1932,36 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 /* Buttons */
 .btn {
 	font: inherit;
-	font-weight: 500;
+	font-weight: 600;
 	border: 1px solid transparent;
-	border-radius: 8px;
+	border-radius: 9px;
 	padding: 0.55rem 1rem;
 	cursor: pointer;
-	transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
+	transition: background var(--motion-micro) var(--ease-out),
+		border-color var(--motion-micro) var(--ease-out),
+		box-shadow var(--motion-micro) var(--ease-out),
+		transform var(--motion-micro) var(--ease);
 	color: var(--text);
 }
 
 .btn:hover { transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
+.btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-.btn-primary { background: var(--accent); border-color: var(--accent); }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* Primary is a raised "tile": gradient face, top highlight, dropped shadow that compresses on press. */
+.btn-primary {
+	background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+	border-color: transparent;
+	box-shadow: var(--tile-hi), var(--tile-shadow);
+	font-family: var(--font-display);
+}
+.btn-primary:hover:not(:disabled) {
+	background: linear-gradient(180deg, #93a0ff, var(--accent-hover));
+	box-shadow: var(--tile-hi), 0 4px 0 rgba(0, 0, 0, 0.35), 0 12px 28px -8px rgba(99, 102, 241, 0.6);
+}
+.btn-primary:active:not(:disabled) {
+	box-shadow: var(--tile-hi), 0 1px 0 rgba(0, 0, 0, 0.35);
+}
 
 .btn-secondary { background: var(--surface-2); border-color: var(--border); }
 .btn-secondary:hover:not(:disabled) { background: var(--surface); border-color: var(--accent); }
@@ -3740,6 +3811,23 @@ body.touch .find-next-arrow { display: inline-flex; }
 .mode-card-streak:hover { border-color: rgba(251, 146, 60, 0.55); box-shadow: 0 12px 32px rgba(234, 88, 12, 0.20); }
 .mode-card-storm .mode-card-icon { background: linear-gradient(135deg, #22d3ee, #0891b2); color: #052029; }
 .mode-card-storm:hover { border-color: rgba(34, 211, 238, 0.55); box-shadow: 0 12px 32px rgba(8, 145, 178, 0.20); }
+.mode-card-territory .mode-card-icon { background: linear-gradient(135deg, #22d3ee, #0e7490); color: #052029; }
+.mode-card-territory:hover { border-color: rgba(34, 211, 238, 0.55); box-shadow: 0 12px 32px rgba(8, 145, 178, 0.20); }
+
+/* Persistent left accent edge so each mode's colour reads at rest, not only on hover. */
+.mode-card-sprint { --mode-accent: var(--mode-sprint); }
+.mode-card-standard { --mode-accent: var(--mode-standard); }
+.mode-card-tournament { --mode-accent: var(--mode-tournament); }
+.mode-card-territory, .mode-card-storm { --mode-accent: var(--mode-territory); }
+.mode-card-custom { --mode-accent: var(--mode-custom); }
+.mode-card-puzzles { --mode-accent: #60a5fa; }
+.mode-card-streak { --mode-accent: var(--energy-streak); }
+.mode-card::after {
+	content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+	background: var(--mode-accent, var(--accent));
+	opacity: 0.9;
+	z-index: 1;
+}
 
 .mode-card-rank-label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .mode-card-rank-pill {
