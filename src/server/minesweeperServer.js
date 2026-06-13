@@ -218,15 +218,15 @@ function endIndividualGame(room, reason) {
 	for (var i = 0; i < room.players.length; i++) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
-	var standings = standings.buildStandings(room);
+	var roundStandings = standings.buildStandings(room);
 	// Round winner = unique top-ranked player, if any.
 	var winnerID = null;
-	if (standings.length > 0 && standings[0].rank === 1) {
+	if (roundStandings.length > 0 && roundStandings[0].rank === 1) {
 		var tiedAtTop = 0;
-		for (var k = 0; k < standings.length; k++) if (standings[k].rank === 1) tiedAtTop++;
-		if (tiedAtTop === 1) winnerID = standings[0].id;
+		for (var k = 0; k < roundStandings.length; k++) if (roundStandings[k].rank === 1) tiedAtTop++;
+		if (tiedAtTop === 1) winnerID = roundStandings[0].id;
 	}
-	room.recordRoundResult(standings, winnerID);
+	room.recordRoundResult(roundStandings, winnerID);
 
 	// Tournament elimination: top N from this round's standings advance, the
 	// rest get a fixed final place (ranks below the survivor cut) and are
@@ -240,8 +240,8 @@ function endIndividualGame(room, reason) {
 		eliminatedThisRound = [];
 		// Walk highest rank → lowest so each .deletePlayer doesn't shift indices we care about.
 		if (!room.tournamentElo) room.tournamentElo = {};
-		for (var ei = standings.length - 1; ei >= survivorsTarget; ei--) {
-			var sCut = standings[ei];
+		for (var ei = roundStandings.length - 1; ei >= survivorsTarget; ei--) {
+			var sCut = roundStandings[ei];
 			var place = ei + 1;
 			room.tournamentEliminated[sCut.id] = { round: room.gamesPlayed, place: place };
 			eliminatedThisRound.push({ id: sCut.id, name: names[sCut.id] || sCut.name, place: place });
@@ -288,7 +288,7 @@ function endIndividualGame(room, reason) {
 		tournamentSurvivorsTarget: roundSurvivorsTarget,
 		tournamentSchedule: room.tournamentSchedule || null,
 		reason: reason || "cleared",
-		standings: standings
+		standings: roundStandings
 	});
 	roomState.broadcastRoomState(room);
 
@@ -571,11 +571,11 @@ function applyEarlyLeavePenalty(playerID, room) {
 	// 1v1 / 6-player ranked: build a series standings snapshot with the leaver
 	// pinned at the worst rank, then apply Elo for the leaver only. The other
 	// players' Elo is still computed normally at endSeries.
-	var standings = standings.buildSeriesStandings(room);
-	var lastRank = standings.length + 1;
+	var seriesStandings = standings.buildSeriesStandings(room);
+	var lastRank = seriesStandings.length + 1;
 	var parts = [buildPlayerParts(playerID, lastRank, room.rankedStyle)];
-	for (var i = 0; i < standings.length; i++) {
-		parts.push(buildPlayerParts(standings[i].id, standings[i].rank, room.rankedStyle));
+	for (var i = 0; i < seriesStandings.length; i++) {
+		parts.push(buildPlayerParts(seriesStandings[i].id, seriesStandings[i].rank, room.rankedStyle));
 	}
 	return elo.applyEloForPlayer(playerID, parts, room.rankedStyle);
 }
