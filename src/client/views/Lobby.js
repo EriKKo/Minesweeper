@@ -118,6 +118,12 @@ function renderMatchRoster(info) {
 			// Animate only freshly-arrived rows (index >= what we showed last time).
 			if (i >= matchRosterShown) row.classList.add("match-roster-row-new");
 
+			if (typeof m.rating === "number" && typeof buildRankBadge === "function") {
+				var badge = buildRankBadge(m.rating);
+				badge.classList.add("match-roster-badge");
+				row.appendChild(badge);
+			}
+
 			var name = document.createElement("span");
 			name.className = "match-roster-name";
 			name.textContent = m.name;

@@ -139,7 +139,9 @@ function updateMultiHud(meGame, opponents) {
 // player clears — the multiplayer analogue of the duel's YOU WIN banner. Place is the live finish
 // order (by finishedAt); boards still racing show nothing. Cleared between rounds (clearPlaceBadges).
 function updateMultiPlacements(games) {
-	if (!isMultiRacing()) return;
+	// Skip once the round result is in — applyMultiFinalPlaces has stamped every board from the
+	// final standings, and a trailing live frame would otherwise wipe the non-finishers' places.
+	if (!isMultiRacing() || roundResultShown) return;
 	var finishers = (games || []).filter(function(g) { return g && g.finished; })
 		.sort(function(a, b) { return (a.finishedAt || 0) - (b.finishedAt || 0); });
 	var placeOf = {};
@@ -149,6 +151,20 @@ function updateMultiPlacements(games) {
 	for (var i = 0; i < slots.length; i++) {
 		var pid = slots[i].dataset.pid;
 		setPlaceBadge(slots[i], pid ? placeOf[pid] : null);
+	}
+}
+// At round end, stamp EVERY board with its final place from the standings (rank-ordered) — so
+// players who never finished (hit mines / ran out of time) still get their number, not just the
+// finishers the live updater placed.
+function applyMultiFinalPlaces(standings) {
+	if (!isMultiRacing() || !standings) return;
+	var placeOf = {};
+	standings.forEach(function(s, idx) { if (s && s.id) placeOf[s.id] = idx + 1; });
+	setPlaceBadge(document.getElementById("player_div"), placeOf[id] || null);
+	var slots = document.querySelectorAll("#all_opponents_div .opponent_div");
+	for (var i = 0; i < slots.length; i++) {
+		var pid = slots[i].dataset.pid;
+		setPlaceBadge(slots[i], pid ? (placeOf[pid] || null) : null);
 	}
 }
 function setPlaceBadge(card, place) {
@@ -1262,6 +1278,9 @@ socket.on("game_result", function(data) {
 	setDanger(false);
 	clearFreeze();
 	stopRoundTimer();
+	// 6-player battle: fill in every board's final place from the standings (finishers keep the
+	// place the live updater gave them; non-finishers now get theirs too).
+	applyMultiFinalPlaces(data.standings);
 	var eliminatedNow = iAmEliminated && iAmEliminated.round === data.gameNumber;
 	var target = (currentRoom && currentRoom.scoreTarget) || data.scoreTarget;
 	var seriesOver = target

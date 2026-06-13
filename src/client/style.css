@@ -4261,6 +4261,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border-color: color-mix(in srgb, var(--match-accent) 45%, transparent);
 	box-shadow: inset 3px 0 0 var(--match-accent);
 }
+.match-roster-badge { flex: 0 0 auto; font-size: 6px; }
 .match-roster-name {
 	font-weight: 700; color: var(--text);
 	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
