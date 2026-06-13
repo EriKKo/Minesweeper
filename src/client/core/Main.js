@@ -1215,8 +1215,10 @@ socket.on("game_result", function(data) {
 	}
 
 	// Non-tournament (or tournament round with no cut — round 1 if
-	// schedule[0] == 16): fall through to the existing round panel.
-	if (!eliminatedNow) {
+	// schedule[0] == 16): show the per-round panel only for INTERMEDIATE rounds of a
+	// best-of-N. On the final round (incl. every single-game match like a 1v1 duel),
+	// series_ended owns the result moment, so skip the redundant "You won round N" panel.
+	if (!eliminatedNow && !seriesOver) {
 		showRoundResultPanel(data);
 	}
 	if (!seriesOver) {
