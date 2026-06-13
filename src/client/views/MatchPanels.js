@@ -141,14 +141,33 @@ function countUpNumber(el, from, to, ms) {
 	requestAnimationFrame(frame);
 }
 
-// Win/lose sound, plus a rank-up/down fanfare if the tier changed. `oldRating` is captured
-// before the rating badge updates, so we can detect a tier crossing.
+// Rank-up/down fanfare for the results modal if the tier changed. (The win/lose sound itself
+// plays earlier, at the on-board YOU WIN / YOU LOSE moment — see series_ended.) `oldRating` is
+// captured before the rating badge updates, so we can detect a tier crossing.
 function playResultMoment(won, ranked, oldRating) {
-	if (typeof sound !== "undefined") (won ? sound.seriesWin : sound.lose)();
 	if (ranked && account && typeof oldRating === "number" && typeof account.rating === "number") {
 		var crossed = tierFor(oldRating, account.provisional).name !== tierFor(account.rating, account.provisional).name;
 		if (crossed && typeof sound !== "undefined") (account.rating > oldRating ? sound.rankUp : sound.rankDown)();
 	}
+}
+
+// TetrisFriends-style on-board outcome banners: a big "YOU WIN" over the winner's board and
+// "YOU LOSE" over the loser's, shown the instant the duel ends — before the results modal.
+function showDuelOutcome(iWon) {
+	clearDuelOutcomes();
+	addDuelOutcome(document.getElementById("player_div"), iWon);
+	addDuelOutcome(document.querySelector("#all_opponents_div .opponent_div"), !iWon);
+}
+function addDuelOutcome(card, won) {
+	if (!card) return;
+	var b = document.createElement("div");
+	b.className = "duel-outcome " + (won ? "duel-outcome-win" : "duel-outcome-lose");
+	b.textContent = won ? "YOU WIN" : "YOU LOSE";
+	card.appendChild(b);
+}
+function clearDuelOutcomes() {
+	var els = document.querySelectorAll(".duel-outcome");
+	for (var i = 0; i < els.length; i++) els[i].remove();
 }
 
 // While a result panel is open, Enter triggers the primary action (the

@@ -1002,6 +1002,7 @@ socket.on("ranked_rejected", function(data) {
 // applied immediately) and when the server confirms it (left_room).
 function teardownRoomUI() {
 	if (typeof territoryReset === "function") territoryReset();
+	if (typeof clearDuelOutcomes === "function") clearDuelOutcomes();
 	inRoom = false;
 	currentRoom = null;
 	iAmEliminated = null;
@@ -1230,10 +1231,19 @@ socket.on("mine_hit", function(data) {
 
 socket.on("series_ended", function(data) {
 	setDanger(false);
-	showSeriesResultPanel(data); // plays the win/lose + rank-up sound via playResultMoment
 	gameProgressText.textContent = "";
 	stopRoundTimer();
 	if (typeof music !== "undefined") music.pause();
+	var iWon = data.winnerId === id;
+	if (typeof sound !== "undefined") (iWon ? sound.seriesWin : sound.lose)();
+	// 1v1 duel: show the big YOU WIN / YOU LOSE banners on the two boards first, then bring up the
+	// results modal a beat later (TetrisFriends-style). Other modes go straight to the modal.
+	if (isDuoRacing()) {
+		showDuelOutcome(iWon);
+		setTimeout(function() { clearDuelOutcomes(); showSeriesResultPanel(data); }, 2200);
+	} else {
+		showSeriesResultPanel(data);
+	}
 });
 
 // Match found: no pre-game modal — the search waiting room already showed who's joining.

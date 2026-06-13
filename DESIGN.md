@@ -209,7 +209,10 @@ match-found → reveal → countdown → GO → result. It's the spine of the UX
    Highest emotional payoff. *(Done: win-header glow/pop; rating counts up in the
    rank-swap column; sound cues — seriesWin/lose, rankUp/rankDown on tier
    crossings, matchFound when a ranked match forms. `playResultMoment` in
-   MatchPanels.js drives it. Confetti was tried and removed — too much. NB:
+   MatchPanels.js drives it. Confetti was tried and removed — too much. The 1v1
+   duel ends in two stages (TetrisFriends-style): big on-board YOU WIN / YOU LOSE
+   banners (`showDuelOutcome`) + the win/lose sound, then ~2.2s later the results
+   modal (rating count-up + rank-up sound + Play another/Back to menu). NB:
    "Play another"/"Find another game" re-queue and stay fullscreen; only the
    explicit "Back to menu/lobby" leaves exit fullscreen via `leaveRoom`.)*
 3. **Home as a launcher** — a "you" strip (rank · rating · streak · ▲ week) + one
