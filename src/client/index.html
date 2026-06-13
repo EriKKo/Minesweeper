@@ -503,6 +503,7 @@
 				<div class="game-left">
 					<div id="player_div" class="player-board">
 						<p id="player_name0" class="player-name"></p>
+						<div id="duel_id_you" class="duel-id"></div>
 						<div class="board-wrap">
 							<div id="board_scroll" class="board-scroll">
 								<canvas id="game0" width="500" height="350"></canvas>
@@ -514,6 +515,7 @@
 								<span class="find-next-arrow-glyph" aria-hidden="true">→</span>
 							</button>
 						</div>
+						<div id="duel_bar_you" class="duel-bar"><span class="duel-bar-fill"></span><b class="duel-bar-pct"></b></div>
 						<div class="player-controls">
 							<button id="ready_button" class="btn btn-primary">Ready</button>
 							<button id="flag_mode_button" class="flag-mode-button" type="button" aria-pressed="false">
@@ -525,6 +527,10 @@
 						<p class="hotkey-hint">Move: arrows (Shift = skip revealed, Tab = next blank) · Reveal: Space / X · Flag: Z</p>
 					</div>
 				</div>
+				<div id="duel_center" class="duel-center" aria-hidden="true">
+					<div class="duel-vs">VS</div>
+					<div class="duel-tug"><span id="duel_tug_fill" class="duel-tug-fill"></span></div>
+				</div>
 				<aside class="game-side">
 					<div id="scoreboard_card" class="side-card">
 						<h3 class="side-title">Scoreboard</h3>
@@ -533,7 +539,9 @@
 					<div id="all_opponents_div" class="opponents" style="display:none">
 						<div class="opponent_div" data-slot>
 							<p id="player_name1" class="player-name"></p>
+							<div id="duel_id_opp" class="duel-id"></div>
 							<canvas id="game1" width="250" height="175"></canvas>
+							<div id="duel_bar_opp" class="duel-bar"><span class="duel-bar-fill"></span><b class="duel-bar-pct"></b></div>
 						</div>
 						<div class="opponent_div" data-slot>
 							<p id="player_name2" class="player-name"></p>

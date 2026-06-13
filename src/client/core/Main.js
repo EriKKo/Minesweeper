@@ -44,6 +44,66 @@ function playerLabel(name, progress) {
 	if (!isDuoRacing()) return name || "";
 	return (name || "") + "  ·  " + Math.round((progress || 0) * 100) + "%";
 }
+
+// --- 1v1 duel battle HUD: identity panels (rank badge + name + tier), per-board progress bars,
+// and the center tug-of-war bar + leader glow. ---
+function fillDuelId(el, p, isYou) {
+	if (!el) return;
+	el.innerHTML = "";
+	if (!p) return;
+	if (typeof p.rating === "number" && typeof buildRankBadge === "function") el.appendChild(buildRankBadge(p.rating));
+	var info = document.createElement("div");
+	info.className = "duel-id-info";
+	var nm = document.createElement("div");
+	nm.className = "duel-id-name";
+	nm.textContent = isYou ? "You" : (p.name || "Anonymous");
+	info.appendChild(nm);
+	if (typeof p.rating === "number" && typeof tierFor === "function") {
+		var t = tierFor(p.rating, p.provisional);
+		var rt = document.createElement("div");
+		rt.className = "duel-id-rating";
+		rt.style.color = t.color;
+		rt.textContent = t.name + "  ·  " + (p.provisional ? "~" : "") + p.rating;
+		info.appendChild(rt);
+	}
+	el.appendChild(info);
+}
+// Build the two identity panels from the room roster (run when the duel turns on / roster changes).
+function buildDuelIdentity() {
+	if (!isDuoRacing() || !currentRoom || !currentRoom.players) return;
+	var me = null, opp = null;
+	for (var i = 0; i < currentRoom.players.length; i++) {
+		var p = currentRoom.players[i];
+		if (p.id === id) me = p; else if (!opp) opp = p;
+	}
+	fillDuelId(document.getElementById("duel_id_you"), me, true);
+	fillDuelId(document.getElementById("duel_id_opp"), opp, false);
+}
+function setDuelBar(barId, progress) {
+	var bar = document.getElementById(barId);
+	if (!bar) return;
+	var pct = Math.round((progress || 0) * 100);
+	var fill = bar.querySelector(".duel-bar-fill");
+	var label = bar.querySelector(".duel-bar-pct");
+	if (fill) fill.style.width = pct + "%";
+	if (label) label.textContent = pct + "%";
+}
+// Live battle HUD from the current frame: each board's progress bar, the center tug-of-war fill
+// (your share of the combined progress), and the leader glow on the board cards.
+function updateDuelHud(meGame, oppGame) {
+	if (!isDuoRacing()) return;
+	var myP = meGame ? (meGame.progress || 0) : 0;
+	var opP = oppGame ? (oppGame.progress || 0) : 0;
+	setDuelBar("duel_bar_you", myP);
+	setDuelBar("duel_bar_opp", opP);
+	var total = myP + opP;
+	var tug = document.getElementById("duel_tug_fill");
+	if (tug) tug.style.height = Math.round((total > 0 ? myP / total : 0.5) * 100) + "%";
+	var youCard = document.getElementById("player_div");
+	var oppCard = document.querySelector("#all_opponents_div .opponent_div");
+	if (youCard) youCard.classList.toggle("leading", myP > opP + 0.0001);
+	if (oppCard) oppCard.classList.toggle("leading", opP > myP + 0.0001);
+}
 // Size the opponent boards. In the duel, the single opponent (game1) is sized to the SAME cell
 // size as the player board so the two boards match; the other slots (and all of 6-player) stay
 // small thumbnails.
@@ -281,6 +341,7 @@ function applyPuzzleBoard(data) {
 	sizeOpponentCanvases();
 	hideAllViews();
 	gameView.style.display = "";
+	document.body.classList.add("in-game");
 	gameView.classList.remove("duo");
 	gameView.classList.add("puzzle");
 	togglePuzzleChrome(true, puzzleSession.mode);
@@ -436,6 +497,7 @@ socket.on("solo_board", function(data) {
 	sizeOpponentCanvases();
 	hideAllViews();
 	gameView.style.display = "";
+	document.body.classList.add("in-game");
 	gameView.classList.remove("duo");
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
@@ -979,6 +1041,7 @@ socket.on("room_state", function(state) {
 	applyDuoClass();              // 1v1 racing → side-by-side duel layout
 	applyBoardDims(state.rows, state.cols);
 	sizeOpponentCanvases();       // resize the opponent board for the (new) duo/non-duo layout
+	buildDuelIdentity();          // populate the battle identity panels from the roster
 	renderRoomState(state);
 });
 
@@ -1007,6 +1070,7 @@ socket.on("start_game", function(data) {
 	// "playing" yet on this client), so the covered countdown board already shows side-by-side.
 	if (typeof gameView !== "undefined" && gameView && isDuoRacing()) gameView.classList.add("duo");
 	sizeOpponentCanvases();
+	buildDuelIdentity();
 	// Eliminated spectators get start_game too (server emits it so their
 	// decoder + dims update), but they skip the playable countdown and the
 	// myState reset.  We DO install the new round's boardDecoder so the
@@ -1331,6 +1395,7 @@ socket.on("draw_board", function(data) {
 	}
 
 	renderScoreboard();
+	if (isDuoRacing()) updateDuelHud(games[0], opponents[0]);
 	updateDangerWarning();
 });
 
@@ -1345,6 +1410,7 @@ function showGameView() {
 	// the custom lobby (or any page) must replace it, not stack on top of it.
 	hideAllViews();
 	gameView.style.display = "";
+	document.body.classList.add("in-game");
 }
 
 function showNameError(text) {

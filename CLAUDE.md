@@ -438,12 +438,18 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   the shared live-game state (`rows`, `cols`, `myState`, `playerCanvas`, the cell-state
   sentinels) the feature modules read as globals, and the top-level DOM/state wiring.
   Loaded last so those globals exist before anything uses them.
-  **1v1 duel layout:** a 2-player racing match (`isDuoRacing()`) gets a side-by-side layout while
-  playing — the opponent board (`game1`) is sized to match the player board instead of the small
-  sidebar thumbnail, and the scoreboard/series side-cards are hidden, with each board's name header
-  showing its live progress % (`playerLabel`). Driven by a `duo` class on `#game_view` (CSS
-  `.game-view.duo`); `sizeOpponentCanvases()` does the matched sizing. Only active during play so
-  custom-room config stays visible in planning.
+  **1v1 duel layout** (TetrisFriends-style battle): a 2-player racing match (`isDuoRacing()`) gets a
+  side-by-side battle layout while playing — two equal boards facing off across a center VS column.
+  The opponent board (`game1`) is sized to match the player board (`sizeOpponentCanvases()`) instead
+  of the small sidebar thumbnail; the scoreboard/series side-cards are hidden. Each board has an
+  **identity panel** (rank badge + name + tier via `buildDuelIdentity`/`fillDuelId`, reusing
+  `buildRankBadge`/`tierFor`) and a **progress bar**; the center `#duel_center` holds a VS badge over
+  a vertical **tug-of-war bar** (your colour rises from the bottom by your share of combined
+  progress), and the **leading** board glows in its side colour — all updated per frame by
+  `updateDuelHud()` in `draw_board`. Driven by a `duo` class on `#game_view` (CSS `.game-view.duo`,
+  `--duel-you`/`--duel-opp`), set only during play so custom-room config stays visible in planning.
+  The site footer is hidden whenever a game is on screen via a `body.in-game` class (added by the
+  game entry points, removed in `hideAllViews`).
 - `AdminList.js` — shared helpers for the paginated admin views: `renderPager` and the
   `applyQueryString` URL-filter-state write (All Puzzles / Bots / Patterns / Starting positions).
 - `style.css` — all styles.

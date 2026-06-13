@@ -14,6 +14,9 @@ function hideAllViews() {
 		var el = document.getElementById(allViews[i]);
 		if (el) el.style.display = "none";
 	}
+	// Default to "not in a game"; the game entry points (showGameView / solo / puzzle) re-add
+	// `in-game` right after. Drives chrome that should vanish during play (e.g. the site footer).
+	document.body.classList.remove("in-game");
 }
 
 function showNameView() {

@@ -2589,30 +2589,108 @@ body.touch .find-next-arrow { display: inline-flex; }
 	top: 1rem;
 }
 
-/* 1v1 "duel" layout (body class via isDuoRacing in Main.js): two equal boards side by side.
-   The right column becomes the opponent's board card; the scoreboard / series / bots side-cards
-   are hidden — each board's name header carries its live progress %. Only active while playing. */
+/* ===== 1v1 duel battle HUD (TetrisFriends-style) =====
+   Two boards facing off across a center VS / tug-of-war column. Driven by the `duo` class
+   (isDuoRacing in Main.js), active only while playing. The center column is the middle grid
+   track; the right column is the opponent's board (scoreboard/series cards hidden). */
+.game-view.duo { --duel-you: #3b82f6; --duel-opp: #fb7185; }
 .game-view.duo .game-grid {
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 	align-items: start;
+	gap: 0.85rem;
 }
-.game-view.duo .game-side {
-	position: static;
-	gap: 0;
-}
-/* Only the opponent board lives in the right column while dueling. */
+.game-view.duo .game-side { position: static; gap: 0; }
 .game-view.duo .game-side > *:not(#all_opponents_div) { display: none; }
 .game-view.duo .opponents { gap: 0; }
-/* The opponent card mirrors the player board card (same padding / surface), and its board fills
-   the column at the size JS set (matched to the player board). */
+/* The plain name lines are replaced by the richer identity panels. */
+.game-view.duo #player_name0,
+.game-view.duo #all_opponents_div .player-name { display: none; }
+
+/* Both board cards become framed "arenas" that light up when ahead. */
+.game-view.duo .player-board,
 .game-view.duo .opponent_div {
-	padding: 1.25rem;
+	padding: 1rem 1.15rem 1.15rem;
+	border-radius: 14px;
+	transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
-.game-view.duo .opponent_div canvas { max-width: 100%; height: auto; }
-.game-view.duo .opponent_div .player-name {
-	font-size: 1rem;
-	font-weight: 600;
-	color: var(--text);
+.game-view.duo .opponent_div canvas { max-width: 100%; height: auto; display: block; }
+.game-view.duo .player-board.leading {
+	border-color: var(--duel-you);
+	box-shadow: 0 0 0 1px var(--duel-you), 0 0 24px -4px var(--duel-you);
+}
+.game-view.duo .opponent_div.leading {
+	border-color: var(--duel-opp);
+	box-shadow: 0 0 0 1px var(--duel-opp), 0 0 24px -4px var(--duel-opp);
+}
+
+/* Identity panel: rank badge + name + tier. Opponent side mirrored (badge on the right). */
+.duel-id { display: none; }
+.game-view.duo .duel-id { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; }
+.game-view.duo #duel_id_opp { flex-direction: row-reverse; text-align: right; }
+.duel-id .rank-badge { flex: 0 0 auto; }
+.duel-id-name { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+.duel-id-rating { font-size: 0.82rem; font-weight: 600; margin-top: 0.1rem; }
+
+/* Per-board progress bar (your side fills from the left, opponent from the right). */
+.duel-bar { display: none; }
+.game-view.duo .duel-bar {
+	display: block;
+	position: relative;
+	margin-top: 0.85rem;
+	height: 1.3rem;
+	border-radius: 7px;
+	background: rgba(255, 255, 255, 0.06);
+	overflow: hidden;
+}
+.duel-bar-fill {
+	position: absolute; top: 0; bottom: 0; left: 0;
+	width: 0;
+	background: linear-gradient(90deg, var(--duel-you), #7db8ff);
+	transition: width 0.3s ease;
+}
+.duel-bar-pct {
+	position: absolute; top: 50%; right: 0.55rem; transform: translateY(-50%);
+	font-size: 0.78rem; font-weight: 700; color: var(--text);
+}
+.game-view.duo #duel_bar_opp .duel-bar-fill {
+	left: auto; right: 0;
+	background: linear-gradient(270deg, var(--duel-opp), #fda4af);
+}
+.game-view.duo #duel_bar_opp .duel-bar-pct { right: auto; left: 0.55rem; }
+
+/* Center column: VS badge over a vertical tug-of-war bar (your colour rises from the bottom). */
+.duel-center { display: none; }
+.game-view.duo .duel-center {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.9rem;
+	align-self: stretch;
+	padding-top: 2.6rem;
+	min-width: 54px;
+}
+.duel-vs {
+	font-size: 1.45rem;
+	font-weight: 900;
+	letter-spacing: 0.1em;
+	color: var(--muted);
+	text-shadow: 0 0 16px rgba(148, 163, 184, 0.35);
+}
+.duel-tug {
+	position: relative;
+	width: 12px;
+	flex: 1 1 auto;
+	min-height: 200px;
+	border-radius: 8px;
+	background: var(--duel-opp);
+	overflow: hidden;
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.duel-tug-fill {
+	position: absolute; left: 0; right: 0; bottom: 0;
+	height: 50%;
+	background: var(--duel-you);
+	transition: height 0.4s ease;
 }
 
 .side-card {
@@ -3882,7 +3960,8 @@ body.touch .find-next-arrow { display: inline-flex; }
    the real fullscreen state in Fullscreen.js (so Esc reverts it too). */
 body.game-fullscreen .topbar { display: none; }
 body.game-fullscreen main { max-width: none; }
-body.game-fullscreen .site-footer { display: none; }
+/* Hide the site footer whenever a game is on screen (any mode), not just in fullscreen. */
+body.in-game .site-footer { display: none; }
 
 /* Windowed, the game grid is a left-aligned board (1fr) + a 320px sidebar inside a
    max-width container. In fullscreen `main` loses its max-width, so that board would
