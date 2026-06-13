@@ -69,7 +69,12 @@ function profileStat(label, value) {
 }
 
 function renderHomeRankChips() {
-	function applyTo(tierEl, ratingEl, rating) {
+	function applyTo(tierEl, ratingEl, rating, badgeId) {
+		var badgeEl = badgeId ? document.getElementById(badgeId) : null;
+		if (badgeEl) {
+			badgeEl.innerHTML = "";
+			if (account && typeof rating === "number") badgeEl.appendChild(buildRankBadge(rating));
+		}
 		if (!tierEl || !ratingEl) return;
 		if (!account) { tierEl.textContent = "—"; tierEl.style.color = ""; ratingEl.textContent = ""; return; }
 		var t = tierFor(rating, account.provisional);
@@ -82,13 +87,13 @@ function renderHomeRankChips() {
 	var tournament = account ? (account.ratingTournament != null ? account.ratingTournament : account.rating) : null;
 	// Each playstyle has a single rating; both 1v1 and 6P tiles show the
 	// same value so a Sprint player tracks one ladder regardless of size.
-	applyTo(rankTierSprint, rankRatingSprint, sprint);
+	applyTo(rankTierSprint, rankRatingSprint, sprint, "rank_badge_sprint");
 	applyTo(rankTierSprintSix, rankRatingSprintSix, sprint);
-	applyTo(rankTierStandard, rankRatingStandard, standard);
+	applyTo(rankTierStandard, rankRatingStandard, standard, "rank_badge_standard");
 	applyTo(rankTierStandardSix, rankRatingStandardSix, standard);
-	applyTo(rankTierTournament, rankRatingTournament, tournament);
+	applyTo(rankTierTournament, rankRatingTournament, tournament, "rank_badge_tournament");
 	var territory = account ? (account.ratingTerritory != null ? account.ratingTerritory : account.rating) : null;
-	applyTo(document.getElementById("rank_tier_territory"), document.getElementById("rank_rating_territory"), territory);
+	applyTo(document.getElementById("rank_tier_territory"), document.getElementById("rank_rating_territory"), territory, "rank_badge_territory");
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");

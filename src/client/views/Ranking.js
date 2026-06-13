@@ -42,8 +42,9 @@ function rankIconFor(rating) {
 
 // Military rank-insignia badge: a dark service patch with 1-3 metallic chevrons
 // (the sub-tier) tinted by the tier, glowing in the tier colour. Master tops out
-// with a star instead of chevrons. The patch is sized in `em` off its font-size,
-// so callers scale the whole badge by setting one font-size (see .duel-id / modal).
+// with a star instead of chevrons. No tier text inside — the rank name is always
+// shown beside it (modal, profile, duel HUD, mode cards). The patch is sized in
+// `em` off its font-size, so callers scale the whole badge by setting font-size.
 function buildRankBadge(rating) {
 	var info = rankIconFor(rating);
 	var badge = document.createElement("div");
@@ -62,10 +63,6 @@ function buildRankBadge(rating) {
 		star.textContent = "★";
 		badge.appendChild(star);
 	}
-	var label = document.createElement("div");
-	label.className = "rank-badge-tier";
-	label.textContent = (info.subNum ? info.label : "Master").toUpperCase();
-	badge.appendChild(label);
 	return badge;
 }
 
