@@ -4248,12 +4248,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .match-roster-row {
 	display: flex; align-items: center; gap: 0.5rem;
-	padding: 0.45rem 0.6rem;
+	/* Fixed height (not min-height) so an empty "Waiting…" row and a filled row with a rank badge
+	   are exactly the same size — otherwise the centred modal re-centres and jumps as players join. */
+	height: 2.6rem;
+	padding: 0 0.6rem;
 	background: rgba(255, 255, 255, 0.035);
 	border: 1px solid rgba(255, 255, 255, 0.06);
 	border-radius: 0.6rem;
 	font-size: 0.84rem;
-	min-height: 2.2rem;
 }
 .match-roster-row-new { animation: match-roster-in 0.28s ease both; }
 .match-roster-row-you {
