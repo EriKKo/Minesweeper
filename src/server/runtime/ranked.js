@@ -33,11 +33,10 @@ var RANKED_MODES = {
 	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: territory.density, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" }, // no clock — ends when the board is played out; bots picked by their measured territory rating
 	territory_quad: { size: 4, label: "4P Territory", style: "territory", mineDensity: territory.density, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" } // 4 players, one per corner; shares the territory Elo ladder
 };
-// Brief pause between forming a match and starting game 1 so players can read the roster + tiers.
-var RANKED_MATCH_REVEAL_MS = {
-	sprint_duo: 2500, sprint_six: 3000, standard_duo: 2500, standard_six: 3000,
-	tournament: 5000, territory_duo: 2500, territory_quad: 3000
-};
+// Short pause between forming a match and starting game 1 — just long enough to land in the
+// game layout (covered board) before the countdown. There's no roster modal to read anymore
+// (the search waiting room already showed the field), so this is brief for every mode.
+var MATCH_REVEAL_MS = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real players.
 var BOT_JOIN_MIN_MS = 200;
 var BOT_JOIN_MAX_MS = 850;
@@ -285,14 +284,13 @@ function formRankedMatch(mode) {
 	if (mode === "tournament") room.tournamentParticipants = room.players.slice();
 	broadcastRoomState(room);
 
-	// Pause so the players can read the opponent slates + tiers before the first
-	// countdown starts. The room is in planning phase during this window.
-	var revealMs = RANKED_MATCH_REVEAL_MS[mode] || 4000;
-	io.to("room:" + room.id).emit("match_reveal", { delayMs: revealMs });
+	// Drop the players into the game layout (covered board) for a brief beat, then start the
+	// countdown. The room is in planning phase during this window.
+	io.to("room:" + room.id).emit("match_reveal", {});
 	setTimeout(function() {
 		if (!rooms[room.id] || room.phase !== "planning") return;
 		startSeries(room);
-	}, revealMs);
+	}, MATCH_REVEAL_MS);
 
 	if (rankedQueues[mode].length > 0) {
 		broadcastRankedQueue(mode);

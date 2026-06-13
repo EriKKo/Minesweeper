@@ -952,6 +952,20 @@ socket.on("territory_start", function(data) { if (typeof territoryStart === "fun
 socket.on("territory_board", function(data) { if (typeof territoryBoard === "function") territoryBoard(data); });
 socket.on("territory_result", function(data) { if (typeof territoryResult === "function") territoryResult(data); });
 
+// Paint the board as a full grid of covered cells. Shown during the ranked match-reveal
+// window and the pre-round countdown so the player sees the board taking shape, not a black
+// canvas. Covered cells don't read the board decoder, so this works before it's installed.
+function setCoveredBoard() {
+	if (!rows || !cols) return;
+	myState = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		myState[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
+	}
+	prevPlayerState = cloneState(myState);
+	renderPlayerBoard();
+}
+
 socket.on("start_game", function(data) {
 	if (typeof music !== "undefined") music.resume();
 	// Eliminated spectators get start_game too (server emits it so their
@@ -1001,6 +1015,9 @@ socket.on("start_game", function(data) {
 	}
 	gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
 	showRoundCutPreview(data);
+	// Paint the board as a full grid of covered cells so the countdown plays over the board
+	// instead of a black canvas; the first draw_board (after GO) reveals the centre.
+	setCoveredBoard();
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
@@ -1094,13 +1111,11 @@ socket.on("series_ended", function(data) {
 	if (typeof music !== "undefined") music.pause();
 });
 
-// Match-found reveal: server pauses for delayMs after forming a ranked match
-// so the lobby gets a moment to absorb who they're playing against. The panel
-// lists everyone sorted by rating with the player's row highlighted.
-// Match panel functions live in MatchPanels.js.
-
-socket.on("match_reveal", function(data) {
-	showMatchRevealPanel((data && data.delayMs) || 4000);
+// Match found: no pre-game modal — the search waiting room already showed who's joining.
+// Drop straight into the game layout with a covered board; the server starts the countdown
+// (start_game) a beat later.
+socket.on("match_reveal", function() {
+	setCoveredBoard();
 });
 
 // Sent only to the player(s) cut at the end of a tournament round. They stay

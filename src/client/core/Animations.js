@@ -93,7 +93,10 @@ function drawBoardStatic(state, canvas) {
 }
 
 function renderPlayerBoard() {
-	if (boardDecoder && myState) {
+	// Covered cells never read the decoder (only revealed cells call getClue), so an
+	// all-covered board paints fine before the decoder arrives — that's the pre-round
+	// countdown / ranked match-reveal board. A null myState clears the canvas (no game).
+	if (myState) {
 		var now = performance.now();
 		var bv = liveBoardView(playerCanvas, myState);
 		bv.animAt = function(r, c) {

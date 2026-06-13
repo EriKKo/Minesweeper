@@ -52,7 +52,10 @@ else is grouped:
   (`nextRoomId`/`nextBotId`) are not in it.
 - `ranked.js` — ranked matchmaking: the per-mode queues, the bot-trickle filler, and
   `formRankedMatch` (builds the room, seats humans + bots, hands off to the series start).
-  Owns the `RANKED_MODES` catalogue + match-reveal/bot-join timings. Coupled to the core
+  Owns the `RANKED_MODES` catalogue + bot-join timings. When a match forms it emits `match_reveal`
+  then, after a short `MATCH_REVEAL_MS` beat (no roster modal — the search waiting room already
+  showed the field), starts the series; the client drops straight into the game layout with a
+  covered board. Coupled to the core
   like territory, so its core services (`createPlayerGame`, `addBotToRoom`,
   `broadcastRoomState`, `startSeries`, `readUserRating`, a room-id source, `RANKED_RULES`,
   `MAX_BOTS_PER_ROOM`, `PROVISIONAL_GAMES`, `io`) are injected via `ranked.init(deps)`; queue
