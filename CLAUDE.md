@@ -583,5 +583,9 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
   slow, thorough solver). Matchmaking calls `botPlayer.pickBotFromPool(targetElo)`.
   Regenerate with `node scripts/generate-bot-pool.js` (a few minutes; tune with
   `POOL_SIZE` / `BOARDS` / `CAL_SAMPLES` env vars). **Re-run it whenever bot AI, the CSP
-  solver/complexity costs, `GEN_MAX_COMPLEXITY`, or the Elo curve changes** — the measured
-  ratings depend on all of them.
+  solver/complexity costs, `GEN_MAX_COMPLEXITY`, or the boards change** — the measured solve
+  times depend on them. Each pool entry persists its measured per-density `times`, so a pure
+  **ladder relabel** (changing only the Elo scale, not the AI) does NOT need a re-bench: run
+  `node scripts/rerank-bot-pool.js`, which relabels the stored calibration curve and re-derives
+  every bot's rating from its stored times. The pool currently spans the 0–3000 ladder (fastest
+  reference config = Master 3000); `BotBench.configForElo` anchors are `ELO_MIN/ELO_MAX = 1000/3000`.
