@@ -198,6 +198,12 @@ function refreshPlayerBoardSize() {
 	playerCanvasSquareWidth = playerCanvasWidth / cols;
 	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	if (typeof redrawOwnBoardWithFocus === "function") redrawOwnBoardWithFocus();
+	// Duel: keep the opponent board matched to the (resized) player board and repaint it from
+	// the last frame, since resizing a canvas clears it and the opponent may not be moving.
+	if (typeof sizeOpponentCanvases === "function") sizeOpponentCanvases();
+	if (typeof isDuoRacing === "function" && isDuoRacing() && lastGames && lastGames[1]) {
+		drawBoardStatic(lastGames[1].state, document.getElementById("game1"));
+	}
 }
 var playerBoardResizeRaf = null;
 window.addEventListener("resize", function() {

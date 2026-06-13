@@ -26,8 +26,38 @@ var boardScroll = document.getElementById("board_scroll");
 // Player canvas is sized differently on mobile: a fixed bigger cell size, no max-width
 // clamp — the surrounding .board-scroll handles pan when the board exceeds the screen.
 
+// A 1v1 racing match (two players, racing mode) uses the side-by-side "duel" layout: both
+// boards rendered at equal size. Driven by a `duo` class on the game view (set on room_state /
+// start_game). 6-player + territory + solo/puzzle are unaffected.
+function isDuoRacing() {
+	return !!(currentRoom && currentRoom.players && currentRoom.players.length === 2
+		&& (currentRoom.gameMode || "race") === "race");
+}
+function applyDuoClass() {
+	// Duel layout only while actually playing (the countdown counts as playing); during planning
+	// we keep the normal layout so the room config + scoreboard stay visible.
+	var duel = isDuoRacing() && !!currentRoom && currentRoom.phase === "playing";
+	if (typeof gameView !== "undefined" && gameView) gameView.classList.toggle("duo", duel);
+}
+// In the duel each board's name header doubles as its progress readout ("Alice · 47%").
+function playerLabel(name, progress) {
+	if (!isDuoRacing()) return name || "";
+	return (name || "") + "  ·  " + Math.round((progress || 0) * 100) + "%";
+}
+// Size the opponent boards. In the duel, the single opponent (game1) is sized to the SAME cell
+// size as the player board so the two boards match; the other slots (and all of 6-player) stay
+// small thumbnails.
+function sizeOpponentCanvases() {
+	var duo = isDuoRacing();
+	var duoCell = duo ? (playerCanvas.width / DPR / cols) : OPP_CELL;
+	for (var gi = 1; gi <= 5; gi++) {
+		var cv = document.getElementById("game" + gi);
+		if (cv) sizeBoardCanvas(cv, (gi === 1 && duo) ? duoCell : OPP_CELL);
+	}
+}
+
 sizePlayerCanvas();
-for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+sizeOpponentCanvases();
 
 var playerCanvasHeight = playerCanvas.height;
 var playerCanvasWidth = playerCanvas.width;
@@ -248,9 +278,10 @@ function applyPuzzleBoard(data) {
 	playerCanvasHeight = playerCanvas.height;
 	playerCanvasSquareWidth = playerCanvasWidth / cols;
 	playerCanvasSquareHeight = playerCanvasHeight / rows;
-	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+	sizeOpponentCanvases();
 	hideAllViews();
 	gameView.style.display = "";
+	gameView.classList.remove("duo");
 	gameView.classList.add("puzzle");
 	togglePuzzleChrome(true, puzzleSession.mode);
 	if (typeof setRatedFailActions === "function") setRatedFailActions(false);
@@ -402,9 +433,10 @@ socket.on("solo_board", function(data) {
 	playerCanvasHeight = playerCanvas.height;
 	playerCanvasSquareWidth = playerCanvasWidth / cols;
 	playerCanvasSquareHeight = playerCanvasHeight / rows;
-	for (var gi = 1; gi <= 5; gi++) sizeBoardCanvas(document.getElementById("game" + gi), OPP_CELL);
+	sizeOpponentCanvases();
 	hideAllViews();
 	gameView.style.display = "";
+	gameView.classList.remove("duo");
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
 	updateSoloHud();
@@ -491,6 +523,7 @@ var myState = null;
 // Live-board animation queue + render loop moved to Animations.js.
 var lastScores = {};           // playerId -> last rendered score, to flash gains
 var liveProgress = {};         // playerId -> { progress, finished, finishedAt } from draw_board
+var lastGames = null;          // last draw_board.games — used to repaint the duel opponent board on resize
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
 var spectatorTarget = null;    // when iAmEliminated, the player id whose board is rendered on slot 0
 // soloSession / soloTimerHandle / soloSelectedSize live in Solo.js.
@@ -943,7 +976,9 @@ socket.on("join_failed", function(data) {
 
 socket.on("room_state", function(state) {
 	currentRoom = state;
+	applyDuoClass();              // 1v1 racing → side-by-side duel layout
 	applyBoardDims(state.rows, state.cols);
+	sizeOpponentCanvases();       // resize the opponent board for the (new) duo/non-duo layout
 	renderRoomState(state);
 });
 
@@ -968,6 +1003,10 @@ function setCoveredBoard() {
 
 socket.on("start_game", function(data) {
 	if (typeof music !== "undefined") music.resume();
+	// Entering play: turn the duel layout on directly (currentRoom.phase may not have flipped to
+	// "playing" yet on this client), so the covered countdown board already shows side-by-side.
+	if (typeof gameView !== "undefined" && gameView && isDuoRacing()) gameView.classList.add("duo");
+	sizeOpponentCanvases();
 	// Eliminated spectators get start_game too (server emits it so their
 	// decoder + dims update), but they skip the playable countdown and the
 	// myState reset.  We DO install the new round's boardDecoder so the
@@ -1189,7 +1228,7 @@ function repaintSpectatorView(games) {
 		var slot = slots[i - 1];
 		var opp = i <= 2 ? opponents[i - 1] : null;
 		if (opp) {
-			nameEl.textContent = opp.playerName;
+			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
 			drawBoardStatic(opp.state, canvasEl);
 			if (slot) { slot.style.display = ""; slot.dataset.pid = opp.id || ""; }
 		} else {
@@ -1202,6 +1241,7 @@ function repaintSpectatorView(games) {
 
 socket.on("draw_board", function(data) {
 	var games = data.games;
+	lastGames = games;
 	if (iAmEliminated) latestSpectatorGames = games;
 	var slots = document.querySelectorAll('[data-slot]');
 	// Cache live progress per player so the scoreboard can show "% cleared" in
@@ -1228,7 +1268,7 @@ socket.on("draw_board", function(data) {
 		paintSpectatorBigBoard(games);
 	}
 	if (me) {
-		document.getElementById("player_name0").textContent = me.playerName;
+		document.getElementById("player_name0").textContent = playerLabel(me.playerName, me.progress);
 		if (myState) {
 			for (var rr = 0; rr < rows; rr++) {
 				for (var cc = 0; cc < cols; cc++) {
@@ -1274,7 +1314,7 @@ socket.on("draw_board", function(data) {
 		var slot = slots[i - 1];
 		var opp = i <= 2 ? opponents[i - 1] : null;
 		if (opp) {
-			nameEl.textContent = opp.playerName;
+			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
 			drawBoardStatic(opp.state, canvasEl);
 			if (slot) {
 				slot.style.display = "";

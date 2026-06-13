@@ -438,6 +438,12 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   the shared live-game state (`rows`, `cols`, `myState`, `playerCanvas`, the cell-state
   sentinels) the feature modules read as globals, and the top-level DOM/state wiring.
   Loaded last so those globals exist before anything uses them.
+  **1v1 duel layout:** a 2-player racing match (`isDuoRacing()`) gets a side-by-side layout while
+  playing — the opponent board (`game1`) is sized to match the player board instead of the small
+  sidebar thumbnail, and the scoreboard/series side-cards are hidden, with each board's name header
+  showing its live progress % (`playerLabel`). Driven by a `duo` class on `#game_view` (CSS
+  `.game-view.duo`); `sizeOpponentCanvases()` does the matched sizing. Only active during play so
+  custom-room config stays visible in planning.
 - `AdminList.js` — shared helpers for the paginated admin views: `renderPager` and the
   `applyQueryString` URL-filter-state write (All Puzzles / Bots / Patterns / Starting positions).
 - `style.css` — all styles.

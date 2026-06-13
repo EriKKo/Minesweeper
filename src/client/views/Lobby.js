@@ -178,7 +178,7 @@ function applyBoardDims(newRows, newCols) {
 	rows = newRows;
 	cols = newCols;
 	sizePlayerCanvas();
-	for (var i = 1; i <= 5; i++) sizeBoardCanvas(document.getElementById("game" + i), OPP_CELL);
+	sizeOpponentCanvases();
 	playerCanvasWidth = playerCanvas.width;
 	playerCanvasHeight = playerCanvas.height;
 	playerCanvasSquareWidth = playerCanvasWidth / cols;

@@ -2589,6 +2589,32 @@ body.touch .find-next-arrow { display: inline-flex; }
 	top: 1rem;
 }
 
+/* 1v1 "duel" layout (body class via isDuoRacing in Main.js): two equal boards side by side.
+   The right column becomes the opponent's board card; the scoreboard / series / bots side-cards
+   are hidden — each board's name header carries its live progress %. Only active while playing. */
+.game-view.duo .game-grid {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	align-items: start;
+}
+.game-view.duo .game-side {
+	position: static;
+	gap: 0;
+}
+/* Only the opponent board lives in the right column while dueling. */
+.game-view.duo .game-side > *:not(#all_opponents_div) { display: none; }
+.game-view.duo .opponents { gap: 0; }
+/* The opponent card mirrors the player board card (same padding / surface), and its board fills
+   the column at the size JS set (matched to the player board). */
+.game-view.duo .opponent_div {
+	padding: 1.25rem;
+}
+.game-view.duo .opponent_div canvas { max-width: 100%; height: auto; }
+.game-view.duo .opponent_div .player-name {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+}
+
 .side-card {
 	background: var(--surface);
 	border: 1px solid var(--border);
@@ -3866,7 +3892,7 @@ body.game-fullscreen .game-view.solo .game-grid {
 	grid-template-columns: auto;
 	justify-content: center;
 }
-body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo) .game-grid {
+body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo):not(.duo) .game-grid {
 	grid-template-columns: auto 320px;
 	justify-content: center;
 }
