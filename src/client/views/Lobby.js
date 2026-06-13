@@ -140,9 +140,10 @@ function renderMatchRoster(info) {
 			}
 		} else {
 			row.classList.add("match-roster-slot-empty");
-			var skel = document.createElement("span");
-			skel.className = "match-roster-skeleton";
-			row.appendChild(skel);
+			var waiting = document.createElement("span");
+			waiting.className = "match-roster-waiting";
+			waiting.textContent = "Waiting…";
+			row.appendChild(waiting);
 		}
 		matchRosterEl.appendChild(row);
 	}

@@ -4261,24 +4261,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 	padding: 0.12rem 0.5rem; border-radius: 999px;
 	white-space: nowrap;
 }
-/* Empty slot: a clean shimmering skeleton bar instead of italic placeholder text. */
+/* Empty slot: a quiet muted placeholder — no animation. */
 .match-roster-slot-empty {
 	background: rgba(255, 255, 255, 0.02);
 	border-color: rgba(255, 255, 255, 0.05);
 }
-.match-roster-skeleton {
-	flex: 1 1 auto; height: 0.7rem; border-radius: 999px;
-	background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.13) 50%, rgba(255, 255, 255, 0.05) 75%);
-	background-size: 200% 100%;
-	animation: match-skeleton 1.3s ease-in-out infinite;
-}
+.match-roster-waiting { color: var(--muted); font-size: 0.78rem; }
 @keyframes match-roster-in {
 	from { opacity: 0; transform: translateY(6px) scale(0.97); }
 	to   { opacity: 1; transform: none; }
-}
-@keyframes match-skeleton {
-	from { background-position: 200% 0; }
-	to   { background-position: -200% 0; }
 }
 /* On narrow phones the centred card fills most of the width (the overlay's
    padding keeps a small margin) and the roster scrolls if the lobby is large. */
