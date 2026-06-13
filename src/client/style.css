@@ -2750,6 +2750,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 /* The big center timer replaces the top-bar timer in the duel. */
 .game-view.duo #round_timer { display: none; }
+/* The player-controls row (Ready/flag) carries no content during the duel play — drop it so the
+   two board cards are identical height and the boards line up exactly. */
+.game-view.duo .player-controls { display: none; }
+/* The player board sits in board-wrap > board-scroll (inline-block, ~6px baseline gap below it),
+   while the opponent is a plain block canvas. Collapse the baseline gap so the player card isn't a
+   few px taller and the two boards align to the pixel. */
+.game-view.duo .board-wrap { display: block; line-height: 0; }
+.game-view.duo #board_scroll, .game-view.duo #game0 { display: block; }
 /* Push both boards toward the center column so the VS sits exactly between them (the boards don't
    fill their 1fr tracks, so left-aligning them would leave the VS off-center). */
 .game-view.duo .game-left { display: flex; flex-direction: column; align-items: flex-end; }
@@ -2822,12 +2830,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 	min-width: 36px;
 }
 /* Big round timer, centered ABOVE the two boards (its own row between the header and the grid).
-   Falls back to "VS" when there's no clock (e.g. territory, roundSeconds 0). */
+   Reserves its height even when empty (min-height) so the boards don't shift when the clock first
+   appears, and shows nothing (no "VS") before it starts. */
 .duel-timer { display: none; }
 .game-view.duo #duel_timer {
 	display: block;
 	text-align: center;
 	margin: 0 0 0.6rem;
+	min-height: clamp(2rem, 3.4vw, 3rem);
 	font-family: var(--font-display);
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum" 1;
@@ -2837,14 +2847,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 	color: var(--text);
 	line-height: 1;
 	text-shadow: 0 0 18px rgba(230, 233, 245, 0.25);
-}
-.duel-timer:empty::before {
-	content: "VS";
-	font-size: 1.45rem;
-	font-weight: 900;
-	letter-spacing: 0.1em;
-	color: var(--muted);
-	text-shadow: 0 0 16px rgba(148, 163, 184, 0.35);
 }
 .duel-timer.round-timer-warning { color: var(--energy-streak); }
 .duel-timer.round-timer-urgent { color: var(--danger); animation: duel-timer-pulse 0.7s ease-in-out infinite; }
