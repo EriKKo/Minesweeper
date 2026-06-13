@@ -2260,6 +2260,27 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	100% { transform: scale(1); opacity: 1; }
 }
 
+/* 6-player battle: finish-place badge stamped on each board as that player clears
+   (updateMultiPlacements). Mirrors the duel YOU WIN banner; 1st/2nd/3rd get medal colours. */
+.board-place {
+	position: absolute; inset: 0;
+	display: flex; align-items: center; justify-content: center;
+	z-index: 6; pointer-events: none;
+	border-radius: inherit;
+	font-family: var(--font-display);
+	font-weight: 800; letter-spacing: 0.03em;
+	font-size: clamp(1.3rem, 2.4vw, 2.1rem);
+	color: #cbd5e1;
+	text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+	background: radial-gradient(ellipse at center, rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.12) 75%);
+	animation: duel-outcome-pop 0.4s var(--ease) both;
+}
+/* The player's own (big) board gets a larger stamp, like the duel banner. */
+.player-board .board-place { font-size: clamp(2rem, 4.5vw, 3.4rem); }
+.board-place-1 { color: var(--energy-gold, #fbbf24); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 28px rgba(252, 211, 51, 0.6); }
+.board-place-2 { color: #e2e8f0; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 22px rgba(226, 232, 240, 0.35); }
+.board-place-3 { color: #f0b486; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 22px rgba(240, 180, 134, 0.35); }
+
 /* === Tournament champion panel ====================================
    Single-subject celebration shown after the final round.  No ladder,
    just the winner, their tier, and the rating bump.  Trophy gets a
@@ -2916,6 +2937,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	align-content: start;
 }
 .game-view.multi .opponent_div {
+	position: relative;
 	padding: 0.6rem 0.7rem 0.7rem;
 	border-radius: 12px;
 	transition: box-shadow 0.25s ease, border-color 0.25s ease;

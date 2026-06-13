@@ -135,6 +135,38 @@ function updateMultiHud(meGame, opponents) {
 		slots[i].classList.toggle("finished", !!(opp && opp.finished));
 	}
 }
+// 6-player battle: stamp each finished board with its finish place (1st, 2nd, …) the moment that
+// player clears — the multiplayer analogue of the duel's YOU WIN banner. Place is the live finish
+// order (by finishedAt); boards still racing show nothing. Cleared between rounds (clearPlaceBadges).
+function updateMultiPlacements(games) {
+	if (!isMultiRacing()) return;
+	var finishers = (games || []).filter(function(g) { return g && g.finished; })
+		.sort(function(a, b) { return (a.finishedAt || 0) - (b.finishedAt || 0); });
+	var placeOf = {};
+	finishers.forEach(function(g, idx) { if (g.id) placeOf[g.id] = idx + 1; });
+	setPlaceBadge(document.getElementById("player_div"), games[0] && games[0].id ? placeOf[games[0].id] : null);
+	var slots = document.querySelectorAll("#all_opponents_div .opponent_div");
+	for (var i = 0; i < slots.length; i++) {
+		var pid = slots[i].dataset.pid;
+		setPlaceBadge(slots[i], pid ? placeOf[pid] : null);
+	}
+}
+function setPlaceBadge(card, place) {
+	if (!card) return;
+	var existing = card.querySelector(".board-place");
+	if (!place) { if (existing) existing.remove(); return; }
+	if (existing && Number(existing.dataset.place) === place) return;
+	if (existing) existing.remove();
+	var b = document.createElement("div");
+	b.className = "board-place board-place-" + (place <= 3 ? place : "n");
+	b.dataset.place = place;
+	b.textContent = (typeof ordinal === "function") ? ordinal(place) : place + "";
+	card.appendChild(b);
+}
+function clearPlaceBadges() {
+	var els = document.querySelectorAll(".board-place");
+	for (var i = 0; i < els.length; i++) els[i].remove();
+}
 // Size the opponent boards. In the duel, the single opponent (game1) is sized to the SAME cell
 // size as the player board so the two boards match; the other slots (and all of 6-player) stay
 // small thumbnails.
@@ -1089,6 +1121,8 @@ socket.on("territory_result", function(data) { if (typeof territoryResult === "f
 // canvas. Covered cells don't read the board decoder, so this works before it's installed.
 function setCoveredBoard() {
 	if (!rows || !cols) return;
+	clearPlaceBadges(); // a fresh round starts covered — drop the previous round's finish places
+
 	myState = new Array(rows);
 	for (var r = 0; r < rows; r++) {
 		myState[r] = new Array(cols);
@@ -1473,7 +1507,7 @@ socket.on("draw_board", function(data) {
 
 	renderScoreboard();
 	if (isDuoRacing()) updateDuelHud(games[0], opponents[0]);
-	else if (isMultiRacing()) updateMultiHud(games[0], opponents);
+	else if (isMultiRacing()) { updateMultiHud(games[0], opponents); updateMultiPlacements(games); }
 	updateDangerWarning();
 });
 
