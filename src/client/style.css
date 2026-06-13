@@ -3853,6 +3853,20 @@ body.touch .find-next-arrow { display: inline-flex; }
    the real fullscreen state in Fullscreen.js (so Esc reverts it too). */
 body.game-fullscreen .topbar { display: none; }
 body.game-fullscreen main { max-width: none; }
+body.game-fullscreen .site-footer { display: none; }
+
+/* Windowed, the game grid is a left-aligned board (1fr) + a 320px sidebar inside a
+   max-width container. In fullscreen `main` loses its max-width, so that board would
+   sit jammed against the left edge with a big empty gap. Center the play area instead.
+   (Territory and puzzle keep their own bespoke fullscreen layouts.) */
+body.game-fullscreen .game-view.solo .game-grid {
+	grid-template-columns: auto;
+	justify-content: center;
+}
+body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo) .game-grid {
+	grid-template-columns: auto 320px;
+	justify-content: center;
+}
 
 /* Standalone legal pages (privacy.html, terms.html) — server-rendered HTML
    served at /privacy and /terms, reusing the topbar/logo and colour vars. */

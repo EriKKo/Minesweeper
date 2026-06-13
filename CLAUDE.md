@@ -469,7 +469,14 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `startSolo`, `renderPuzzlePlay`, territory create), never from a later socket/board
   callback; it's idempotent and fails silently if the browser blocks/doesn't support it.
   Exit is wired into every leave path (`leave_button`, `cancelRanked`, `exitSolo`,
-  `exitPuzzle`, territory teardown, and the Router's navigate-away teardown).
+  `exitPuzzle`, territory teardown, and the Router's navigate-away teardown). NB browsers
+  **suppress `window.confirm()` while fullscreen** (it returns false silently), so the
+  `leave_button` handler exits fullscreen first and waits for the `fullscreenchange` before
+  prompting the "leaving counts as a loss" confirm — otherwise the button looks dead in-game.
+  Fullscreen chrome (driven by `body.game-fullscreen`) hides the navbar + footer and, for the
+  non-territory/non-puzzle modes, re-centers the play area (the windowed grid left-aligns the
+  board in a `1fr` column + 320px sidebar, which jams it against the edge once `main`'s
+  max-width is dropped in fullscreen).
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
