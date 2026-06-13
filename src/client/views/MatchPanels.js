@@ -192,6 +192,18 @@ document.addEventListener("keydown", function(e) {
 // `opts.suppressBanner` skips the centered RANK UP / DOWN banner — useful when
 // the series-end panel is already showing the old → new icon swap in its
 // rank column, so the two indicators don't fight for attention.
+// Each ranked mode key (sprint_duo, standard_six, tournament, territory_quad…)
+// is prefixed by its playstyle; the home chips + mode-card badges read the
+// per-style rating, so the played style's field must be updated too.
+function styleFieldFromMode(mode) {
+	if (!mode) return null;
+	if (mode.indexOf("sprint") === 0) return "ratingSprint";
+	if (mode.indexOf("standard") === 0) return "ratingStandard";
+	if (mode.indexOf("tournament") === 0) return "ratingTournament";
+	if (mode.indexOf("territory") === 0) return "ratingTerritory";
+	return null;
+}
+
 function updateRatingFromStandings(standings, opts) {
 	opts = opts || {};
 	if (!account) return;
@@ -201,6 +213,11 @@ function updateRatingFromStandings(standings, opts) {
 	var oldTier = tierFor(oldRating, account.provisional);
 	account.rating = mine.rating;
 	if (mine.provisional != null) account.provisional = mine.provisional;
+	// Keep the per-style rating in sync so the home page reflects the result
+	// without a reload (the home chips/badges read ratingSprint/Standard/…).
+	var styleField = styleFieldFromMode(opts.mode || (typeof currentRankedMode !== "undefined" ? currentRankedMode : null));
+	if (styleField) account[styleField] = mine.rating;
+	if (typeof renderHomeRankChips === "function") renderHomeRankChips();
 	var newTier = tierFor(account.rating, account.provisional);
 	renderRatingBadge();
 	ratingChip.classList.remove("rating-chip-bump");
@@ -326,7 +343,7 @@ function showRankedResult(data) {
 
 	// Apply the rating to the badge, then animate the number + progress a beat later (reward tick),
 	// and play the rank-up/down fanfare if a tier was crossed.
-	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true, suppressDelta: true });
+	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true, suppressDelta: true, mode: data.mode });
 	setTimeout(function() {
 		countUpNumber(num, oldRating != null ? oldRating : newRating, newRating, 950);
 		fill.style.width = Math.round(newProg.fill * 100) + "%";
@@ -420,7 +437,7 @@ function showTournamentChampionPanel(data) {
 	}
 
 	// Apply ranked rating updates from standings (same as the series flow).
-	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true });
+	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true, mode: data.mode || "tournament" });
 
 	var actions = document.createElement("div");
 	actions.className = "result-actions champion-actions";
