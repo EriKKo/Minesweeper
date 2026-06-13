@@ -204,9 +204,12 @@ match-found → reveal → countdown → GO → result. It's the spine of the UX
 
 1. **Foundations** — type scale + display face, motion tokens, mode-accent +
    energy colour system, the tile/elevation language. Low risk, lifts every
-   screen at once. *(In progress.)*
+   screen at once. *(Done.)*
 2. **Result moments** — win/lose/rank-up celebration, rating count-up, sound.
-   Highest emotional payoff.
+   Highest emotional payoff. *(Done: confetti + win-header glow/pop on win;
+   rating counts up in the rank-swap column; sound cues — seriesWin/lose,
+   rankUp/rankDown on tier crossings, matchFound when a ranked match forms.
+   `playResultMoment` in MatchPanels.js drives it.)*
 3. **Home as a launcher** — a "you" strip (rank · rating · streak · ▲ week) + one
    hero CTA + vivid, differentiated mode cards.
 4. **Leaderboard podium + profile identity** (rank badge + progress-to-next-tier).

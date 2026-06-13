@@ -93,8 +93,11 @@ function buildRankSwapColumn(oldRating, newRating, ratingDelta) {
 
 	var rating = document.createElement("div");
 	rating.className = "result-rank-rating";
-	rating.textContent = String(newRating);
+	rating.textContent = String(oldRating);
 	col.appendChild(rating);
+	// Count the rating up (or down) to its new value a beat after the panel lands — the reward tick.
+	if (typeof countUpNumber === "function") setTimeout(function() { countUpNumber(rating, oldRating, newRating, 950); }, 400);
+	else rating.textContent = String(newRating);
 
 	if (typeof ratingDelta === "number") {
 		var delta = document.createElement("span");

@@ -128,6 +128,11 @@ var sound = (function() {
 		win: function() { arp([523, 659, 784, 1047], 0.09, 0.28, 0.12); },
 		lose: function() { tone({ type: "sine", freq: 320, toFreq: 200, dur: 0.32, gain: 0.11 }); },
 		seriesWin: function() { arp([523, 659, 784, 1047, 1319], 0.11, 0.34, 0.13); },
+		// Triumphant rising fanfare when you climb a tier; a soft descending sigh when you drop one.
+		rankUp: function() { arp([659, 880, 1047, 1319, 1568], 0.10, 0.38, 0.14); },
+		rankDown: function() { tone({ type: "sine", freq: 440, toFreq: 233, dur: 0.42, gain: 0.12 }); },
+		// Crisp two-note "you're in" cue when a ranked match forms.
+		matchFound: function() { arp([587, 880], 0.09, 0.22, 0.13); },
 		unlock: function() { if (ensure() && ctx.state === "suspended") ctx.resume(); },
 		setMuted: function(m) { muted = m; localStorage.setItem("ms_muted", m ? "1" : "0"); },
 		isMuted: function() { return muted; },

@@ -1242,6 +1242,7 @@ socket.on("series_ended", function(data) {
 // (start_game) a beat later.
 socket.on("match_reveal", function() {
 	setCoveredBoard();
+	if (typeof sound !== "undefined") sound.matchFound();
 });
 
 // Sent only to the player(s) cut at the end of a tournament round. They stay

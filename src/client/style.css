@@ -2175,9 +2175,37 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	color: var(--text);
 }
 
-.board-overlay-win .result-header { color: var(--success); }
+.board-overlay-win .result-header {
+	color: var(--energy-gold);
+	text-shadow: 0 0 26px rgba(252, 211, 51, 0.5);
+}
 .board-overlay-lose .result-header { color: var(--text); }
 .result-header-series { font-size: 1.35rem; }
+/* Win header lands with a pop. */
+.board-overlay-win .result-header-series { animation: result-pop 0.5s var(--ease) both; }
+@keyframes result-pop {
+	0%   { transform: scale(0.7); opacity: 0; }
+	60%  { transform: scale(1.08); }
+	100% { transform: scale(1); opacity: 1; }
+}
+
+/* Rank-up: the new badge flares in its tier glow when the tier changed. */
+.rank-swap.changed .rank-badge-new { box-shadow: 0 0 0 2px var(--energy-gold), 0 0 22px -2px rgba(252, 211, 51, 0.7); }
+
+/* Win confetti (celebrateWin in MatchPanels.js) — falling pieces, self-cleaning. */
+.confetti-layer { position: fixed; inset: 0; pointer-events: none; z-index: 1200; overflow: hidden; }
+.confetti-piece {
+	position: absolute; top: -6vh;
+	width: 9px; height: 14px; border-radius: 2px;
+	opacity: 0.95;
+	animation-name: confetti-fall;
+	animation-timing-function: cubic-bezier(.25, .6, .5, 1);
+	animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+	0%   { transform: translateY(-6vh) rotate(0deg); opacity: 1; }
+	100% { transform: translateY(108vh) rotate(680deg); opacity: 0.85; }
+}
 
 /* === Tournament champion panel ====================================
    Single-subject celebration shown after the final round.  No ladder,
