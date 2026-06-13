@@ -452,6 +452,16 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   opponent's board is painted covered (`paintOpponentCovered`) until their first real frame, so both
   boards show through the join + countdown. Both boards are pushed toward the center column so the VS
   sits exactly between them.
+  **6-player battle layout** (`isMultiRacing()`, 3-6 racing players): the same TetrisFriends idea
+  scaled up — one big own board on the left with your identity panel (`#duel_id_you`) above it, the
+  round timer centered up top (shared `#duel_timer`), and **every** opponent's live board tiled in a
+  two-column grid on the right (the existing `game1`-`game5` slots), each card showing the player's
+  name + live `%` (`playerLabel`) with the current leader glowing (`updateMultiHud`). Driven by a
+  `multi` class on `#game_view` (CSS `.game-view.multi`); toggled alongside `duo` in `applyDuoClass`.
+  Unlike the duel, opponent canvases keep their small `OPP_CELL` render resolution and are scaled to
+  the grid cell by CSS (`width:100%`), so `sizeOpponentCanvases` needs no special case. The fullscreen
+  re-center rule excludes `.multi` (like `.duo`) so it keeps its own two-column grid. Tournaments
+  (larger lobbies) stay on the scoreboard layout with top-2 opponent thumbnails.
   The site footer is hidden whenever a game is on screen via a `body.in-game` class (added by the
   game entry points, removed in `hideAllViews`).
 - `AdminList.js` — shared helpers for the paginated admin views: `renderPager` and the
