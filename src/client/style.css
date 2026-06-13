@@ -2518,19 +2518,23 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	height: 92px;
 }
 
+/* Rank badge — military service patch. Sized in `em` off `font-size` so a caller
+   scales the whole thing with one declaration; tier colour rides in CSS vars. */
 .rank-badge {
-	width: 92px;
-	height: 92px;
-	border-radius: 50%;
+	font-size: 16px;
+	width: 5em;
+	min-height: 5.6em;
+	padding: 0.7em 0 0.55em;
+	border-radius: 0.85em;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	flex-direction: column;
-	font-weight: 800;
+	gap: 0.32em;
+	background: linear-gradient(160deg, #1d2540, #0c1020);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 16px var(--rb-glow, transparent);
 	color: #fff;
-	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
-	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2);
-	border: 3px solid rgba(255, 255, 255, 0.22);
 	user-select: none;
 }
 
@@ -2538,20 +2542,32 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 .rank-swap .rank-badge {
 	position: absolute;
 	inset: 0;
-	width: auto;
-	height: auto;
 }
 
-.rank-badge-numeral { font-size: 1.6rem; line-height: 1; letter-spacing: 0.02em; }
-.rank-badge-tier { font-size: 0.55rem; letter-spacing: 0.18em; opacity: 0.85; margin-top: 0.2rem; }
-.rank-badge-icon { font-size: 1.7rem; line-height: 1; }
+.rank-chev {
+	width: 3em;
+	height: 0.875em;
+	clip-path: polygon(50% 0, 100% 58%, 100% 100%, 50% 42%, 0 100%, 0 58%);
+	background: linear-gradient(160deg, var(--rb-c1), var(--rb-c2) 55%, var(--rb-c3));
+	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+.rank-badge-star {
+	font-size: 1.95em;
+	line-height: 1;
+	background: linear-gradient(160deg, var(--rb-c1), var(--rb-c2) 55%, var(--rb-c3));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+.rank-badge-tier { font-size: 0.5em; letter-spacing: 0.12em; opacity: 0.9; margin-top: 0.18em; font-weight: 700; }
 
-.rank-badge.tier-bronze   { background: linear-gradient(140deg, #d08b5b 0%, #6b3f23 100%); }
-.rank-badge.tier-silver   { background: linear-gradient(140deg, #e2e8f0 0%, #475569 100%); }
-.rank-badge.tier-gold     { background: linear-gradient(140deg, #fbbf24 0%, #92400e 100%); box-shadow: 0 0 24px rgba(251, 191, 36, 0.3), 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2); }
-.rank-badge.tier-platinum { background: linear-gradient(140deg, #5eead4 0%, #0d9488 100%); box-shadow: 0 0 22px rgba(94, 234, 212, 0.3), 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2); }
-.rank-badge.tier-diamond  { background: linear-gradient(140deg, #60a5fa 0%, #1d4ed8 100%); box-shadow: 0 0 24px rgba(96, 165, 250, 0.4), 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2); }
-.rank-badge.tier-master   { background: linear-gradient(140deg, #c084fc 0%, #581c87 100%); box-shadow: 0 0 30px rgba(192, 132, 252, 0.55), 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2); }
+.rank-badge.tier-bronze   { --rb-c1: #f0b486; --rb-c2: #cf8a57; --rb-c3: #6e4226; --rb-glow: rgba(207, 138, 87, 0.22); }
+.rank-badge.tier-silver   { --rb-c1: #ffffff; --rb-c2: #c3cedd; --rb-c3: #5e6b7e; --rb-glow: rgba(203, 213, 225, 0.22); }
+.rank-badge.tier-gold     { --rb-c1: #fef0b0; --rb-c2: #f6b619; --rb-c3: #8a4f08; --rb-glow: rgba(251, 191, 36, 0.45); }
+.rank-badge.tier-platinum { --rb-c1: #c8f9ef; --rb-c2: #4fd9c4; --rb-c3: #0c7f73; --rb-glow: rgba(94, 234, 212, 0.45); }
+.rank-badge.tier-diamond  { --rb-c1: #cfe4ff; --rb-c2: #5aa0fa; --rb-c3: #1b46c4; --rb-glow: rgba(96, 165, 250, 0.5); }
+.rank-badge.tier-master   { --rb-c1: #f6e3ff; --rb-c2: #bf7bfb; --rb-c3: #6f1fbd; --rb-glow: rgba(192, 132, 252, 0.65); }
 
 .rank-swap.changed .rank-badge-old { animation: rank-icon-out 0.75s cubic-bezier(.55, .05, .7, .35) forwards; }
 .rank-swap.changed .rank-badge-new { opacity: 0; animation: rank-icon-in 0.75s cubic-bezier(.22, 1, .36, 1) 0.55s forwards; }
@@ -2789,7 +2805,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 .duel-id { display: none; }
 .game-view.duo .duel-id { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; }
 .game-view.duo #duel_id_opp { flex-direction: row-reverse; text-align: right; }
-.duel-id .rank-badge { flex: 0 0 auto; }
+.duel-id .rank-badge { flex: 0 0 auto; font-size: 10px; }
 .duel-id-name { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
 .duel-id-rating { font-size: 0.82rem; font-weight: 600; margin-top: 0.1rem; }
 

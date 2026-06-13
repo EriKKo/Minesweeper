@@ -40,29 +40,32 @@ function rankIconFor(rating) {
 	};
 }
 
+// Military rank-insignia badge: a dark service patch with 1-3 metallic chevrons
+// (the sub-tier) tinted by the tier, glowing in the tier colour. Master tops out
+// with a star instead of chevrons. The patch is sized in `em` off its font-size,
+// so callers scale the whole badge by setting one font-size (see .duel-id / modal).
 function buildRankBadge(rating) {
 	var info = rankIconFor(rating);
 	var badge = document.createElement("div");
 	badge.className = "rank-badge tier-" + info.tierClass;
 	if (info.subNum) {
-		var num = document.createElement("div");
-		num.className = "rank-badge-numeral";
-		num.textContent = info.subNum;
-		badge.appendChild(num);
-		var label = document.createElement("div");
-		label.className = "rank-badge-tier";
-		label.textContent = info.label.toUpperCase();
-		badge.appendChild(label);
+		var count = SUB_TIER_NUMERALS.indexOf(info.subNum) + 1;
+		if (count < 1) count = 1;
+		for (var i = 0; i < count; i++) {
+			var chev = document.createElement("span");
+			chev.className = "rank-chev";
+			badge.appendChild(chev);
+		}
 	} else {
-		var icon = document.createElement("div");
-		icon.className = "rank-badge-icon";
-		icon.textContent = "★";
-		badge.appendChild(icon);
-		var label2 = document.createElement("div");
-		label2.className = "rank-badge-tier";
-		label2.textContent = "MASTER";
-		badge.appendChild(label2);
+		var star = document.createElement("span");
+		star.className = "rank-badge-star";
+		star.textContent = "★";
+		badge.appendChild(star);
 	}
+	var label = document.createElement("div");
+	label.className = "rank-badge-tier";
+	label.textContent = (info.subNum ? info.label : "Master").toUpperCase();
+	badge.appendChild(label);
 	return badge;
 }
 
