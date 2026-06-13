@@ -38,8 +38,9 @@ var RANKED_MODES = {
 // (the search waiting room already showed the field), so this is brief for every mode.
 var MATCH_REVEAL_MS = 1000;
 // Bots "join" the queue one at a time at random intervals so it reads like real players.
-var BOT_JOIN_MIN_MS = 200;
-var BOT_JOIN_MAX_MS = 850;
+// Paced slowly enough that the waiting room is clearly visible before the field fills in.
+var BOT_JOIN_MIN_MS = 1200;
+var BOT_JOIN_MAX_MS = 2600;
 
 var botCount = gameUtil.botCount;
 // Core services injected at boot to avoid a circular require on the server.
