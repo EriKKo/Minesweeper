@@ -1,13 +1,12 @@
-// In-match result overlays: tournament round elimination card, per-round result,
-// series end, and the ranking-delta UI (banner + floating delta on the ratingChip).
-// Driven by socket events dispatched in the main inline script (round_ended,
-// series_ended, etc). The pre-game roster modal was removed — the search waiting
-// room already shows who's joining, so a match drops straight into the game layout.
+// In-match result overlays: the on-board YOU WIN / YOU LOSE banners, the ranked result modal
+// (rating change + tier progression), the tournament champion / elimination cards, and the
+// ranking-delta UI. Driven by socket events dispatched in the main inline script (game_result,
+// series_ended, etc). The per-round and series-standings dialogues were removed; the pre-game
+// roster modal too (the search waiting room already shows who's joining).
 //
-// Depends on Ranking.* helpers (tierFor, medal, buildRankBadge,
-// buildRankSwapColumn, ordinal, formatClearTime) and a handful of live-game
-// globals (account, id, socket, currentRoom, ratingChip, formatGameProgress,
-// presentPanel, ...) defined in the main inline script.
+// Depends on Ranking.* helpers (tierFor, tierProgress, medal, buildRankBadge, ordinal,
+// formatClearTime) and a handful of live-game globals (account, id, socket, currentRoom,
+// ratingChip, findRanked, leaveRoom, ...) defined in the main inline script.
 
 function showTournamentEliminationPanel(data) {
 	var panel = document.createElement("div");
@@ -186,46 +185,8 @@ document.addEventListener("keydown", function(e) {
 	btn.click();
 });
 
-function showRoundResultPanel(data) {
-	var standings = data.standings || [];
-	var won = data.winnerId === id;
-	var panel = document.createElement("div");
-	panel.className = "result-panel";
-
-	var header = document.createElement("div");
-	header.className = "result-header";
-	if (won) header.textContent = "🏆 You won round " + data.gameNumber + "!";
-	else if (data.winnerName) header.textContent = "🏆 " + data.winnerName + " takes round " + data.gameNumber;
-	else header.textContent = "Round " + data.gameNumber + " — tie!";
-	panel.appendChild(header);
-
-	var list = document.createElement("ol");
-	list.className = "result-list";
-	standings.forEach(function(s, idx) {
-		var detail = s.finished
-			? (s.finishMs != null ? "Cleared " + formatClearTime(s.finishMs) : "Cleared")
-			: s.safeCount + " cells";
-		if (s.ratingDelta != null) {
-			detail += "  " + (s.ratingDelta >= 0 ? "▲" : "▼") + Math.abs(s.ratingDelta);
-		}
-		var tier = typeof s.rating === "number" ? tierFor(s.rating, s.provisional) : null;
-		var row = resultRow(medal(s.rank), s.id === id ? "You" : s.name, detail, "+" + s.points,
-			{ me: s.id === id, top: s.rank === 1, tier: tier });
-		row.style.animationDelay = (idx * 55) + "ms";
-		list.appendChild(row);
-	});
-	panel.appendChild(list);
-
-	var foot = document.createElement("div");
-	foot.className = "result-foot";
-	foot.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
-	panel.appendChild(foot);
-
-	// Ranked rating now only changes once at series end, so the per-round panel
-	// doesn't apply the bump anymore — see series_ended → showSeriesResultPanel.
-
-	presentPanel(panel, won ? "win" : "lose");
-}
+// (Per-round and series-standings result dialogues were removed — the on-board YOU WIN/YOU LOSE
+// banners convey the outcome, and ranked shows the rating/tier-progression modal below.)
 
 // Apply our own ranked rating change to the badge (server already persisted it).
 // `opts.suppressBanner` skips the centered RANK UP / DOWN banner — useful when
@@ -280,98 +241,123 @@ function showRankChangeBanner(promoted, tier) {
 	setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 2900);
 }
 
-function showSeriesResultPanel(data) {
-	// Tournament gets its own panel — just the champion, no full ladder.
-	// The round-by-round eliminations already gave you the whole story.
-	if (data.mode === "tournament") {
-		showTournamentChampionPanel(data);
-		return;
-	}
-	// Prefer the new `standings` (with Elo deltas + tiers); fall back to plain
-	// `scores` for casual rooms that don't produce standings.
-	var entries = (data.standings && data.standings.length)
-		? data.standings.slice()
-		: (data.scores || []).slice().sort(function(a, b) { return b.score - a.score; });
+// Entry point at series end. Tournament keeps its champion celebration; ranked shows the
+// rating / tier-progression modal; casual gets a minimal rematch/leave card.
+function showResultModal(data) {
+	if (data.mode === "tournament") { showTournamentChampionPanel(data); return; }
+	if (data.ranked) { showRankedResult(data); return; }
+	showCasualResult(data);
+}
+
+// Ranked result: your rating change and progress toward the next tier — not a standings list.
+// Rank badge, rating count-up + delta, a fill bar toward the next sub-tier, and Play another / Leave.
+function showRankedResult(data) {
 	var won = data.winnerId === id;
-	var resultOldRating = account ? account.rating : null; // capture before updateRatingFromStandings mutates it
+	var mine = (data.standings || []).find(function(s) { return s.id === id; }) || {};
+	var oldRating = account ? account.rating : null;
+	var newRating = (typeof mine.rating === "number") ? mine.rating : (account ? account.rating : 0);
+
+	var panel = document.createElement("div");
+	panel.className = "result-panel ranked-result " + (won ? "ranked-result-win" : "ranked-result-lose");
+
+	var heading = document.createElement("div");
+	heading.className = "ranked-result-heading";
+	heading.textContent = won ? "Victory" : "Defeat";
+	panel.appendChild(heading);
+
+	var badge = buildRankBadge(newRating);
+	badge.classList.add("ranked-result-badge");
+	panel.appendChild(badge);
+
+	var tier = tierFor(newRating, mine.provisional);
+	var ratingLine = document.createElement("div");
+	ratingLine.className = "ranked-result-rating";
+	var tierName = document.createElement("span");
+	tierName.className = "ranked-result-tier";
+	tierName.style.color = tier.color;
+	tierName.textContent = tier.name;
+	ratingLine.appendChild(tierName);
+	var num = document.createElement("span");
+	num.className = "ranked-result-num";
+	num.textContent = String(oldRating != null ? oldRating : newRating);
+	ratingLine.appendChild(num);
+	if (typeof mine.ratingDelta === "number") {
+		var d = document.createElement("span");
+		d.className = "ranked-result-delta " + (mine.ratingDelta > 0 ? "gain" : mine.ratingDelta < 0 ? "loss" : "flat");
+		d.textContent = (mine.ratingDelta > 0 ? "▲ +" : mine.ratingDelta < 0 ? "▼ " : "± ") + Math.abs(mine.ratingDelta);
+		ratingLine.appendChild(d);
+	}
+	panel.appendChild(ratingLine);
+
+	// Progress toward the next sub-tier.
+	var oldProg = tierProgress(oldRating != null ? oldRating : newRating);
+	var newProg = tierProgress(newRating);
+	var track = document.createElement("div");
+	track.className = "ranked-result-progress";
+	var fill = document.createElement("span");
+	fill.className = "ranked-result-progress-fill";
+	fill.style.width = Math.round(oldProg.fill * 100) + "%";
+	track.appendChild(fill);
+	panel.appendChild(track);
+	var progLabel = document.createElement("div");
+	progLabel.className = "ranked-result-progress-label";
+	progLabel.textContent = newProg.atMax ? "Top tier reached" : (newProg.pointsToNext + " to " + newProg.nextName);
+	panel.appendChild(progLabel);
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Play another";
+	again.addEventListener("click", function() {
+		var mode = data.mode || currentRankedMode || "duo";
+		socket.emit("leave_room");
+		findRanked(mode);
+	});
+	var leave = document.createElement("button");
+	leave.className = "btn btn-secondary";
+	leave.textContent = "Leave";
+	leave.addEventListener("click", function() { leaveRoom(); });
+	actions.appendChild(again);
+	actions.appendChild(leave);
+	panel.appendChild(actions);
+
+	presentPanel(panel, won ? "win" : "lose");
+
+	// Apply the rating to the badge, then animate the number + progress a beat later (reward tick),
+	// and play the rank-up/down fanfare if a tier was crossed.
+	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true, suppressDelta: true });
+	setTimeout(function() {
+		countUpNumber(num, oldRating != null ? oldRating : newRating, newRating, 950);
+		fill.style.width = Math.round(newProg.fill * 100) + "%";
+	}, 400);
+	playResultMoment(won, data.ranked, oldRating);
+	try { again.focus(); } catch (e) {}
+}
+
+// Casual (custom room) — no rating. Minimal outcome card with Rematch (back to the room) / Leave.
+function showCasualResult(data) {
+	var won = data.winnerId === id;
 	var panel = document.createElement("div");
 	panel.className = "result-panel";
-
 	var header = document.createElement("div");
 	header.className = "result-header result-header-series";
-	if (!data.winnerId) header.textContent = "Series tied!";
-	else if (won) header.textContent = "🏆 You win the series!";
-	else header.textContent = "🏆 " + data.winnerName + " wins the series!";
+	header.textContent = !data.winnerId ? "Draw" : (won ? "You win!" : (data.winnerName || "Opponent") + " wins");
 	panel.appendChild(header);
-
-	var list = document.createElement("ol");
-	list.className = "result-list";
-	entries.forEach(function(s, idx) {
-		var rank = s.rank != null ? s.rank : (idx + 1);
-		var detail = "";
-		if (s.ratingDelta != null) detail = (s.ratingDelta >= 0 ? "▲" : "▼") + Math.abs(s.ratingDelta);
-		var tier = typeof s.rating === "number" ? tierFor(s.rating, s.provisional) : null;
-		var row = resultRow(medal(rank), s.id === id ? "You" : s.name, detail, String(s.score),
-			{ me: s.id === id, top: rank === 1, tier: tier });
-		row.style.animationDelay = (idx * 55) + "ms";
-		list.appendChild(row);
-	});
-
-	// Body wraps the rank-swap column (if ranked) and the standings list side
-	// by side. For casual rooms (no rating change), just append the list.
-	var mine = (data.standings || []).find(function(s) { return s.id === id; });
-	if (data.ranked && account && mine && typeof mine.rating === "number") {
-		var body = document.createElement("div");
-		body.className = "result-body";
-		body.appendChild(buildRankSwapColumn(account.rating, mine.rating, mine.ratingDelta));
-		body.appendChild(list);
-		panel.appendChild(body);
-	} else {
-		panel.appendChild(list);
-	}
-
-	var foot = document.createElement("div");
-	foot.className = "result-foot";
-	foot.textContent = "Final standings";
-	panel.appendChild(foot);
-
-	// Apply the ranked rating change once, at series end. The rank-swap column
-	// already shows the old → new icon animation, so suppress the centered
-	// banner; the topbar bump + floating delta still fire.
-	if (data.standings) updateRatingFromStandings(data.standings, { suppressBanner: true });
-
-	// Ranked single-match flow: players explicitly choose to re-queue or leave.
-	// Casual rooms keep the existing auto-hide behaviour.
-	if (data.ranked) {
-		var actions = document.createElement("div");
-		actions.className = "result-actions";
-
-		var again = document.createElement("button");
-		again.className = "btn btn-primary";
-		again.textContent = "Play another";
-		again.addEventListener("click", function() {
-			var mode = data.mode || currentRankedMode || "duo";
-			socket.emit("leave_room");
-			findRanked(mode);
-		});
-		actions.appendChild(again);
-
-		var back = document.createElement("button");
-		back.className = "btn btn-secondary";
-		back.textContent = "Back to menu";
-		back.addEventListener("click", function() {
-			leaveRoom(); // leaving for good — exits fullscreen (Play another stays fullscreen)
-		});
-		actions.appendChild(back);
-
-		panel.appendChild(actions);
-		presentPanel(panel, won ? "win" : "lose"); // no auto-hide — player decides
-		// Focus "Play another" so Enter re-queues without reaching for the mouse.
-		try { again.focus(); } catch (e) {}
-	} else {
-		presentPanel(panel, won ? "win" : "lose", 5500);
-	}
-	playResultMoment(won, data.ranked, resultOldRating);
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Rematch";
+	again.addEventListener("click", function() { hideOverlay(); }); // room returns to planning; ready up again
+	var leave = document.createElement("button");
+	leave.className = "btn btn-secondary";
+	leave.textContent = "Leave";
+	leave.addEventListener("click", function() { leaveRoom(); });
+	actions.appendChild(again);
+	actions.appendChild(leave);
+	panel.appendChild(actions);
+	presentPanel(panel, won ? "win" : "lose");
 }
 
 // Tournament championship panel — focused entirely on the winner.  No

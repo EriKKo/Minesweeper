@@ -1214,13 +1214,8 @@ socket.on("game_result", function(data) {
 		return;
 	}
 
-	// Non-tournament (or tournament round with no cut — round 1 if
-	// schedule[0] == 16): show the per-round panel only for INTERMEDIATE rounds of a
-	// best-of-N. On the final round (incl. every single-game match like a 1v1 duel),
-	// series_ended owns the result moment, so skip the redundant "You won round N" panel.
-	if (!eliminatedNow && !seriesOver) {
-		showRoundResultPanel(data);
-	}
+	// No per-round result dialogue anymore; just the win/lose feedback sound for intermediate
+	// rounds of a best-of-N. The final round's outcome is owned by series_ended.
 	if (!seriesOver) {
 		if (data.winnerId === id) sound.win(); else sound.lose();
 	}
@@ -1242,9 +1237,9 @@ socket.on("series_ended", function(data) {
 	// results modal a beat later (TetrisFriends-style). Other modes go straight to the modal.
 	if (isDuoRacing()) {
 		showDuelOutcome(iWon);
-		setTimeout(function() { clearDuelOutcomes(); showSeriesResultPanel(data); }, 2200);
+		setTimeout(function() { clearDuelOutcomes(); showResultModal(data); }, 2200);
 	} else {
-		showSeriesResultPanel(data);
+		showResultModal(data);
 	}
 });
 

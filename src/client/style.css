@@ -2189,6 +2189,42 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	100% { transform: scale(1); opacity: 1; }
 }
 
+/* Ranked result modal — rating change + progress toward the next tier (no standings list). */
+.ranked-result { align-items: center; text-align: center; gap: 0.85rem; }
+.ranked-result-heading {
+	font-family: var(--font-display);
+	font-size: 1.5rem; font-weight: 800; letter-spacing: 0.01em;
+}
+.ranked-result-win .ranked-result-heading { color: var(--energy-gold); text-shadow: 0 0 24px rgba(252, 211, 51, 0.45); }
+.ranked-result-lose .ranked-result-heading { color: var(--muted); }
+.ranked-result-badge { transform: scale(1.15); margin: 0.4rem 0 0.2rem; }
+.ranked-result-rating {
+	display: flex; align-items: baseline; justify-content: center; gap: 0.6rem;
+	font-family: var(--font-display);
+}
+.ranked-result-tier { font-size: 1rem; font-weight: 700; }
+.ranked-result-num { font-size: 1.9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ranked-result-delta { font-size: 1rem; font-weight: 700; }
+.ranked-result-delta.gain { color: var(--energy-win); }
+.ranked-result-delta.loss { color: var(--danger); }
+.ranked-result-delta.flat { color: var(--muted); }
+.ranked-result-progress {
+	position: relative;
+	width: min(280px, 80%);
+	height: 0.7rem;
+	border-radius: 7px;
+	background: rgba(255, 255, 255, 0.08);
+	overflow: hidden;
+	margin-top: 0.3rem;
+}
+.ranked-result-progress-fill {
+	position: absolute; inset: 0 auto 0 0; width: 0;
+	border-radius: 7px;
+	background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+	transition: width 0.9s var(--ease-out);
+}
+.ranked-result-progress-label { font-size: 0.8rem; color: var(--muted); }
+
 /* Rank-up: the new badge flares in its tier glow when the tier changed. */
 .rank-swap.changed .rank-badge-new { box-shadow: 0 0 0 2px var(--energy-gold), 0 0 22px -2px rgba(252, 211, 51, 0.7); }
 

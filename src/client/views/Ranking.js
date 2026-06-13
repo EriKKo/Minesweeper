@@ -66,56 +66,20 @@ function buildRankBadge(rating) {
 	return badge;
 }
 
-// Builds the left column for showSeriesResultPanel: old → new rank badge with
-// a swap animation if the tier changed, then the new rating + delta below.
-function buildRankSwapColumn(oldRating, newRating, ratingDelta) {
-	var col = document.createElement("div");
-	col.className = "result-rank-column";
-
-	var swap = document.createElement("div");
-	swap.className = "rank-swap";
-	var oldInfo = rankIconFor(oldRating);
-	var newInfo = rankIconFor(newRating);
-	var tierChanged = oldInfo.tierClass !== newInfo.tierClass || oldInfo.subNum !== newInfo.subNum;
-
-	if (tierChanged) {
-		var oldBadge = buildRankBadge(oldRating);
-		oldBadge.classList.add("rank-badge-old");
-		swap.appendChild(oldBadge);
-		var newBadge = buildRankBadge(newRating);
-		newBadge.classList.add("rank-badge-new");
-		swap.appendChild(newBadge);
-		swap.classList.add("changed");
-	} else {
-		swap.appendChild(buildRankBadge(newRating));
-	}
-	col.appendChild(swap);
-
-	var rating = document.createElement("div");
-	rating.className = "result-rank-rating";
-	rating.textContent = String(oldRating);
-	col.appendChild(rating);
-	// Count the rating up (or down) to its new value a beat after the panel lands — the reward tick.
-	if (typeof countUpNumber === "function") setTimeout(function() { countUpNumber(rating, oldRating, newRating, 950); }, 400);
-	else rating.textContent = String(newRating);
-
-	if (typeof ratingDelta === "number") {
-		var delta = document.createElement("span");
-		var sign = ratingDelta > 0 ? "+" : ratingDelta < 0 ? "" : "±";
-		delta.textContent = sign + ratingDelta;
-		delta.className = "result-rank-delta " + (ratingDelta > 0 ? "gain" : ratingDelta < 0 ? "loss" : "flat");
-		col.appendChild(delta);
-	}
-
-	if (tierChanged) {
-		var changed = document.createElement("div");
-		var promoted = newRating > oldRating;
-		changed.className = "result-rank-changed " + (promoted ? "promoted" : "demoted");
-		changed.textContent = promoted ? "RANK UP" : "RANK DOWN";
-		col.appendChild(changed);
-	}
-
-	return col;
+// Progress within the current sub-tier toward the next one (the ranked result modal's bar).
+// Returns { fill: 0..1, nextName, pointsToNext, atMax }.
+function tierProgress(rating) {
+	if (typeof rating !== "number") rating = TIER_BASE_RATING;
+	if (rating >= MASTER_THRESHOLD) return { fill: 1, nextName: null, pointsToNext: 0, atMax: true };
+	var clamped = rating < TIER_BASE_RATING ? TIER_BASE_RATING : rating;
+	var subStart = TIER_BASE_RATING + Math.floor((clamped - TIER_BASE_RATING) / SUB_TIER_WIDTH) * SUB_TIER_WIDTH;
+	var nextThreshold = subStart + SUB_TIER_WIDTH;
+	return {
+		fill: Math.max(0, Math.min(1, (clamped - subStart) / SUB_TIER_WIDTH)),
+		nextName: tierFor(nextThreshold).name,
+		pointsToNext: Math.max(0, Math.round(nextThreshold - rating)),
+		atMax: false
+	};
 }
 
 function ordinal(n) {

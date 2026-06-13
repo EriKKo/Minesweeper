@@ -206,15 +206,16 @@ match-found → reveal → countdown → GO → result. It's the spine of the UX
    energy colour system, the tile/elevation language. Low risk, lifts every
    screen at once. *(Done.)*
 2. **Result moments** — win/lose/rank-up celebration, rating count-up, sound.
-   Highest emotional payoff. *(Done: win-header glow/pop; rating counts up in the
-   rank-swap column; sound cues — seriesWin/lose, rankUp/rankDown on tier
-   crossings, matchFound when a ranked match forms. `playResultMoment` in
-   MatchPanels.js drives it. Confetti was tried and removed — too much. The 1v1
-   duel ends in two stages (TetrisFriends-style): big on-board YOU WIN / YOU LOSE
-   banners (`showDuelOutcome`) + the win/lose sound, then ~2.2s later the results
-   modal (rating count-up + rank-up sound + Play another/Back to menu). NB:
-   "Play another"/"Find another game" re-queue and stay fullscreen; only the
-   explicit "Back to menu/lobby" leaves exit fullscreen via `leaveRoom`.)*
+   Highest emotional payoff. *(Done. The 1v1 duel ends in two stages
+   (TetrisFriends-style): big on-board YOU WIN / YOU LOSE banners
+   (`showDuelOutcome`) + the win/lose sound, then ~2.2s later a focused **ranked
+   result modal** (`showRankedResult`): rank badge, rating count-up + delta, a
+   progress bar toward the next sub-tier (`tierProgress`), and Play another /
+   Leave. The old per-round and series-standings dialogues were deleted; tournament
+   keeps its champion panel, casual gets a minimal Rematch/Leave card. Sound:
+   seriesWin/lose at the banner, rankUp/rankDown on a tier crossing in the modal,
+   matchFound when a match forms. Confetti was tried and removed. NB: "Play
+   another" re-queues and stays fullscreen; "Leave" exits via `leaveRoom`.)*
 3. **Home as a launcher** — a "you" strip (rank · rating · streak · ▲ week) + one
    hero CTA + vivid, differentiated mode cards.
 4. **Leaderboard podium + profile identity** (rank badge + progress-to-next-tier).
