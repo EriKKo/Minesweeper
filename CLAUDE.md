@@ -40,7 +40,11 @@ else is grouped:
 (File bullets below use bare names; resolve them under `engine/` or `runtime/` per the lists above.)
 - `minesweeperServer.js` — HTTP + socket.io entry (at `src/server/` root): rooms, series, ranked
   matchmaking, bot orchestration. Its HTTP handler is a pure router — `/auth/*` → `oauth.js`,
-  `/api/*` → `puzzleApi.js`, everything else → `staticServer.js`.
+  `/api/*` → `puzzleApi.js`, everything else → `staticServer.js`. **Error containment:** every
+  socket event handler is wrapped in try/catch (the `socket.on` patch at the top of the
+  connection handler, covering core + module handlers), and `uncaughtException`/`unhandledRejection`
+  are caught at the process level — so a thrown handler/timer error is logged and the server keeps
+  running instead of crashing and dropping every connected player.
 - `staticServer.js` — serves client assets out of `src/client/` and `src/common/`,
   with the SPA fallback (extensionless unknown paths serve `index.html`).
 - `appState.js` — the server's shared mutable state in one place: the live collections

@@ -47,6 +47,17 @@ var PORT = process.env.PORT || 1337;
 // OAuth provider login + config lives in oauth.js; the server delegates /auth/*
 // routes to it and reads oauth.DEV_AUTH / oauth.providerFlags() where needed.
 
+// Last-resort safety net: keep the process alive on an unexpected error instead of crashing
+// and dropping every connected player. Socket handlers are already wrapped per-event (see the
+// connection handler); this catches the rest — chiefly errors thrown from timer callbacks (bot
+// ticks, round/ranked timers, the territory world tick). Log loudly so the real bug gets fixed.
+process.on("uncaughtException", function(err) {
+	console.error("uncaughtException (kept alive):", err);
+});
+process.on("unhandledRejection", function(reason) {
+	console.error("unhandledRejection (kept alive):", reason);
+});
+
 var app = http.createServer(handler);
 var io = require("socket.io")(app);
 appState.io = io; // share the socket.io server with the handler modules
@@ -671,6 +682,20 @@ function isSocketAdmin(playerID) {
 
 io.on("connection", function (socket) {
 	var playerID = socket.id;
+	// Contain handler errors: a thrown exception in ANY socket event handler (the core ones
+	// below + the feature modules' registerSocketHandlers) is logged and dropped, instead of
+	// propagating up to uncaughtException and taking the whole server — every connected
+	// player — down. Patched before any handler is registered so it covers them all.
+	var rawOn = socket.on.bind(socket);
+	socket.on = function(event, handler) {
+		return rawOn(event, function() {
+			try {
+				return handler.apply(this, arguments);
+			} catch (e) {
+				console.error("socket '" + event + "' handler error:", e);
+			}
+		});
+	};
 	sockets[playerID] = socket;
 	socket.join("lobby");
 	socket.emit("connected", { id: playerID, oauth: oauth.providerFlags() });
