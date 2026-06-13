@@ -71,6 +71,15 @@ else is grouped:
   eliminated). Pure math over `db` + the `appState` accounts/botRating; the standings it
   consumes are built in the core. `RANKED_BOT_RATING`/`PROVISIONAL_GAMES` are injected via
   `elo.init(deps)` (`isBot` comes from `gameUtil`). Consumed by the core endgame, `ranked`, and `territory`.
+  **Ladder & gains:** ratings run **0 → 3000+** with the tier bands at 200 each (Bronze I = 0;
+  Master from 3000 — see `Ranking.js`); a new rating floors at 0 (Bronze I). `kFactor(played)`
+  gives big placement swings that settle (K=150 game 1 → 40 from ~game 8), so first matches move
+  you fast. `marginFactor` adds a **margin-of-victory bonus** (up to +60%) to a *positive* swing,
+  scaled by how far your `progress` (avg fraction of board cleared across the series) beat the
+  player you outranked — so a dominant clear pays more than a photo-finish. Progress is summed per
+  round on the room (`progressSum`/`progressRounds`) and averaged in `buildSeriesStandings`; it's
+  absent for territory (→ no margin bonus). NB the bot pool is still calibrated on the old ~1000
+  scale, so until it's re-benched the reachable human ceiling is roughly the pool's top rating.
 - `bots.js` — racing/casual/ranked bot orchestration: add/remove bots, apply their per-move
   config to the game, and the per-move tick (`decideMove` → a delayed `handleLeftClick`, then
   reschedule). The bots play through the same game objects + move path as humans; `createPlayerGame`
@@ -562,7 +571,9 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
   them from the board array; the client receives `rows`/`cols` in room state.
 - Ranked uses a fixed ruleset (Best of 5, 2 min rounds, 5s mine penalty, medium board,
   10% mines), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
-  lobby's average rating and trickle into the queue like real players.
+  lobby's average rating and trickle into the queue like real players. The tier ladder runs
+  0 → 3000 (Bronze I = 0, 200 per sub-tier, Master from 3000); everyone starts/floors at 0 and
+  climbs. Gains are bigger for placement games and scale up with margin of victory (see `elo.js`).
 - Ranked filler bots come from a **pre-benchmarked pool** (`bots-pool.json`, committed),
   not synthesized on the fly. Each pool bot is a random point in the six-variable space
   (speed, per-difficulty thinking, distance multiplier, max-difficulty ceiling, mistake

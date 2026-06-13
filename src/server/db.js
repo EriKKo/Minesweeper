@@ -22,7 +22,7 @@ db.exec(
 	"  provider_id TEXT NOT NULL," +
 	"  name TEXT NOT NULL," +
 	"  avatar_url TEXT," +
-	"  rating INTEGER NOT NULL DEFAULT 1000," +
+	"  rating INTEGER NOT NULL DEFAULT 0," +
 	"  provisional_games INTEGER NOT NULL DEFAULT 0," +
 	"  wins INTEGER NOT NULL DEFAULT 0," +
 	"  played INTEGER NOT NULL DEFAULT 0," +
@@ -90,24 +90,25 @@ addColumnIfMissing("users", "is_guest", "INTEGER NOT NULL DEFAULT 0");
 // Ranked is split into Sprint / Standard playstyles (and Tournament keeps
 // its own pool). Each playstyle carries its own Elo and provisional
 // counter so a player can be Bronze at Sprint and Gold at Standard.
-addColumnIfMissing("users", "rating_sprint", "INTEGER NOT NULL DEFAULT 1000");
-addColumnIfMissing("users", "rating_standard", "INTEGER NOT NULL DEFAULT 1000");
-addColumnIfMissing("users", "rating_tournament", "INTEGER NOT NULL DEFAULT 1000");
-addColumnIfMissing("users", "rating_territory", "INTEGER NOT NULL DEFAULT 1000");
+addColumnIfMissing("users", "rating_sprint", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "rating_standard", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "rating_tournament", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "rating_territory", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "sprint_provisional", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "standard_provisional", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "tournament_provisional", "INTEGER NOT NULL DEFAULT 0");
-// One-shot backfill: seed the per-style columns from the legacy `rating`
-// the first time a user is touched after this column is added. Pre-split
-// users keep their progress rather than reset to 1000 across the board.
+// Ladder rework: the tier ladder now runs 0 → 3000 with 200-wide sub-tiers (Bronze I = 0)
+// instead of the old 1000-base / 50-wide bands. Every account resets to 0 and re-places from
+// Bronze with fresh placement games. One-shot, guarded by ranked_reset_v2 so it runs once per
+// row (a player who earns rating after the reset keeps it across reboots).
+addColumnIfMissing("users", "ranked_reset_v2", "INTEGER NOT NULL DEFAULT 0");
 try {
 	db.exec(
-		"UPDATE users SET rating_sprint = rating, rating_standard = rating, rating_tournament = rating, " +
-		"sprint_provisional = provisional_games, standard_provisional = provisional_games, " +
-		"tournament_provisional = provisional_games " +
-		"WHERE rating_sprint = 1000 AND rating_standard = 1000 AND rating_tournament = 1000 AND rating <> 1000"
+		"UPDATE users SET rating = 0, rating_sprint = 0, rating_standard = 0, rating_tournament = 0, " +
+		"rating_territory = 0, provisional_games = 0, sprint_provisional = 0, standard_provisional = 0, " +
+		"tournament_provisional = 0, played = 0, wins = 0, ranked_reset_v2 = 1 WHERE ranked_reset_v2 = 0"
 	);
-} catch (e) { /* columns may already be backfilled */ }
+} catch (e) { /* already reset */ }
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -231,8 +232,12 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 		applyAdminForEmail(updated);
 		return updated;
 	}
+	// Ranked ratings start at 0 (Bronze I) — set explicitly so a pre-existing DB whose columns
+	// still carry the old DEFAULT 1000 doesn't seed new accounts at Silver III.
 	var info = db.prepare(
-		"INSERT INTO users (provider, provider_id, name, avatar_url, email, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+		"INSERT INTO users (provider, provider_id, name, avatar_url, email, created_at, " +
+		"rating, rating_sprint, rating_standard, rating_tournament, rating_territory) " +
+		"VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)"
 	).run(provider, providerId, name, avatarUrl || null, emailLower, Date.now());
 	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 	applyAdminForEmail(created);
@@ -245,7 +250,9 @@ function createGuest() {
 	var name = "Guest" + (10000 + Math.floor(Math.random() * 90000));
 	var providerId = crypto.randomBytes(12).toString("hex");
 	var info = db.prepare(
-		"INSERT INTO users (provider, provider_id, name, is_guest, created_at) VALUES ('guest', ?, ?, 1, ?)"
+		"INSERT INTO users (provider, provider_id, name, is_guest, created_at, " +
+		"rating, rating_sprint, rating_standard, rating_tournament, rating_territory) " +
+		"VALUES ('guest', ?, ?, 1, ?, 0, 0, 0, 0, 0)"
 	).run(providerId, name, Date.now());
 	return db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 }

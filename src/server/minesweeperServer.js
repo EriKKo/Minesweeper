@@ -230,6 +230,14 @@ function endIndividualGame(room, reason) {
 		if (games[room.players[i]]) games[room.players[i]].playing = false;
 	}
 	var roundStandings = standings.buildStandings(room);
+	// Accumulate each player's per-round progress so the series-end Elo can apply a
+	// margin-of-victory bonus (a dominant clear pays more than a photo-finish).
+	room.progressSum = room.progressSum || {};
+	room.progressRounds = (room.progressRounds || 0) + 1;
+	for (var ps = 0; ps < roundStandings.length; ps++) {
+		var pe = roundStandings[ps];
+		room.progressSum[pe.id] = (room.progressSum[pe.id] || 0) + (pe.progress || 0);
+	}
 	// Round winner = unique top-ranked player, if any.
 	var winnerID = null;
 	if (roundStandings.length > 0 && roundStandings[0].rank === 1) {

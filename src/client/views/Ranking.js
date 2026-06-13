@@ -2,7 +2,8 @@
 // view, the Leaderboard, and the match result panels.
 //
 // MSBattle's ladder is Bronze/Silver/Gold/Platinum/Diamond with three sub-tiers
-// each (I/II/III, 50 rating per step), then an open-ended Master tier above.
+// each (I/II/III, 200 rating per step starting at 0), then an open-ended Master
+// tier above (from 3000). Players reset to 0 and climb up from Bronze I.
 
 var TIER_BANDS = [
 	{ name: "Bronze",   color: "#d08b5b" },
@@ -11,8 +12,8 @@ var TIER_BANDS = [
 	{ name: "Platinum", color: "#5eead4" },
 	{ name: "Diamond",  color: "#60a5fa" }
 ];
-var TIER_BASE_RATING = 1000;
-var SUB_TIER_WIDTH = 50;
+var TIER_BASE_RATING = 0;
+var SUB_TIER_WIDTH = 200;
 var SUB_TIERS_PER_TIER = 3;
 var SUB_TIER_NUMERALS = ["I", "II", "III"];
 var MASTER_THRESHOLD = TIER_BASE_RATING + TIER_BANDS.length * SUB_TIERS_PER_TIER * SUB_TIER_WIDTH;

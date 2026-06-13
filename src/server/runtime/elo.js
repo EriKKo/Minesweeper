@@ -18,6 +18,26 @@ function init(deps) {
 	PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES;
 }
 
+// K-factor: big swings for a player's first matches (placement), settling to a stable floor so an
+// established rating stops bouncing. K=150 game 1 → 40 from ~game 8 on.
+function kFactor(played) { return Math.max(40, 150 - played * 14); }
+
+// Margin-of-victory: a dominant finish boosts the rating GAIN by up to MARGIN_BONUS. The margin is
+// the gap between this player's progress (avg fraction of board cleared across the series) and the
+// best progress among the players they outranked — so clearing far ahead of the next player pays
+// more than a photo-finish. Progress absent (e.g. territory) → factor 1 (no bonus).
+var MARGIN_BONUS = 0.6;
+function marginFactor(part, parts) {
+	if (typeof part.progress !== "number") return 1;
+	var below = 0;
+	for (var j = 0; j < parts.length; j++) {
+		var q = parts[j];
+		if (q.rank > part.rank && typeof q.progress === "number" && q.progress > below) below = q.progress;
+	}
+	var gap = Math.max(0, Math.min(1, part.progress - below));
+	return 1 + MARGIN_BONUS * gap;
+}
+
 // Read the rating column matching this match's playstyle so Sprint /
 // Standard / Tournament each evolve independently.
 function readUserRating(u, style) {
@@ -48,9 +68,8 @@ function applyEloForPlayer(targetPid, allParts, style) {
 		var expected = 1 / (1 + Math.pow(10, (q.rating - target.rating) / 400));
 		sum += score - expected;
 	}
-	var K = Math.max(30, 80 - target.played * 4);
-	var delta = Math.round(K * sum / Math.sqrt(n - 1));
-	var newRating = target.rating + delta;
+	var delta = Math.round(kFactor(target.played) * sum / Math.sqrt(n - 1));
+	var newRating = Math.max(0, target.rating + delta); // Bronze I floors at 0
 	var provisional = (target.played + 1) < PROVISIONAL_GAMES;
 	db.updateRating(target.userId, newRating, target.rank === 1, style);
 	if (accounts[targetPid]) {
@@ -108,7 +127,7 @@ function applyRankedElo(standings, style) {
 			var u = db.getUserById(acc.userId);
 			if (u) { rating = readUserRating(u, style); userId = acc.userId; played = u.played; }
 		}
-		return { rank: s.rank, rating: rating, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
+		return { rank: s.rank, rating: rating, progress: s.progress, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
 	});
 	var n = parts.length;
 	if (n < 2) return;
@@ -123,13 +142,13 @@ function applyRankedElo(standings, style) {
 			var expected = 1 / (1 + Math.pow(10, (q.rating - p.rating) / 400));
 			sum += score - expected;
 		}
-		// Smooth K-factor curve so new accounts climb fast and ratings settle
-		// after ~12 games: K=80 game 1, K=60 at 5, K=40 at 10, K=30 from 13 on.
-		var K = Math.max(30, 80 - p.played * 4);
 		// Normalize by sqrt(n-1) instead of (n-1) so beating more opponents pays
 		// more: 1v1 top spot ~K/2; 6-player top spot ~K*sqrt(5)/2 ≈ 2.2× as much.
-		p.delta = Math.round(K * sum / Math.sqrt(n - 1));
-		p.newRating = p.rating + p.delta;
+		var delta = kFactor(p.played) * sum / Math.sqrt(n - 1);
+		// Reward dominant wins: scale a positive swing by how far ahead of the field you finished.
+		if (delta > 0) delta *= marginFactor(p, parts);
+		p.delta = Math.round(delta);
+		p.newRating = Math.max(0, p.rating + p.delta); // Bronze I floors at 0
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
 		db.updateRating(p.userId, p.newRating, p.rank === 1, style);
 	}

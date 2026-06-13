@@ -58,10 +58,14 @@ function buildStandings(room) {
 		var bot = isBot(pid);
 		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : (accounts[pid] ? accounts[pid].rating : null);
 		var provisional = bot ? false : (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
+		var safeCount = g ? g.revealedSafeCount() : 0;
+		var totalSafe = g ? (g.totalSafeSquares || 0) : 0;
 		return {
 			id: pid,
 			name: names[pid] || "Anonymous",
-			safeCount: g ? g.revealedSafeCount() : 0,
+			safeCount: safeCount,
+			// Fraction of safe cells cleared this round (1 = finished) — feeds the margin-of-victory bonus.
+			progress: finished ? 1 : (totalSafe > 0 ? safeCount / totalSafe : 0),
 			finished: finished,
 			finishedAt: finishedAt,
 			finishMs: (finished && roundStart && finishedAt) ? (finishedAt - roundStart) : null,
@@ -86,8 +90,12 @@ function buildStandings(room) {
 // a rank. Mirrors the per-round ranking logic but reads from room.scores.
 function buildSeriesStandings(room) {
 	var N = room.players.length;
+	var rounds = room.progressRounds || 0;
+	var sums = room.progressSum || {};
 	var entries = room.players.map(function(pid) {
-		return { id: pid, name: names[pid] || "Anonymous", score: room.scores[pid] || 0 };
+		// Average per-round progress across the series — the margin-of-victory signal at series end.
+		return { id: pid, name: names[pid] || "Anonymous", score: room.scores[pid] || 0,
+			progress: rounds > 0 ? (sums[pid] || 0) / rounds : 0 };
 	});
 	for (var i = 0; i < entries.length; i++) {
 		var strictlyHigher = 0;
