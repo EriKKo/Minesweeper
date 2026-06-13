@@ -1571,7 +1571,6 @@ body.territory-fullscreen main { max-width: none; padding: 0.6rem; }
 .game-view.territory .game-side { display: none; }
 .game-view.territory .player-controls { display: none; }
 .game-view.territory #player_name0 { display: none; }
-.game-view.territory .hotkey-hint { display: none; }
 .game-view.territory .game-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .game-view.territory .game-left { text-align: center; }
 .game-view.territory .player-board { display: inline-block; text-align: center; padding: 0.6rem; max-width: 100%; }
@@ -2476,12 +2475,6 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	font-size: 0.9rem;
 }
 
-.hotkey-hint {
-	margin: 0.6rem 0 0;
-	color: var(--muted);
-	font-size: 0.8rem;
-	letter-spacing: 0.01em;
-}
 
 /* Flag-mode toggle — only rendered for touch input (set via body.touch).
    The mode flips what a single tap on the board does; long-press always flags. */
@@ -2920,11 +2913,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.game-side { position: static; }
 }
 
-/* Mobile: hide the unreadable mini opponent boards and the keyboard hint;
+/* Mobile: hide the unreadable mini opponent boards;
    the scoreboard already shows each opponent's tier and status. */
 @media (max-width: 700px) {
 	.opponents { display: none; }
-	.hotkey-hint { display: none; }
 	.player-controls { flex-wrap: wrap; }
 	.flag-mode-button { padding: 0.7rem 1rem; }
 

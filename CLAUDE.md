@@ -480,8 +480,8 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   actions are resolved through `keybindings.actionFor()`. A chord that **detonates** clears every
   incorrect flag around that number (flagged but not actually a mine) in all modes — locally, and via
   a `right_click` per cleared flag in server-tracked modes (and via `territoryToggleFlag` in territory).
-- `Keybindings.js` — rebindable in-game keyboard controls (persisted to `ms_keybinds`),
-  the Controls section rendered on the Profile page, and the dynamic in-game hint line.
+- `Keybindings.js` — rebindable in-game keyboard controls (persisted to `ms_keybinds`)
+  and the Controls section rendered on the Profile page.
 - `BotsAdmin.js` — admin bot browser (`#/admin/bots`): paginated/sortable/Elo-filterable
   view of the pool via `GET /api/bots`, plus the server-driven "watch a bot play" modal
   (`bot_demo_start`/`stop` → `bot_demo_board`/`move` sockets; renders frames with `drawCell`).

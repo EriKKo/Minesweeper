@@ -128,8 +128,6 @@ function togglePuzzleChrome(on, mode) {
 	if (seriesCard) seriesCard.style.display = on ? "none" : "";
 	if (botsCard) botsCard.style.display = on ? "none" : "";
 	if (readyButton) readyButton.style.display = on ? "none" : "";
-	var hotkeyHint = document.querySelector(".game-view .hotkey-hint");
-	if (hotkeyHint) hotkeyHint.style.display = on ? "none" : "";
 	var rankedTagEl = document.getElementById("ranked_tag");
 	if (rankedTagEl) rankedTagEl.style.display = "none";
 	var soloCard = document.getElementById("solo_card");

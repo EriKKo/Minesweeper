@@ -1,7 +1,6 @@
 // Rebindable in-game keyboard controls, persisted to localStorage. Input.js asks
 // `keybindings.actionFor(event)` to map a keydown to an action; the Profile page renders
-// a Controls section (renderKeybindings) for changing them; the in-game hint line is
-// rebuilt from the current bindings (updateHotkeyHint). Shift stays a fixed modifier:
+// a Controls section (renderKeybindings) for changing them. Shift stays a fixed modifier:
 // held with movement it skips revealed cells, and it reverses the "next unsolved" jump.
 
 var keybindings = (function() {
@@ -83,19 +82,6 @@ var keybindings = (function() {
 	};
 })();
 
-// Rebuild the in-game controls hint line from the current bindings.
-function updateHotkeyHint() {
-	var el = document.querySelector(".hotkey-hint");
-	if (!el) return;
-	var L = keybindings.label;
-	el.textContent =
-		"Move: " + L(keybindings.get("up")) + L(keybindings.get("left")) + L(keybindings.get("down")) + L(keybindings.get("right")) +
-		" (Shift = skip revealed) · Next: " + L(keybindings.get("next")) +
-		" · Reveal: " + L(keybindings.get("reveal")) +
-		" · Flag: " + L(keybindings.get("flag")) +
-		" — rebind in Profile";
-}
-
 // Render the Controls section on the Profile page. Clicking a key enters capture mode;
 // the next key press (other than a bare modifier; Esc cancels) becomes the binding.
 var keybindCapturing = false;
@@ -141,7 +127,6 @@ function renderKeybindings() {
 	reset.addEventListener("click", function() {
 		keybindings.reset();
 		renderKeybindings();
-		updateHotkeyHint();
 	});
 	card.appendChild(reset);
 }
@@ -164,14 +149,6 @@ function captureKey(action, btn) {
 		document.removeEventListener("keydown", onKey, true);
 		keybindCapturing = false;
 		renderKeybindings();
-		updateHotkeyHint();
 	}
 	document.addEventListener("keydown", onKey, true);
-}
-
-// Set the in-game hint once the page is parsed.
-if (document.readyState === "loading") {
-	document.addEventListener("DOMContentLoaded", updateHotkeyHint);
-} else {
-	updateHotkeyHint();
 }
