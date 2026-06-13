@@ -134,16 +134,7 @@ function renderMatchRoster(info) {
 				youTag.textContent = "YOU";
 				row.appendChild(youTag);
 			}
-
-			if (typeof m.rating === "number" && typeof tierFor === "function") {
-				var t = tierFor(m.rating, m.provisional);
-				var tierEl = document.createElement("span");
-				tierEl.className = "match-roster-tier";
-				// Self sees an exact rating; opponents stay tier-only.
-				tierEl.textContent = m.isYou ? (t.name + " · " + (m.provisional ? "~" : "") + m.rating) : t.name;
-				tierEl.style.setProperty("--tier", t.color);
-				row.appendChild(tierEl);
-			}
+			// The rank badge already conveys the tier, so no separate tier chip here.
 		} else {
 			row.classList.add("match-roster-slot-empty");
 			var waiting = document.createElement("span");

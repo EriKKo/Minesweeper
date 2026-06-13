@@ -4273,17 +4273,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 	font-size: 0.58rem; font-weight: 800; letter-spacing: 0.08em;
 	padding: 0.1rem 0.4rem; border-radius: 999px;
 }
-/* Tier as a crisp pill tinted to the tier colour (set as --tier inline). */
-.match-roster-tier {
-	flex: 0 0 auto;
-	font-size: 0.7rem; font-weight: 700;
-	font-variant-numeric: tabular-nums;
-	color: var(--tier, var(--text));
-	background: color-mix(in srgb, var(--tier, #888) 15%, transparent);
-	border: 1px solid color-mix(in srgb, var(--tier, #888) 38%, transparent);
-	padding: 0.12rem 0.5rem; border-radius: 999px;
-	white-space: nowrap;
-}
 /* Empty slot: a quiet muted placeholder — no animation. */
 .match-roster-slot-empty {
 	background: rgba(255, 255, 255, 0.02);
