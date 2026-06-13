@@ -2103,6 +2103,11 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	z-index: 2;
 }
 
+/* In the duel both boards show a covered grid through planning/countdown, so don't dim/label only
+   the player's side — that asymmetry (your board shaded, opponent's not) looks off. */
+.game-view.duo .player-board.idle #game0 { opacity: 1; }
+.game-view.duo .player-board.idle::after { content: none; }
+
 .board-overlay {
 	position: absolute;
 	inset: 0;
@@ -2130,11 +2135,11 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
    centered modal so big lobbies (16-player tournament final) can list every
    player without bleeding past the board edges. */
 .board-overlay-panel {
-	/* Positioned within .board-wrap (which is position: relative) so the
-	   panel is centered on the player's board rather than the whole viewport
-	   — keeps it visually aligned with the game area instead of drifting
-	   towards the sidebar. */
-	position: absolute;
+	/* Result panels are centered on the whole VIEWPORT (position: fixed), not just the player's
+	   board, so the modal reads as a proper screen-centered dialog. The big spread box-shadow
+	   dims the rest of the screen as a backdrop. (The countdown/freeze overlay keeps the plain
+	   .board-overlay, which stays absolute over the board.) */
+	position: fixed;
 	inset: auto;
 	top: 50%;
 	left: 50%;
@@ -2148,7 +2153,7 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	backdrop-filter: blur(8px);
 	border: 1px solid rgba(99, 102, 241, 0.32);
 	border-radius: 16px;
-	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 100vmax rgba(2, 6, 23, 0.55);
 	padding: 1.4rem 1.5rem;
 	pointer-events: auto;
 	display: flex;
