@@ -806,26 +806,17 @@ cancelRankedButton.addEventListener("click", function() {
 document.getElementById("leave_button").addEventListener("click", function() {
 	if (soloSession) { exitSolo(); return; }
 	if (puzzleSession) { navigate("/"); return; }
-	// The confirm() below is suppressed by browsers while in fullscreen (it silently
-	// returns false, so the button looked dead). Exit fullscreen FIRST, and wait for the
-	// real fullscreenchange before prompting so the dialog actually shows.
-	function leave() {
-		if (currentRoom && currentRoom.phase === "playing"
-			&& !confirm("Leaving now counts as a loss. Are you sure you want to leave?")) return;
+	function doLeave() {
+		exitGameFullscreen();
 		socket.emit("leave_room");
 	}
-	if (isInFullscreen()) {
-		var onExit = function() {
-			document.removeEventListener("fullscreenchange", onExit);
-			document.removeEventListener("webkitfullscreenchange", onExit);
-			leave();
-		};
-		document.addEventListener("fullscreenchange", onExit);
-		document.addEventListener("webkitfullscreenchange", onExit);
-		exitGameFullscreen();
-	} else {
-		leave();
+	if (currentRoom && currentRoom.phase === "playing") {
+		showConfirm("Leaving now counts as a loss.", {
+			title: "Leave game?", okText: "Leave", cancelText: "Stay", danger: true
+		}).then(function(ok) { if (ok) doLeave(); });
+		return;
 	}
+	doLeave();
 });
 
 readyButton.addEventListener("click", function() {

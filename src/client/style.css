@@ -1896,6 +1896,9 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 .btn-secondary { background: var(--surface-2); border-color: var(--border); }
 .btn-secondary:hover:not(:disabled) { background: var(--surface); border-color: var(--accent); }
 
+.btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #ef4444; border-color: #ef4444; }
+
 .btn-ghost {
 	background: transparent;
 	border-color: transparent;
@@ -3867,6 +3870,36 @@ body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo) .game-gr
 	grid-template-columns: auto 320px;
 	justify-content: center;
 }
+
+/* App confirm modal (showConfirm in Overlay.js) — replaces window.confirm(), which is
+   suppressed in fullscreen. Appended to body so it sits over everything, fullscreen or not. */
+.confirm-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.25rem;
+	background: rgba(2, 6, 23, 0.62);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	animation: fade 150ms ease;
+}
+.confirm-modal {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	box-shadow: var(--shadow);
+	padding: 1.6rem 1.6rem 1.3rem;
+	max-width: 380px;
+	width: 100%;
+	text-align: center;
+}
+.confirm-modal-title { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text); }
+.confirm-modal-msg { color: var(--muted); margin: 0 0 1.35rem; line-height: 1.45; }
+.confirm-modal-actions { display: flex; gap: 0.6rem; justify-content: center; }
+.confirm-modal-actions .btn { min-width: 104px; }
 
 /* Standalone legal pages (privacy.html, terms.html) — server-rendered HTML
    served at /privacy and /terms, reusing the topbar/logo and colour vars. */

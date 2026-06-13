@@ -27,6 +27,72 @@ function hideOverlay() {
 }
 
 
+// App-styled confirmation modal — a DOM dialog used instead of window.confirm().
+// Native confirm() is unreliable in browser fullscreen (it's suppressed and returns
+// false silently, so an in-game button looks dead); this renders inside the page so it
+// works fullscreen or windowed, and traps the keyboard so board input can't leak through.
+// Returns a Promise<boolean> (true = confirmed). opts: { title, okText, cancelText, danger }.
+function showConfirm(message, opts) {
+	opts = opts || {};
+	return new Promise(function(resolve) {
+		var existing = document.getElementById("confirm_modal");
+		if (existing) existing.remove();
+
+		var backdrop = document.createElement("div");
+		backdrop.id = "confirm_modal";
+		backdrop.className = "confirm-backdrop";
+
+		var modal = document.createElement("div");
+		modal.className = "confirm-modal";
+		modal.setAttribute("role", "dialog");
+		modal.setAttribute("aria-modal", "true");
+
+		if (opts.title) {
+			var title = document.createElement("p");
+			title.className = "confirm-modal-title";
+			title.textContent = opts.title;
+			modal.appendChild(title);
+		}
+		var msg = document.createElement("p");
+		msg.className = "confirm-modal-msg";
+		msg.textContent = message;
+		modal.appendChild(msg);
+
+		var actions = document.createElement("div");
+		actions.className = "confirm-modal-actions";
+		var cancelBtn = document.createElement("button");
+		cancelBtn.className = "btn btn-secondary";
+		cancelBtn.textContent = opts.cancelText || "Cancel";
+		var okBtn = document.createElement("button");
+		okBtn.className = "btn " + (opts.danger ? "btn-danger" : "btn-primary");
+		okBtn.textContent = opts.okText || "OK";
+		actions.appendChild(cancelBtn);
+		actions.appendChild(okBtn);
+		modal.appendChild(actions);
+
+		backdrop.appendChild(modal);
+		document.body.appendChild(backdrop);
+		okBtn.focus();
+
+		function close(result) {
+			document.removeEventListener("keydown", onKey, true);
+			backdrop.remove();
+			resolve(result);
+		}
+		// Capture phase + stopPropagation so the in-game board key handlers don't fire
+		// while the modal is open; only Enter / Escape do anything.
+		function onKey(e) {
+			e.stopPropagation();
+			if (e.key === "Escape") { e.preventDefault(); close(false); }
+			else if (e.key === "Enter") { e.preventDefault(); close(true); }
+		}
+		okBtn.addEventListener("click", function() { close(true); });
+		cancelBtn.addEventListener("click", function() { close(false); });
+		backdrop.addEventListener("click", function(e) { if (e.target === backdrop) close(false); });
+		document.addEventListener("keydown", onKey, true);
+	});
+}
+
 function clearCanvas(canvas) {
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
