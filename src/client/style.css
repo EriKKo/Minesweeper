@@ -2698,11 +2698,17 @@ body.touch .find-next-arrow { display: inline-flex; }
    (isDuoRacing in Main.js), active only while playing. The center column is the middle grid
    track; the right column is the opponent's board (scoreboard/series cards hidden). */
 .game-view.duo { --duel-you: #3b82f6; --duel-opp: #fb7185; }
+/* Fill the area below the header and vertically center the boards in it (instead of hugging the top). */
+.game-view.duo { display: flex; flex-direction: column; min-height: calc(100dvh - 2rem); }
 .game-view.duo .game-grid {
 	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	align-items: start;
+	align-items: center;
+	align-content: center;
+	flex: 1 1 auto;
 	gap: 0.85rem;
 }
+/* The big center timer replaces the top-bar timer in the duel. */
+.game-view.duo #round_timer { display: none; }
 /* Push both boards toward the center column so the VS sits exactly between them (the boards don't
    fill their 1fr tracks, so left-aligning them would leave the VS off-center). */
 .game-view.duo .game-left { display: flex; flex-direction: column; align-items: flex-end; }
@@ -2771,18 +2777,34 @@ body.touch .find-next-arrow { display: inline-flex; }
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 0.9rem;
+	gap: 1rem;
 	align-self: stretch;
-	padding-top: 2.6rem;
-	min-width: 54px;
+	min-width: 96px;
 }
-.duel-vs {
+/* Big round timer over the two boards (the center column's headline). Falls back to "VS" when
+   there's no clock (e.g. territory, roundSeconds 0). RoundTimer.js mirrors the time here. */
+.duel-timer {
+	font-family: var(--font-display);
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum" 1;
+	font-size: clamp(2rem, 3.4vw, 3rem);
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: var(--text);
+	line-height: 1;
+	text-shadow: 0 0 18px rgba(230, 233, 245, 0.25);
+}
+.duel-timer:empty::before {
+	content: "VS";
 	font-size: 1.45rem;
 	font-weight: 900;
 	letter-spacing: 0.1em;
 	color: var(--muted);
 	text-shadow: 0 0 16px rgba(148, 163, 184, 0.35);
 }
+.duel-timer.round-timer-warning { color: var(--energy-streak); }
+.duel-timer.round-timer-urgent { color: var(--danger); animation: duel-timer-pulse 0.7s ease-in-out infinite; }
+@keyframes duel-timer-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .duel-tug {
 	position: relative;
 	width: 12px;

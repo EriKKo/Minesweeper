@@ -48,14 +48,26 @@ function stopRoundTimer() {
 	roundTimer.textContent = "";
 	roundTimer.classList.remove("round-timer-urgent");
 	roundTimer.classList.remove("round-timer-warning");
+	// Clear the big center duel timer too (empty → shows the "VS" fallback).
+	var dt = document.getElementById("duel_timer");
+	if (dt) { dt.textContent = ""; dt.classList.remove("round-timer-urgent", "round-timer-warning"); }
 }
 
 function updateRoundTimer() {
 	if (!roundDeadline) return;
 	var remaining = Math.max(0, Math.round((roundDeadline - Date.now()) / 1000));
+	var urgent = remaining <= 10 && remaining > 0;
+	var warning = remaining <= 30 && remaining > 10;
 	roundTimer.textContent = "⏱ " + formatRoundTime(remaining);
-	roundTimer.classList.toggle("round-timer-urgent", remaining <= 10 && remaining > 0);
-	roundTimer.classList.toggle("round-timer-warning", remaining <= 30 && remaining > 10);
+	roundTimer.classList.toggle("round-timer-urgent", urgent);
+	roundTimer.classList.toggle("round-timer-warning", warning);
+	// Mirror into the big center timer shown over the two boards in the 1v1 duel (no emoji).
+	var dt = document.getElementById("duel_timer");
+	if (dt) {
+		dt.textContent = formatRoundTime(remaining);
+		dt.classList.toggle("round-timer-urgent", urgent);
+		dt.classList.toggle("round-timer-warning", warning);
+	}
 	if (remaining <= 0) { clearInterval(roundTickHandle); roundTickHandle = null; }
 }
 
