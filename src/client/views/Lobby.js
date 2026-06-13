@@ -43,6 +43,10 @@ var matchToastElapsedEl = document.getElementById("match_toast_elapsed");
 var matchToastTaglineEl = document.getElementById("match_toast_tagline");
 var matchRosterEl = document.getElementById("match_roster");
 var searchProgressFill = document.getElementById("search_progress_fill");
+var matchToastEl = document.querySelector("#ranked_searching .match-toast");
+// The waiting room takes the mode's accent colour (amber sprint / violet standard / gold
+// tournament / cyan territory) so each queue feels distinct; CSS maps the data-style.
+function searchStyleOf(mode) { return (mode || "").split("_")[0] || "sprint"; }
 // How many roster rows were filled on the previous render — lets us animate
 // only the newly-arrived rows, not re-flash everyone on each broadcast.
 var matchRosterShown = 0;
@@ -77,9 +81,12 @@ function updateRankedSearchingText() {
 	var count = info.count || 1, size = info.size || 2;
 	var mode = info.mode || currentRankedMode;
 	var modeLabel = MODE_LABELS[mode] || "Ranked";
-	rankedSearchingText.textContent = count >= size
-		? "Match found — joining…"
-		: "Finding match…";
+	var ready = count >= size;
+	rankedSearchingText.textContent = ready ? "Match found" : "Finding match";
+	if (matchToastEl) {
+		matchToastEl.dataset.style = searchStyleOf(mode);
+		matchToastEl.classList.toggle("match-toast-ready", ready);
+	}
 	if (matchToastModeEl) matchToastModeEl.textContent = modeLabel;
 	if (matchToastTaglineEl) matchToastTaglineEl.textContent = MODE_TAGLINES[mode] || "";
 	if (searchCountText) searchCountText.textContent = count;
@@ -128,12 +135,14 @@ function renderMatchRoster(info) {
 				tierEl.className = "match-roster-tier";
 				// Self sees an exact rating; opponents stay tier-only.
 				tierEl.textContent = m.isYou ? (t.name + " · " + (m.provisional ? "~" : "") + m.rating) : t.name;
-				tierEl.style.color = t.color;
+				tierEl.style.setProperty("--tier", t.color);
 				row.appendChild(tierEl);
 			}
 		} else {
 			row.classList.add("match-roster-slot-empty");
-			row.textContent = "Waiting for player…";
+			var skel = document.createElement("span");
+			skel.className = "match-roster-skeleton";
+			row.appendChild(skel);
 		}
 		matchRosterEl.appendChild(row);
 	}
