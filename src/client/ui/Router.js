@@ -262,8 +262,8 @@ function applyRouteFromHash() {
 		if (inPlay) {
 			// Confirm via the app modal (native confirm() is suppressed in fullscreen). The URL
 			// already changed to the target; we keep it there while asking (the game stays shown
-			// behind the modal). On confirm we leave — the left_room handler re-runs this router,
-			// which routes to the still-current target URL. On cancel we restore the game's URL.
+			// behind the modal). On confirm, leaveRoom() tears the game UI down immediately and
+			// re-routes to the still-current target URL. On cancel we restore the game's URL.
 			showConfirm("Leaving now counts as a loss.", {
 				title: "Leave game?", okText: "Leave", cancelText: "Stay", danger: true
 			}).then(function(ok) {
@@ -271,13 +271,11 @@ function applyRouteFromHash() {
 					if (location.pathname + location.search !== lastAppliedHash) history.pushState(null, "", lastAppliedHash || "/");
 					return;
 				}
-				exitGameFullscreen();
-				socket.emit("leave_room");
+				leaveRoom();
 			});
 			return;
 		}
-		exitGameFullscreen();
-		socket.emit("leave_room");
+		leaveRoom();
 		return;
 	}
 	if (puzzleSession) {

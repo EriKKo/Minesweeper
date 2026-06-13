@@ -806,17 +806,13 @@ cancelRankedButton.addEventListener("click", function() {
 document.getElementById("leave_button").addEventListener("click", function() {
 	if (soloSession) { exitSolo(); return; }
 	if (puzzleSession) { navigate("/"); return; }
-	function doLeave() {
-		exitGameFullscreen();
-		socket.emit("leave_room");
-	}
 	if (currentRoom && currentRoom.phase === "playing") {
 		showConfirm("Leaving now counts as a loss.", {
 			title: "Leave game?", okText: "Leave", cancelText: "Stay", danger: true
-		}).then(function(ok) { if (ok) doLeave(); });
+		}).then(function(ok) { if (ok) leaveRoom(); });
 		return;
 	}
-	doLeave();
+	leaveRoom();
 });
 
 readyButton.addEventListener("click", function() {
@@ -904,7 +900,10 @@ socket.on("ranked_rejected", function(data) {
 	showLobbyMessage((data && data.reason) || "Couldn't start ranked search.");
 });
 
-socket.on("left_room", function(data) {
+// Local teardown of the in-game UI: drop room state, clear danger, reset territory, and
+// re-route to the current URL (which hides #game_view). Used both when WE leave (leaveRoom —
+// applied immediately) and when the server confirms it (left_room).
+function teardownRoomUI() {
 	if (typeof territoryReset === "function") territoryReset();
 	inRoom = false;
 	currentRoom = null;
@@ -912,6 +911,19 @@ socket.on("left_room", function(data) {
 	elimPanelDismissed = false;
 	roundStartTime = 0;
 	setDanger(false);
+	applyRouteFromHash();
+}
+
+// Leave the current room. Tears the UI down IMMEDIATELY rather than waiting for the server's
+// left_room echo — so the game view never lingers if that echo is slow/dropped or the route
+// fails to switch. The echo still arrives and applies any ranked Elo delta.
+function leaveRoom() {
+	exitGameFullscreen();
+	socket.emit("leave_room");
+	teardownRoomUI();
+}
+
+socket.on("left_room", function(data) {
 	// Ranked early-leave penalty: server applied an Elo loss as if we came last
 	// in the current series. Update the topbar + show the banner / delta.
 	if (data && typeof data.rating === "number") {
@@ -922,10 +934,7 @@ socket.on("left_room", function(data) {
 			provisional: data.provisional
 		}]);
 	}
-	// Re-route based on the current hash. If the user clicked a top-nav link
-	// while in a game, applyRouteFromHash queued the leave + reload-the-route;
-	// inRoom is now false so the hash takes effect.
-	applyRouteFromHash();
+	teardownRoomUI();
 });
 
 socket.on("join_failed", function(data) {

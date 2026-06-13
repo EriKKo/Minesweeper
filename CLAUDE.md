@@ -477,6 +477,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   NB the "leaving counts as a loss" prompt (in `leave_button` and the Router navigate-away path)
   uses the app's own `showConfirm` modal, **not** `window.confirm()` — browsers suppress native
   dialogs while fullscreen (they return false silently, so the button looked dead in-game).
+  Leaving goes through `leaveRoom()` (Main.js), which emits `leave_room` and then **tears the game
+  UI down immediately client-side** (`teardownRoomUI`: clear room state + re-route, which hides
+  `#game_view`) rather than waiting for the server's `left_room` echo — so the game never lingers
+  if that echo is slow/dropped. The echo still arrives and applies any ranked Elo delta.
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,
