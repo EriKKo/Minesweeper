@@ -2812,19 +2812,22 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .game-view.duo #duel_bar_opp .duel-bar-pct { right: auto; left: 0.55rem; }
 
-/* Center column: VS badge over a vertical tug-of-war bar (your colour rises from the bottom). */
+/* Center column: just the vertical tug-of-war bar between the boards (timer moved up, see below). */
 .duel-center { display: none; }
 .game-view.duo .duel-center {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 1rem;
 	align-self: stretch;
-	min-width: 96px;
+	min-width: 36px;
 }
-/* Big round timer over the two boards (the center column's headline). Falls back to "VS" when
-   there's no clock (e.g. territory, roundSeconds 0). RoundTimer.js mirrors the time here. */
-.duel-timer {
+/* Big round timer, centered ABOVE the two boards (its own row between the header and the grid).
+   Falls back to "VS" when there's no clock (e.g. territory, roundSeconds 0). */
+.duel-timer { display: none; }
+.game-view.duo #duel_timer {
+	display: block;
+	text-align: center;
+	margin: 0 0 0.6rem;
 	font-family: var(--font-display);
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum" 1;
