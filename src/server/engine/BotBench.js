@@ -26,9 +26,9 @@ var DENSITIES = [0.10, 0.15, 0.20];
 var ROUND_MS = 120 * 1000;            // round cap; a board not solved in time is a DNF
 var PENALTY_MS = botPlayer.PENALTY_MS || 5000;
 
-// Calibration grid: configForElo bots sampled across the full range. Extends below
-// 600 (configForElo extrapolates there) so the curve — and the pool — reach 0 Elo.
-var ELO_GRID = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800];
+// Calibration grid: configForElo bots sampled across the full 0–3000 ladder. Extends below
+// the baseline config Elo (configForElo extrapolates there) so the curve — and the pool — reach 0.
+var ELO_GRID = [0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1350, 1500, 1650, 1800, 1950, 2100, 2250, 2400, 2550, 2700, 2850, 3000];
 
 function densityKey(d) { return d.toFixed(2); }
 
@@ -125,9 +125,10 @@ function avgSolveTime(config, templates, opts) {
 // BotPlayer, whose runtime no longer needs it; this offline module is its only
 // caller). Higher Elo = faster pace, less per-difficulty thinking, a higher
 // max-difficulty ceiling, fewer blunders, more chording. configForElo(600) is the
-// weak reference and configForElo(1800) the strong one; below 600 it extrapolates
-// toward an even slower, sloppier bot so the calibrated pool can reach 0 Elo.
-var ELO_MIN = 600, ELO_MAX = 1800, ELO_FLOOR = 0;
+// weak reference and configForElo(3000) the strong one; below 1000 it extrapolates
+// toward an even slower, sloppier bot so the calibrated pool can reach 0 Elo. The anchors
+// span the 0–3000 ladder (Bronze I = 0, Master from 3000); the fastest config is Master.
+var ELO_MIN = 1000, ELO_MAX = 3000, ELO_FLOOR = 0;
 function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function configForElo(elo) {
