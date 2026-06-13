@@ -91,7 +91,10 @@ function renderRoomState(state) {
 	// have a locked ruleset and no lobby to configure, so the options card never
 	// shows for them — it's only meaningful in a custom lobby.
 	var playing = state.phase !== "planning";
-	allOpponentsDiv.style.display = playing ? "" : "none";
+	// Show the opponent board(s) during play, and also through the duel's planning/reveal window
+	// (ranked 1v1) so the opponent is visible the moment you join, not only once play starts.
+	var duelActive = typeof gameView !== "undefined" && gameView && gameView.classList.contains("duo");
+	allOpponentsDiv.style.display = (playing || duelActive) ? "" : "none";
 	seriesCard.style.display = (playing || state.ranked) ? "none" : "";
 	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";

@@ -2599,7 +2599,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 	align-items: start;
 	gap: 0.85rem;
 }
-.game-view.duo .game-side { position: static; gap: 0; }
+/* Push both boards toward the center column so the VS sits exactly between them (the boards don't
+   fill their 1fr tracks, so left-aligning them would leave the VS off-center). */
+.game-view.duo .game-left { display: flex; flex-direction: column; align-items: flex-end; }
+.game-view.duo .game-side { position: static; gap: 0; align-items: flex-start; }
 .game-view.duo .game-side > *:not(#all_opponents_div) { display: none; }
 .game-view.duo .opponents { gap: 0; }
 /* The plain name lines are replaced by the richer identity panels. */

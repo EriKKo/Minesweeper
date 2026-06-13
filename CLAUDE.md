@@ -447,7 +447,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   a vertical **tug-of-war bar** (your colour rises from the bottom by your share of combined
   progress), and the **leading** board glows in its side colour — all updated per frame by
   `updateDuelHud()` in `draw_board`. Driven by a `duo` class on `#game_view` (CSS `.game-view.duo`,
-  `--duel-you`/`--duel-opp`), set only during play so custom-room config stays visible in planning.
+  `--duel-you`/`--duel-opp`). Active during play, plus the ranked planning/reveal window so you see
+  the opponent the moment you join (custom rooms stay normal in planning so their config shows); the
+  opponent's board is painted covered (`paintOpponentCovered`) until their first real frame, so both
+  boards show through the join + countdown. Both boards are pushed toward the center column so the VS
+  sits exactly between them.
   The site footer is hidden whenever a game is on screen via a `body.in-game` class (added by the
   game entry points, removed in `hideAllViews`).
 - `AdminList.js` — shared helpers for the paginated admin views: `renderPager` and the

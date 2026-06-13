@@ -34,9 +34,11 @@ function isDuoRacing() {
 		&& (currentRoom.gameMode || "race") === "race");
 }
 function applyDuoClass() {
-	// Duel layout only while actually playing (the countdown counts as playing); during planning
-	// we keep the normal layout so the room config + scoreboard stay visible.
-	var duel = isDuoRacing() && !!currentRoom && currentRoom.phase === "playing";
+	// Duel layout while playing (the countdown counts as playing). Ranked matches also use it during
+	// the brief planning/reveal window so you see the opponent immediately on joining; custom rooms
+	// keep the normal layout in planning so their config controls stay visible.
+	var duel = isDuoRacing() && !!currentRoom
+		&& (currentRoom.phase === "playing" || currentRoom.ranked);
 	if (typeof gameView !== "undefined" && gameView) gameView.classList.toggle("duo", duel);
 }
 // In the duel each board's name header doubles as its progress readout ("Alice · 47%").
@@ -1043,6 +1045,8 @@ socket.on("room_state", function(state) {
 	sizeOpponentCanvases();       // resize the opponent board for the (new) duo/non-duo layout
 	buildDuelIdentity();          // populate the battle identity panels from the roster
 	renderRoomState(state);
+	// Ranked duel: show both boards (covered) the moment you join, before the countdown starts.
+	if (gameView.classList.contains("duo") && state.phase === "planning") setCoveredBoard();
 });
 
 // Territory (versus) mode — shared-board events handled in Territory.js.
@@ -1062,6 +1066,25 @@ function setCoveredBoard() {
 	}
 	prevPlayerState = cloneState(myState);
 	renderPlayerBoard();
+	if (isDuoRacing()) paintOpponentCovered(); // duel: show the opponent's board covered too
+}
+
+// Paint the opponent's board (game1) as a full grid of covered cells, and make sure its card is
+// visible. Used in the duel so you see the opponent's board immediately on joining and through the
+// countdown — before their first real frame arrives (which then overwrites it via draw_board).
+function paintOpponentCovered() {
+	if (!isDuoRacing() || !rows || !cols) return;
+	if (allOpponentsDiv) allOpponentsDiv.style.display = "";
+	var slot = document.querySelector("#all_opponents_div .opponent_div");
+	if (slot) slot.style.display = "";
+	sizeOpponentCanvases();
+	var covered = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		covered[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) covered[r][c] = UNKNOWN;
+	}
+	var cv = document.getElementById("game1");
+	if (cv) drawBoardStatic(covered, cv);
 }
 
 socket.on("start_game", function(data) {
