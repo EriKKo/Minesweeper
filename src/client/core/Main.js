@@ -33,17 +33,27 @@ function isDuoRacing() {
 	return !!(currentRoom && currentRoom.players && currentRoom.players.length === 2
 		&& (currentRoom.gameMode || "race") === "race");
 }
-function applyDuoClass() {
-	// Duel layout while playing (the countdown counts as playing). Ranked matches also use it during
-	// the brief planning/reveal window so you see the opponent immediately on joining; custom rooms
-	// keep the normal layout in planning so their config controls stay visible.
-	var duel = isDuoRacing() && !!currentRoom
-		&& (currentRoom.phase === "playing" || currentRoom.ranked);
-	if (typeof gameView !== "undefined" && gameView) gameView.classList.toggle("duo", duel);
+// A small free-for-all racing match (3-6 players, racing mode) uses the TetrisFriends-style
+// battle layout: one big own board on the left, every opponent's live board in a grid on the
+// right. Tournaments (larger lobbies) keep the scoreboard layout; territory/solo are unaffected.
+function isMultiRacing() {
+	return !!(currentRoom && currentRoom.players && currentRoom.players.length >= 3
+		&& currentRoom.players.length <= 6 && (currentRoom.gameMode || "race") === "race");
 }
-// In the duel each board's name header doubles as its progress readout ("Alice · 47%").
+function isBattleRacing() { return isDuoRacing() || isMultiRacing(); }
+function applyDuoClass() {
+	// Battle layout while playing (the countdown counts as playing). Ranked matches also use it during
+	// the brief planning/reveal window so you see the field immediately on joining; custom rooms
+	// keep the normal layout in planning so their config controls stay visible.
+	var playing = !!currentRoom && (currentRoom.phase === "playing" || currentRoom.ranked);
+	if (typeof gameView !== "undefined" && gameView) {
+		gameView.classList.toggle("duo", isDuoRacing() && playing);
+		gameView.classList.toggle("multi", isMultiRacing() && playing);
+	}
+}
+// In the battle layouts each board's name header doubles as its progress readout ("Alice · 47%").
 function playerLabel(name, progress) {
-	if (!isDuoRacing()) return name || "";
+	if (!isBattleRacing()) return name || "";
 	return (name || "") + "  ·  " + Math.round((progress || 0) * 100) + "%";
 }
 
@@ -70,16 +80,18 @@ function fillDuelId(el, p, isYou) {
 	}
 	el.appendChild(info);
 }
-// Build the two identity panels from the room roster (run when the duel turns on / roster changes).
+// Build the identity panel(s) from the room roster (run when the battle layout turns on / roster
+// changes). The duel fills both you + opponent; the 6-player battle fills just your own panel
+// above the big board (each opponent's name rides on its board card instead).
 function buildDuelIdentity() {
-	if (!isDuoRacing() || !currentRoom || !currentRoom.players) return;
+	if (!isBattleRacing() || !currentRoom || !currentRoom.players) return;
 	var me = null, opp = null;
 	for (var i = 0; i < currentRoom.players.length; i++) {
 		var p = currentRoom.players[i];
 		if (p.id === id) me = p; else if (!opp) opp = p;
 	}
 	fillDuelId(document.getElementById("duel_id_you"), me, true);
-	fillDuelId(document.getElementById("duel_id_opp"), opp, false);
+	if (isDuoRacing()) fillDuelId(document.getElementById("duel_id_opp"), opp, false);
 }
 function setDuelBar(barId, progress) {
 	var bar = document.getElementById(barId);
@@ -105,6 +117,23 @@ function updateDuelHud(meGame, oppGame) {
 	var oppCard = document.querySelector("#all_opponents_div .opponent_div");
 	if (youCard) youCard.classList.toggle("leading", myP > opP + 0.0001);
 	if (oppCard) oppCard.classList.toggle("leading", opP > myP + 0.0001);
+}
+// 6-player battle: glow whichever board is currently in front (you or the top opponent), and
+// mark finished opponents. Opponent slots are filled in sorted order, so slot[i] ↔ opponents[i].
+function updateMultiHud(meGame, opponents) {
+	if (!isMultiRacing()) return;
+	function prog(g) { return g ? (g.finished ? 1 : (g.progress || 0)) : 0; }
+	var myP = prog(meGame);
+	var topOpp = opponents.length ? prog(opponents[0]) : 0;
+	var youLead = myP > 0 && myP >= topOpp;
+	var youCard = document.getElementById("player_div");
+	if (youCard) youCard.classList.toggle("leading", youLead);
+	var slots = document.querySelectorAll("#all_opponents_div .opponent_div");
+	for (var i = 0; i < slots.length; i++) {
+		var opp = opponents[i];
+		slots[i].classList.toggle("leading", !youLead && i === 0 && prog(opp) > 0);
+		slots[i].classList.toggle("finished", !!(opp && opp.finished));
+	}
 }
 // Size the opponent boards. In the duel, the single opponent (game1) is sized to the SAME cell
 // size as the player board so the two boards match; the other slots (and all of 6-player) stay
@@ -1046,8 +1075,8 @@ socket.on("room_state", function(state) {
 	sizeOpponentCanvases();       // resize the opponent board for the (new) duo/non-duo layout
 	buildDuelIdentity();          // populate the battle identity panels from the roster
 	renderRoomState(state);
-	// Ranked duel: show both boards (covered) the moment you join, before the countdown starts.
-	if (gameView.classList.contains("duo") && state.phase === "planning") setCoveredBoard();
+	// Ranked battle: show the whole field (covered) the moment you join, before the countdown starts.
+	if ((gameView.classList.contains("duo") || gameView.classList.contains("multi")) && state.phase === "planning") setCoveredBoard();
 });
 
 // Territory (versus) mode — shared-board events handled in Territory.js.
@@ -1067,32 +1096,47 @@ function setCoveredBoard() {
 	}
 	prevPlayerState = cloneState(myState);
 	renderPlayerBoard();
-	if (isDuoRacing()) paintOpponentCovered(); // duel: show the opponent's board covered too
+	if (isBattleRacing()) paintOpponentCovered(); // battle: show the opponents' boards covered too
 }
 
 // Paint the opponent's board (game1) as a full grid of covered cells, and make sure its card is
 // visible. Used in the duel so you see the opponent's board immediately on joining and through the
 // countdown — before their first real frame arrives (which then overwrites it via draw_board).
 function paintOpponentCovered() {
-	if (!isDuoRacing() || !rows || !cols) return;
+	if (!isBattleRacing() || !rows || !cols) return;
 	if (allOpponentsDiv) allOpponentsDiv.style.display = "";
-	var slot = document.querySelector("#all_opponents_div .opponent_div");
-	if (slot) slot.style.display = "";
 	sizeOpponentCanvases();
 	var covered = new Array(rows);
 	for (var r = 0; r < rows; r++) {
 		covered[r] = new Array(cols);
 		for (var c = 0; c < cols; c++) covered[r][c] = UNKNOWN;
 	}
-	var cv = document.getElementById("game1");
-	if (cv) drawBoardStatic(covered, cv);
+	// Roster opponents (everyone but me), in roster order, so each card shows a name + covered board.
+	var oppPlayers = (currentRoom && currentRoom.players ? currentRoom.players : []).filter(function(p) { return p.id !== id; });
+	var slots = document.querySelectorAll('[data-slot]');
+	for (var i = 1; i <= 5; i++) {
+		var slot = slots[i - 1];
+		var p = oppPlayers[i - 1];
+		var cv = document.getElementById("game" + i);
+		var nameEl = document.getElementById("player_name" + i);
+		if (p) {
+			if (slot) { slot.style.display = ""; slot.dataset.pid = p.id || ""; }
+			if (nameEl) nameEl.textContent = playerLabel(p.name, 0);
+			if (cv) drawBoardStatic(covered, cv);
+		} else if (slot) {
+			slot.style.display = "none";
+		}
+	}
 }
 
 socket.on("start_game", function(data) {
 	if (typeof music !== "undefined") music.resume();
-	// Entering play: turn the duel layout on directly (currentRoom.phase may not have flipped to
-	// "playing" yet on this client), so the covered countdown board already shows side-by-side.
-	if (typeof gameView !== "undefined" && gameView && isDuoRacing()) gameView.classList.add("duo");
+	// Entering play: turn the battle layout on directly (currentRoom.phase may not have flipped to
+	// "playing" yet on this client), so the covered countdown board already shows the field.
+	if (typeof gameView !== "undefined" && gameView) {
+		if (isDuoRacing()) gameView.classList.add("duo");
+		else if (isMultiRacing()) gameView.classList.add("multi");
+	}
 	sizeOpponentCanvases();
 	buildDuelIdentity();
 	// Eliminated spectators get start_game too (server emits it so their
@@ -1402,11 +1446,14 @@ socket.on("draw_board", function(data) {
 		return (b.progress || 0) - (a.progress || 0);
 	});
 
+	// The battle layouts show every opponent (duel = 1, 6-player = up to 5); other lobbies
+	// (tournament) stay capped at the top 2 thumbnails — the scoreboard surfaces the rest.
+	var oppShown = isMultiRacing() ? 5 : (isDuoRacing() ? 1 : 2);
 	for (var i = 1; i <= 5; i++) {
 		var nameEl = document.getElementById("player_name" + i);
 		var canvasEl = document.getElementById("game" + i);
 		var slot = slots[i - 1];
-		var opp = i <= 2 ? opponents[i - 1] : null;
+		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
 			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
 			drawBoardStatic(opp.state, canvasEl);
@@ -1426,6 +1473,7 @@ socket.on("draw_board", function(data) {
 
 	renderScoreboard();
 	if (isDuoRacing()) updateDuelHud(games[0], opponents[0]);
+	else if (isMultiRacing()) updateMultiHud(games[0], opponents);
 	updateDangerWarning();
 });
 

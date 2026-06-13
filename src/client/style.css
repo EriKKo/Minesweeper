@@ -2883,6 +2883,82 @@ body.touch .find-next-arrow { display: inline-flex; }
 	transition: height 0.4s ease;
 }
 
+/* ===== 6-player battle layout (TetrisFriends-style) =====
+   One big own board on the left with your identity panel above it; every opponent's live board
+   tiled in a grid on the right, each card carrying the player's name + live % progress. Driven by
+   the `multi` class (isMultiRacing in Main.js). Scoreboard + series cards hidden; round timer moves
+   up top (shared #duel_timer). Opponent canvases keep their small render resolution and are scaled
+   to the grid cell by CSS, so no per-frame resizing is needed. */
+.game-view.multi { --duel-you: #3b82f6; }
+.game-view.multi { display: flex; flex-direction: column; min-height: calc(100dvh - 2rem); }
+.game-view.multi .game-grid {
+	grid-template-columns: minmax(0, 1.5fr) minmax(360px, 1fr);
+	align-items: start;
+	gap: 1.5rem;
+	flex: 1 1 auto;
+}
+.game-view.multi #round_timer { display: none; }
+.game-view.multi .player-controls { display: none; }
+.game-view.multi .game-left { display: flex; flex-direction: column; align-items: center; }
+.game-view.multi #player_name0 { display: none; }
+.game-view.multi .game-side { position: static; }
+.game-view.multi .game-side > *:not(#all_opponents_div) { display: none; }
+
+/* Your identity panel above the big board (rank badge + name + tier). */
+.game-view.multi #duel_id_you { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; align-self: flex-start; }
+.game-view.multi #duel_id_you .rank-badge { font-size: 12px; }
+
+/* Opponent grid: each opponent's board tiled two-up, name + % on top. */
+.game-view.multi .opponents {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.7rem;
+	align-content: start;
+}
+.game-view.multi .opponent_div {
+	padding: 0.6rem 0.7rem 0.7rem;
+	border-radius: 12px;
+	transition: box-shadow 0.25s ease, border-color 0.25s ease;
+	min-width: 0;
+}
+.game-view.multi .opponent_div .player-name {
+	display: block;
+	font-size: 0.8rem;
+	font-weight: 700;
+	color: var(--text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin: 0 0 0.4rem;
+}
+.game-view.multi .opponent_div canvas { width: 100%; height: auto; display: block; border-radius: 5px; }
+/* Leader glow on whichever board is ahead (own or an opponent). */
+.game-view.multi .player-board.leading {
+	border-color: var(--duel-you);
+	box-shadow: 0 0 0 1px var(--duel-you), 0 0 24px -4px var(--duel-you);
+}
+.game-view.multi .opponent_div.leading {
+	border-color: #fbbf24;
+	box-shadow: 0 0 0 1px #fbbf24, 0 0 20px -4px #fbbf24;
+}
+/* A finished opponent reads as "done" — dim + green tick handled by the name %. */
+.game-view.multi .opponent_div.finished { border-color: rgba(74, 222, 128, 0.5); }
+
+/* Big round timer centered above everything (shared with the duel timer styling). */
+.game-view.multi #duel_timer {
+	display: block;
+	text-align: center;
+	margin: 0 0 0.6rem;
+	min-height: clamp(2rem, 3.4vw, 3rem);
+	font-family: var(--font-display);
+	font-size: clamp(2rem, 3.4vw, 3rem);
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: var(--text);
+	line-height: 1;
+	text-shadow: 0 0 18px rgba(230, 233, 245, 0.25);
+}
+
 .side-card {
 	background: var(--surface);
 	border: 1px solid var(--border);
@@ -4184,10 +4260,12 @@ body.game-fullscreen .game-view.solo .game-grid {
 	grid-template-columns: auto;
 	justify-content: center;
 }
-body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo):not(.duo) .game-grid {
+body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo):not(.duo):not(.multi) .game-grid {
 	grid-template-columns: auto 320px;
 	justify-content: center;
 }
+/* The 6-player battle keeps its own two-column grid in fullscreen; just center it. */
+body.game-fullscreen .game-view.multi .game-grid { justify-content: center; }
 
 /* App confirm modal (showConfirm in Overlay.js) — replaces window.confirm(), which is
    suppressed in fullscreen. Appended to body so it sits over everything, fullscreen or not. */
