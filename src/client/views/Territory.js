@@ -499,7 +499,7 @@ function territoryResult(data) {
 			'<div class="tv-result-actions">' +
 			'<button class="btn btn-secondary" onclick="territoryViewBoard()">View board</button>' +
 			'<button class="btn btn-primary" onclick="territoryPlayAgain()">Find another game</button>' +
-			'<button class="btn btn-secondary" onclick="leaveTerritory()">Back to lobby</button>' +
+			'<button class="btn btn-secondary" onclick="leaveRoom()">Back to lobby</button>' +
 			'</div></div>';
 		ov.style.display = "";
 	}
@@ -562,7 +562,9 @@ function territoryReset() {
 	var gv = document.getElementById("game_view");
 	if (gv) gv.classList.remove("territory");
 	document.body.classList.remove("territory-fullscreen");
-	exitGameFullscreen();
+	// NB: don't exit fullscreen here. territoryReset runs on every room teardown (teardownRoomUI),
+	// including "Play another"/"Find another game" re-queues that must stay fullscreen. Leaving the
+	// game for good exits fullscreen via the explicit leave paths (leaveRoom / Router navigate-away).
 }
 
 // Is (r,c) one of MY structures (a surrounded-mine fort I own)? Left-clicking it fires an offensive beam.

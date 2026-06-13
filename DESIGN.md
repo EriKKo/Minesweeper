@@ -206,10 +206,12 @@ match-found → reveal → countdown → GO → result. It's the spine of the UX
    energy colour system, the tile/elevation language. Low risk, lifts every
    screen at once. *(Done.)*
 2. **Result moments** — win/lose/rank-up celebration, rating count-up, sound.
-   Highest emotional payoff. *(Done: confetti + win-header glow/pop on win;
-   rating counts up in the rank-swap column; sound cues — seriesWin/lose,
-   rankUp/rankDown on tier crossings, matchFound when a ranked match forms.
-   `playResultMoment` in MatchPanels.js drives it.)*
+   Highest emotional payoff. *(Done: win-header glow/pop; rating counts up in the
+   rank-swap column; sound cues — seriesWin/lose, rankUp/rankDown on tier
+   crossings, matchFound when a ranked match forms. `playResultMoment` in
+   MatchPanels.js drives it. Confetti was tried and removed — too much. NB:
+   "Play another"/"Find another game" re-queue and stay fullscreen; only the
+   explicit "Back to menu/lobby" leaves exit fullscreen via `leaveRoom`.)*
 3. **Home as a launcher** — a "you" strip (rank · rating · streak · ▲ week) + one
    hero CTA + vivid, differentiated mode cards.
 4. **Leaderboard podium + profile identity** (rank badge + progress-to-next-tier).

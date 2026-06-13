@@ -1230,8 +1230,7 @@ socket.on("mine_hit", function(data) {
 
 socket.on("series_ended", function(data) {
 	setDanger(false);
-	showSeriesResultPanel(data);
-	if (data.winnerId === id) sound.seriesWin(); else sound.lose();
+	showSeriesResultPanel(data); // plays the win/lose + rank-up sound via playResultMoment
 	gameProgressText.textContent = "";
 	stopRoundTimer();
 	if (typeof music !== "undefined") music.pause();

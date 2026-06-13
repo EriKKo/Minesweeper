@@ -141,30 +141,10 @@ function countUpNumber(el, from, to, ms) {
 	requestAnimationFrame(frame);
 }
 
-// A short confetti burst for win moments — lightweight, self-cleaning, reduced-motion aware.
-function celebrateWin() {
-	if (prefersReducedMotion()) return;
-	var colors = ["#fcd34d", "#4ade80", "#6366f1", "#fb7185", "#22d3ee"];
-	var layer = document.createElement("div");
-	layer.className = "confetti-layer";
-	for (var i = 0; i < 40; i++) {
-		var p = document.createElement("i");
-		p.className = "confetti-piece";
-		p.style.left = (Math.random() * 100) + "vw";
-		p.style.background = colors[i % colors.length];
-		p.style.animationDelay = (Math.random() * 0.3) + "s";
-		p.style.animationDuration = (1.7 + Math.random() * 1.3) + "s";
-		layer.appendChild(p);
-	}
-	document.body.appendChild(layer);
-	setTimeout(function() { if (layer.parentNode) layer.parentNode.removeChild(layer); }, 3400);
-}
-
-// Win/lose sound + (on win) confetti, plus a rank-up/down fanfare if the tier changed.
-// `oldRating` is captured before the rating badge is updated, so we can detect a tier crossing.
+// Win/lose sound, plus a rank-up/down fanfare if the tier changed. `oldRating` is captured
+// before the rating badge updates, so we can detect a tier crossing.
 function playResultMoment(won, ranked, oldRating) {
 	if (typeof sound !== "undefined") (won ? sound.seriesWin : sound.lose)();
-	if (won) celebrateWin();
 	if (ranked && account && typeof oldRating === "number" && typeof account.rating === "number") {
 		var crossed = tierFor(oldRating, account.provisional).name !== tierFor(account.rating, account.provisional).name;
 		if (crossed && typeof sound !== "undefined") (account.rating > oldRating ? sound.rankUp : sound.rankDown)();
@@ -361,7 +341,7 @@ function showSeriesResultPanel(data) {
 		back.className = "btn btn-secondary";
 		back.textContent = "Back to menu";
 		back.addEventListener("click", function() {
-			socket.emit("leave_room");
+			leaveRoom(); // leaving for good — exits fullscreen (Play another stays fullscreen)
 		});
 		actions.appendChild(back);
 
@@ -451,7 +431,7 @@ function showTournamentChampionPanel(data) {
 	back.className = "btn btn-secondary";
 	back.textContent = "Back to menu";
 	back.addEventListener("click", function() {
-		socket.emit("leave_room");
+		leaveRoom(); // leaving for good — exits fullscreen (Play another stays fullscreen)
 	});
 	actions.appendChild(back);
 	panel.appendChild(actions);
