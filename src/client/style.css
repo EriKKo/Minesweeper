@@ -2940,26 +2940,30 @@ body.touch .find-next-arrow { display: inline-flex; }
 	min-width: 0;
 }
 .game-view.multi .opponent_div .player-name {
-	display: block;
 	font-size: 0.8rem;
 	font-weight: 700;
 	color: var(--text);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	margin: 0 0 0.4rem;
+	margin: 0;
+	min-width: 0;
+	flex: 1 1 auto;
 }
 .game-view.multi .opponent_div canvas { width: 100%; height: auto; display: block; border-radius: 5px; }
-/* Rank insignia at the start of each opponent card's name line (6-player battle layout). The duel
-   shows the full badge in its identity panel; here we show just the compact chevron(s) with the card
-   chrome stripped, so it stays small and never crowds the name. Only in .multi. */
-.opp-rank-badge { position: absolute; top: 0.5rem; left: 0.6rem; height: 1.05rem; z-index: 3; pointer-events: none; display: none; align-items: center; }
-.game-view.multi .opp-rank-badge { display: flex; }
+/* Opponent card name row (6-player battle layout): a flex row so the rank insignia and name sit
+   centred on a shared line with a clean gap — no overlap, no cramping. The duel shows the full badge
+   in its identity panel instead, so this row + insignia are hidden there. */
+.opp-head { display: flex; align-items: center; min-width: 0; }
+.game-view.duo .opp-head { display: none; }
+.game-view.multi .opp-head { margin-bottom: 0.45rem; }
+.opp-rank-badge { display: none; }
+/* Just the compact chevron(s), card chrome stripped; shown only when filled (in the multi layout). */
+.game-view.multi .opp-rank-badge:not(:empty) { display: flex; align-items: center; flex: 0 0 auto; margin-right: 0.5rem; }
 .opp-rank-badge .rank-badge {
-	font-size: 6px; width: auto; min-height: 0; padding: 0; gap: 0.18em;
+	font-size: 6px; width: auto; min-height: 0; padding: 0; gap: 0.2em;
 	background: none; border: 0; box-shadow: none; border-radius: 0;
 }
-.game-view.multi .opponent_div.has-rank-badge .player-name { padding-left: 1.5rem; }
 /* Leader glow on whichever board is ahead (own or an opponent). */
 .game-view.multi .player-board.leading {
 	border-color: var(--duel-you);
