@@ -55,6 +55,14 @@ function applyDuoClass() {
 	if (typeof gameView !== "undefined" && gameView) {
 		gameView.classList.toggle("duo", isDuoRacing() && on);
 		gameView.classList.toggle("multi", isMultiRacing() && on);
+		// The battle layout changes the column widths, so the own board has to be re-fit to the new
+		// game-left track — otherwise it stays at the small fallback cell size it was built with before
+		// the layout settled. Re-measure on the next frame once the new layout has been applied
+		// (own board + opponent thumbnails, which fit to their grid cards in the 6-player layout).
+		if (on && typeof sizePlayerCanvas === "function") requestAnimationFrame(function() {
+			sizePlayerCanvas();
+			if (typeof sizeOpponentCanvases === "function") sizeOpponentCanvases();
+		});
 	}
 }
 // In the battle layouts each board's name header doubles as its progress readout ("Alice · 47%").
@@ -220,10 +228,20 @@ function setOppRankBadge(card, rating) {
 // small thumbnails.
 function sizeOpponentCanvases() {
 	var duo = isDuoRacing();
+	var multi = isMultiRacing();
 	var duoCell = duo ? (playerCanvas.width / DPR / cols) : OPP_CELL;
+	// In 6-player, fit each thumbnail to the width of its grid card so the boards use the column
+	// instead of sitting at the tiny fixed OPP_CELL. Measure a card; fall back to OPP_CELL before the
+	// layout is ready, and cap the cell so a wide screen doesn't blow the thumbnails up to full size.
+	var multiCell = OPP_CELL;
+	if (multi) {
+		var od = document.querySelector(".game-view.multi .opponent_div");
+		var avail = od ? od.clientWidth - 24 : 0; // minus the card's horizontal padding
+		if (avail > 0) multiCell = Math.max(OPP_CELL, Math.min(26, Math.floor(avail / cols)));
+	}
 	for (var gi = 1; gi <= 5; gi++) {
 		var cv = document.getElementById("game" + gi);
-		if (cv) sizeBoardCanvas(cv, (gi === 1 && duo) ? duoCell : OPP_CELL);
+		if (cv) sizeBoardCanvas(cv, (gi === 1 && duo) ? duoCell : (multi ? multiCell : OPP_CELL));
 	}
 }
 

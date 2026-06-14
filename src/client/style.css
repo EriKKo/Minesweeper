@@ -2586,7 +2586,7 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 5px var(--rb-glow));
 }
 .rank-hex-fill { fill: rgba(9, 13, 26, 0.66); }
-.rank-hex-rim { fill: none; stroke: var(--rb-c2); stroke-width: 3.4; stroke-linejoin: round; }
+.rank-hex-rim { fill: none; stroke: var(--rb-c2); stroke-width: 4.6; stroke-linejoin: round; }
 
 .rank-badge.tier-bronze   { --rb-c1: #d99e72; --rb-c2: #a9663a; --rb-c3: #5a3318; --rb-glow: rgba(169, 102, 58, 0.20); }
 .rank-badge.tier-silver   { --rb-c1: #ffffff; --rb-c2: #c3cedd; --rb-c3: #5e6b7e; --rb-glow: rgba(203, 213, 225, 0.22); }
@@ -2919,7 +2919,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 .game-view.multi { --duel-you: #3b82f6; }
 .game-view.multi { display: flex; flex-direction: column; min-height: calc(100dvh - 2rem); }
 .game-view.multi .game-grid {
-	grid-template-columns: minmax(0, 1.5fr) minmax(360px, 1fr);
+	grid-template-columns: minmax(0, 1.4fr) minmax(380px, 1fr);
 	align-items: start;
 	gap: 1.5rem;
 	flex: 1 1 auto;
@@ -2933,7 +2933,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 /* Your identity panel above the big board (rank badge + name + tier). */
 .game-view.multi #duel_id_you { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; align-self: flex-start; }
-.game-view.multi #duel_id_you .rank-badge { font-size: 12px; }
+.game-view.multi #duel_id_you .rank-badge { font-size: 15px; }
 
 /* Opponent grid: each opponent's board tiled two-up, name + % on top. */
 .game-view.multi .opponents {
@@ -2950,7 +2950,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	min-width: 0;
 }
 .game-view.multi .opponent_div .player-name {
-	font-size: 0.8rem;
+	font-size: 0.98rem;
 	font-weight: 700;
 	color: var(--text);
 	white-space: nowrap;
@@ -2966,15 +2966,13 @@ body.touch .find-next-arrow { display: inline-flex; }
    in its identity panel instead, so this row + insignia are hidden there. */
 .opp-head { display: flex; align-items: center; min-width: 0; }
 .game-view.duo .opp-head { display: none; }
-.game-view.multi .opp-head { margin-bottom: 0.45rem; }
+.game-view.multi .opp-head { margin-bottom: 0.5rem; }
 .opp-rank-badge { display: none; }
-/* Just the compact chevron(s), card chrome stripped; shown only when filled (in the multi layout). */
-.game-view.multi .opp-rank-badge:not(:empty) { display: flex; align-items: center; flex: 0 0 auto; margin-right: 0.5rem; }
-/* Fixed square so it sizes the SVG emblem (winged crest) as well as the chevron stack; chrome
-   stripped so it sits inline before the opponent's name. */
+/* Just the compact hexagon emblem; shown only when filled (in the multi layout). */
+.game-view.multi .opp-rank-badge:not(:empty) { display: flex; align-items: center; flex: 0 0 auto; margin-right: 0.55rem; }
+/* Fixed square so it sizes the hexagon emblem; sits inline before the opponent's name. */
 .opp-rank-badge .rank-badge {
-	font-size: 3.6px; width: 5em; height: 5em; min-height: 0; padding: 0; gap: 0.2em;
-	background: none; border: 0; box-shadow: none; border-radius: 0;
+	font-size: 4.8px; width: 5em; height: 5em; min-height: 0; padding: 0;
 }
 /* Leader glow on whichever board is ahead (own or an opponent). */
 .game-view.multi .player-board.leading {
