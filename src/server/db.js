@@ -412,6 +412,14 @@ function updateRating(userId, newRating, won, style) {
 	).run(newRating, won ? 1 : 0, userId);
 }
 
+// Set a per-style rating outright (admin testing tool) — no played/wins change, unlike updateRating.
+function setRating(userId, rating, style) {
+	var cols = { sprint: "rating_sprint", standard: "rating_standard", tournament: "rating_tournament", territory: "rating_territory" };
+	var ratingCol = cols[style];
+	if (!ratingCol) return;
+	db.prepare("UPDATE users SET " + ratingCol + " = ? WHERE id = ?").run(rating, userId);
+}
+
 function deleteSession(token) {
 	if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
 }
@@ -931,6 +939,7 @@ module.exports = {
 	setUserAdmin: setUserAdmin,
 	applyAdminBootstrap: applyAdminBootstrap,
 	updateRating: updateRating,
+	setRating: setRating,
 	deleteSession: deleteSession,
 	topPlayers: topPlayers,
 	// Puzzles

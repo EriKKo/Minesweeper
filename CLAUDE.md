@@ -439,7 +439,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
 - **`admin/`** — admin views (`AdminList`, `BotsAdmin`, `PatternsView`, `StartPatternsView`,
   `StartingPositionsView`, `CombinedPuzzlesView`, `PuzzleLab`, `Puzzles`, `DesignView`). `DesignView`
   (`/admin/design`) is a living design reference — renders the full rank ladder (every tier + sub-tier)
-  with the live `buildRankBadge` so the insignia can be reviewed without grinding.
+  with the live `buildRankBadge` so the insignia can be reviewed without grinding. It also has an
+  admin "Set your rank" tool: pick a rating + mode and it emits `admin_set_rating` → the server
+  (`isSocketAdmin`-gated) writes the rating via `db.setRating` (no played change) and echoes
+  `admin_rating_set`, so you can preview ranks / test the ranked UI at any tier.
 
 (File bullets below use bare names; resolve them under `core/`, `ui/`, `views/`, or `admin/`.)
 - `index.html` — entry page: markup only. Every client module is a plain `<script>`

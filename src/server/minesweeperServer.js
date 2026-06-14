@@ -729,6 +729,26 @@ io.on("connection", function (socket) {
 		ranked.dequeue(playerID);
 	});
 
+	// Admin testing tool: set your own rating outright so you can preview ranks / ranked UI at any tier.
+	// Gated to admins (DEV_AUTH or is_admin). Updates the DB + the live accounts cache and echoes back.
+	socket.on("admin_set_rating", function(data) {
+		if (!isSocketAdmin(playerID)) return;
+		var acc = accounts[playerID];
+		if (!acc) return;
+		var rating = Math.round((data && data.rating) || 0);
+		rating = Math.max(0, Math.min(6000, rating));
+		var fieldByStyle = { sprint: "ratingSprint", standard: "ratingStandard", tournament: "ratingTournament", territory: "ratingTerritory" };
+		var styles = (data && fieldByStyle[data.style]) ? [data.style] : ["sprint", "standard", "tournament", "territory"];
+		styles.forEach(function(st) {
+			db.setRating(acc.userId, rating, st);
+			acc[fieldByStyle[st]] = rating;
+		});
+		socket.emit("admin_rating_set", {
+			ratingSprint: acc.ratingSprint, ratingStandard: acc.ratingStandard,
+			ratingTournament: acc.ratingTournament, ratingTerritory: acc.ratingTerritory
+		});
+	});
+
 	socket.on("get_leaderboard", function() {
 		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
 	});

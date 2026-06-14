@@ -57,4 +57,67 @@ function renderDesign() {
 		grid.appendChild(cell);
 	});
 	view.appendChild(grid);
+
+	// --- Admin: set your own rank (testing) -------------------------------------------------------
+	function rankLabel(r) { var info = rankIconFor(r); return info.label + (info.subNum ? " " + info.subNum : ""); }
+	var setSection = document.createElement("h2");
+	setSection.className = "design-section-title";
+	setSection.textContent = "Set your rank (admin)";
+	view.appendChild(setSection);
+	var setNote = document.createElement("p");
+	setNote.className = "section-page-sub";
+	setNote.textContent = "Set your own rating to preview ranks and test the ranked UI at any tier. Admins only.";
+	view.appendChild(setNote);
+
+	var panel = document.createElement("div");
+	panel.className = "design-rankset";
+
+	var preview = document.createElement("div");
+	preview.className = "design-rankset-current";
+	if (typeof account !== "undefined" && account) {
+		var ov = overallRating(account);
+		var pv = buildRankBadge(ov); pv.style.fontSize = "22px";
+		preview.appendChild(pv);
+		var pl = document.createElement("span");
+		pl.className = "design-rankset-label";
+		pl.textContent = "Current: " + rankLabel(ov) + " · " + ov;
+		preview.appendChild(pl);
+	} else {
+		preview.textContent = "Sign in to set your rank.";
+	}
+	panel.appendChild(preview);
+
+	var controls = document.createElement("div");
+	controls.className = "design-rankset-controls";
+	var rankSel = document.createElement("select");
+	rankSel.className = "design-select";
+	ratings.forEach(function(r) {
+		var o = document.createElement("option");
+		o.value = r; o.textContent = rankLabel(r) + " (" + r + ")";
+		rankSel.appendChild(o);
+	});
+	if (typeof account !== "undefined" && account) {
+		var cur = overallRating(account), best = ratings[0];
+		ratings.forEach(function(r) { if (r <= cur) best = r; });
+		rankSel.value = String(best);
+	}
+	var styleSel = document.createElement("select");
+	styleSel.className = "design-select";
+	[["all", "All modes"], ["sprint", "Sprint"], ["standard", "Standard"], ["tournament", "Tournament"], ["territory", "Territory"]].forEach(function(s) {
+		var o = document.createElement("option");
+		o.value = s[0]; o.textContent = s[1];
+		styleSel.appendChild(o);
+	});
+	var apply = document.createElement("button");
+	apply.className = "btn btn-primary";
+	apply.textContent = "Apply";
+	apply.addEventListener("click", function() {
+		if (typeof socket === "undefined") return;
+		socket.emit("admin_set_rating", { rating: parseInt(rankSel.value, 10), style: styleSel.value });
+	});
+	controls.appendChild(rankSel);
+	controls.appendChild(styleSel);
+	controls.appendChild(apply);
+	panel.appendChild(controls);
+	view.appendChild(panel);
 }

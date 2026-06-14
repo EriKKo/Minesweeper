@@ -1158,6 +1158,19 @@ socket.on("ranked_rejected", function(data) {
 	showLobbyMessage((data && data.reason) || "Couldn't start ranked search.");
 });
 
+// Admin rank-setter (Design page) echoed back the new ratings — apply them to the account and refresh
+// the rank UI (topbar badge, home chips, and the Design page's own "your rank" preview).
+socket.on("admin_rating_set", function(data) {
+	if (!account || !data) return;
+	["ratingSprint", "ratingStandard", "ratingTournament", "ratingTerritory"].forEach(function(f) {
+		if (typeof data[f] === "number") account[f] = data[f];
+	});
+	if (typeof renderRatingBadge === "function") renderRatingBadge();
+	if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	var dv = document.getElementById("design_view");
+	if (typeof renderDesign === "function" && dv && dv.style.display !== "none") renderDesign();
+});
+
 // Local teardown of the in-game UI: drop room state, clear danger, reset territory, and
 // re-route to the current URL (which hides #game_view). Used both when WE leave (leaveRoom —
 // applied immediately) and when the server confirms it (left_room).
