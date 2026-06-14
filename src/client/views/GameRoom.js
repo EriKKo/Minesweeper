@@ -130,6 +130,10 @@ function renderLobbySlots(state) {
 			li.appendChild(status);
 		} else {
 			li.classList.add("lobby-slot-empty");
+			var open = document.createElement("span");
+			open.className = "lobby-slot-open";
+			open.textContent = canAddBot ? "Empty slot" : (isOwner ? "Bot limit reached" : "Open slot");
+			li.appendChild(open);
 			if (canAddBot) {
 				var add = document.createElement("button");
 				add.className = "lobby-slot-add";
@@ -137,11 +141,6 @@ function renderLobbySlots(state) {
 				add.textContent = "+ Add bot";
 				add.addEventListener("click", function() { socket.emit("add_bot"); });
 				li.appendChild(add);
-			} else {
-				var open = document.createElement("span");
-				open.className = "lobby-slot-open";
-				open.textContent = isOwner ? "Bot limit reached" : "Open slot";
-				li.appendChild(open);
 			}
 		}
 		scoreboardEl.appendChild(li);

@@ -3125,6 +3125,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	display: flex;
 	align-items: center;
 	gap: 0.7rem;
+	min-height: 4rem; /* match filled rows so seats don't reflow as players join / leave */
 	padding: 0.6rem 0.8rem;
 	border-radius: 10px;
 	background: rgba(255, 255, 255, 0.03);
@@ -3167,14 +3168,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 .lobby-slot-waiting { color: var(--muted); background: var(--surface-2); }
 .lobby-slot-empty { border-style: dashed; background: transparent; }
 .lobby-slot-empty .lobby-slot-num { background: transparent; border: 1px dashed var(--border); }
-.lobby-slot-add {
-	flex: 1 1 auto; text-align: left;
-	font: inherit; font-weight: 600; font-size: 0.9rem;
-	padding: 0.15rem 0; background: none; border: 0; color: var(--accent-hover);
-	cursor: pointer;
-}
-.lobby-slot-add:hover { color: var(--text); }
 .lobby-slot-open { flex: 1 1 auto; color: var(--muted); font-style: italic; font-size: 0.86rem; }
+/* Add bot sits on the right of the empty row (the "Empty slot" label fills the space before it). */
+.lobby-slot-add {
+	flex: 0 0 auto; margin-left: auto;
+	font: inherit; font-weight: 600; font-size: 0.85rem;
+	padding: 0.4rem 0.75rem; border-radius: 8px;
+	background: var(--surface-2); border: 1px solid var(--border); color: var(--accent-hover);
+	cursor: pointer; transition: all var(--motion-micro) var(--ease-out);
+}
+.lobby-slot-add:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
 
 /* Bigger, easier-to-hit dropdowns in the lobby (bot difficulty + the ruleset selects). */
 .game-view.lobby .lobby-slot-diff {
