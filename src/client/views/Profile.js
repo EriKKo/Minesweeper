@@ -157,12 +157,13 @@ function renderDashIdentity() {
 // change between loads; flags are only placed on the deducible frontier (mines next to a revealed
 // cell), never randomly. Tune a board by changing its `seed`.
 var DASH_MODE_PREVIEW = {
-	// "cleared" modes look mid/late-game: most of the board cleared, an unexplored corner, flags on
-	// the deduced mines. Puzzle stays a fresh tight cascade (zoomed in, no flags).
-	sprint:   { rows: 6, cols: 10, density: 0.10, cleared: true,  seed: 13 },
-	standard: { rows: 6, cols: 9,  density: 0.20, cleared: true,  seed: 7 },
-	custom:   { rows: 6, cols: 9,  density: 0.14, cleared: true,  seed: 24 },
-	puzzles:  { rows: 5, cols: 6,  density: 0.22, cleared: false, seed: 4 }
+	// Each mode gets a distinct play-state silhouette so they don't read alike: where the unexplored
+	// area sits (cover corner + size), how much is cleared, and how many of the deduced mines are
+	// flagged. Puzzle is a fresh tight cascade (zoomed in, no flags).
+	sprint:   { rows: 6, cols: 10, density: 0.10, cover: { corner: "br", r: 2, c: 3 }, flagFrac: 0.35, seed: 13 }, // fast: almost cleared, barely flagged
+	standard: { rows: 6, cols: 9,  density: 0.22, cover: { corner: "tr", r: 4, c: 5 }, flagFrac: 1.0,  seed: 9 },  // methodical: half-explored, dense, fully flagged
+	custom:   { rows: 6, cols: 9,  density: 0.14, cover: { corner: "bl", r: 3, c: 4 }, flagFrac: 0.6,  seed: 24 }, // casual: medium
+	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
 };
 function dashRng(seed) {
 	return function() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
@@ -179,13 +180,7 @@ function genModeBoard(cfg) {
 	}
 	function clue(r, c) { var n = 0; for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) { var nr = r + dr, nc = c + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C && mineSet[nr + "," + nc]) n++; } return n; }
 	var rev = {};
-	if (cfg.cleared) {
-		// Played board: clear every safe cell except an unexplored bottom-right corner.
-		var hideR = Math.ceil(R / 2), hideC = Math.ceil(C / 2);
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			if (!mineSet[r + "," + c] && !(r >= R - hideR && c >= C - hideC)) rev[r + "," + c] = true;
-		}
-	} else {
+	if (cfg.puzzle) {
 		// Puzzle: flood just the central 0-region (a fresh opening to solve).
 		var q = [[sr, sc]];
 		while (q.length) {
@@ -196,14 +191,25 @@ function genModeBoard(cfg) {
 				var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
 			}
 		}
+	} else {
+		// Played board: clear every safe cell except an unexplored corner (position/size per mode).
+		var cv = cfg.cover, bottom = cv.corner.indexOf("b") >= 0, right = cv.corner.indexOf("r") >= 0;
+		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+			var inR = bottom ? (r >= R - cv.r) : (r < cv.r);
+			var inC = right ? (c >= C - cv.c) : (c < cv.c);
+			if (!mineSet[r + "," + c] && !(inR && inC)) rev[r + "," + c] = true;
+		}
 	}
 	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
-	// Sensible flags: only mines that touch a revealed cell (the deducible frontier). Cleared modes only.
+	// Flags only on the deducible frontier (mines next to a revealed cell); flagFrac thins them
+	// deterministically so a "fast" mode shows few flags and a "methodical" one shows many.
 	var flagged = [];
-	if (cfg.cleared) mines.forEach(function(m) {
-		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { flagged.push(m); return; }
+	if (!cfg.puzzle) mines.forEach(function(m) {
+		var frontier = false;
+		for (var dr = -1; dr <= 1 && !frontier; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { frontier = true; break; }
 		}
+		if (frontier && rand() < cfg.flagFrac) flagged.push(m);
 	});
 	return { title: "", rows: R, cols: C, mines: mines, revealed: revealed, flagged: flagged };
 }
