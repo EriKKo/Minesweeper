@@ -3085,15 +3085,17 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 
 /* ===== Clean waiting-room lobby (custom casual room, planning phase) =====
-   No board, no scoreboard framing — just the roster, the ruleset, bot controls, and a prominent
-   Ready button, stacked in one centered column. Driven by the `lobby` class (renderRoomState). */
+   No board, no scoreboard framing. A two-column card layout: the player roster fills the left,
+   and the ruleset → bots → Ready button stack down the right. `display:contents` on .game-side lets
+   its cards become direct grid items so the roster and the right-hand stack can split into columns.
+   Driven by the `lobby` class (renderRoomState). */
 .game-view.lobby .game-grid {
-	display: flex;
-	flex-direction: column;
-	align-items: stretch;
-	max-width: 560px;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 300px;
+	align-items: start;
+	gap: 1rem 1.25rem;
+	max-width: 780px;
 	margin: 0 auto;
-	gap: 1rem;
 }
 .game-view.lobby #duel_timer,
 .game-view.lobby .duel-center,
@@ -3109,11 +3111,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 .game-view.lobby .player-board {
 	background: none; border: 0; box-shadow: none; padding: 0; display: block; width: 100%;
 }
-.game-view.lobby .game-side { order: 1; position: static; }
-.game-view.lobby .game-left { order: 3; }
+.game-view.lobby .game-side { display: contents; }
+/* Players fill the left column at full height; ruleset → bots → Ready stack down the right. */
+.game-view.lobby #scoreboard_card { grid-column: 1; grid-row: 1 / -1; align-self: stretch; min-height: 0; }
+.game-view.lobby #series_card,
+.game-view.lobby #bots_card { grid-column: 2; }
+.game-view.lobby .game-left { grid-column: 2; order: 9; } /* order pushes Ready below the right-hand cards */
 .game-view.lobby .player-controls { margin: 0; padding: 0; }
 .game-view.lobby #ready_button { width: 100%; font-size: 1.05rem; padding: 0.85rem 1rem; }
-.game-view.lobby #scoreboard_card { min-height: 0; }
 /* Roster row in the lobby is rank · name · status (no progress/score column). */
 .game-view.lobby .score-row { grid-template-columns: 1.5rem 1fr auto; }
 
