@@ -148,33 +148,34 @@ function renderDashIdentity() {
 }
 
 // Fixed board previews for each mode, in the standard board format the game renderer
-// (buildLearnPuzzle) consumes: { rows, cols, mines, revealed, flagged } as lists of [row, col], with
-// flags pre-placed. Sprint is a sparse, wide-open field; Standard a tight opening in a denser
-// minefield; Custom a medium board; Puzzles a small, tight cascade (no flags). Rendered once per load
-// and frozen (pointer-events: none). Edit a board's cells directly to retune it.
+// (buildLearnPuzzle) consumes: lists of [row, col] for `mines` and `flagged` (flags pre-placed). The
+// open area is given as a single `revealStart` cell — the renderer cascades from there exactly like a
+// real click. Sprint is a sparse, wide-open field; Standard a tight opening in a denser minefield;
+// Custom a medium board. Puzzles is a crafted deduction position with no 0-cell to cascade from, so it
+// lists its revealed cells explicitly. Rendered once per load and frozen (pointer-events: none).
 var DASH_MODE_BOARDS = {
 	sprint: {
 		rows: 6, cols: 10,
 		mines: [[0,0],[0,3],[1,1],[3,3],[3,7],[3,8]],
-		revealed: [[0,4],[0,5],[0,6],[0,7],[0,8],[0,9],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[2,0],[2,1],[2,2],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[3,0],[3,1],[3,2],[3,4],[3,5],[3,6],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],[4,8],[4,9],[5,0],[5,1],[5,2],[5,3],[5,4],[5,5],[5,6],[5,7],[5,8],[5,9]],
+		revealStart: [3, 5],
 		flagged: [[3,3],[3,7],[3,8]]
 	},
 	standard: {
 		rows: 6, cols: 9,
 		mines: [[0,2],[0,3],[1,1],[1,6],[2,0],[2,6],[2,8],[3,0],[3,6],[3,7],[3,8],[4,1],[4,8],[5,2]],
-		revealed: [[1,2],[1,3],[1,4],[1,5],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4],[3,5],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],[5,3],[5,4],[5,5],[5,6],[5,7]],
+		revealStart: [3, 4],
 		flagged: [[1,6],[2,6],[3,6],[3,7],[5,2]]
 	},
 	custom: {
 		rows: 6, cols: 9,
 		mines: [[0,5],[0,7],[1,6],[1,7],[1,8],[3,8],[4,6],[5,4]],
-		revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[5,0],[5,1],[5,2],[5,3]],
+		revealStart: [3, 4],
 		flagged: [[0,5],[5,4]]
 	},
 	puzzles: {
-		rows: 5, cols: 6,
-		mines: [[0,5],[1,0],[2,0],[3,0],[3,5],[4,1],[4,2]],
-		revealed: [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4],[2,1],[2,2],[2,3],[2,4],[3,1],[3,2],[3,3],[3,4]],
+		rows: 6, cols: 6,
+		mines: [[0,3],[1,0],[1,2],[2,0],[3,5],[4,3],[5,2]],
+		revealed: [[1,1],[1,3],[1,4],[2,1],[2,2],[2,3],[2,4],[3,1],[3,2],[3,3],[3,4],[4,1],[4,2],[4,4]],
 		flagged: []
 	}
 };
@@ -184,7 +185,10 @@ function renderModeBoardPreviews() {
 		var slot = document.getElementById("dash_board_" + key);
 		if (!slot || slot.firstChild) return;
 		var b = DASH_MODE_BOARDS[key];
-		var el = buildLearnPuzzle({ title: "", rows: b.rows, cols: b.cols, mines: b.mines, revealed: b.revealed, flagged: b.flagged }, false, function() {});
+		var el = buildLearnPuzzle({
+			title: "", rows: b.rows, cols: b.cols, mines: b.mines,
+			revealed: b.revealed, revealStart: b.revealStart, flagged: b.flagged
+		}, false, function() {});
 		el.classList.add("dash-board-preview");
 		slot.appendChild(el);
 	});
