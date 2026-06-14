@@ -569,8 +569,9 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
   are a density fraction of the cells, so difficulty stays consistent across sizes.
   Dimensions are passed into `createGame`/`createTemplate`; the solver and bot derive
   them from the board array; the client receives `rows`/`cols` in room state.
-- Ranked uses a fixed ruleset (Best of 5, 2 min rounds, 5s mine penalty, medium board,
-  10% mines), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
+- Ranked uses a fixed ruleset (Best of 5, 2 min rounds by default — Standard's denser 20% board
+  gets 3 min via `roundSeconds: 180`; territory has no clock, 5s mine penalty, medium board,
+  10% mines for Sprint / 20% Standard / 15% Tournament), pairwise Elo, tiers, and a leaderboard. Filler bots are tuned to the
   lobby's average rating and trickle into the queue like real players. The tier ladder runs
   0 → 3000 (Bronze I = 0, 200 per sub-tier, Master from 3000); everyone starts/floors at 0 and
   climbs. Gains are bigger for placement games and scale up with margin of victory (see `elo.js`).

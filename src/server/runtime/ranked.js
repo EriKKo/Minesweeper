@@ -26,8 +26,8 @@ var roomMapping = appState.roomMapping, games = appState.games, rooms = appState
 var RANKED_MODES = {
 	sprint_duo: { size: 2, label: "1v1 Sprint", style: "sprint", mineDensity: 0.10, boardSize: "medium" },
 	sprint_six: { size: 6, label: "6P Sprint",  style: "sprint", mineDensity: 0.10, boardSize: "medium" },
-	standard_duo: { size: 2, label: "1v1 Standard", style: "standard", mineDensity: 0.20, boardSize: "medium" },
-	standard_six: { size: 6, label: "6P Standard", style: "standard", mineDensity: 0.20, boardSize: "medium" },
+	standard_duo: { size: 2, label: "1v1 Standard", style: "standard", mineDensity: 0.20, boardSize: "medium", roundSeconds: 180 }, // denser board → longer round
+	standard_six: { size: 6, label: "6P Standard", style: "standard", mineDensity: 0.20, boardSize: "medium", roundSeconds: 180 },
 	// Cut 4 per round while many players are alive (16 → 12 → 8), then 2 per round to a 1v1 final.
 	tournament: { size: 16, label: "Tournament", style: "tournament", mineDensity: 0.15, boardSize: "medium", schedule: [12, 8, 6, 4, 2, 1] },
 	territory_duo: { size: 2, label: "1v1 Territory", style: "territory", mineDensity: territory.density, boardSize: "medium", gameMode: "territory", roundSeconds: 0, ratingKey: "territory" }, // no clock — ends when the board is played out; bots picked by their measured territory rating
