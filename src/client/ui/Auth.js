@@ -43,12 +43,17 @@ var googleSigninButton = document.getElementById("google_signin");
 var discordSigninButton = document.getElementById("discord_signin");
 var devSigninButton = document.getElementById("dev_signin");
 
+var ratingBadgeSlot = document.getElementById("rating_badge");
 function renderRatingBadge() {
 	renderHomeRankChips();
-	if (!account) return;
-	// Topbar chip shows your overall (best-across-modes) rank.
+	if (!account) { if (ratingBadgeSlot) ratingBadgeSlot.innerHTML = ""; return; }
+	// Topbar chip shows your overall (best-across-modes) rank, with its rank badge beside it.
 	var overall = overallRating(account);
 	var t = tierFor(overall, account.provisional);
+	if (ratingBadgeSlot && typeof buildRankBadge === "function") {
+		ratingBadgeSlot.innerHTML = "";
+		ratingBadgeSlot.appendChild(buildRankBadge(overall));
+	}
 	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + overall;
 	ratingChip.style.color = t.color;
 	ratingChip.style.background = t.color + "22";

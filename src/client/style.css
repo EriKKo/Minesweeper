@@ -393,6 +393,11 @@ body {
 
 .user-badge strong { color: var(--text); font-weight: 600; }
 
+/* Small rank badge beside the topbar rating chip. */
+.topbar-rank-badge { display: inline-flex; align-items: center; }
+.topbar-rank-badge:empty { display: none; }
+.topbar-rank-badge .rank-badge { font-size: 7px; }
+
 input[type="text"] {
 	background: var(--surface);
 	border: 1px solid var(--border);
