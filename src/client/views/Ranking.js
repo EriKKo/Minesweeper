@@ -61,10 +61,13 @@ function buildRankBadge(rating) {
 	if (info.subNum) {
 		var count = SUB_TIER_NUMERALS.indexOf(info.subNum) + 1;
 		if (count < 1) count = 1;
+		// Bronze/Silver/Gold wear chevrons; Platinum/Diamond graduate to faceted gems (one per
+		// sub-tier) so the top tiers read as distinctly more prestigious, not just recoloured chevrons.
+		var gemTier = (info.tierClass === "platinum" || info.tierClass === "diamond");
 		for (var i = 0; i < count; i++) {
-			var chev = document.createElement("span");
-			chev.className = "rank-chev";
-			badge.appendChild(chev);
+			var pip = document.createElement("span");
+			pip.className = gemTier ? "rank-gem" : "rank-chev";
+			badge.appendChild(pip);
 		}
 	} else {
 		var star = document.createElement("span");

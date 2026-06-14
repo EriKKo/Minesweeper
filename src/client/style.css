@@ -2562,12 +2562,47 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 }
 
 .rank-chev {
+	position: relative;
 	width: 3em;
 	height: 0.875em;
 	clip-path: polygon(50% 0, 100% 58%, 100% 100%, 50% 42%, 0 100%, 0 58%);
 	background: linear-gradient(160deg, var(--rb-c1), var(--rb-c2) 55%, var(--rb-c3));
 	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
 }
+/* Gold reads as a polished, brilliant metal — a bright diagonal sheen across the chevron — so it no
+   longer looks like a slightly-lighter bronze. (Clipped to the chevron via the parent's clip-path.) */
+.tier-gold .rank-chev::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(150deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.1) 38%, rgba(255, 255, 255, 0) 60%);
+}
+/* Platinum/Diamond wear faceted gems instead of chevrons — one per sub-tier. A brighter "crown"
+   facet up top + a darker pavilion below give the cut-stone look; Diamond sparkles a touch more. */
+.rank-gem {
+	position: relative;
+	width: 1.5em;
+	height: 1.3em;
+	clip-path: polygon(26% 0, 74% 0, 100% 34%, 50% 100%, 0 34%);
+	background: linear-gradient(165deg, var(--rb-c2), var(--rb-c3));
+	filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5));
+}
+.rank-gem::before { /* crown — the lit table + upper facets above the girdle */
+	content: "";
+	position: absolute;
+	left: 0; right: 0; top: 0;
+	height: 34%;
+	background: linear-gradient(160deg, var(--rb-c1), var(--rb-c2));
+}
+.rank-gem::after { /* a facet ridge down the pavilion for a cut-stone read */
+	content: "";
+	position: absolute;
+	left: 50%; top: 34%; bottom: 6%;
+	width: 1px; transform: translateX(-50%);
+	background: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+}
+.tier-diamond .rank-gem { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5)) brightness(1.12); }
+.tier-platinum, .tier-diamond { gap: 0.3em; }
 .rank-badge-star {
 	font-size: 1.95em;
 	line-height: 1;
@@ -2578,9 +2613,9 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
-.rank-badge.tier-bronze   { --rb-c1: #f0b486; --rb-c2: #cf8a57; --rb-c3: #6e4226; --rb-glow: rgba(207, 138, 87, 0.22); }
+.rank-badge.tier-bronze   { --rb-c1: #d99e72; --rb-c2: #a9663a; --rb-c3: #5a3318; --rb-glow: rgba(169, 102, 58, 0.20); }
 .rank-badge.tier-silver   { --rb-c1: #ffffff; --rb-c2: #c3cedd; --rb-c3: #5e6b7e; --rb-glow: rgba(203, 213, 225, 0.22); }
-.rank-badge.tier-gold     { --rb-c1: #fef0b0; --rb-c2: #f6b619; --rb-c3: #8a4f08; --rb-glow: rgba(251, 191, 36, 0.45); }
+.rank-badge.tier-gold     { --rb-c1: #fff7cf; --rb-c2: #ffce20; --rb-c3: #b07d09; --rb-glow: rgba(255, 206, 32, 0.55); }
 .rank-badge.tier-platinum { --rb-c1: #c8f9ef; --rb-c2: #4fd9c4; --rb-c3: #0c7f73; --rb-glow: rgba(94, 234, 212, 0.45); }
 .rank-badge.tier-diamond  { --rb-c1: #cfe4ff; --rb-c2: #5aa0fa; --rb-c3: #1b46c4; --rb-glow: rgba(96, 165, 250, 0.5); }
 .rank-badge.tier-master   { --rb-c1: #f6e3ff; --rb-c2: #bf7bfb; --rb-c3: #6f1fbd; --rb-glow: rgba(192, 132, 252, 0.65); }
