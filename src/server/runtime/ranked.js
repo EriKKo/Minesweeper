@@ -85,6 +85,10 @@ function rankedTargetElo(mode) {
 function rankedSearchMembers(viewerID, mode) {
 	var members = [];
 	var q = rankedQueues[mode], pending = pendingBotsLists[mode];
+	// Show each player's rating on THIS mode's ladder (rating_sprint/standard/…), read fresh from
+	// the db, not the legacy `rating` column — style games only update the per-style column, so the
+	// legacy field is stale and would show an old rank after you've played some games.
+	var style = (RANKED_MODES[mode] && RANKED_MODES[mode].style) || mode;
 	for (var i = 0; i < q.length; i++) {
 		var pid = q[i];
 		var acc = accounts[pid];
@@ -92,7 +96,7 @@ function rankedSearchMembers(viewerID, mode) {
 		members.push({
 			id: pid,
 			name: names[pid] || (u && u.name) || "Anonymous",
-			rating: u ? u.rating : 1000,
+			rating: u ? readUserRating(u, style) : 0,
 			provisional: u ? (u.played < PROVISIONAL_GAMES) : true,
 			isYou: pid === viewerID,
 			isBot: false
