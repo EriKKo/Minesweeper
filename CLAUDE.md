@@ -532,12 +532,25 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
   (`Overlay.js` also holds `showConfirm(message, opts)` — the app's promise-based confirm
   modal, used app-wide instead of `window.confirm()`.)
-- `Lobby.js`'s ranked search is a **waiting room** (`#ranked_searching`, a centred
-  full-viewport overlay with a dimmed/blurred backdrop): `renderMatchRoster(info)` turns the `members`
-  roster the server sends with every `ranked_searching` broadcast into a filling slot
-  list (name + tier chip, "YOU" tag for self, dashed "Waiting for player…"
-  placeholders for empty slots), above a mode label + flavour tagline (`MODE_TAGLINES`),
-  progress bar, count, and a Leave button. Only newly-arrived rows animate in
+- **Ranked search.** The racing modes (1v1 + 6-player Sprint/Standard) drop you **straight into the
+  battle UI** and slot opponents into the opponent boards as they're found — search and play share one
+  screen, so there's no separate waiting room and "Play another" never leaves the page. `findRanked`
+  (Lobby.js) routes `isRaceRankedMode(mode)` to `startBattleSearch(mode)` (Main.js): it sets a
+  `rankedSearch` state (`{mode,size,race,members}`), shows `#game_view` in the duo/multi layout, paints
+  your board + opponent slots covered (medium 15×20 placeholder), and shows a "Finding match · N/size"
+  pill (`#battle_search_status`) in the game header. The battle-layout helpers read EITHER a live room
+  OR the search: `battleSize()`/`battleRoster()` fall back to `rankedSearch`, and `paintOpponentCovered`
+  fills the next opponent board per `members` (the rest show a dimmed pulsing `Searching…` slot,
+  `.opponent-searching`). `ranked_searching` broadcasts feed `updateBattleSearch`; `joined_room` calls
+  `endBattleSearch` so the live `room_state` takes over seamlessly. The "Exit game" button cancels the
+  queue (`cancelBattleSearch`) while still searching, and `left_room` skips its teardown while
+  `rankedSearch` is set (so "Play another"'s `leave_room`+re-queue doesn't bounce you to the lobby).
+  NB the picker (`Router.js`) must NOT `navigate("/")` for race modes — that would hide the battle UI;
+  it only routes home for the overlay modes.
+- **Territory & Tournament** still use the legacy **waiting-room overlay** (`#ranked_searching`, a centred
+  full-viewport card): `renderMatchRoster(info)` turns the `members` roster into a filling slot list
+  (name + tier chip, "YOU" tag, "Waiting for player…" placeholders) above a mode label + tagline
+  (`MODE_TAGLINES`), progress bar, count, and a Leave button. Only newly-arrived rows animate in
   (`matchRosterShown` gate), so existing rows don't re-flash as bots trickle in.
 
 The Learn page is an interactive deduction trainer (`LEARN_COURSES` data

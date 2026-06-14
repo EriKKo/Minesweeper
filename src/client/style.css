@@ -4197,6 +4197,22 @@ body.touch .find-next-arrow { display: inline-flex; }
 .ranked-picker-option-title { font-size: 1.4rem; font-weight: 700; }
 .ranked-picker-option-sub { color: var(--muted); font-size: 0.85rem; }
 
+/* === In-battle ranked search ===================================== */
+/* Status pill shown in the game header while opponents are being found for the racing modes
+   (the player is already in the battle layout; opponents slot into the boards as they arrive). */
+.battle-search-status { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+.battle-search-spinner {
+	width: 14px; height: 14px; border-radius: 50%;
+	border: 2px solid var(--border); border-top-color: var(--accent);
+	animation: battle-search-spin 0.7s linear infinite;
+}
+@keyframes battle-search-spin { to { transform: rotate(360deg); } }
+/* Opponent board still waiting for a player: dimmed + a gentle pulse, labelled "Searching…". */
+.opponent_div.opponent-searching { opacity: 0.6; }
+.opponent_div.opponent-searching .player-name { color: var(--muted); font-style: italic; }
+.opponent_div.opponent-searching canvas { animation: battle-slot-pulse 1.4s ease-in-out infinite; }
+@keyframes battle-slot-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
+
 /* === Match-search toast (fixed bottom-right) ====================== */
 /* Full-viewport dimming backdrop that centres the waiting-room card. */
 .match-overlay {

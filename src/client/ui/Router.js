@@ -85,8 +85,14 @@ function showRankedPickerView(style) {
 	var sixBtn = document.getElementById("ranked_picker_six");
 	// Territory's larger match is 4-player (territory_quad), not the "_six" used by the racing styles.
 	var bigMode = style === "territory" ? "territory_quad" : style + "_six";
-	duoBtn.onclick = function() { findRanked(style + "_duo"); navigate("/"); };
-	sixBtn.onclick = function() { findRanked(bigMode); navigate("/"); };
+	// Racing modes drop straight into the battle UI (findRanked shows the game view) — stay there.
+	// Territory/tournament show the search as an overlay over the lobby, so return to the lobby.
+	function startRanked(mode) {
+		findRanked(mode);
+		if (!(typeof isRaceRankedMode === "function" && isRaceRankedMode(mode))) navigate("/");
+	}
+	duoBtn.onclick = function() { startRanked(style + "_duo"); };
+	sixBtn.onclick = function() { startRanked(bigMode); };
 	document.getElementById("ranked_picker_back").onclick = function() { navigate("/"); };
 }
 

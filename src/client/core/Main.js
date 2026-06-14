@@ -26,29 +26,35 @@ var boardScroll = document.getElementById("board_scroll");
 // Player canvas is sized differently on mobile: a fixed bigger cell size, no max-width
 // clamp — the surrounding .board-scroll handles pan when the board exceeds the screen.
 
-// A 1v1 racing match (two players, racing mode) uses the side-by-side "duel" layout: both
-// boards rendered at equal size. Driven by a `duo` class on the game view (set on room_state /
-// start_game). 6-player + territory + solo/puzzle are unaffected.
-function isDuoRacing() {
-	return !!(currentRoom && currentRoom.players && currentRoom.players.length === 2
-		&& (currentRoom.gameMode || "race") === "race");
+// --- Battle layout state -------------------------------------------------------------------------
+// The duo/multi battle layout is driven by EITHER a live room OR an in-progress ranked search: hitting
+// "Find match" for a racing mode drops you straight into this layout and slots opponents in as the
+// search fills, so search and play share one screen. `rankedSearch` holds the pending field.
+var rankedSearch = null; // { mode, size, race:true, members:[] } while searching a racing ranked mode
+function rankedModeSize(mode) { return /_six$/.test(mode) ? 6 : /_quad$/.test(mode) ? 4 : 2; }
+function isRaceRankedMode(mode) { return /^(sprint|standard)_(duo|six)$/.test(mode || ""); }
+// The number of racing boards in the current battle — from the live room if there is one, else the
+// size of the racing search we're in. 0 when neither applies (so the battle layout stays off).
+function battleSize() {
+	if (currentRoom && currentRoom.players && (currentRoom.gameMode || "race") === "race") return currentRoom.players.length;
+	if (rankedSearch && rankedSearch.race) return rankedSearch.size;
+	return 0;
 }
-// A small free-for-all racing match (3-6 players, racing mode) uses the TetrisFriends-style
-// battle layout: one big own board on the left, every opponent's live board in a grid on the
-// right. Tournaments (larger lobbies) keep the scoreboard layout; territory/solo are unaffected.
-function isMultiRacing() {
-	return !!(currentRoom && currentRoom.players && currentRoom.players.length >= 3
-		&& currentRoom.players.length <= 6 && (currentRoom.gameMode || "race") === "race");
-}
+// A 1v1 racing match uses the side-by-side "duel" layout (both boards equal size); a 3-6 player
+// match uses the TetrisFriends-style grid. Driven by a `duo`/`multi` class on the game view.
+function isDuoRacing() { return battleSize() === 2; }
+function isMultiRacing() { var n = battleSize(); return n >= 3 && n <= 6; }
 function isBattleRacing() { return isDuoRacing() || isMultiRacing(); }
 function applyDuoClass() {
 	// Battle layout while playing (the countdown counts as playing). Ranked matches also use it during
 	// the brief planning/reveal window so you see the field immediately on joining; custom rooms
 	// keep the normal layout in planning so their config controls stay visible.
 	var playing = !!currentRoom && (currentRoom.phase === "playing" || currentRoom.ranked);
+	var searching = !!(rankedSearch && rankedSearch.race); // in-battle search shows the field too
+	var on = playing || searching;
 	if (typeof gameView !== "undefined" && gameView) {
-		gameView.classList.toggle("duo", isDuoRacing() && playing);
-		gameView.classList.toggle("multi", isMultiRacing() && playing);
+		gameView.classList.toggle("duo", isDuoRacing() && on);
+		gameView.classList.toggle("multi", isMultiRacing() && on);
 	}
 }
 // In the battle layouts each board's name header doubles as its progress readout ("Alice · 47%").
@@ -83,12 +89,20 @@ function fillDuelId(el, p, isYou) {
 // Build the identity panel(s) from the room roster (run when the battle layout turns on / roster
 // changes). The duel fills both you + opponent; the 6-player battle fills just your own panel
 // above the big board (each opponent's name rides on its board card instead).
+// The battle roster is the live room's players if a match has formed, else the pending search field.
+// Both carry { id, name, rating, provisional, isYou? } so the identity panels + boards read either.
+function battleRoster() {
+	if (currentRoom && currentRoom.players) return currentRoom.players;
+	if (rankedSearch && rankedSearch.members) return rankedSearch.members;
+	return [];
+}
 function buildDuelIdentity() {
-	if (!isBattleRacing() || !currentRoom || !currentRoom.players) return;
+	if (!isBattleRacing()) return;
+	var roster = battleRoster();
 	var me = null, opp = null;
-	for (var i = 0; i < currentRoom.players.length; i++) {
-		var p = currentRoom.players[i];
-		if (p.id === id) me = p; else if (!opp) opp = p;
+	for (var i = 0; i < roster.length; i++) {
+		var p = roster[i];
+		if (p.id === id || p.isYou) { if (!me) me = p; } else if (!opp) opp = p;
 	}
 	fillDuelId(document.getElementById("duel_id_you"), me, true);
 	if (isDuoRacing()) fillDuelId(document.getElementById("duel_id_opp"), opp, false);
@@ -617,6 +631,8 @@ var currentRankedMode = null;
 var rankedSearching = document.getElementById("ranked_searching");
 var rankedSearchingText = document.getElementById("ranked_searching_text");
 var cancelRankedButton = document.getElementById("cancel_ranked_button");
+var battleSearchStatus = document.getElementById("battle_search_status");
+var battleSearchText = document.getElementById("battle_search_text");
 var leaderboardList = document.getElementById("leaderboard_list");
 // nameForm / nameInput / nameError / userBadge / userBadgeName / changeNameButton
 // / signOutButton / ratingChip / signinOptions / githubSigninButton /
@@ -981,6 +997,7 @@ cancelRankedButton.addEventListener("click", function() {
 });
 
 document.getElementById("leave_button").addEventListener("click", function() {
+	if (rankedSearch) { cancelBattleSearch(); return; } // still searching → cancel the queue, leave
 	if (soloSession) { exitSolo(); return; }
 	if (puzzleSession) { navigate("/"); return; }
 	if (currentRoom && currentRoom.phase === "playing") {
@@ -1063,13 +1080,61 @@ socket.on("joined_room", function(data) {
 	iAmEliminated = null;
 	elimPanelDismissed = false;
 	setRankedSearching(false);
+	endBattleSearch();        // a match formed — drop the in-battle search state (room_state takes over)
 	showGameView();
 	resetGameUI();
 });
 
+// --- In-battle ranked search ---------------------------------------------------------------------
+// For the racing ranked modes (1v1 + 6P Sprint/Standard) we drop the player straight into the battle
+// layout and slot opponents into the opponent boards as the search fills, instead of a separate
+// waiting-room overlay. Territory/Tournament still use the roster overlay (setRankedSearching).
+function startBattleSearch(mode) {
+	rankedSearch = { mode: mode, size: rankedModeSize(mode), race: true, members: [] };
+	currentRoom = null;
+	inRoom = false;
+	applyBoardDims(15, 20);   // ranked race boards are the medium preset — covered-placeholder size
+	showGameView();
+	resetGameUI();
+	readyButton.style.display = "none";   // nothing to ready while searching
+	if (rankedTag) rankedTag.style.display = "";
+	applyDuoClass();
+	setCoveredBoard();        // paints your own board + the opponent slots covered
+	updateBattleSearch();
+}
+function updateBattleSearch() {
+	if (!rankedSearch) return;
+	applyDuoClass();
+	buildDuelIdentity();
+	paintOpponentCovered();
+	var filled = (rankedSearch.members || []).length;
+	if (battleSearchText) battleSearchText.textContent = "Finding match · " + filled + "/" + rankedSearch.size;
+	if (battleSearchStatus) battleSearchStatus.style.display = "";
+}
+// Clear the search state + status (the layout/boards are taken over by room_state, or torn down on cancel).
+function endBattleSearch() {
+	rankedSearch = null;
+	if (battleSearchStatus) battleSearchStatus.style.display = "none";
+}
+// Leave an in-battle search (the "Exit game" button while still searching): cancel the queue and bail.
+function cancelBattleSearch() {
+	socket.emit("cancel_ranked");
+	currentRankedMode = null;
+	endBattleSearch();
+	exitGameFullscreen();
+	teardownRoomUI();
+}
+
 socket.on("ranked_searching", function(data) {
 	rankedSearchInfo = data || {};
-	setRankedSearching(true);
+	// In-battle search for the racing modes; the legacy roster overlay for territory/tournament.
+	if (rankedSearch && isRaceRankedMode(rankedSearchInfo.mode || rankedSearch.mode)) {
+		rankedSearch.members = rankedSearchInfo.members || [];
+		if (rankedSearchInfo.size) rankedSearch.size = rankedSearchInfo.size;
+		updateBattleSearch();
+	} else {
+		setRankedSearching(true);
+	}
 });
 
 socket.on("ranked_rejected", function(data) {
@@ -1112,6 +1177,10 @@ socket.on("left_room", function(data) {
 			provisional: data.provisional
 		}]);
 	}
+	// "Play another" leaves the finished room and immediately re-queues in the battle UI. The
+	// server's left_room echo arrives after we've started that new search — don't tear the view down
+	// (which would route us back to the lobby); the new search owns the screen now.
+	if (rankedSearch) return;
 	teardownRoomUI();
 });
 
@@ -1164,20 +1233,29 @@ function paintOpponentCovered() {
 		covered[r] = new Array(cols);
 		for (var c = 0; c < cols; c++) covered[r][c] = UNKNOWN;
 	}
-	// Roster opponents (everyone but me), in roster order, so each card shows a name + covered board.
-	var oppPlayers = (currentRoom && currentRoom.players ? currentRoom.players : []).filter(function(p) { return p.id !== id; });
+	var searching = !!(rankedSearch && rankedSearch.race);
+	// Opponents (everyone but me), in roster order, so each card shows a name + covered board.
+	var oppPlayers = battleRoster().filter(function(p) { return !(p.id === id || p.isYou); });
+	// How many opponent slots to show: during search, the full field minus you (so still-empty seats
+	// read as "Searching…" placeholders); in a live room, exactly the opponents present.
+	var slotCount = searching ? Math.max(0, battleSize() - 1) : oppPlayers.length;
 	var slots = document.querySelectorAll('[data-slot]');
 	for (var i = 1; i <= 5; i++) {
 		var slot = slots[i - 1];
 		var p = oppPlayers[i - 1];
 		var cv = document.getElementById("game" + i);
 		var nameEl = document.getElementById("player_name" + i);
-		if (p) {
-			if (slot) { slot.style.display = ""; slot.dataset.pid = p.id || ""; }
-			if (nameEl) nameEl.textContent = playerLabel(p.name, 0);
+		if (i <= slotCount) {
+			if (slot) {
+				slot.style.display = "";
+				slot.dataset.pid = p ? (p.id || "") : "";
+				slot.classList.toggle("opponent-searching", searching && !p);
+			}
+			if (nameEl) nameEl.textContent = p ? playerLabel(p.name, 0) : "Searching…";
 			if (cv) drawBoardStatic(covered, cv);
 		} else if (slot) {
 			slot.style.display = "none";
+			slot.classList.remove("opponent-searching");
 		}
 	}
 }

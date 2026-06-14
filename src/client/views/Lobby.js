@@ -10,7 +10,10 @@ function findRanked(mode) {
 	enterGameFullscreen();
 	currentRankedMode = mode;
 	socket.emit("find_ranked", { mode: mode });
-	setRankedSearching(true, mode);
+	// Racing modes (1v1 + 6P Sprint/Standard) drop straight into the battle UI and slot opponents
+	// into the opponent boards as they're found; territory/tournament use the roster overlay.
+	if (typeof isRaceRankedMode === "function" && isRaceRankedMode(mode)) startBattleSearch(mode);
+	else setRankedSearching(true, mode);
 }
 var rankedSearchInfo = null;
 var MODE_LABELS = {
