@@ -147,86 +147,44 @@ function renderDashIdentity() {
 	}
 }
 
-// Mode previews are rendered with the REAL game board renderer (buildLearnPuzzle — the same one
-// the daily puzzle uses), so each mode shows an authentic board at its own mine density: Sprint's
-// sparse 10% (wide cascades) vs Standard's dense 20% (lots of numbers), etc. Uniform dimensions so
-// no mode looks bigger than another. Generated once per load and frozen (pointer-events: none).
-// Mode previews are FIXED (deterministic) boards rendered by the real game renderer. The racing
-// modes use a wider board (zoomed out) so you see the open field; Puzzles uses a small, denser grid
-// (zoomed in) so it reads as a tight deduction. Boards are pinned to a per-mode seed so they don't
-// change between loads; flags are only placed on the deducible frontier (mines next to a revealed
-// cell), never randomly. Tune a board by changing its `seed`.
-var DASH_MODE_PREVIEW = {
-	// Each board is a REAL, legal mid-game position: we flood-reveal from a start cell (exactly like a
-	// real cascade), so every covered region is bounded by numbered frontier cells — never a bare 0 next
-	// to a covered cell (which would look like a missing number). Modes read differently via where the
-	// opening starts, the mine density, and how many deduced mines are flagged. Puzzle is a fresh tight
-	// cascade (zoomed in, no flags). Tune a board by changing its `seed`.
-	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c", seed: 13 }, // fast: sparse, wide-open field
-	standard: { rows: 6, cols: 9,  density: 0.25, start: "c", seed: 1 },  // methodical: tight opening in a dense minefield
-	custom:   { rows: 6, cols: 9,  density: 0.15, start: "c", seed: 9 },  // casual: medium density
-	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
+// Fixed board previews for each mode, in the standard board format the game renderer
+// (buildLearnPuzzle) consumes: { rows, cols, mines, revealed, flagged } as lists of [row, col], with
+// flags pre-placed. Sprint is a sparse, wide-open field; Standard a tight opening in a denser
+// minefield; Custom a medium board; Puzzles a small, tight cascade (no flags). Rendered once per load
+// and frozen (pointer-events: none). Edit a board's cells directly to retune it.
+var DASH_MODE_BOARDS = {
+	sprint: {
+		rows: 6, cols: 10,
+		mines: [[0,0],[0,3],[1,1],[3,3],[3,7],[3,8]],
+		revealed: [[0,4],[0,5],[0,6],[0,7],[0,8],[0,9],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[2,0],[2,1],[2,2],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[3,0],[3,1],[3,2],[3,4],[3,5],[3,6],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],[4,8],[4,9],[5,0],[5,1],[5,2],[5,3],[5,4],[5,5],[5,6],[5,7],[5,8],[5,9]],
+		flagged: [[3,3],[3,7],[3,8]]
+	},
+	standard: {
+		rows: 6, cols: 9,
+		mines: [[0,2],[0,3],[1,1],[1,6],[2,0],[2,6],[2,8],[3,0],[3,6],[3,7],[3,8],[4,1],[4,8],[5,2]],
+		revealed: [[1,2],[1,3],[1,4],[1,5],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4],[3,5],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],[5,3],[5,4],[5,5],[5,6],[5,7]],
+		flagged: [[1,6],[2,6],[3,6],[3,7],[5,2]]
+	},
+	custom: {
+		rows: 6, cols: 9,
+		mines: [[0,5],[0,7],[1,6],[1,7],[1,8],[3,8],[4,6],[5,4]],
+		revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[5,0],[5,1],[5,2],[5,3]],
+		flagged: [[0,5],[5,4]]
+	},
+	puzzles: {
+		rows: 5, cols: 6,
+		mines: [[0,5],[1,0],[2,0],[3,0],[3,5],[4,1],[4,2]],
+		revealed: [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4],[2,1],[2,2],[2,3],[2,4],[3,1],[3,2],[3,3],[3,4]],
+		flagged: []
+	}
 };
-function dashRng(seed) {
-	return function() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-}
-function genModeBoard(cfg) {
-	var R = cfg.rows, C = cfg.cols, rand = dashRng(cfg.seed);
-	// Start pocket location: a mine-free 3x3 around the seed guarantees a 0-cell to flood from. The
-	// opening grows from here, so placing it centrally vs. in a corner shifts where the explored area sits.
-	var start = cfg.start || "c";
-	var sr = start.indexOf("t") >= 0 ? 1 : start.indexOf("b") >= 0 ? R - 2 : R >> 1;
-	var sc = start.indexOf("l") >= 0 ? 1 : start.indexOf("r") >= 0 ? C - 2 : C >> 1;
-	var mineSet = {}, mines = [], target = Math.round(R * C * cfg.density), guard = 0;
-	while (mines.length < target && guard++ < 6000) {
-		var r = (rand() * R) | 0, c = (rand() * C) | 0, k = r + "," + c;
-		if (Math.abs(r - sr) <= 1 && Math.abs(c - sc) <= 1) continue;
-		if (mineSet[k]) continue;
-		mineSet[k] = true; mines.push([r, c]);
-	}
-	function clue(r, c) { var n = 0; for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) { var nr = r + dr, nc = c + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C && mineSet[nr + "," + nc]) n++; } return n; }
-	// Flood-reveal from the start cell — a real cascade. A 0-cell pulls in all 8 neighbours; a numbered
-	// cell is revealed but stops the spread (it's the frontier). Mines are never reached. The result is
-	// always a LEGAL position: the boundary of the covered area is numbered cells, never a bare 0.
-	var rev = {};
-	function flood(r0, c0) {
-		var q = [[r0, c0]];
-		while (q.length) {
-			var p = q.shift(), pk = p[0] + "," + p[1];
-			if (rev[pk] || mineSet[pk]) continue;
-			rev[pk] = true;
-			if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-				var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
-			}
-		}
-	}
-	flood(sr, sc);
-	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
-	// Flags only where they're logically FORCED — a revealed clue whose value equals its number of
-	// covered neighbours, so every one of them must be a mine (the basic human deduction: a "1"
-	// bordering a single covered cell, common at corners). Never a guessed/decorative flag.
-	var flagged = [], flagKey = {};
-	if (!cfg.puzzle) for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-		if (!rev[r + "," + c]) continue;
-		var v = clue(r, c); if (v === 0) continue;
-		var covered = [];
-		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (dr === 0 && dc === 0) continue;
-			var nr = r + dr, nc = c + dc; if (nr < 0 || nc < 0 || nr >= R || nc >= C) continue;
-			if (!rev[nr + "," + nc]) covered.push([nr, nc]);
-		}
-		if (covered.length === v) covered.forEach(function(p) {
-			var k = p[0] + "," + p[1]; if (!flagKey[k]) { flagKey[k] = true; flagged.push(p); }
-		});
-	}
-	return { title: "", rows: R, cols: C, mines: mines, revealed: revealed, flagged: flagged };
-}
 function renderModeBoardPreviews() {
 	if (typeof buildLearnPuzzle !== "function") return;
-	Object.keys(DASH_MODE_PREVIEW).forEach(function(key) {
+	Object.keys(DASH_MODE_BOARDS).forEach(function(key) {
 		var slot = document.getElementById("dash_board_" + key);
 		if (!slot || slot.firstChild) return;
-		var el = buildLearnPuzzle(genModeBoard(DASH_MODE_PREVIEW[key]), false, function() {});
+		var b = DASH_MODE_BOARDS[key];
+		var el = buildLearnPuzzle({ title: "", rows: b.rows, cols: b.cols, mines: b.mines, revealed: b.revealed, flagged: b.flagged }, false, function() {});
 		el.classList.add("dash-board-preview");
 		slot.appendChild(el);
 	});
