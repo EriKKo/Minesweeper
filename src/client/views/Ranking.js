@@ -73,7 +73,7 @@ function rankHexSVG() {
 }
 // The sub-tier chevrons (1-3), stacked and centred, filled with the tier's metallic gradient.
 function rankHexChevrons(n, grad) {
-	var p = "", w = 28, h = 8.4, gap = 3, total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2;
+	var p = "", w = 42, h = 10, gap = 2.8, total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2;
 	for (var i = 0; i < n; i++) {
 		var y = y0 + i * (h + gap);
 		var pts = [
