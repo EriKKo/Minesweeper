@@ -46,8 +46,10 @@ var devSigninButton = document.getElementById("dev_signin");
 function renderRatingBadge() {
 	renderHomeRankChips();
 	if (!account) return;
-	var t = tierFor(account.rating, account.provisional);
-	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating;
+	// Topbar chip shows your overall (best-across-modes) rank.
+	var overall = overallRating(account);
+	var t = tierFor(overall, account.provisional);
+	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + overall;
 	ratingChip.style.color = t.color;
 	ratingChip.style.background = t.color + "22";
 	ratingChip.style.display = "";

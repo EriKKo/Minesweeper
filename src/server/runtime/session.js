@@ -19,11 +19,8 @@ function init(deps) { PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
 function loginSocket(socket, playerID, user, token, sendToken) {
 	accounts[playerID] = {
 		userId: user.id, token: token, played: user.played,
-		rating: user.rating,
-		ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
-		ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
-		ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
-		ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating
+		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
+		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory
 	};
 	var isFirst = !names[playerID];
 	names[playerID] = user.name;
@@ -35,11 +32,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 	var dailyAttempt = db.getDailyAttempt(user.id, today);
 	var payload = {
 		name: user.name,
-		rating: user.rating,
-		ratingSprint: user.rating_sprint != null ? user.rating_sprint : user.rating,
-		ratingStandard: user.rating_standard != null ? user.rating_standard : user.rating,
-		ratingTournament: user.rating_tournament != null ? user.rating_tournament : user.rating,
-		ratingTerritory: user.rating_territory != null ? user.rating_territory : user.rating,
+		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
+		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory,
 		avatarUrl: user.avatar_url,
 		wins: user.wins,
 		played: user.played,

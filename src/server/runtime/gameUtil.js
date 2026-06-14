@@ -43,6 +43,22 @@ function gameForBroadcast(g, pid) {
 
 function isBot(playerID) { return !!bots[playerID]; }
 
+// The rating to show for an in-memory account: the per-style rating for a given ranked style,
+// or — with no style (casual rooms, an "overall" view) — the player's best rating across modes.
+// There is no single legacy `rating` field any more; "overall" always means max-across-modes.
+function maxAccountRating(acc) {
+	if (!acc) return null;
+	return Math.max(acc.ratingSprint || 0, acc.ratingStandard || 0, acc.ratingTournament || 0, acc.ratingTerritory || 0);
+}
+function accountRating(acc, style) {
+	if (!acc) return null;
+	if (style === "sprint") return acc.ratingSprint;
+	if (style === "standard") return acc.ratingStandard;
+	if (style === "tournament") return acc.ratingTournament;
+	if (style === "territory") return acc.ratingTerritory;
+	return maxAccountRating(acc);
+}
+
 function humanCount(room) {
 	var n = 0;
 	for (var i = 0; i < room.players.length; i++) if (!isBot(room.players[i])) n++;
@@ -97,5 +113,7 @@ module.exports = {
 	humanCount: humanCount,
 	botCount: botCount,
 	getRoomBotNames: getRoomBotNames,
+	accountRating: accountRating,
+	maxAccountRating: maxAccountRating,
 	updateDraw: updateDraw
 };

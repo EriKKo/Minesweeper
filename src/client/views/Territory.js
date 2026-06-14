@@ -486,10 +486,11 @@ function territoryResult(data) {
 		var sign = mine.ratingDelta >= 0 ? "+" : "";
 		detail += '<br><span class="tv-elo">Territory rating ' + mine.rating + " (" + sign + mine.ratingDelta + ")</span>";
 		if (typeof account !== "undefined" && account) {
-			account.ratingTerritory = mine.rating; account.rating = mine.rating;
+			account.ratingTerritory = mine.rating;
 			account.provisional = !!mine.provisional;
 		}
 		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+		if (typeof renderRatingBadge === "function") renderRatingBadge(); // refresh the topbar overall
 	}
 	var wrap = document.querySelector("#game_view .board-wrap");
 	if (wrap) {

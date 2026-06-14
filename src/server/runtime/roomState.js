@@ -9,7 +9,7 @@ var gameUtil = require("./gameUtil");
 
 var names = appState.names, rooms = appState.rooms, roundDeadlines = appState.roundDeadlines;
 var games = appState.games, accounts = appState.accounts, botRating = appState.botRating, botDifficulty = appState.botDifficulty;
-var isBot = gameUtil.isBot;
+var isBot = gameUtil.isBot, accountRating = gameUtil.accountRating;
 
 var io, MAX_BOTS_PER_ROOM, RANKED_BOT_RATING, PROVISIONAL_GAMES;
 function init(deps) {
@@ -81,7 +81,7 @@ function buildRoomState(room) {
 			var g = games[pid];
 			var bot = isBot(pid);
 			var rating = bot ? (botRating[pid] || RANKED_BOT_RATING)
-				: (accounts[pid] ? accounts[pid].rating : null);
+				: accountRating(accounts[pid], room.rankedStyle);
 			var provisional = bot ? false
 				: (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
 			return {

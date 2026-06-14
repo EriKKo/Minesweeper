@@ -11,7 +11,7 @@ var gameUtil = require("./gameUtil");
 
 var roundStarts = appState.roundStarts, games = appState.games, accounts = appState.accounts;
 var names = appState.names, botRating = appState.botRating;
-var isBot = gameUtil.isBot;
+var isBot = gameUtil.isBot, accountRating = gameUtil.accountRating;
 
 var RANKED_BOT_RATING, PROVISIONAL_GAMES;
 function init(deps) { RANKED_BOT_RATING = deps.RANKED_BOT_RATING; PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
@@ -51,12 +51,13 @@ function rankCompare(a, b) {
 function buildStandings(room) {
 	var N = room.players.length;
 	var roundStart = roundStarts[room.id] || 0;
+	var style = room.rankedStyle; // per-style rating for the tier chip (null/casual → best across modes)
 	var entries = room.players.map(function(pid) {
 		var g = games[pid];
 		var finished = g ? !!g.finished : false;
 		var finishedAt = g ? (g.finishedAt || 0) : 0;
 		var bot = isBot(pid);
-		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : (accounts[pid] ? accounts[pid].rating : null);
+		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : accountRating(accounts[pid], style);
 		var provisional = bot ? false : (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
 		var safeCount = g ? g.revealedSafeCount() : 0;
 		var totalSafe = g ? (g.totalSafeSquares || 0) : 0;
@@ -135,7 +136,7 @@ function buildTournamentStandings(room) {
 			// No stored Elo yet (likely the winner) — fall back to the persisted rating.
 			var acc = accounts[pid];
 			var u = acc ? db.getUserById(acc.userId) : null;
-			if (u) { entry.rating = u.rating; entry.provisional = u.played < PROVISIONAL_GAMES; }
+			if (u) { entry.rating = u.rating_tournament; entry.provisional = u.played < PROVISIONAL_GAMES; }
 		}
 		return entry;
 	});

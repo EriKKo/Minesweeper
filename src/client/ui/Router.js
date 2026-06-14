@@ -68,9 +68,9 @@ function showRankedPickerView(style) {
 	// player sees what's on the line for the match they're about to queue.
 	var rating = null;
 	if (account) {
-		if (style === "sprint") rating = account.ratingSprint != null ? account.ratingSprint : account.rating;
-		else if (style === "standard") rating = account.ratingStandard != null ? account.ratingStandard : account.rating;
-		else if (style === "territory") rating = account.ratingTerritory != null ? account.ratingTerritory : account.rating;
+		if (style === "sprint") rating = account.ratingSprint;
+		else if (style === "standard") rating = account.ratingStandard;
+		else if (style === "territory") rating = account.ratingTerritory;
 	}
 	var tierEl = document.getElementById("ranked_picker_tier");
 	var ratingEl = document.getElementById("ranked_picker_num");

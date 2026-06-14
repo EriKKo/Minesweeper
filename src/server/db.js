@@ -22,7 +22,6 @@ db.exec(
 	"  provider_id TEXT NOT NULL," +
 	"  name TEXT NOT NULL," +
 	"  avatar_url TEXT," +
-	"  rating INTEGER NOT NULL DEFAULT 0," +
 	"  provisional_games INTEGER NOT NULL DEFAULT 0," +
 	"  wins INTEGER NOT NULL DEFAULT 0," +
 	"  played INTEGER NOT NULL DEFAULT 0," +
@@ -104,11 +103,14 @@ addColumnIfMissing("users", "tournament_provisional", "INTEGER NOT NULL DEFAULT 
 addColumnIfMissing("users", "ranked_reset_v2", "INTEGER NOT NULL DEFAULT 0");
 try {
 	db.exec(
-		"UPDATE users SET rating = 0, rating_sprint = 0, rating_standard = 0, rating_tournament = 0, " +
+		"UPDATE users SET rating_sprint = 0, rating_standard = 0, rating_tournament = 0, " +
 		"rating_territory = 0, provisional_games = 0, sprint_provisional = 0, standard_provisional = 0, " +
 		"tournament_provisional = 0, played = 0, wins = 0, ranked_reset_v2 = 1 WHERE ranked_reset_v2 = 0"
 	);
 } catch (e) { /* already reset */ }
+// The single legacy `rating` column is gone — "overall" rating is now max-across-modes, computed
+// on demand (readUserRating with no style / topPlayers). Drop it so it can't be read by accident.
+dropColumnIfExists("users", "rating");
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -236,8 +238,8 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 	// still carry the old DEFAULT 1000 doesn't seed new accounts at Silver III.
 	var info = db.prepare(
 		"INSERT INTO users (provider, provider_id, name, avatar_url, email, created_at, " +
-		"rating, rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)"
+		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
+		"VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
 	).run(provider, providerId, name, avatarUrl || null, emailLower, Date.now());
 	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 	applyAdminForEmail(created);
@@ -251,8 +253,8 @@ function createGuest() {
 	var providerId = crypto.randomBytes(12).toString("hex");
 	var info = db.prepare(
 		"INSERT INTO users (provider, provider_id, name, is_guest, created_at, " +
-		"rating, rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES ('guest', ?, ?, 1, ?, 0, 0, 0, 0, 0)"
+		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
+		"VALUES ('guest', ?, ?, 1, ?, 0, 0, 0, 0)"
 	).run(providerId, name, Date.now());
 	return db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 }
@@ -400,11 +402,9 @@ applyAdminBootstrap();
 // anything else falls back to the legacy `rating` column so old
 // callers keep working.
 function updateRating(userId, newRating, won, style) {
-	var ratingCol = "rating";
-	if (style === "sprint")       ratingCol = "rating_sprint";
-	else if (style === "standard")   ratingCol = "rating_standard";
-	else if (style === "tournament") ratingCol = "rating_tournament";
-	else if (style === "territory")  ratingCol = "rating_territory";
+	var cols = { sprint: "rating_sprint", standard: "rating_standard", tournament: "rating_tournament", territory: "rating_territory" };
+	var ratingCol = cols[style];
+	if (!ratingCol) return; // unknown style — nothing to persist (there is no legacy overall column)
 	// `played` / `wins` stay as overall ranked counts so leaderboards
 	// can still show a single record per user.
 	db.prepare(
@@ -417,7 +417,11 @@ function deleteSession(token) {
 }
 
 function topPlayers(limit) {
-	return db.prepare("SELECT name, rating, wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?").all(limit || 20);
+	// "Overall" rating is the player's best across modes (no single legacy column any more).
+	return db.prepare(
+		"SELECT name, MAX(rating_sprint, rating_standard, rating_tournament, rating_territory) AS rating, " +
+		"wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
+	).all(limit || 20);
 }
 
 // Map the CSP-driven score (max complexity + small total bonus) to a

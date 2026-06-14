@@ -26,6 +26,14 @@ function tierFor(rating, provisional) {
 	return { name: t.name + " " + SUB_TIER_NUMERALS[subIdx % SUB_TIERS_PER_TIER], color: t.color };
 }
 
+// Your "overall" rating: the best across all ranked styles. There is no single legacy rating —
+// anything that wants one headline number (topbar chip, profile summary) uses this.
+function overallRating(account) {
+	if (!account) return 0;
+	return Math.max(account.ratingSprint || 0, account.ratingStandard || 0,
+		account.ratingTournament || 0, account.ratingTerritory || 0);
+}
+
 // Returns { tierClass: "bronze"|"silver"|.., subNum: "I"|"II"|"III"|null, label: "Bronze" }
 // Used to render the round rank badges in the series-end panel.
 function rankIconFor(rating) {

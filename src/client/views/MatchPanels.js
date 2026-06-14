@@ -143,10 +143,11 @@ function countUpNumber(el, from, to, ms) {
 // Rank-up/down fanfare for the results modal if the tier changed. (The win/lose sound itself
 // plays earlier, at the on-board YOU WIN / YOU LOSE moment — see series_ended.) `oldRating` is
 // captured before the rating badge updates, so we can detect a tier crossing.
-function playResultMoment(won, ranked, oldRating) {
-	if (ranked && account && typeof oldRating === "number" && typeof account.rating === "number") {
-		var crossed = tierFor(oldRating, account.provisional).name !== tierFor(account.rating, account.provisional).name;
-		if (crossed && typeof sound !== "undefined") (account.rating > oldRating ? sound.rankUp : sound.rankDown)();
+function playResultMoment(won, ranked, oldRating, newRating) {
+	if (ranked && typeof oldRating === "number" && typeof newRating === "number") {
+		var prov = account && account.provisional;
+		var crossed = tierFor(oldRating, prov).name !== tierFor(newRating, prov).name;
+		if (crossed && typeof sound !== "undefined") (newRating > oldRating ? sound.rankUp : sound.rankDown)();
 	}
 }
 
@@ -191,23 +192,26 @@ function updateRatingFromStandings(standings, opts) {
 	if (!account) return;
 	var mine = standings.find(function(s) { return s.id === id; });
 	if (!mine || typeof mine.rating !== "number") return;
-	var oldRating = account.rating;
-	var oldTier = tierFor(oldRating, account.provisional);
-	account.rating = mine.rating;
+	// The topbar chip shows your overall (best-across-modes) rank; capture it before the update.
+	var oldOverall = overallRating(account);
+	var oldTier = tierFor(oldOverall, account.provisional);
 	if (mine.provisional != null) account.provisional = mine.provisional;
-	// Keep the per-style rating in sync so the home page reflects the result
-	// without a reload (the home chips/badges read ratingSprint/Standard/…).
+	// Update the played style's rating so the home chips/badges + the overall reflect the result
+	// without a reload (the per-style fields are the source of truth — there's no legacy rating).
 	var styleField = styleFieldFromMode(opts.mode || (typeof currentRankedMode !== "undefined" ? currentRankedMode : null));
 	if (styleField) account[styleField] = mine.rating;
 	if (typeof renderHomeRankChips === "function") renderHomeRankChips();
-	var newTier = tierFor(account.rating, account.provisional);
+	var newOverall = overallRating(account);
+	var newTier = tierFor(newOverall, account.provisional);
 	renderRatingBadge();
 	ratingChip.classList.remove("rating-chip-bump");
 	void ratingChip.offsetWidth;
 	ratingChip.classList.add("rating-chip-bump");
-	var delta = account.rating - oldRating;
+	// Float + banner track the headline (overall) rating; a gain in a non-best mode is shown in the
+	// result modal's own delta, not on the topbar.
+	var delta = newOverall - oldOverall;
 	if (delta !== 0 && !opts.suppressDelta) showRatingDelta(delta);
-	if (newTier.name !== oldTier.name && !opts.suppressBanner) showRankChangeBanner(account.rating > oldRating, newTier);
+	if (newTier.name !== oldTier.name && !opts.suppressBanner) showRankChangeBanner(newOverall > oldOverall, newTier);
 }
 
 // Floating "+15"/"-15" that drifts up from below the topbar rating chip, so
@@ -253,8 +257,12 @@ function showResultModal(data) {
 function showRankedResult(data) {
 	var won = data.winnerId === id;
 	var mine = (data.standings || []).find(function(s) { return s.id === id; }) || {};
-	var oldRating = account ? account.rating : null;
-	var newRating = (typeof mine.rating === "number") ? mine.rating : (account ? account.rating : 0);
+	// The card shows THIS mode's rating. Capture the old per-style value before updateRatingFromStandings
+	// overwrites it below, so the number can count up from old → new.
+	var styleField = styleFieldFromMode(data.mode || (typeof currentRankedMode !== "undefined" ? currentRankedMode : null));
+	var oldRating = (account && styleField && typeof account[styleField] === "number") ? account[styleField]
+		: (account ? overallRating(account) : null);
+	var newRating = (typeof mine.rating === "number") ? mine.rating : (oldRating != null ? oldRating : 0);
 
 	var panel = document.createElement("div");
 	panel.className = "result-panel ranked-result " + (won ? "ranked-result-win" : "ranked-result-lose");
@@ -330,7 +338,7 @@ function showRankedResult(data) {
 		countUpNumber(num, oldRating != null ? oldRating : newRating, newRating, 950);
 		fill.style.width = Math.round(newProg.fill * 100) + "%";
 	}, 400);
-	playResultMoment(won, data.ranked, oldRating);
+	playResultMoment(won, data.ranked, oldRating, newRating);
 	try { again.focus(); } catch (e) {}
 }
 
@@ -366,7 +374,7 @@ function showCasualResult(data) {
 // (if ranked), and a couple of CTAs.
 function showTournamentChampionPanel(data) {
 	var won = data.winnerId === id;
-	var resultOldRating = account ? account.rating : null; // capture before the badge updates
+	var resultOldRating = account ? account.ratingTournament : null; // tournament rating, before the update
 	var entries = (data.standings || []);
 	var winnerEntry = entries.find(function(s) { return s.id === data.winnerId; })
 		|| { id: data.winnerId, name: data.winnerName };
@@ -441,6 +449,6 @@ function showTournamentChampionPanel(data) {
 	panel.appendChild(actions);
 
 	presentPanel(panel, won ? "win" : "lose");
-	playResultMoment(won, data.ranked, resultOldRating);
+	playResultMoment(won, data.ranked, resultOldRating, account ? account.ratingTournament : null);
 	try { again.focus(); } catch (e) {}
 }

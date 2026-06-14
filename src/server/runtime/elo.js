@@ -42,11 +42,12 @@ function marginFactor(part, parts) {
 // Standard / Tournament each evolve independently.
 function readUserRating(u, style) {
 	if (!u) return RANKED_BOT_RATING;
-	if (style === "sprint") return u.rating_sprint != null ? u.rating_sprint : u.rating;
-	if (style === "standard") return u.rating_standard != null ? u.rating_standard : u.rating;
-	if (style === "tournament") return u.rating_tournament != null ? u.rating_tournament : u.rating;
-	if (style === "territory") return u.rating_territory != null ? u.rating_territory : u.rating;
-	return u.rating;
+	if (style === "sprint") return u.rating_sprint;
+	if (style === "standard") return u.rating_standard;
+	if (style === "tournament") return u.rating_tournament;
+	if (style === "territory") return u.rating_territory;
+	// No style → overall is the best rating across modes (there is no legacy `rating` column).
+	return Math.max(u.rating_sprint || 0, u.rating_standard || 0, u.rating_tournament || 0, u.rating_territory || 0);
 }
 
 // Compute and apply Elo for a single player against a known set of standings.
@@ -79,7 +80,6 @@ function applyEloForPlayer(targetPid, allParts, style) {
 		else if (style === "standard") accounts[targetPid].ratingStandard = newRating;
 		else if (style === "tournament") accounts[targetPid].ratingTournament = newRating;
 			else if (style === "territory") accounts[targetPid].ratingTerritory = newRating;
-		accounts[targetPid].rating = newRating; // legacy field kept in sync
 		accounts[targetPid].played = target.played + 1;
 	}
 	return { delta: delta, newRating: newRating, provisional: provisional };
@@ -164,7 +164,6 @@ function applyRankedElo(standings, style) {
 				else if (style === "standard") acc.ratingStandard = parts[k].newRating;
 				else if (style === "tournament") acc.ratingTournament = parts[k].newRating;
 					else if (style === "territory") acc.ratingTerritory = parts[k].newRating;
-				acc.rating = parts[k].newRating; // legacy field
 				acc.played = parts[k].played + 1;
 			}
 		}

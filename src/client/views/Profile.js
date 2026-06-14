@@ -21,7 +21,8 @@ function renderProfile() {
 	card.innerHTML = "";
 	var summary = document.createElement("div");
 	summary.className = "profile-summary";
-	summary.appendChild(buildRankBadge(account.rating));
+	var overall = overallRating(account); // best across modes — the headline rank
+	summary.appendChild(buildRankBadge(overall));
 	var text = document.createElement("div");
 	text.className = "profile-summary-text";
 	var nameLine = document.createElement("div");
@@ -30,8 +31,8 @@ function renderProfile() {
 	text.appendChild(nameLine);
 	var ratingLine = document.createElement("div");
 	ratingLine.className = "profile-summary-rating";
-	var t = tierFor(account.rating, account.provisional);
-	ratingLine.textContent = t.name + " · " + (account.provisional ? "~" : "") + account.rating + (account.provisional ? " (provisional)" : "");
+	var t = tierFor(overall, account.provisional);
+	ratingLine.textContent = t.name + " · " + (account.provisional ? "~" : "") + overall + (account.provisional ? " (provisional)" : "");
 	ratingLine.style.color = t.color;
 	text.appendChild(ratingLine);
 	summary.appendChild(text);
@@ -82,9 +83,9 @@ function renderHomeRankChips() {
 		tierEl.style.color = t.color;
 		ratingEl.textContent = (account.provisional ? "~" : "") + rating;
 	}
-	var sprint = account ? (account.ratingSprint != null ? account.ratingSprint : account.rating) : null;
-	var standard = account ? (account.ratingStandard != null ? account.ratingStandard : account.rating) : null;
-	var tournament = account ? (account.ratingTournament != null ? account.ratingTournament : account.rating) : null;
+	var sprint = account ? account.ratingSprint : null;
+	var standard = account ? account.ratingStandard : null;
+	var tournament = account ? account.ratingTournament : null;
 	// Each playstyle has a single rating; both 1v1 and 6P tiles show the
 	// same value so a Sprint player tracks one ladder regardless of size.
 	applyTo(rankTierSprint, rankRatingSprint, sprint, "rank_badge_sprint");
@@ -92,7 +93,7 @@ function renderHomeRankChips() {
 	applyTo(rankTierStandard, rankRatingStandard, standard, "rank_badge_standard");
 	applyTo(rankTierStandardSix, rankRatingStandardSix, standard);
 	applyTo(rankTierTournament, rankRatingTournament, tournament, "rank_badge_tournament");
-	var territory = account ? (account.ratingTerritory != null ? account.ratingTerritory : account.rating) : null;
+	var territory = account ? account.ratingTerritory : null;
 	applyTo(document.getElementById("rank_tier_territory"), document.getElementById("rank_rating_territory"), territory, "rank_badge_territory");
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");

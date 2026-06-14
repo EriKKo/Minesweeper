@@ -574,6 +574,12 @@ fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
   lobby's average rating and trickle into the queue like real players. The tier ladder runs
   0 → 3000 (Bronze I = 0, 200 per sub-tier, Master from 3000); everyone starts/floors at 0 and
   climbs. Gains are bigger for placement games and scale up with margin of victory (see `elo.js`).
+  Ratings are **per-style only** (`rating_sprint`/`rating_standard`/`rating_tournament`/
+  `rating_territory`) — there is no single legacy `rating` column. Anything needing one "overall"
+  number uses the **max across modes**: `overallRating(account)` on the client (topbar chip, profile
+  summary), `readUserRating(u)` with no style / `MAX(...)` in `topPlayers` on the server. Per-match
+  payloads (scoreboard, search roster, result card) carry the relevant per-style rating via
+  `gameUtil.accountRating(acc, style)`.
 - Ranked filler bots come from a **pre-benchmarked pool** (`bots-pool.json`, committed),
   not synthesized on the fly. Each pool bot is a random point in the six-variable space
   (speed, per-difficulty thinking, distance multiplier, max-difficulty ceiling, mistake

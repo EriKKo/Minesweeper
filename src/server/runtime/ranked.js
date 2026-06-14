@@ -264,7 +264,7 @@ function formRankedMatch(mode) {
 		for (var h = 0; h < humans.length; h++) {
 			var acc = accounts[humans[h]];
 			var u = acc ? db.getUserById(acc.userId) : null;
-			if (u) { sumElo += u.rating; eloCount++; }
+			if (u) { sumElo += readUserRating(u, modeDef.style); eloCount++; }
 		}
 		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
 		while (room.players.length < matchSize && botCount(room) < MAX_BOTS_PER_ROOM) {
