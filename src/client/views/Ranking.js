@@ -60,52 +60,20 @@ function buildRankBadge(rating) {
 	var info = rankIconFor(rating);
 	var badge = document.createElement("div");
 	badge.className = "rank-badge tier-" + info.tierClass;
-	if (info.tierClass === "platinum" || info.tierClass === "diamond" || info.tierClass === "master") {
-		badge.innerHTML = rankEmblemSVG(info);
-	} else if (info.subNum) {
-		var count = SUB_TIER_NUMERALS.indexOf(info.subNum) + 1;
-		if (count < 1) count = 1;
-		for (var i = 0; i < count; i++) {
-			var chev = document.createElement("span");
-			chev.className = "rank-chev";
-			badge.appendChild(chev);
-		}
-	} else {
-		var star = document.createElement("span");
-		star.className = "rank-badge-star";
-		star.textContent = "★";
-		badge.appendChild(star);
-	}
+	badge.innerHTML = rankEmblemSVG(info);
 	return badge;
 }
 
-// A heraldic wing of sharp, solid plates swept UP and out from the hexagon's side (Diamond/Master) —
-// the esports-pack look: angular blades (not soft feathers), the top one longest. Drawn for the right;
-// the caller mirrors it for the left.
-function rankWingSVG(n) {
-	var parts = "", px = 68, py = 48;
-	for (var i = 0; i < n; i++) {
-		var t = n > 1 ? i / (n - 1) : 0;
-		var ang = -66 + t * 56;          // top blade near-vertical (up) → lower swept out; tight so they overlap
-		var L = 30 - i * 2;              // top primary longest
-		var hb = 4.3 - i * 0.35;         // broad, solid plates (not thin spikes)
-		parts += '<path class="rank-feather" transform="translate(' + px + ' ' + py + ') rotate(' + ang.toFixed(1) + ')"'
-			+ ' d="M0 ' + (-hb).toFixed(1) + ' L' + (L * 0.72).toFixed(1) + ' ' + (-hb * 0.92).toFixed(1)
-			+ ' L' + L.toFixed(1) + ' 0 L0 ' + (hb * 0.88).toFixed(1) + ' Z"/>';
-	}
-	return parts;
-}
-// Hexagon plate (Platinum/Diamond/Master): a dark interior behind a metallic tier-coloured rim — the
-// frame the chevrons/star sit inside, like the esports rank packs.
-var RANK_HEX_PTS = "32,25 68,25 82,53 68,81 32,81 18,53";
+// Point-top hexagon plate every tier wears: a dark interior behind a tier-coloured rim, framing the
+// sub-tier chevrons (a star for Master). Clean — no wings.
+var RANK_HEX_PTS = "50,15 85,34 85,72 50,91 15,72 15,34";
 function rankHexSVG() {
 	return '<polygon class="rank-hex-fill" points="' + RANK_HEX_PTS + '"/>'
-		+ '<polygon class="rank-hex-rim" points="' + RANK_HEX_PTS + '"/>'
-		+ '<polygon class="rank-hex-bevel" points="36,30 64,30 76,53 64,76 36,76 24,53"/>';
+		+ '<polygon class="rank-hex-rim" points="' + RANK_HEX_PTS + '"/>';
 }
-// The sub-tier chevrons (1-3), stacked and centred inside the hexagon plate.
-function rankHexChevrons(n) {
-	var p = "", w = 30, h = 8.6, gap = 3.2, total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2;
+// The sub-tier chevrons (1-3), stacked and centred, filled with the tier's metallic gradient.
+function rankHexChevrons(n, grad) {
+	var p = "", w = 28, h = 8.4, gap = 3, total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2;
 	for (var i = 0; i < n; i++) {
 		var y = y0 + i * (h + gap);
 		var pts = [
@@ -116,33 +84,35 @@ function rankHexChevrons(n) {
 			x0 + "," + (y + h).toFixed(1),
 			x0 + "," + (y + 0.55 * h).toFixed(1)
 		];
-		p += '<polygon class="rank-hex-chev" points="' + pts.join(" ") + '"/>';
+		p += '<polygon points="' + pts.join(" ") + '" fill="url(#' + grad + ')"/>';
 	}
 	return p;
 }
-// A star centred in the hexagon for Master (tops the chevron ladder).
-function rankHexStarSVG() {
-	var pts = [], cx = 50, cy = 53, ro = 18, ri = 7.6;
+// A star centred in the hexagon for Master (tops the chevron ladder), same metallic gradient fill.
+function rankHexStarSVG(grad) {
+	var pts = [], cx = 50, cy = 53, ro = 19, ri = 8;
 	for (var k = 0; k < 10; k++) {
 		var a = (-90 + k * 36) * Math.PI / 180, r = (k % 2) ? ri : ro;
 		pts.push((cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1));
 	}
-	return '<polygon class="rank-hex-star" points="' + pts.join(" ") + '"/>';
+	return '<polygon points="' + pts.join(" ") + '" fill="url(#' + grad + ')"/>';
 }
-// Compose the emblem: a hexagon plate holding the sub-tier chevrons (a star for Master). Sub-tier reads
-// from the chevron count; the tier reads from the plate colour — and Diamond/Master also throw a pair
-// of wings out to the sides (Diamond 4 feathers, Master 5), setting the top two tiers apart.
+// Compose the emblem: the hexagon plate holding the sub-tier chevrons (a star for Master). Each badge
+// gets its own gradient id so the tier vars resolve per-instance (a shared id would take the first
+// badge's colours). The chevron/star gradient (objectBoundingBox) runs c1→c2→c3 across each shape, so
+// they keep the metallic chevron look at every tier.
+var _rankGradSeq = 0;
 function rankEmblemSVG(info) {
-	var tier = info.tierClass, isMaster = tier === "master";
+	var isMaster = info.tierClass === "master";
 	var subN = info.subNum ? Math.max(1, SUB_TIER_NUMERALS.indexOf(info.subNum) + 1) : 3;
+	var grad = "rg" + (++_rankGradSeq);
 	var svg = '<svg class="rank-emblem" viewBox="0 0 100 100" aria-hidden="true">';
-	if (isMaster || tier === "diamond") {
-		var wings = isMaster ? 5 : 4;
-		svg += '<g class="rank-wings">' + rankWingSVG(wings)
-			+ '<g transform="translate(100 0) scale(-1 1)">' + rankWingSVG(wings) + '</g></g>';
-	}
+	svg += '<defs><linearGradient id="' + grad + '" x1="0" y1="0" x2="0.3" y2="1">'
+		+ '<stop offset="0" style="stop-color:var(--rb-c1)"/>'
+		+ '<stop offset="0.55" style="stop-color:var(--rb-c2)"/>'
+		+ '<stop offset="1" style="stop-color:var(--rb-c3)"/></linearGradient></defs>';
 	svg += rankHexSVG();
-	svg += isMaster ? rankHexStarSVG() : rankHexChevrons(subN);
+	svg += isMaster ? rankHexStarSVG(grad) : rankHexChevrons(subN, grad);
 	svg += '</svg>';
 	return svg;
 }

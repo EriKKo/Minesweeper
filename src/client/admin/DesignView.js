@@ -21,7 +21,7 @@ function renderDesign() {
 	view.appendChild(section);
 	var note = document.createElement("p");
 	note.className = "section-page-sub";
-	note.textContent = "Chevrons throughout — bare for Bronze/Silver/Gold, framed in a hexagon plate for Platinum/Diamond, and a star in the plate for Master.";
+	note.textContent = "Every tier is framed in a point-top hexagon with the sub-tier chevrons (a star for Master), filled with the tier's metallic gradient.";
 	view.appendChild(note);
 
 	// Build one rating per sub-tier (Bronze I … Diamond III) plus Master, from the ladder constants.
