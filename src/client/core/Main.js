@@ -124,14 +124,17 @@ function updateMultiHud(meGame, opponents) {
 	if (!isMultiRacing()) return;
 	function prog(g) { return g ? (g.finished ? 1 : (g.progress || 0)) : 0; }
 	var myP = prog(meGame);
-	var topOpp = opponents.length ? prog(opponents[0]) : 0;
-	var youLead = myP > 0 && myP >= topOpp;
+	var bestOpp = 0;
+	for (var k = 0; k < opponents.length; k++) bestOpp = Math.max(bestOpp, prog(opponents[k]));
+	var youLead = myP > 0 && myP >= bestOpp;
 	var youCard = document.getElementById("player_div");
 	if (youCard) youCard.classList.toggle("leading", youLead);
 	var slots = document.querySelectorAll("#all_opponents_div .opponent_div");
 	for (var i = 0; i < slots.length; i++) {
 		var opp = opponents[i];
-		slots[i].classList.toggle("leading", !youLead && i === 0 && prog(opp) > 0);
+		var p = prog(opp);
+		// Boards are fixed by rating, so the leader can sit in any slot — glow whoever's actually ahead.
+		slots[i].classList.toggle("leading", !youLead && p > 0 && p >= bestOpp);
 		slots[i].classList.toggle("finished", !!(opp && opp.finished));
 	}
 }
@@ -1488,11 +1491,30 @@ socket.on("draw_board", function(data) {
 	var opponents = games.slice(1).filter(function(g) {
 		return g && (!iAmEliminated || !spectatorTarget || g.id !== spectatorTarget);
 	});
-	opponents.sort(function(a, b) {
-		if (a.finished !== b.finished) return a.finished ? -1 : 1;
-		if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
-		return (b.progress || 0) - (a.progress || 0);
-	});
+	if (isMultiRacing()) {
+		// 6-player battle: lock the opponent grid to a fixed order by starting rating (stable through
+		// the match) so the boards don't jump around as the lead changes. Rating is constant during a
+		// series, so this order never shifts; ties break by id for determinism.
+		var ratingById = {};
+		if (currentRoom && currentRoom.players) {
+			for (var rp = 0; rp < currentRoom.players.length; rp++) {
+				var pl = currentRoom.players[rp];
+				ratingById[pl.id] = (typeof pl.rating === "number") ? pl.rating : 0;
+			}
+		}
+		opponents.sort(function(a, b) {
+			var ra = ratingById[a.id] || 0, rb = ratingById[b.id] || 0;
+			if (rb !== ra) return rb - ra;
+			return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+		});
+	} else {
+		// Other layouts (tournament thumbnails) show the current leaders, by live progress.
+		opponents.sort(function(a, b) {
+			if (a.finished !== b.finished) return a.finished ? -1 : 1;
+			if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+			return (b.progress || 0) - (a.progress || 0);
+		});
+	}
 
 	// The battle layouts show every opponent (duel = 1, 6-player = up to 5); other lobbies
 	// (tournament) stay capped at the top 2 thumbnails — the scoreboard surfaces the rest.
