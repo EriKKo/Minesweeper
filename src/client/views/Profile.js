@@ -151,27 +151,50 @@ function renderDashIdentity() {
 // the daily puzzle uses), so each mode shows an authentic board at its own mine density: Sprint's
 // sparse 10% (wide cascades) vs Standard's dense 20% (lots of numbers), etc. Uniform dimensions so
 // no mode looks bigger than another. Generated once per load and frozen (pointer-events: none).
-// Per mode: density + whether it looks "played" (flags placed on suspected mines, like a game
-// in progress) or a fresh "puzzle" opening (denser, no flags). Same dimensions so rows are uniform.
+// Mode previews are FIXED (deterministic) boards rendered by the real game renderer. The racing
+// modes use a wider board (zoomed out) so you see the open field; Puzzles uses a small, denser grid
+// (zoomed in) so it reads as a tight deduction. Boards are pinned to a per-mode seed so they don't
+// change between loads; flags are only placed on the deducible frontier (mines next to a revealed
+// cell), never randomly. Tune a board by changing its `seed`.
 var DASH_MODE_PREVIEW = {
-	sprint:   { density: 0.10, flags: true },  // open 10% board, mid-game with a couple flags
-	standard: { density: 0.20, flags: true },  // dense 20%, more numbers + flags
-	custom:   { density: 0.14, flags: true },  // casual, a few flags
-	puzzles:  { density: 0.24, flags: false }  // a denser, more advanced central opening to solve
+	sprint:   { rows: 7, cols: 12, density: 0.10, flags: true,  seed: 13 },  // open 10%, zoomed out
+	standard: { rows: 7, cols: 11, density: 0.20, flags: true,  seed: 7 },   // dense 20%
+	custom:   { rows: 7, cols: 11, density: 0.14, flags: true,  seed: 24 },  // casual
+	puzzles:  { rows: 5, cols: 6,  density: 0.22, flags: false, seed: 4 }    // tight, zoomed in, no flags
 };
+function dashRng(seed) {
+	return function() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
 function genModeBoard(cfg) {
-	var R = 5, C = 8, sr = 2, sc = 4; // mine-free 3x3 start pocket so the centre opens into a region
-	var mines = [], target = Math.round(R * C * cfg.density), guard = 0;
-	while (mines.length < target && guard++ < 4000) {
-		var r = Math.floor(Math.random() * R), c = Math.floor(Math.random() * C);
+	var R = cfg.rows, C = cfg.cols, rand = dashRng(cfg.seed);
+	var sr = R >> 1, sc = C >> 1; // mine-free 3x3 start pocket so the centre cascades open
+	var mineSet = {}, mines = [], target = Math.round(R * C * cfg.density), guard = 0;
+	while (mines.length < target && guard++ < 6000) {
+		var r = (rand() * R) | 0, c = (rand() * C) | 0, k = r + "," + c;
 		if (Math.abs(r - sr) <= 1 && Math.abs(c - sc) <= 1) continue;
-		if (mines.some(function(m) { return m[0] === r && m[1] === c; })) continue;
-		mines.push([r, c]);
+		if (mineSet[k]) continue;
+		mineSet[k] = true; mines.push([r, c]);
 	}
-	var spec = { title: "", rows: R, cols: C, mines: mines, revealStart: [sr, sc] };
-	// "Played" modes have flags on ~60% of mines, so the preview reads as a game in progress.
-	if (cfg.flags) spec.flagged = mines.filter(function() { return Math.random() < 0.6; });
-	return spec;
+	function clue(r, c) { var n = 0; for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) { var nr = r + dr, nc = c + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C && mineSet[nr + "," + nc]) n++; } return n; }
+	// Flood the central 0-region (cascade) to get the revealed set.
+	var rev = {}, q = [[sr, sc]];
+	while (q.length) {
+		var p = q.shift(), pk = p[0] + "," + p[1];
+		if (rev[pk] || mineSet[pk]) continue;
+		rev[pk] = true;
+		if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
+		}
+	}
+	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
+	// Sensible flags: only mines that touch a revealed cell (the deducible frontier).
+	var flagged = [];
+	if (cfg.flags) mines.forEach(function(m) {
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { flagged.push(m); return; }
+		}
+	});
+	return { title: "", rows: R, cols: C, mines: mines, revealed: revealed, flagged: flagged };
 }
 function renderModeBoardPreviews() {
 	if (typeof buildLearnPuzzle !== "function") return;
