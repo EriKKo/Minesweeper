@@ -147,36 +147,40 @@ function renderDashIdentity() {
 	}
 }
 
-// Small static board previews that give each mode a feel: Sprint = sparse 10% (wide cascades),
-// Standard = dense 20% (deduction), Puzzles = a tight cluster, Custom = casual with flags.
-var DASH_BOARD_SPECS = {
-	sprint:   [".......1#1", ".......111", ".........1", "..11......", ".1#1.....1", ".111....1#", ".......111", "..........", "....11....", "....1#1..."],
-	standard: ["12#21#1", "#3#4#31", "2#4#4#1", "13#5#31", "#2#4#2#", "1222221", ".1#2#1."],
-	puzzles:  [".1#1.", "12#21", "##3##", "12#21", ".1#1."],
-	custom:   ["1F1..1F", "111..11", "...111.", ".111F1.", "1F1.111"]
+// Mode previews are rendered with the REAL game board renderer (buildLearnPuzzle — the same one
+// the daily puzzle uses), so each mode shows an authentic board at its own mine density: Sprint's
+// sparse 10% (wide cascades) vs Standard's dense 20% (lots of numbers), etc. Uniform dimensions so
+// no mode looks bigger than another. Generated once per load and frozen (pointer-events: none).
+// Per mode: density + whether it looks "played" (flags placed on suspected mines, like a game
+// in progress) or a fresh "puzzle" opening (denser, no flags). Same dimensions so rows are uniform.
+var DASH_MODE_PREVIEW = {
+	sprint:   { density: 0.10, flags: true },  // open 10% board, mid-game with a couple flags
+	standard: { density: 0.20, flags: true },  // dense 20%, more numbers + flags
+	custom:   { density: 0.14, flags: true },  // casual, a few flags
+	puzzles:  { density: 0.24, flags: false }  // a denser, more advanced central opening to solve
 };
-function buildMiniBoard(rows, cs) {
-	var el = document.createElement("div");
-	el.className = "dboard";
-	el.style.setProperty("--dcs", (cs || 11) + "px");
-	el.style.gridTemplateColumns = "repeat(" + rows[0].length + ", var(--dcs))";
-	rows.forEach(function(r) {
-		r.split("").forEach(function(ch) {
-			var c = document.createElement("span");
-			c.className = "dcell";
-			if (ch === ".") c.className += " d-rev";
-			else if (ch === "#") c.className += " d-cov";
-			else if (ch === "F") c.className += " d-flag";
-			else { c.className += " d-rev d-n" + ch; c.textContent = ch; }
-			el.appendChild(c);
-		});
-	});
-	return el;
+function genModeBoard(cfg) {
+	var R = 5, C = 8, sr = 2, sc = 4; // mine-free 3x3 start pocket so the centre opens into a region
+	var mines = [], target = Math.round(R * C * cfg.density), guard = 0;
+	while (mines.length < target && guard++ < 4000) {
+		var r = Math.floor(Math.random() * R), c = Math.floor(Math.random() * C);
+		if (Math.abs(r - sr) <= 1 && Math.abs(c - sc) <= 1) continue;
+		if (mines.some(function(m) { return m[0] === r && m[1] === c; })) continue;
+		mines.push([r, c]);
+	}
+	var spec = { title: "", rows: R, cols: C, mines: mines, revealStart: [sr, sc] };
+	// "Played" modes have flags on ~60% of mines, so the preview reads as a game in progress.
+	if (cfg.flags) spec.flagged = mines.filter(function() { return Math.random() < 0.6; });
+	return spec;
 }
 function renderModeBoardPreviews() {
-	Object.keys(DASH_BOARD_SPECS).forEach(function(key) {
+	if (typeof buildLearnPuzzle !== "function") return;
+	Object.keys(DASH_MODE_PREVIEW).forEach(function(key) {
 		var slot = document.getElementById("dash_board_" + key);
-		if (slot && !slot.firstChild) slot.appendChild(buildMiniBoard(DASH_BOARD_SPECS[key], 11));
+		if (!slot || slot.firstChild) return;
+		var el = buildLearnPuzzle(genModeBoard(DASH_MODE_PREVIEW[key]), false, function() {});
+		el.classList.add("dash-board-preview");
+		slot.appendChild(el);
 	});
 }
 
