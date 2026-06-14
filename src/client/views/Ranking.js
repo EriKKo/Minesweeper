@@ -82,50 +82,63 @@ function buildRankBadge(rating) {
 // One wing of swept feathers fanning up-and-out from a pivot beside the crest. `n` feathers, the top
 // one longest; drawn for the right side (mirrored by the caller for the left).
 function rankWingSVG(n) {
-	var parts = "", px = 53, py = 58;
+	var parts = "", px = 62, py = 53;
 	for (var i = 0; i < n; i++) {
 		var t = n > 1 ? i / (n - 1) : 0;
-		var ang = -64 + t * 72;          // a tight, full fan from up (top primary) to swept-out (lower coverts)
-		var L = 39 - i * 1.6;            // gentle taper so the feathers overlap into a lush wing
+		var ang = -68 + t * 78;          // fan from the hexagon's side: up (top primary) → swept out (coverts)
+		var L = 40 - i * 1.7;            // gentle taper so the feathers overlap into a lush wing
 		var c = (L * 0.5).toFixed(1);
 		parts += '<path class="rank-feather" transform="translate(' + px + ' ' + py + ') rotate(' + ang.toFixed(1) + ')"'
 			+ ' d="M0 -3.2 Q' + c + ' -8 ' + L.toFixed(1) + ' -0.5 Q' + c + ' 6.5 0 4 Z"/>';
 	}
 	return parts;
 }
-// Brilliant-cut gem crest (Platinum/Diamond): a lit crown above the girdle, darker pavilion below,
-// thin facet lines for the cut-stone read.
-function rankGemSVG() {
-	return '<g class="rank-gem-crest">'
-		+ '<polygon class="rg-body" points="38,45 62,45 78,59 50,88 22,59"/>'
-		+ '<polygon class="rg-crown" points="38,45 62,45 78,59 22,59"/>'
-		+ '<g class="rg-facets"><path d="M22,59 H78 M38,45 L50,59 L22,59 M62,45 L50,59 L78,59 M50,59 V88 M44,45 L50,59 M56,45 L50,59"/></g>'
-		+ '</g>';
+// Hexagon plate (Platinum/Diamond/Master): a dark interior behind a metallic tier-coloured rim — the
+// frame the chevrons/star sit inside, like the esports rank packs.
+var RANK_HEX_PTS = "37,37 63,37 78,53 63,69 37,69 22,53";
+function rankHexSVG() {
+	return '<polygon class="rank-hex-fill" points="' + RANK_HEX_PTS + '"/>'
+		+ '<polygon class="rank-hex-rim" points="' + RANK_HEX_PTS + '"/>'
+		+ '<polygon class="rank-hex-bevel" points="40,40 60,40 74,53 60,66 40,66 26,53"/>';
 }
-// Five-point star (Master), built from a loop so it's cleanly symmetric.
-function rankStarSVG() {
-	var pts = [], cx = 50, cy = 60, ro = 20, ri = 8.4;
+// The sub-tier chevrons (1-3), stacked and centred inside the hexagon plate.
+function rankHexChevrons(n) {
+	var p = "", w = 22, h = 6.6, gap = 2.4, total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2;
+	for (var i = 0; i < n; i++) {
+		var y = y0 + i * (h + gap);
+		var pts = [
+			50 + "," + y.toFixed(1),
+			(x0 + w) + "," + (y + 0.55 * h).toFixed(1),
+			(x0 + w) + "," + (y + h).toFixed(1),
+			50 + "," + (y + 0.45 * h).toFixed(1),
+			x0 + "," + (y + h).toFixed(1),
+			x0 + "," + (y + 0.55 * h).toFixed(1)
+		];
+		p += '<polygon class="rank-hex-chev" points="' + pts.join(" ") + '"/>';
+	}
+	return p;
+}
+// A small star centred in the hexagon for Master (tops the chevron ladder).
+function rankHexStarSVG() {
+	var pts = [], cx = 50, cy = 53, ro = 14, ri = 6;
 	for (var k = 0; k < 10; k++) {
 		var a = (-90 + k * 36) * Math.PI / 180, r = (k % 2) ? ri : ro;
 		pts.push((cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1));
 	}
-	return '<g class="rank-star-crest"><polygon class="rs-body" points="' + pts.join(" ") + '"/>'
-		+ '<polygon class="rs-shine" points="' + pts.slice(0, 6).join(" ") + ' 50,60"/></g>';
+	return '<polygon class="rank-hex-star" points="' + pts.join(" ") + '"/>';
 }
-// A small crown riding above the Master star.
-function rankCrownSVG() {
-	return '<path class="rank-crown" d="M36,34 L40,20 L45.5,27 L50,15 L54.5,27 L60,20 L64,34 Z"/>';
-}
-// Compose the emblem: wings (grown to the sub-tier) behind a tier crest, with Master crowned.
+// Compose the emblem: wings behind a hexagon plate holding the sub-tier chevrons (a star for Master).
+// Sub-tier reads from the chevron count (like the lower tiers); the tier reads from colour + wing span
+// (Platinum 3 feathers, Diamond 4, Master 5).
 function rankEmblemSVG(info) {
-	var isMaster = info.tierClass === "master";
-	var subIdx = info.subNum ? Math.max(0, SUB_TIER_NUMERALS.indexOf(info.subNum)) : 2;
-	var feathers = isMaster ? 6 : (subIdx + 3); // I = 3 per side, II = 4, III = 5 → the wing fills out
+	var tier = info.tierClass, isMaster = tier === "master";
+	var subN = info.subNum ? Math.max(1, SUB_TIER_NUMERALS.indexOf(info.subNum) + 1) : 3;
+	var wings = isMaster ? 5 : (tier === "diamond" ? 4 : 3);
 	var svg = '<svg class="rank-emblem" viewBox="0 0 100 100" aria-hidden="true">';
-	svg += '<g class="rank-wings">' + rankWingSVG(feathers)
-		+ '<g transform="translate(100 0) scale(-1 1)">' + rankWingSVG(feathers) + '</g></g>';
-	if (isMaster) { svg += rankCrownSVG() + rankStarSVG(); }
-	else { svg += rankGemSVG(); }
+	svg += '<g class="rank-wings">' + rankWingSVG(wings)
+		+ '<g transform="translate(100 0) scale(-1 1)">' + rankWingSVG(wings) + '</g></g>';
+	svg += rankHexSVG();
+	svg += isMaster ? rankHexStarSVG() : rankHexChevrons(subN);
 	svg += '</svg>';
 	return svg;
 }
