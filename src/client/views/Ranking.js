@@ -73,18 +73,19 @@ function rankHexSVG() {
 }
 // The sub-tier chevrons (1-3), stacked and centred, filled with the tier's metallic gradient.
 function rankHexChevrons(n, grad) {
-	// tr = vertical thickness of each chevron arm as a fraction of its slot height (bigger = chunkier line).
-	var w = 42, h = 10, gap = 2.8, tr = 0.58;
+	// Each chevron has arms of vertical thickness `thick` that climb to a centred apex `rise` above the
+	// outer corners — the rise vs half-width sets the V's angle (bigger rise = sharper, less worm-like).
+	var w = 38, rise = 6.5, thick = 5, gap = 1.6, h = rise + thick;
 	var total = n * h + (n - 1) * gap, y0 = 53 - total / 2, x0 = 50 - w / 2, p = "";
 	for (var i = 0; i < n; i++) {
 		var y = y0 + i * (h + gap);
 		var pts = [
 			50 + "," + y.toFixed(1),
-			(x0 + w) + "," + (y + (1 - tr) * h).toFixed(1),
-			(x0 + w) + "," + (y + h).toFixed(1),
-			50 + "," + (y + tr * h).toFixed(1),
-			x0 + "," + (y + h).toFixed(1),
-			x0 + "," + (y + (1 - tr) * h).toFixed(1)
+			(x0 + w) + "," + (y + rise).toFixed(1),
+			(x0 + w) + "," + (y + rise + thick).toFixed(1),
+			50 + "," + (y + thick).toFixed(1),
+			x0 + "," + (y + rise + thick).toFixed(1),
+			x0 + "," + (y + rise).toFixed(1)
 		];
 		p += '<polygon points="' + pts.join(" ") + '" fill="url(#' + grad + ')"/>';
 	}

@@ -334,10 +334,11 @@ function applyRouteFromHash() {
 	}
 	var hash = location.pathname; // match routes on the path; views that take filters read location.search
 	lastAppliedHash = location.pathname + location.search;
-	// Music only plays in actual play views — lobby/menu/admin stay quiet.
-	// Active ranked / 1v1 / tournament matches start music separately
-	// from the game-state event handlers.
-	var inGameRoutes = ["/custom", "/practice"];
+	// Music only plays in actual play views — lobby/menu/admin stay quiet. `/custom` is NOT a play
+	// view: it's the room list, and even inside a custom room the URL stays `/custom` through the
+	// (silent) waiting lobby. Custom + ranked matches start the music from the `start_game` handler
+	// instead, so it only kicks in once a game is actually live.
+	var inGameRoutes = ["/practice"];
 	var inGame = inGameRoutes.indexOf(hash) !== -1;
 	if (typeof music !== "undefined") {
 		if (inGame) music.resume(); else music.pause();
