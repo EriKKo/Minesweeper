@@ -674,10 +674,20 @@
 	</div>
 
 	<footer class="site-footer">
-		<span>© MSBattle</span>
-		<span class="site-footer-spacer"></span>
-		<a href="/privacy">Privacy Policy</a>
-		<a href="/terms">Terms of Service</a>
+		<span class="site-footer-brand">© MSBattle</span>
+		<nav class="site-footer-links" aria-label="Footer">
+			<a href="/privacy">Privacy Policy</a>
+			<a href="/terms">Terms of Service</a>
+		</nav>
+		<div class="site-footer-social">
+			<!-- TODO: replace href with the real social URLs -->
+			<a class="site-footer-social-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+				<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3c-.2.36-.43.84-.593 1.23a18.27 18.27 0 0 0-5.487 0C10.318 3.84 10.082 3.36 9.882 3a19.74 19.74 0 0 0-3.76 1.369C2.27 9.046 1.71 13.58 1.99 18.057a19.9 19.9 0 0 0 6.073 3.058c.49-.66.927-1.36 1.304-2.095-.717-.27-1.404-.604-2.053-.997.172-.126.34-.257.503-.39a14.2 14.2 0 0 0 12.087 0c.165.135.333.266.503.39-.65.394-1.34.728-2.056.998.377.734.813 1.434 1.303 2.094a19.84 19.84 0 0 0 6.075-3.058c.327-5.19-.557-9.685-3.415-13.688ZM8.02 15.33c-1.182 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.955 2.418-2.157 2.418Zm7.96 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418Z"/></svg>
+			</a>
+			<a class="site-footer-social-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="X">
+				<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg>
+			</a>
+		</div>
 	</footer>
 
 <script src="/socket.io/socket.io.js"></script>

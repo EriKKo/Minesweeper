@@ -75,6 +75,10 @@ html, body { margin: 0; padding: 0; }
 body {
 	background: radial-gradient(circle at 20% 0%, #1a2547 0%, var(--bg) 55%);
 	min-height: 100vh;
+	/* Topbar / main / footer stack vertically; main grows so the footer is pinned
+	   to the bottom of the viewport even when the page is short (sticky footer). */
+	display: flex;
+	flex-direction: column;
 	color: var(--text);
 	font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 	-webkit-font-smoothing: antialiased;
@@ -427,6 +431,8 @@ select {
 select:disabled { opacity: 0.6; cursor: not-allowed; }
 
 main {
+	flex: 1 0 auto;
+	width: 100%;
 	max-width: 1200px;
 	margin: 0 auto;
 	padding: 2rem;
@@ -4454,18 +4460,29 @@ body.game-fullscreen .game-view.multi .game-grid { justify-content: center; }
 }
 
 /* Footer site links (added to index.html) */
+/* Footer mirrors the topbar: full-width bar, same translucent backdrop + blur, a
+   border on the inner edge (top here, bottom on the topbar). flex-shrink:0 keeps it
+   at its natural height while `main` grows to push it to the bottom of the viewport. */
 .site-footer {
-	max-width: 1100px;
-	margin: 3rem auto 0;
-	padding: 1.5rem 1.25rem 2rem;
-	border-top: 1px solid var(--border);
+	flex-shrink: 0;
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.5rem 1.25rem;
 	align-items: center;
+	gap: 0.5rem 1.5rem;
+	padding: 1rem 2rem;
+	border-top: 1px solid var(--border);
+	background: rgba(11, 16, 32, 0.6);
+	backdrop-filter: blur(6px);
 	color: var(--muted);
 	font-size: 0.88rem;
 }
+.site-footer-brand { font-weight: 600; }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
 .site-footer a { color: var(--muted); text-decoration: none; }
 .site-footer a:hover { color: var(--text); }
-.site-footer .site-footer-spacer { flex: 1; }
+/* Socials pushed to the trailing edge, like the topbar's right-hand controls. */
+.site-footer-social { margin-left: auto; display: flex; align-items: center; gap: 0.85rem; }
+.site-footer-social-link { display: inline-flex; color: var(--muted); transition: color 0.15s; }
+.site-footer-social-link:hover { color: var(--text); }
+.site-footer-social-link svg { width: 18px; height: 18px; display: block; }
+@media (max-width: 600px) { .site-footer-social { margin-left: 0; } }
