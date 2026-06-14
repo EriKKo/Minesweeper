@@ -91,10 +91,11 @@ function renderRoomState(state) {
 	// have a locked ruleset and no lobby to configure, so the options card never
 	// shows for them — it's only meaningful in a custom lobby.
 	var playing = state.phase !== "planning";
-	// Show the opponent board(s) during play, and also through the duel's planning/reveal window
-	// (ranked 1v1) so the opponent is visible the moment you join, not only once play starts.
-	var duelActive = typeof gameView !== "undefined" && gameView && gameView.classList.contains("duo");
-	allOpponentsDiv.style.display = (playing || duelActive) ? "" : "none";
+	// Show the opponent board(s) during play, and also through the battle layout's planning/reveal
+	// AND result windows (ranked 1v1 + 6-player) so the field — and the finish-place stamps under the
+	// result modal — stay visible, not only while play is live. Both the duo and multi classes count.
+	var battleActive = typeof gameView !== "undefined" && gameView && (gameView.classList.contains("duo") || gameView.classList.contains("multi"));
+	allOpponentsDiv.style.display = (playing || battleActive) ? "" : "none";
 	seriesCard.style.display = (playing || state.ranked) ? "none" : "";
 	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";

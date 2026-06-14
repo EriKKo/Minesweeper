@@ -415,10 +415,12 @@ function gameWin(playerID) {
 	game.finishedAt = Date.now();
 	game.playing = false;
 
-	// First finish in this round? Pull the remaining time down to 10s — anyone
-	// still working gets one last sprint before the round closes.
+	// First finish in this round? Pull the remaining time down so the round closes soon after the
+	// winner — the 6-player battle gets a snappy 3s sprint; other modes keep the longer 10s tail.
 	if (countFinishedPlayers(room) === 1) {
-		reduceRoundDeadline(room, 10);
+		var n = room.players.length;
+		var multiRace = (room.gameMode || "race") === "race" && room.rankedMode !== "tournament" && n >= 3 && n <= 6;
+		reduceRoundDeadline(room, multiRace ? 3 : 10);
 	}
 
 	if (isBot(playerID)) {

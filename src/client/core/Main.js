@@ -1108,6 +1108,7 @@ function startBattleSearch(mode) {
 	rankedSearch = { mode: mode, size: rankedModeSize(mode), race: true, members: [] };
 	currentRoom = null;
 	inRoom = false;
+	roundResultShown = false; // fresh search — clear the previous result so the new field re-covers
 	applyBoardDims(15, 20);   // ranked race boards are the medium preset — covered-placeholder size
 	showGameView();
 	resetGameUI();
@@ -1211,7 +1212,9 @@ socket.on("room_state", function(state) {
 	buildDuelIdentity();          // populate the battle identity panels from the roster
 	renderRoomState(state);
 	// Ranked battle: show the whole field (covered) the moment you join, before the countdown starts.
-	if ((gameView.classList.contains("duo") || gameView.classList.contains("multi")) && state.phase === "planning") setCoveredBoard();
+	// But NOT once a result is showing — the room flips back to "planning" at series end, and
+	// re-covering then would wipe the finish-place stamps we want to keep under the result modal.
+	if ((gameView.classList.contains("duo") || gameView.classList.contains("multi")) && state.phase === "planning" && !roundResultShown) setCoveredBoard();
 });
 
 // Territory (versus) mode — shared-board events handled in Territory.js.
