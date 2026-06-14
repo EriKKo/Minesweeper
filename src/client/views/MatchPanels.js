@@ -150,24 +150,6 @@ function playResultMoment(won, ranked, oldRating) {
 	}
 }
 
-// TetrisFriends-style on-board outcome banners: a big "YOU WIN" over the winner's board and
-// "YOU LOSE" over the loser's, shown the instant the duel ends — before the results modal.
-function showDuelOutcome(iWon) {
-	clearDuelOutcomes();
-	addDuelOutcome(document.getElementById("player_div"), iWon);
-	addDuelOutcome(document.querySelector("#all_opponents_div .opponent_div"), !iWon);
-}
-function addDuelOutcome(card, won) {
-	if (!card) return;
-	var b = document.createElement("div");
-	b.className = "duel-outcome " + (won ? "duel-outcome-win" : "duel-outcome-lose");
-	b.textContent = won ? "YOU WIN" : "YOU LOSE";
-	card.appendChild(b);
-}
-function clearDuelOutcomes() {
-	var els = document.querySelectorAll(".duel-outcome");
-	for (var i = 0; i < els.length; i++) els[i].remove();
-}
 
 // While a result panel is open, Enter triggers the primary action (the
 // first .btn-primary in the overlay). Every "play again" dialog —

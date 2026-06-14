@@ -135,13 +135,13 @@ function updateMultiHud(meGame, opponents) {
 		slots[i].classList.toggle("finished", !!(opp && opp.finished));
 	}
 }
-// 6-player battle: stamp each finished board with its finish place (1st, 2nd, …) the moment that
-// player clears — the multiplayer analogue of the duel's YOU WIN banner. Place is the live finish
-// order (by finishedAt); boards still racing show nothing. Cleared between rounds (clearPlaceBadges).
+// Battle layouts (1v1 + 6-player): stamp each finished board with its finish place (1st, 2nd, …)
+// the moment that player clears. Place is the live finish order (by finishedAt); boards still
+// racing show nothing. Cleared between rounds (clearPlaceBadges).
 function updateMultiPlacements(games) {
 	// Skip once the round result is in — applyMultiFinalPlaces has stamped every board from the
 	// final standings, and a trailing live frame would otherwise wipe the non-finishers' places.
-	if (!isMultiRacing() || roundResultShown) return;
+	if (!isBattleRacing() || roundResultShown) return;
 	var finishers = (games || []).filter(function(g) { return g && g.finished; })
 		.sort(function(a, b) { return (a.finishedAt || 0) - (b.finishedAt || 0); });
 	var placeOf = {};
@@ -157,7 +157,7 @@ function updateMultiPlacements(games) {
 // players who never finished (hit mines / ran out of time) still get their number, not just the
 // finishers the live updater placed.
 function applyMultiFinalPlaces(standings) {
-	if (!isMultiRacing() || !standings) return;
+	if (!isBattleRacing() || !standings) return;
 	var placeOf = {};
 	standings.forEach(function(s, idx) { if (s && s.id) placeOf[s.id] = idx + 1; });
 	setPlaceBadge(document.getElementById("player_div"), placeOf[id] || null);
@@ -1079,7 +1079,7 @@ socket.on("ranked_rejected", function(data) {
 // applied immediately) and when the server confirms it (left_room).
 function teardownRoomUI() {
 	if (typeof territoryReset === "function") territoryReset();
-	if (typeof clearDuelOutcomes === "function") clearDuelOutcomes();
+	if (typeof clearPlaceBadges === "function") clearPlaceBadges();
 	inRoom = false;
 	currentRoom = null;
 	iAmEliminated = null;
@@ -1330,14 +1330,9 @@ socket.on("series_ended", function(data) {
 	if (typeof music !== "undefined") music.pause();
 	var iWon = data.winnerId === id;
 	if (typeof sound !== "undefined") (iWon ? sound.seriesWin : sound.lose)();
-	// 1v1 duel: show the big YOU WIN / YOU LOSE banners on the two boards first, then bring up the
-	// results modal a beat later (TetrisFriends-style). Other modes go straight to the modal.
-	if (isDuoRacing()) {
-		showDuelOutcome(iWon);
-		setTimeout(function() { clearDuelOutcomes(); showResultModal(data); }, 2200);
-	} else {
-		showResultModal(data);
-	}
+	// Both 1v1 and 6-player show the same flow: the finish-place stamps (1st/2nd/…) are already on
+	// the boards, then the shared ranked result card.
+	showResultModal(data);
 });
 
 // Match found: no pre-game modal — the search waiting room already showed who's joining.
@@ -1526,7 +1521,8 @@ socket.on("draw_board", function(data) {
 
 	renderScoreboard();
 	if (isDuoRacing()) updateDuelHud(games[0], opponents[0]);
-	else if (isMultiRacing()) { updateMultiHud(games[0], opponents); updateMultiPlacements(games); }
+	else if (isMultiRacing()) updateMultiHud(games[0], opponents);
+	if (isBattleRacing()) updateMultiPlacements(games); // finish-place stamps for both 1v1 + 6-player
 	updateDangerWarning();
 });
 
