@@ -18,16 +18,26 @@ function init(deps) {
 	PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES;
 }
 
-// K-factor: big swings for a player's first matches (placement), settling to a stable floor so an
-// established rating stops bouncing. K=150 game 1 → 40 from ~game 8 on.
-function kFactor(played) { return Math.max(40, 150 - played * 14); }
+// Standard matches take far longer to play than Sprint, so a session yields far fewer of them and the
+// ladder climbs slowly. Boost Standard's rating swings — extra during placement — so it moves at a pace
+// closer to Sprint despite the lower game volume. 1.5× for the first game, easing to a steady 1.3×.
+function styleKMultiplier(style, played) {
+	if (style !== "standard") return 1;
+	return 1.3 + 0.2 * Math.max(0, 1 - played / 8);
+}
 
-// Margin-of-victory: a dominant finish boosts the rating GAIN by up to MARGIN_BONUS. The margin is
-// the gap between this player's progress (avg fraction of board cleared across the series) and the
-// best progress among the players they outranked — so clearing far ahead of the next player pays
-// more than a photo-finish. Progress absent (e.g. territory) → factor 1 (no bonus).
+// K-factor: big swings for a player's first matches (placement), settling to a stable floor so an
+// established rating stops bouncing. K=150 game 1 → 40 from ~game 8 on (× the per-style multiplier).
+function kFactor(played, style) { return Math.max(40, 150 - played * 14) * styleKMultiplier(style, played); }
+
+// Margin-of-victory: a dominant finish boosts the rating GAIN by up to the style's margin bonus. The
+// margin is the gap between this player's progress (avg fraction of board cleared across the series) and
+// the best progress among the players they outranked — so clearing far ahead of the next player pays more
+// than a photo-finish. Standard rewards blowouts harder (longer games, fewer of them). Progress absent
+// (e.g. territory) → factor 1 (no bonus).
 var MARGIN_BONUS = 0.6;
-function marginFactor(part, parts) {
+var STANDARD_MARGIN_BONUS = 1.1;
+function marginFactor(part, parts, style) {
 	if (typeof part.progress !== "number") return 1;
 	var below = 0;
 	for (var j = 0; j < parts.length; j++) {
@@ -35,7 +45,8 @@ function marginFactor(part, parts) {
 		if (q.rank > part.rank && typeof q.progress === "number" && q.progress > below) below = q.progress;
 	}
 	var gap = Math.max(0, Math.min(1, part.progress - below));
-	return 1 + MARGIN_BONUS * gap;
+	var bonus = style === "standard" ? STANDARD_MARGIN_BONUS : MARGIN_BONUS;
+	return 1 + bonus * gap;
 }
 
 // Read the rating column matching this match's playstyle so Sprint /
@@ -69,7 +80,7 @@ function applyEloForPlayer(targetPid, allParts, style) {
 		var expected = 1 / (1 + Math.pow(10, (q.rating - target.rating) / 400));
 		sum += score - expected;
 	}
-	var delta = Math.round(kFactor(target.played) * sum / Math.sqrt(n - 1));
+	var delta = Math.round(kFactor(target.played, style) * sum / Math.sqrt(n - 1));
 	var newRating = Math.max(0, target.rating + delta); // Bronze I floors at 0
 	var provisional = (target.played + 1) < PROVISIONAL_GAMES;
 	db.updateRating(target.userId, newRating, target.rank === 1, style);
@@ -144,9 +155,9 @@ function applyRankedElo(standings, style) {
 		}
 		// Normalize by sqrt(n-1) instead of (n-1) so beating more opponents pays
 		// more: 1v1 top spot ~K/2; 6-player top spot ~K*sqrt(5)/2 ≈ 2.2× as much.
-		var delta = kFactor(p.played) * sum / Math.sqrt(n - 1);
+		var delta = kFactor(p.played, style) * sum / Math.sqrt(n - 1);
 		// Reward dominant wins: scale a positive swing by how far ahead of the field you finished.
-		if (delta > 0) delta *= marginFactor(p, parts);
+		if (delta > 0) delta *= marginFactor(p, parts, style);
 		p.delta = Math.round(delta);
 		p.newRating = Math.max(0, p.rating + p.delta); // Bronze I floors at 0
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;

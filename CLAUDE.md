@@ -78,7 +78,10 @@ else is grouped:
   scaled by how far your `progress` (avg fraction of board cleared across the series) beat the
   player you outranked — so a dominant clear pays more than a photo-finish. Progress is summed per
   round on the room (`progressSum`/`progressRounds`) and averaged in `buildSeriesStandings`; it's
-  absent for territory (→ no margin bonus). NB the bot pool is still calibrated on the old ~1000
+  absent for territory (→ no margin bonus). **Standard is boosted** (`kFactor`/`marginFactor` take
+  the style): its games take far longer than Sprint so a session yields fewer, and `styleKMultiplier`
+  scales Standard's K by 1.5× in game 1 easing to a steady 1.3× (extra placement push), while its
+  margin bonus rises to +110% (`STANDARD_MARGIN_BONUS`) — so a Standard blowout climbs ~2× a Sprint one. NB the bot pool is still calibrated on the old ~1000
   scale, so until it's re-benched the reachable human ceiling is roughly the pool's top rating.
 - `bots.js` — racing/casual/ranked bot orchestration: add/remove bots, apply their per-move
   config to the game, and the per-move tick (`decideMove` → a delayed `handleLeftClick`, then
