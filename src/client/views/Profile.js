@@ -162,9 +162,9 @@ var DASH_MODE_PREVIEW = {
 	// to a covered cell (which would look like a missing number). Modes read differently via where the
 	// opening starts, the mine density, and how many deduced mines are flagged. Puzzle is a fresh tight
 	// cascade (zoomed in, no flags). Tune a board by changing its `seed`.
-	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c",  explore: 0.85, seed: 8 }, // fast: wide central clear, sparse
-	standard: { rows: 6, cols: 9,  density: 0.22, start: "tl", explore: 0.82, seed: 4 }, // methodical: deeply explored, dense minefield
-	custom:   { rows: 6, cols: 9,  density: 0.14, start: "br", explore: 0.55, seed: 4 }, // casual: medium
+	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c", seed: 2 },  // fast: sparse opening
+	standard: { rows: 6, cols: 9,  density: 0.20, start: "c", seed: 14 }, // methodical: same kind of opening, denser minefield
+	custom:   { rows: 6, cols: 9,  density: 0.15, start: "c", seed: 9 },  // casual: medium density
 	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
 };
 function dashRng(seed) {
@@ -201,34 +201,24 @@ function genModeBoard(cfg) {
 		}
 	}
 	flood(sr, sc);
-	// Keep "clicking" safe frontier cells until a target fraction of the board is open, so a dense mode
-	// actually exposes its minefield (more, higher numbers) instead of hiding every mine under cover.
-	// Revealing a numbered cell is legal on its own; a 0 is flooded — so the position stays legal.
-	if (!cfg.puzzle && cfg.explore) {
-		var safeTotal = R * C - mines.length, targetRev = Math.round(safeTotal * cfg.explore), spin = 0;
-		while (Object.keys(rev).length < targetRev && spin++ < 4000) {
-			var fr = [];
-			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-				if (rev[r + "," + c] || mineSet[r + "," + c]) continue;
-				var adj = false;
-				for (var dr = -1; dr <= 1 && !adj; dr++) for (var dc = -1; dc <= 1; dc++) if (rev[(r + dr) + "," + (c + dc)]) { adj = true; break; }
-				if (adj) fr.push([r, c]);
-			}
-			if (!fr.length) break;
-			var pick = fr[(rand() * fr.length) | 0];
-			flood(pick[0], pick[1]);
-		}
-	}
 	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
-	// Flags only on mines tucked in a board corner that border the explored area — the most obvious,
-	// human-like flag (a corner mine pinned by an adjacent number). No scattered mid-board flags.
-	var flagged = [];
-	if (!cfg.puzzle) mines.forEach(function(m) {
-		if (!((m[0] === 0 || m[0] === R - 1) && (m[1] === 0 || m[1] === C - 1))) return;
+	// Flags only where they're logically FORCED — a revealed clue whose value equals its number of
+	// covered neighbours, so every one of them must be a mine (the basic human deduction: a "1"
+	// bordering a single covered cell, common at corners). Never a guessed/decorative flag.
+	var flagged = [], flagKey = {};
+	if (!cfg.puzzle) for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+		if (!rev[r + "," + c]) continue;
+		var v = clue(r, c); if (v === 0) continue;
+		var covered = [];
 		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { flagged.push(m); return; }
+			if (dr === 0 && dc === 0) continue;
+			var nr = r + dr, nc = c + dc; if (nr < 0 || nc < 0 || nr >= R || nc >= C) continue;
+			if (!rev[nr + "," + nc]) covered.push([nr, nc]);
 		}
-	});
+		if (covered.length === v) covered.forEach(function(p) {
+			var k = p[0] + "," + p[1]; if (!flagKey[k]) { flagKey[k] = true; flagged.push(p); }
+		});
+	}
 	return { title: "", rows: R, cols: C, mines: mines, revealed: revealed, flagged: flagged };
 }
 function renderModeBoardPreviews() {
