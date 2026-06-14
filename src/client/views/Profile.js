@@ -162,9 +162,9 @@ var DASH_MODE_PREVIEW = {
 	// to a covered cell (which would look like a missing number). Modes read differently via where the
 	// opening starts, the mine density, and how many deduced mines are flagged. Puzzle is a fresh tight
 	// cascade (zoomed in, no flags). Tune a board by changing its `seed`.
-	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c",  flagFrac: 0.4, seed: 13 }, // fast: wide central clear, barely flagged
-	standard: { rows: 6, cols: 9,  density: 0.20, start: "tl", flagFrac: 1.0, seed: 9 },  // methodical: explored from a corner, dense, fully flagged
-	custom:   { rows: 6, cols: 9,  density: 0.14, start: "br", flagFrac: 0.6, seed: 24 }, // casual: medium
+	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c",  explore: 0.85, seed: 8 }, // fast: wide central clear, sparse
+	standard: { rows: 6, cols: 9,  density: 0.22, start: "tl", explore: 0.82, seed: 4 }, // methodical: deeply explored, dense minefield
+	custom:   { rows: 6, cols: 9,  density: 0.14, start: "br", explore: 0.55, seed: 4 }, // casual: medium
 	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
 };
 function dashRng(seed) {
@@ -189,25 +189,45 @@ function genModeBoard(cfg) {
 	// cell is revealed but stops the spread (it's the frontier). Mines are never reached. The result is
 	// always a LEGAL position: the boundary of the covered area is numbered cells, never a bare 0.
 	var rev = {};
-	var q = [[sr, sc]];
-	while (q.length) {
-		var p = q.shift(), pk = p[0] + "," + p[1];
-		if (rev[pk] || mineSet[pk]) continue;
-		rev[pk] = true;
-		if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-			var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
+	function flood(r0, c0) {
+		var q = [[r0, c0]];
+		while (q.length) {
+			var p = q.shift(), pk = p[0] + "," + p[1];
+			if (rev[pk] || mineSet[pk]) continue;
+			rev[pk] = true;
+			if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+				var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
+			}
+		}
+	}
+	flood(sr, sc);
+	// Keep "clicking" safe frontier cells until a target fraction of the board is open, so a dense mode
+	// actually exposes its minefield (more, higher numbers) instead of hiding every mine under cover.
+	// Revealing a numbered cell is legal on its own; a 0 is flooded — so the position stays legal.
+	if (!cfg.puzzle && cfg.explore) {
+		var safeTotal = R * C - mines.length, targetRev = Math.round(safeTotal * cfg.explore), spin = 0;
+		while (Object.keys(rev).length < targetRev && spin++ < 4000) {
+			var fr = [];
+			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+				if (rev[r + "," + c] || mineSet[r + "," + c]) continue;
+				var adj = false;
+				for (var dr = -1; dr <= 1 && !adj; dr++) for (var dc = -1; dc <= 1; dc++) if (rev[(r + dr) + "," + (c + dc)]) { adj = true; break; }
+				if (adj) fr.push([r, c]);
+			}
+			if (!fr.length) break;
+			var pick = fr[(rand() * fr.length) | 0];
+			flood(pick[0], pick[1]);
 		}
 	}
 	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
-	// Flags only on the deducible frontier (mines next to a revealed cell); flagFrac thins them
-	// deterministically so a "fast" mode shows few flags and a "methodical" one shows many.
+	// Flags only on mines tucked in a board corner that border the explored area — the most obvious,
+	// human-like flag (a corner mine pinned by an adjacent number). No scattered mid-board flags.
 	var flagged = [];
 	if (!cfg.puzzle) mines.forEach(function(m) {
-		var frontier = false;
-		for (var dr = -1; dr <= 1 && !frontier; dr++) for (var dc = -1; dc <= 1; dc++) {
-			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { frontier = true; break; }
+		if (!((m[0] === 0 || m[0] === R - 1) && (m[1] === 0 || m[1] === C - 1))) return;
+		for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			if (rev[(m[0] + dr) + "," + (m[1] + dc)]) { flagged.push(m); return; }
 		}
-		if (frontier && rand() < cfg.flagFrac) flagged.push(m);
 	});
 	return { title: "", rows: R, cols: C, mines: mines, revealed: revealed, flagged: flagged };
 }
