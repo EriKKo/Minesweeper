@@ -2296,6 +2296,10 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	width: min(94vw, 560px);
 	max-height: 90vh;
 	font-size: 1rem;
+	/* The 1v1 (duo) layout sets line-height:0 on .board-wrap to tighten the canvas; this modal lives
+	   inside it, so reset to the normal body line-height or the heading/rating/buttons collapse — making
+	   the 1v1 result modal render cramped vs the roomy 6-player one. Reset so both render identically. */
+	line-height: 1.5;
 	background: rgba(11, 16, 32, 0.98);
 	backdrop-filter: blur(8px);
 	border: 1px solid rgba(99, 102, 241, 0.32);
