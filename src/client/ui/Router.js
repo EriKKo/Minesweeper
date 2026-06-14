@@ -199,6 +199,13 @@ function showCombinedPuzzlesView() {
 	renderCombinedPuzzles();
 }
 
+function showDesignView() {
+	hideAllViews();
+	document.getElementById("design_view").style.display = "";
+	setSiteNavActive("admin");
+	renderDesign();
+}
+
 function showPuzzlePlayView() {
 	hideAllViews();
 	document.getElementById("puzzle_play_view").style.display = "";
@@ -361,6 +368,7 @@ function applyRouteFromHash() {
 	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
 	if (hash === "/admin/start-patterns") return showStartPatternsView();
 	if (hash === "/admin/combined-puzzles") return showCombinedPuzzlesView();
+	if (hash === "/admin/design") return showDesignView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
 	if (hash === "/privacy") return showPrivacyView();

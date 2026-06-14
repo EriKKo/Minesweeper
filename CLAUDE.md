@@ -437,7 +437,9 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
 - **`views/`** — page/feature views (`Lobby`, `GameRoom`, `Profile`, `Leaderboard`, `Learn`, `Solo`,
   `Territory`, `PuzzlePlay`, `Ranking`, `MatchPanels`).
 - **`admin/`** — admin views (`AdminList`, `BotsAdmin`, `PatternsView`, `StartPatternsView`,
-  `StartingPositionsView`, `CombinedPuzzlesView`, `PuzzleLab`, `Puzzles`).
+  `StartingPositionsView`, `CombinedPuzzlesView`, `PuzzleLab`, `Puzzles`, `DesignView`). `DesignView`
+  (`/admin/design`) is a living design reference — renders the full rank ladder (every tier + sub-tier)
+  with the live `buildRankBadge` so the insignia can be reviewed without grinding.
 
 (File bullets below use bare names; resolve them under `core/`, `ui/`, `views/`, or `admin/`.)
 - `index.html` — entry page: markup only. Every client module is a plain `<script>`

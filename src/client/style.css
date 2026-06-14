@@ -890,6 +890,24 @@ main {
 .admin-card-sub   { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.92rem; }
 .admin-card-action { color: var(--accent); font-weight: 700; }
 
+/* Design page — rank ladder reference grid. */
+.design-section-title { font-size: 1.05rem; font-weight: 800; margin: 1.8rem 0 0.35rem; }
+.design-ranks {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+	gap: 1.1rem;
+	margin-top: 1rem;
+}
+.design-rank {
+	display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+	padding: 1.1rem 0.5rem 0.9rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+}
+.design-rank-name { font-size: 0.86rem; font-weight: 700; text-align: center; }
+.design-rank-rating { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
 .puzzle-play-header {
 	display: flex; gap: 1.2rem; align-items: center; margin: 0.6rem 0 1rem;
 	font-size: 0.95rem;

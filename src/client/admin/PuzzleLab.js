@@ -102,6 +102,12 @@ function renderAdminLanding() {
 		"Browse combined puzzles",
 		"/admin/combined-puzzles"
 	));
+	cards.appendChild(makeAdminCard(
+		"Design",
+		"Visual design reference — the full rank ladder (every tier and sub-tier) rendered with the live badge component.",
+		"Open design",
+		"/admin/design"
+	));
 	// Unfinished game modes parked off the home page until they're ready to ship.
 	cards.appendChild(makeAdminCard(
 		"Tournament (preview)",
