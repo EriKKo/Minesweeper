@@ -2950,6 +2950,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 	margin: 0 0 0.4rem;
 }
 .game-view.multi .opponent_div canvas { width: 100%; height: auto; display: block; border-radius: 5px; }
+/* Rank badge tucked at the start of each opponent card's name line (6-player battle layout). The duel
+   shows the badge in its bigger identity panel, so this corner badge only appears in .multi. */
+.opp-rank-badge { position: absolute; top: 0.5rem; left: 0.6rem; z-index: 3; pointer-events: none; display: none; }
+.opp-rank-badge .rank-badge { font-size: 7px; }
+.game-view.multi .opp-rank-badge { display: block; }
+.game-view.multi .opponent_div.has-rank-badge .player-name { padding-left: 1.65rem; }
 /* Leader glow on whichever board is ahead (own or an opponent). */
 .game-view.multi .player-board.leading {
 	border-color: var(--duel-you);

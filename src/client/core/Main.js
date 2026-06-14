@@ -200,6 +200,25 @@ function clearPlaceBadges() {
 	var els = document.querySelectorAll(".board-place");
 	for (var i = 0; i < els.length; i++) els[i].remove();
 }
+// Tuck a small rank badge into the corner of an opponent board card (6-player battle layout — the duel
+// shows the badge in its bigger identity panel instead). Pass a null rating to remove it.
+function setOppRankBadge(card, rating) {
+	if (!card) return;
+	var existing = card.querySelector(".opp-rank-badge");
+	if (typeof rating !== "number" || typeof buildRankBadge !== "function") {
+		if (existing) existing.remove();
+		card.classList.remove("has-rank-badge");
+		return;
+	}
+	if (existing && Number(existing.dataset.rating) === rating) return; // already showing this rating
+	if (existing) existing.remove();
+	var holder = document.createElement("div");
+	holder.className = "opp-rank-badge";
+	holder.dataset.rating = rating;
+	holder.appendChild(buildRankBadge(rating));
+	card.appendChild(holder);
+	card.classList.add("has-rank-badge");
+}
 // Size the opponent boards. In the duel, the single opponent (game1) is sized to the SAME cell
 // size as the player board so the two boards match; the other slots (and all of 6-player) stay
 // small thumbnails.
@@ -1253,9 +1272,11 @@ function paintOpponentCovered() {
 			}
 			if (nameEl) nameEl.textContent = p ? playerLabel(p.name, 0) : "Searching…";
 			if (cv) drawBoardStatic(covered, cv);
+			setOppRankBadge(slot, p && typeof p.rating === "number" ? p.rating : null);
 		} else if (slot) {
 			slot.style.display = "none";
 			slot.classList.remove("opponent-searching");
+			setOppRankBadge(slot, null);
 		}
 	}
 }
