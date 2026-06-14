@@ -3785,7 +3785,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .dash-row:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); border-color: var(--dash-acc, var(--accent)); }
-.dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 118px; }
+.dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 165px; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
@@ -3816,7 +3816,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Uniform board HEIGHT (so each mode's grid size controls the zoom — wide racing boards read
    zoomed-out, the small puzzle board zoomed-in); width follows the aspect, capped to the slot. */
 .dash-board-preview .learn-board { line-height: 0; padding: 3px; }
-.dash-board-preview .learn-board canvas { display: block; height: 58px !important; width: auto !important; max-width: 112px; border-radius: 4px; }
+.dash-board-preview .learn-board canvas { display: block; height: 92px !important; width: auto !important; max-width: 165px; border-radius: 4px; }
 
 .lobby-grid {
 	display: grid;
