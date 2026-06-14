@@ -47,6 +47,107 @@ function renderBotList(state, isOwner) {
 	});
 }
 
+// The lobby roster: one row per seat (up to maxPlayers). Filled seats show the player (host ★, tier,
+// ready status; bots get an inline difficulty picker + remove ×). Empty seats carry an "Add bot" button
+// for the owner, or a muted "Open slot" otherwise. Replaces both the planning scoreboard and the
+// separate bots card while waiting in a casual room.
+function renderLobbySlots(state) {
+	if (!scoreboardEl) return;
+	scoreboardEl.innerHTML = "";
+	var isOwner = state.owner === id;
+	var canEdit = isOwner && state.phase === "planning";
+	var canAddBot = canEdit && (state.botCount || 0) < state.maxBots;
+	var players = state.players || [];
+	var seats = state.maxPlayers || players.length;
+	for (var i = 0; i < seats; i++) {
+		var p = players[i];
+		var li = document.createElement("li");
+		li.className = "lobby-slot";
+
+		var num = document.createElement("span");
+		num.className = "lobby-slot-num";
+		num.textContent = i + 1;
+		li.appendChild(num);
+
+		if (p) {
+			if (p.id === id) li.classList.add("lobby-slot-me");
+			var main = document.createElement("div");
+			main.className = "lobby-slot-main";
+			var nameEl = document.createElement("div");
+			nameEl.className = "lobby-slot-name";
+			nameEl.textContent = p.name + (p.isOwner ? " ★" : "");
+			main.appendChild(nameEl);
+
+			var sub = document.createElement("div");
+			sub.className = "lobby-slot-sub";
+			if (p.isBot && !state.ranked) {
+				var botTag = document.createElement("span");
+				botTag.className = "lobby-slot-bottag";
+				botTag.textContent = "BOT";
+				sub.appendChild(botTag);
+			}
+			if (typeof p.rating === "number") {
+				var t = tierFor(p.rating, p.provisional);
+				var tier = document.createElement("span");
+				tier.className = "lobby-slot-tier";
+				tier.textContent = t.name;
+				tier.style.color = t.color;
+				sub.appendChild(tier);
+			}
+			if (sub.childNodes.length) main.appendChild(sub);
+			li.appendChild(main);
+
+			// Owner can retune / drop a bot inline, no separate panel.
+			if (p.isBot && canEdit) {
+				var sel = document.createElement("select");
+				sel.className = "bot-difficulty-select lobby-slot-diff";
+				(state.botDifficultyOptions || []).forEach(function(d) {
+					var opt = document.createElement("option");
+					opt.value = d; opt.textContent = formatDifficulty(d);
+					sel.appendChild(opt);
+				});
+				sel.value = p.difficulty;
+				(function(botId, selEl) {
+					selEl.addEventListener("change", function() {
+						socket.emit("set_bot_difficulty", { botId: botId, difficulty: selEl.value });
+					});
+				})(p.id, sel);
+				li.appendChild(sel);
+
+				var rm = document.createElement("button");
+				rm.className = "lobby-slot-remove";
+				rm.type = "button";
+				rm.title = "Remove bot";
+				rm.setAttribute("aria-label", "Remove bot");
+				rm.textContent = "×";
+				rm.addEventListener("click", function() { socket.emit("remove_bot"); });
+				li.appendChild(rm);
+			}
+
+			var status = document.createElement("span");
+			status.className = "lobby-slot-status " + (p.ready ? "lobby-slot-ready" : "lobby-slot-waiting");
+			status.textContent = p.ready ? "Ready" : "Waiting";
+			li.appendChild(status);
+		} else {
+			li.classList.add("lobby-slot-empty");
+			if (canAddBot) {
+				var add = document.createElement("button");
+				add.className = "lobby-slot-add";
+				add.type = "button";
+				add.textContent = "+ Add bot";
+				add.addEventListener("click", function() { socket.emit("add_bot"); });
+				li.appendChild(add);
+			} else {
+				var open = document.createElement("span");
+				open.className = "lobby-slot-open";
+				open.textContent = isOwner ? "Bot limit reached" : "Open slot";
+				li.appendChild(open);
+			}
+		}
+		scoreboardEl.appendChild(li);
+	}
+}
+
 function renderRoomState(state) {
 	var isOwner = state.owner === id;
 	populateSelect(gameCountSelect, state.gameCountOptions, function(n) { return String(n); });
@@ -98,8 +199,9 @@ function renderRoomState(state) {
 	allOpponentsDiv.style.display = (playing || battleActive) ? "" : "none";
 
 	// Clean waiting-room lobby: a custom casual room sitting in its planning phase (not the ranked
-	// battle layout, not territory). Drops the empty board and the "Scoreboard" framing in favour of a
-	// single centered column — roster, ruleset, bot controls, and a big Ready button.
+	// battle layout, not territory). Drops the empty board and the "Scoreboard" framing for a two-column
+	// layout — a slot-based player roster (empty slots carry an "Add bot" button) on the left, the
+	// ruleset on the right, and a full-width Ready bar below. No separate bots card.
 	var lobbyMode = !playing && !battleActive && !state.ranked
 		&& (state.gameMode || "race") === "race"
 		&& !(typeof territoryActive !== "undefined" && territoryActive);
@@ -108,7 +210,8 @@ function renderRoomState(state) {
 	if (scoreTitleEl) scoreTitleEl.textContent = lobbyMode ? "Players" : "Scoreboard";
 
 	seriesCard.style.display = (playing || state.ranked) ? "none" : "";
-	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
+	// The separate bots card is only used outside the lobby — in the lobby, bots live in the roster slots.
+	var showBotCard = !playing && !state.ranked && !lobbyMode && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";
 	if (showBotCard) {
 		var canAddBot = isOwner && state.phase === "planning" && state.botCount < state.maxBots;
@@ -133,7 +236,8 @@ function renderRoomState(state) {
 		stopRoundTimer();
 	}
 
-	renderScoreboard();
+	if (lobbyMode) renderLobbySlots(state);
+	else renderScoreboard();
 	state.players.forEach(function(p) { lastScores[p.id] = p.score; });
 
 	// Race-tension cue: an opponent just cleared their board. Pitch rises with how

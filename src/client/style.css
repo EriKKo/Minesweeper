@@ -3085,16 +3085,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 
 /* ===== Clean waiting-room lobby (custom casual room, planning phase) =====
-   No board, no scoreboard framing. A two-column card layout: the player roster fills the left,
-   and the ruleset → bots → Ready button stack down the right. `display:contents` on .game-side lets
-   its cards become direct grid items so the roster and the right-hand stack can split into columns.
-   Driven by the `lobby` class (renderRoomState). */
+   No board, no scoreboard/bots framing. A two-column layout: the slot-based player roster on the
+   left (empty seats carry an "Add bot" button), the ruleset on the right (equal height), and a
+   full-width Ready bar spanning both below. `display:contents` on .game-side lets its cards become
+   direct grid items so the roster and the ruleset can split into columns. Driven by `lobby` class. */
 .game-view.lobby .game-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 300px;
-	align-items: start;
-	gap: 1rem 1.25rem;
-	max-width: 780px;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	gap: 1.1rem 1.4rem;
+	max-width: 940px;
 	margin: 0 auto;
 }
 .game-view.lobby #duel_timer,
@@ -3104,7 +3103,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 .game-view.lobby #duel_id_you,
 .game-view.lobby #duel_bar_you,
 .game-view.lobby #flag_mode_button,
-.game-view.lobby #ready_status { display: none; }
+.game-view.lobby #ready_status,
+.game-view.lobby #bots_card { display: none; }
 /* No "Waiting for series to start" board placeholder — there's no board in the lobby. */
 .game-view.lobby .player-board.idle::after { content: none; }
 /* The board card collapses to a transparent wrapper that just holds the Ready button. */
@@ -3112,15 +3112,69 @@ body.touch .find-next-arrow { display: inline-flex; }
 	background: none; border: 0; box-shadow: none; padding: 0; display: block; width: 100%;
 }
 .game-view.lobby .game-side { display: contents; }
-/* Players fill the left column at full height; ruleset → bots → Ready stack down the right. */
-.game-view.lobby #scoreboard_card { grid-column: 1; grid-row: 1 / -1; align-self: stretch; min-height: 0; }
-.game-view.lobby #series_card,
-.game-view.lobby #bots_card { grid-column: 2; }
-.game-view.lobby .game-left { grid-column: 2; order: 9; } /* order pushes Ready below the right-hand cards */
+/* Roster left, ruleset right — both stretch to equal height; Ready spans both columns below. */
+.game-view.lobby #scoreboard_card { grid-column: 1; grid-row: 1; align-self: stretch; min-height: 0; }
+.game-view.lobby #series_card { grid-column: 2; grid-row: 1; align-self: stretch; }
+.game-view.lobby .game-left { grid-column: 1 / -1; grid-row: 2; }
 .game-view.lobby .player-controls { margin: 0; padding: 0; }
-.game-view.lobby #ready_button { width: 100%; font-size: 1.05rem; padding: 0.85rem 1rem; }
-/* Roster row in the lobby is rank · name · status (no progress/score column). */
-.game-view.lobby .score-row { grid-template-columns: 1.5rem 1fr auto; }
+.game-view.lobby #ready_button { width: 100%; font-size: 1.1rem; padding: 0.95rem 1rem; }
+
+/* Roster seats */
+.game-view.lobby .scoreboard { gap: 0.5rem; }
+.lobby-slot {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 0.6rem 0.8rem;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid var(--border);
+}
+.lobby-slot-me { border-color: rgba(129, 140, 248, 0.5); background: rgba(99, 102, 241, 0.12); }
+.lobby-slot-num {
+	flex: 0 0 auto; width: 1.6rem; height: 1.6rem;
+	display: flex; align-items: center; justify-content: center;
+	border-radius: 50%;
+	background: var(--surface-2); color: var(--muted);
+	font-size: 0.8rem; font-weight: 700;
+}
+.lobby-slot-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+.lobby-slot-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-slot-sub { display: flex; align-items: center; gap: 0.45rem; font-size: 0.76rem; }
+.lobby-slot-tier { font-weight: 600; }
+.lobby-slot-bottag {
+	font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em;
+	padding: 0.08rem 0.32rem; border-radius: 4px;
+	background: var(--surface-2); color: var(--muted);
+}
+.lobby-slot-diff {
+	flex: 0 0 auto; font: inherit; font-size: 0.78rem; padding: 0.25rem 0.4rem;
+	background: var(--surface-2); color: var(--text);
+	border: 1px solid var(--border); border-radius: 7px;
+}
+.lobby-slot-remove {
+	flex: 0 0 auto; width: 1.5rem; height: 1.5rem; line-height: 1;
+	border-radius: 6px; border: 1px solid var(--border);
+	background: none; color: var(--muted); cursor: pointer; font-size: 1.05rem;
+	transition: color var(--motion-micro) var(--ease-out), border-color var(--motion-micro) var(--ease-out);
+}
+.lobby-slot-remove:hover { color: var(--danger); border-color: var(--danger); }
+.lobby-slot-status {
+	flex: 0 0 auto; font-size: 0.74rem; font-weight: 700;
+	padding: 0.2rem 0.6rem; border-radius: 999px;
+}
+.lobby-slot-ready { color: #86efac; background: rgba(34, 197, 94, 0.14); }
+.lobby-slot-waiting { color: var(--muted); background: var(--surface-2); }
+.lobby-slot-empty { border-style: dashed; background: transparent; }
+.lobby-slot-empty .lobby-slot-num { background: transparent; border: 1px dashed var(--border); }
+.lobby-slot-add {
+	flex: 1 1 auto; text-align: left;
+	font: inherit; font-weight: 600; font-size: 0.9rem;
+	padding: 0.15rem 0; background: none; border: 0; color: var(--accent-hover);
+	cursor: pointer;
+}
+.lobby-slot-add:hover { color: var(--text); }
+.lobby-slot-open { flex: 1 1 auto; color: var(--muted); font-style: italic; font-size: 0.86rem; }
 
 .side-card {
 	background: var(--surface);

@@ -79,6 +79,7 @@ function buildRoomState(room) {
 		botDifficultyOptions: botPlayer.DIFFICULTIES,
 		botCount: room.players.filter(function(pid) { return isBot(pid); }).length,
 		maxBots: MAX_BOTS_PER_ROOM,
+		maxPlayers: room.maxPlayers,
 		players: room.players.map(function(pid) {
 			var g = games[pid];
 			var bot = isBot(pid);

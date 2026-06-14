@@ -563,11 +563,13 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   board dims, % mines, round time, series); `roomSummary` (roomState.js) now includes `boardSize`+`mineDensity`.
   Once you're in a casual room, the **planning phase uses a clean waiting-room lobby** (`.game-view.lobby`,
   toggled in `renderRoomState` when `!playing && !battleActive && !ranked && gameMode==="race" && !territory`):
-  a two-column card layout — the player roster (the scoreboard card, retitled **Players** — no score column
-  until a series is underway) fills the left at full height, and the **Series** ruleset card, **Bots** card,
-  and a full-width **Ready** button stack down the right. (`display:contents` on `.game-side` lets its cards
-  become direct grid items; `order` pushes the Ready button, which lives in `.game-left`, below the right
-  stack.) No empty board, no "Scoreboard". The ranked race battle layout (duo/multi) is `battleActive`, so it
+  a two-column layout — a **slot-based roster** (`renderLobbySlots`, one seat per `maxPlayers`) fills the
+  left, the **Series** ruleset card sits on the right (equal height), and a **full-width Ready bar** spans
+  both below. Empty seats carry an **"+ Add bot"** button (owner, until `maxBots`); bot seats get an inline
+  difficulty `<select>` + remove ×; there is **no separate bots card** in the lobby. (`display:contents` on
+  `.game-side` lets the scoreboard + series cards become direct grid items; the Ready button in `.game-left`
+  spans `grid-column: 1 / -1`.) No empty board, no "Scoreboard". `buildRoomState` exposes `maxPlayers` for
+  the seat count. The ranked race battle layout (duo/multi) is `battleActive`, so it
   is unaffected; starting the game removes the `lobby` class and the duel/multi layout takes over.
 - **Territory & Tournament** still use the legacy **waiting-room overlay** (`#ranked_searching`, a centred
   full-viewport card): `renderMatchRoster(info)` turns the `members` roster into a filling slot list
