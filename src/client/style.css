@@ -3751,7 +3751,7 @@ body.touch .find-next-arrow { display: inline-flex; }
    actual board rendered. */
 .lobby-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+	grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.85fr);
 	gap: 1.6rem;
 	align-items: start;
 	max-width: 1180px;
@@ -3807,8 +3807,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 	background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
 	border: 1px solid var(--border);
 	border-radius: 0.8rem;
-	padding: 1.1rem 1.2rem 1.2rem;
-	display: flex; flex-direction: column; gap: 0.7rem;
+	padding: 1rem 1.1rem 1.1rem;
+	display: flex; flex-direction: column; gap: 0.55rem;
 }
 .lobby-daily-head {
 	display: flex; align-items: baseline; justify-content: space-between;
@@ -3818,18 +3818,18 @@ body.touch .find-next-arrow { display: inline-flex; }
 	color: #fbbf24; text-transform: uppercase;
 }
 .lobby-daily-date { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.lobby-daily-title { margin: 0; font-size: 1.3rem; }
-.lobby-daily-sub { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.lobby-daily-title { margin: 0; font-size: 1.1rem; }
+.lobby-daily-sub { margin: 0; font-size: 0.8rem; color: var(--muted); }
 
 .lobby-daily-board {
 	background: rgba(11, 16, 32, 0.4);
 	border-radius: 0.5rem;
-	padding: 0.6rem;
-	min-height: 240px;
+	padding: 0.5rem;
+	min-height: 180px;
 	display: flex; align-items: center; justify-content: center;
 }
 .lobby-daily-board-empty { color: var(--muted); font-size: 0.9rem; }
-.lobby-daily-preview { width: 100%; max-width: 420px; pointer-events: none; }
+.lobby-daily-preview { width: 100%; max-width: 300px; pointer-events: none; }
 .lobby-daily-preview .learn-controls, .lobby-daily-preview .learn-puzzle-title { display: none; }
 
 .lobby-daily-meta {
@@ -3954,6 +3954,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 /* === Flashy mode cards ============================================= */
 .mode-card-list { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 0.6rem; }
+/* Ranked is the headline of the home page — its cards are larger than the casual/solo rows. */
+.mode-card-list-feature { gap: 0.85rem; }
+.mode-card-list-feature .mode-card { padding: 1.3rem 1.4rem; gap: 1.1rem; }
+.mode-card-list-feature .mode-card-icon { width: 3.2rem; height: 3.2rem; border-radius: 0.7rem; }
+.mode-card-list-feature .mode-card-icon svg { width: 2.1rem; height: 2.1rem; }
+.mode-card-list-feature .mode-card-title { font-size: 1.4rem; }
+.mode-card-list-feature .mode-card-pitch { font-size: 0.9rem; }
+.mode-card-list-feature .mode-card-rank-badge .rank-badge { font-size: 10px; }
 .mode-card {
 	position: relative;
 	display: grid;

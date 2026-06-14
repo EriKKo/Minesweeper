@@ -85,16 +85,9 @@ function renderHomeRankChips() {
 	}
 	var sprint = account ? account.ratingSprint : null;
 	var standard = account ? account.ratingStandard : null;
-	var tournament = account ? account.ratingTournament : null;
-	// Each playstyle has a single rating; both 1v1 and 6P tiles show the
-	// same value so a Sprint player tracks one ladder regardless of size.
+	// Only Sprint + Standard are surfaced on the home page now; Tournament/Territory live under Admin.
 	applyTo(rankTierSprint, rankRatingSprint, sprint, "rank_badge_sprint");
-	applyTo(rankTierSprintSix, rankRatingSprintSix, sprint);
 	applyTo(rankTierStandard, rankRatingStandard, standard, "rank_badge_standard");
-	applyTo(rankTierStandardSix, rankRatingStandardSix, standard);
-	applyTo(rankTierTournament, rankRatingTournament, tournament, "rank_badge_tournament");
-	var territory = account ? account.ratingTerritory : null;
-	applyTo(document.getElementById("rank_tier_territory"), document.getElementById("rank_rating_territory"), territory, "rank_badge_territory");
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");

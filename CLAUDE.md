@@ -481,9 +481,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   back/forward; and a delegated document click handler turns same-origin `<a href="/…">` clicks into
   client-side navigations (so links just need a path href — `/auth/…`, external, hash, download, and
   new-tab links are left alone). Programmatic nav uses `navigate("/…")`. Filter views read state from
-  `location.search` and `replaceState` it back. **Server SPA fallback:** any path with no on-disk file
-  AND no file extension serves `index.html` (so `/learn`, `/privacy`, `/admin/bots` deep-link directly);
-  paths with an extension still 404. The OAuth callback still returns the session token in a `#token=`
+  `location.search` and `replaceState` it back. **Server SPA fallback:** any path with no on-disk
+  **file** AND no file extension serves `index.html` (so `/learn`, `/privacy`, `/admin/bots` deep-link
+  directly); paths with an extension still 404. NB `resolveStatic` only matches regular files, so a
+  route that collides with a client subfolder (`/admin`, `/core`, `/ui`, `/views`) falls through to
+  the SPA fallback instead of trying to serve the directory (which 500'd). The OAuth callback still returns the session token in a `#token=`
   fragment (orthogonal to routing — `Auth.js` strips it on load).
 - **Legal pages** — Privacy Policy / Terms of Service render as ordinary in-app SPA views
   (`#privacy_view` / `#terms_view` in `index.html`, the `.legal` block from `style.css`), so the

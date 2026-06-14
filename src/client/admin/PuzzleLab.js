@@ -102,6 +102,19 @@ function renderAdminLanding() {
 		"Browse combined puzzles",
 		"/admin/combined-puzzles"
 	));
+	// Unfinished game modes parked off the home page until they're ready to ship.
+	cards.appendChild(makeAdminCard(
+		"Tournament (preview)",
+		"16-player battle royale, bottom half cut each round. Unfinished — hidden from the home page.",
+		"Open Tournament",
+		"/ranked/tournament"
+	));
+	cards.appendChild(makeAdminCard(
+		"Territory (preview)",
+		"Versus mode: grow from opposite corners and claim the board. Unfinished — hidden from the home page.",
+		"Open Territory",
+		"/ranked/territory"
+	));
 	view.appendChild(cards);
 }
 

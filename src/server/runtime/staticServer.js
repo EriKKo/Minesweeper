@@ -23,7 +23,9 @@ function resolveStatic(pathname) {
 		var full = path.join(STATIC_ROOTS[i], pathname);
 		// Guard against path traversal — must stay rooted under the static dir.
 		if (full.indexOf(STATIC_ROOTS[i]) !== 0) continue;
-		try { fs.accessSync(full, fs.constants.R_OK); return full; } catch (e) {}
+		// Must be a regular FILE — a request like /admin matches the client `admin/` subfolder
+		// (a directory), which readFile can't serve; let those fall through to the SPA fallback.
+		try { if (fs.statSync(full).isFile()) return full; } catch (e) {}
 	}
 	return null;
 }
