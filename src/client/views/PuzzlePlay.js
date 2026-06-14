@@ -73,7 +73,8 @@ function renderPuzzlePlay(mode) {
 		view.appendChild(msg);
 		return;
 	}
-	enterGameFullscreen();
+	// Puzzle modes stay in the normal page (no fullscreen) — they're a calm solo
+	// experience, not a head-to-head match, and keep the navbar/footer in view.
 	if (mode === "daily") {
 		// Check first — if already attempted today, show the result without
 		// starting a fresh play.
@@ -490,7 +491,6 @@ function showPuzzleRunOutcome(data) {
 	again.className = "btn btn-primary";
 	again.textContent = data.mode === "streak" ? "New streak" : "New storm";
 	again.addEventListener("click", function() {
-		enterGameFullscreen();
 		hideOverlay();
 		if (data.mode === "streak") socket.emit("puzzle_streak_start");
 		else socket.emit("puzzle_storm_start");
