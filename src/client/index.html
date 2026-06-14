@@ -151,7 +151,7 @@
 
 					<h3 class="lobby-modes-heading">Solo puzzles</h3>
 					<div class="mode-card-list">
-						<a class="mode-card mode-card-puzzles" href="/puzzles/play" data-style="puzzles" aria-label="Play Puzzles">
+						<a class="mode-card mode-card-puzzles" href="/puzzles" data-style="puzzles" aria-label="Open Puzzles">
 							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
 								<rect x="120" y="20" width="22" height="22" rx="3" fill="#60a5fa" opacity="0.22"/>
 								<rect x="150" y="20" width="22" height="22" rx="3" fill="#3b82f6" opacity="0.22"/>
@@ -164,49 +164,12 @@
 							</div>
 							<div class="mode-card-body">
 								<h4 class="mode-card-title">Puzzles</h4>
-								<p class="mode-card-tag">Solo · climb the ladder</p>
-								<p class="mode-card-pitch">One puzzle at a time. Every solve moves your rating.</p>
+								<p class="mode-card-tag">Solo · rated, streak &amp; storm</p>
+								<p class="mode-card-pitch">One puzzle at a time. Climb the ladder, chase a streak, or race the clock.</p>
 							</div>
 							<div class="mode-card-rank">
 								<span class="mode-card-rank-tier" id="puzzle_rating_value">—</span>
 								<span class="mode-card-rank-rating" id="puzzle_solved_count"></span>
-							</div>
-						</a>
-						<a class="mode-card mode-card-streak" href="/puzzles/streak" data-style="streak" aria-label="Play Streak">
-							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
-								<path d="M150 0 L120 90 L160 90 L130 200 L195 70 L155 70 z" fill="#fb923c" opacity="0.20"/>
-								<path d="M105 40 L90 90 L115 90 L100 150 L150 80 L120 80 z" fill="#f97316" opacity="0.28"/>
-							</svg>
-							<div class="mode-card-icon" aria-hidden="true">
-								<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
-							</div>
-							<div class="mode-card-body">
-								<h4 class="mode-card-title">Streak</h4>
-								<p class="mode-card-tag">Solo · one mistake ends it</p>
-								<p class="mode-card-pitch">Chain solves without slipping. How far can you push?</p>
-							</div>
-							<div class="mode-card-rank">
-								<span class="mode-card-rank-label">Best</span>
-								<span class="mode-card-rank-tier" id="puzzle_streak_best">—</span>
-							</div>
-						</a>
-						<a class="mode-card mode-card-storm" href="/puzzles/storm" data-style="storm" aria-label="Play Storm">
-							<svg class="mode-card-art" viewBox="0 0 200 200" aria-hidden="true">
-								<circle cx="160" cy="60" r="50" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.22"/>
-								<line x1="160" y1="60" x2="160" y2="30" stroke="#67e8f9" stroke-width="3" opacity="0.55" stroke-linecap="round"/>
-								<line x1="160" y1="60" x2="185" y2="65" stroke="#22d3ee" stroke-width="3" opacity="0.65" stroke-linecap="round"/>
-							</svg>
-							<div class="mode-card-icon" aria-hidden="true">
-								<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-							</div>
-							<div class="mode-card-body">
-								<h4 class="mode-card-title">Storm</h4>
-								<p class="mode-card-tag">Solo · three minutes</p>
-								<p class="mode-card-pitch">Crack as many puzzles as you can before time runs out.</p>
-							</div>
-							<div class="mode-card-rank">
-								<span class="mode-card-rank-label">Best</span>
-								<span class="mode-card-rank-tier" id="puzzle_storm_best">—</span>
 							</div>
 						</a>
 					</div>
@@ -277,6 +240,48 @@
 					<span class="ranked-picker-option-title" id="ranked_picker_six_title">6-player</span>
 					<span class="ranked-picker-option-sub" id="ranked_picker_six_sub">Free-for-all sprint</span>
 				</button>
+			</div>
+		</section>
+
+		<section id="puzzle_picker_view" class="view section-view" style="display:none">
+			<button id="puzzle_picker_back" class="btn btn-ghost learn-back-btn" type="button">← Back to lobby</button>
+			<header class="ranked-picker-head">
+				<div class="ranked-picker-icon" style="color:#60a5fa" aria-hidden="true">
+					<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				</div>
+				<div>
+					<h1 class="ranked-picker-title">Puzzles</h1>
+					<p class="ranked-picker-sub">Solo deduction · served near your rating</p>
+				</div>
+				<div class="ranked-picker-rating">
+					<span class="ranked-picker-rating-tier">Rating</span>
+					<span class="ranked-picker-rating-num" id="puzzle_picker_rating">—</span>
+				</div>
+			</header>
+			<p class="ranked-picker-pitch">One puzzle at a time. Three ways to play.</p>
+			<h2 class="ranked-picker-prompt">Choose a mode</h2>
+			<div class="ranked-picker-options puzzle-picker-options">
+				<a class="ranked-picker-option" href="/puzzles/play" aria-label="Play rated puzzles">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Rated</span>
+					<span class="ranked-picker-option-sub">Climb the ladder — every solve moves your rating.</span>
+				</a>
+				<a class="ranked-picker-option" href="/puzzles/streak" aria-label="Play streak">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Streak</span>
+					<span class="ranked-picker-option-sub">Chain solves without slipping — one mistake ends it.</span>
+				</a>
+				<a class="ranked-picker-option" href="/puzzles/storm" aria-label="Play storm">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Storm</span>
+					<span class="ranked-picker-option-sub">Crack as many as you can in three minutes.</span>
+				</a>
 			</div>
 		</section>
 

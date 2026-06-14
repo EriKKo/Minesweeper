@@ -90,6 +90,16 @@ function showRankedPickerView(style) {
 	document.getElementById("ranked_picker_back").onclick = function() { navigate("/"); };
 }
 
+// Puzzle mode chooser (mirrors the ranked picker): Rated / Streak / Storm each link to their run.
+function showPuzzlePickerView() {
+	hideAllViews();
+	document.getElementById("puzzle_picker_view").style.display = "";
+	setSiteNavActive("home");
+	var el = document.getElementById("puzzle_picker_rating");
+	if (el) el.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
+	document.getElementById("puzzle_picker_back").onclick = function() { navigate("/"); };
+}
+
 function showLobbyView() {
 	hideAllViews();
 	lobbyView.style.display = "";
@@ -330,6 +340,7 @@ function applyRouteFromHash() {
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/practice") return showPracticeView();
 	if (hash === "/custom") return showCustomView();
+	if (hash === "/puzzles") return showPuzzlePickerView();
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
 	if (hash === "/puzzles/streak") return showPuzzleStreakView();
 	if (hash === "/puzzles/storm") return showPuzzleStormView();
