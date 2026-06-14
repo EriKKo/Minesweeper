@@ -692,6 +692,7 @@ var boardSizeReadonly = document.getElementById("board_size_readonly");
 var seriesStatus = document.getElementById("series_status");
 var seriesCard = document.getElementById("series_card");
 var allOpponentsDiv = document.getElementById("all_opponents_div");
+var scoreboardCard = document.getElementById("scoreboard_card");
 var scoreboardEl = document.getElementById("scoreboard");
 var botsCard = document.getElementById("bots_card");
 var addBotButton = document.getElementById("add_bot_button");

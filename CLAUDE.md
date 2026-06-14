@@ -561,6 +561,12 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   player count via `createRoom`'s `customMaxPlayers`), so a bad payload just falls back to defaults. The room
   list (`roomRow` in Lobby.js) shows each room's full ruleset as `.room-chip`s (players X/Y — red when full,
   board dims, % mines, round time, series); `roomSummary` (roomState.js) now includes `boardSize`+`mineDensity`.
+  Once you're in a casual room, the **planning phase uses a clean waiting-room lobby** (`.game-view.lobby`,
+  toggled in `renderRoomState` when `!playing && !battleActive && !ranked && gameMode==="race" && !territory`):
+  one centered column with the player roster (the scoreboard card, retitled **Players** — no score column
+  until a series is underway), the **Series** ruleset card, the **Bots** card, and a full-width **Ready**
+  button. No empty board, no "Scoreboard". The ranked race battle layout (duo/multi) is `battleActive`, so it
+  is unaffected; starting the game removes the `lobby` class and the duel/multi layout takes over.
 - **Territory & Tournament** still use the legacy **waiting-room overlay** (`#ranked_searching`, a centred
   full-viewport card): `renderMatchRoster(info)` turns the `members` roster into a filling slot list
   (name + tier chip, "YOU" tag, "Waiting for player…" placeholders) above a mode label + tagline

@@ -3084,6 +3084,39 @@ body.touch .find-next-arrow { display: inline-flex; }
 	text-shadow: 0 0 18px rgba(230, 233, 245, 0.25);
 }
 
+/* ===== Clean waiting-room lobby (custom casual room, planning phase) =====
+   No board, no scoreboard framing — just the roster, the ruleset, bot controls, and a prominent
+   Ready button, stacked in one centered column. Driven by the `lobby` class (renderRoomState). */
+.game-view.lobby .game-grid {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	max-width: 560px;
+	margin: 0 auto;
+	gap: 1rem;
+}
+.game-view.lobby #duel_timer,
+.game-view.lobby .duel-center,
+.game-view.lobby .board-wrap,
+.game-view.lobby #player_name0,
+.game-view.lobby #duel_id_you,
+.game-view.lobby #duel_bar_you,
+.game-view.lobby #flag_mode_button,
+.game-view.lobby #ready_status { display: none; }
+/* No "Waiting for series to start" board placeholder — there's no board in the lobby. */
+.game-view.lobby .player-board.idle::after { content: none; }
+/* The board card collapses to a transparent wrapper that just holds the Ready button. */
+.game-view.lobby .player-board {
+	background: none; border: 0; box-shadow: none; padding: 0; display: block; width: 100%;
+}
+.game-view.lobby .game-side { order: 1; position: static; }
+.game-view.lobby .game-left { order: 3; }
+.game-view.lobby .player-controls { margin: 0; padding: 0; }
+.game-view.lobby #ready_button { width: 100%; font-size: 1.05rem; padding: 0.85rem 1rem; }
+.game-view.lobby #scoreboard_card { min-height: 0; }
+/* Roster row in the lobby is rank · name · status (no progress/score column). */
+.game-view.lobby .score-row { grid-template-columns: 1.5rem 1fr auto; }
+
 .side-card {
 	background: var(--surface);
 	border: 1px solid var(--border);

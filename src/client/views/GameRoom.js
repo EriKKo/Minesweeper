@@ -96,6 +96,17 @@ function renderRoomState(state) {
 	// result modal — stay visible, not only while play is live. Both the duo and multi classes count.
 	var battleActive = typeof gameView !== "undefined" && gameView && (gameView.classList.contains("duo") || gameView.classList.contains("multi"));
 	allOpponentsDiv.style.display = (playing || battleActive) ? "" : "none";
+
+	// Clean waiting-room lobby: a custom casual room sitting in its planning phase (not the ranked
+	// battle layout, not territory). Drops the empty board and the "Scoreboard" framing in favour of a
+	// single centered column — roster, ruleset, bot controls, and a big Ready button.
+	var lobbyMode = !playing && !battleActive && !state.ranked
+		&& (state.gameMode || "race") === "race"
+		&& !(typeof territoryActive !== "undefined" && territoryActive);
+	if (typeof gameView !== "undefined" && gameView) gameView.classList.toggle("lobby", lobbyMode);
+	var scoreTitleEl = scoreboardCard ? scoreboardCard.querySelector(".side-title") : null;
+	if (scoreTitleEl) scoreTitleEl.textContent = lobbyMode ? "Players" : "Scoreboard";
+
 	seriesCard.style.display = (playing || state.ranked) ? "none" : "";
 	var showBotCard = !playing && !state.ranked && (isOwner || (state.botCount && state.botCount > 0));
 	botsCard.style.display = showBotCard ? "" : "none";
@@ -300,13 +311,16 @@ function renderScoreboard() {
 			meta.classList.add(p.ready ? "score-meta-ready" : "score-meta-waiting");
 			li.appendChild(meta);
 
-			var score = document.createElement("span");
-			score.className = "score-points";
-			score.textContent = p.score;
-			if (lastScores[p.id] != null && p.score > lastScores[p.id]) {
-				score.classList.add("score-points-bumped");
+			// Running score only matters once a series is underway; a brand-new lobby stays clean.
+			if (state.gamesPlayed > 0) {
+				var score = document.createElement("span");
+				score.className = "score-points";
+				score.textContent = p.score;
+				if (lastScores[p.id] != null && p.score > lastScores[p.id]) {
+					score.classList.add("score-points-bumped");
+				}
+				li.appendChild(score);
 			}
-			li.appendChild(score);
 		}
 
 		scoreboardEl.appendChild(li);
