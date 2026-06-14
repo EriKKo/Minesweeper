@@ -141,9 +141,11 @@ function addBotToRoom(room, config, prechosenName) {
 		// Elo-tuned bot (ranked, from the pool): explicit per-move variables + rating.
 		botDifficulty[botId] = null;
 	} else {
-		// Casual room: derive the variable set from the difficulty preset.
-		botDifficulty[botId] = botPlayer.DEFAULT_DIFFICULTY;
-		config = botPlayer.configForDifficulty(botDifficulty[botId]);
+		// Casual room: derive the variable set from the difficulty preset. New bots inherit the last
+		// difficulty chosen in this room, so bumping one bot to Hard makes the next Add bot Hard too.
+		var diff = room.lastBotDifficulty || botPlayer.DEFAULT_DIFFICULTY;
+		botDifficulty[botId] = diff;
+		config = botPlayer.configForDifficulty(diff);
 		config.rating = RANKED_BOT_RATING;
 	}
 	botSpeedMs[botId] = config.speedMs;

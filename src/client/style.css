@@ -3176,6 +3176,17 @@ body.touch .find-next-arrow { display: inline-flex; }
 .lobby-slot-add:hover { color: var(--text); }
 .lobby-slot-open { flex: 1 1 auto; color: var(--muted); font-style: italic; font-size: 0.86rem; }
 
+/* Bigger, easier-to-hit dropdowns in the lobby (bot difficulty + the ruleset selects). */
+.game-view.lobby .lobby-slot-diff {
+	min-width: 6.5rem; padding: 0.45rem 0.6rem; font-size: 0.9rem; border-radius: 8px;
+}
+.game-view.lobby .series-config { gap: 0.9rem; margin-bottom: 1rem; }
+.game-view.lobby .series-config-label { flex: 0 0 6rem; font-size: 0.9rem; }
+.game-view.lobby .series-config select {
+	flex: 1 1 auto; padding: 0.55rem 0.7rem; font-size: 0.95rem; border-radius: 9px;
+}
+.game-view.lobby .series-config-readonly { flex: 1 1 auto; }
+
 .side-card {
 	background: var(--surface);
 	border: 1px solid var(--border);

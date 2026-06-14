@@ -903,6 +903,8 @@ io.on("connection", function (socket) {
 		var difficulty = data && data.difficulty;
 		if (!isBot(botId) || roomMapping[botId] !== room) return;
 		if (botPlayer.DIFFICULTIES.indexOf(difficulty) === -1) return;
+		// Remember it as the room's default so the next bot added matches the last difficulty chosen.
+		room.lastBotDifficulty = difficulty;
 		botDifficulty[botId] = difficulty;
 		var cfg = botPlayer.configForDifficulty(difficulty);
 		botSpeedMs[botId] = cfg.speedMs;
