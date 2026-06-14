@@ -162,8 +162,8 @@ var DASH_MODE_PREVIEW = {
 	// to a covered cell (which would look like a missing number). Modes read differently via where the
 	// opening starts, the mine density, and how many deduced mines are flagged. Puzzle is a fresh tight
 	// cascade (zoomed in, no flags). Tune a board by changing its `seed`.
-	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c", seed: 2 },  // fast: sparse opening
-	standard: { rows: 6, cols: 9,  density: 0.20, start: "c", seed: 14 }, // methodical: same kind of opening, denser minefield
+	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c", seed: 13 }, // fast: sparse, wide-open field
+	standard: { rows: 6, cols: 9,  density: 0.25, start: "c", seed: 1 },  // methodical: tight opening in a dense minefield
 	custom:   { rows: 6, cols: 9,  density: 0.15, start: "c", seed: 9 },  // casual: medium density
 	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
 };
