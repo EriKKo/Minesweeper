@@ -7,7 +7,10 @@ var DEFAULT_DEATH_PENALTY = 5;
 var DEATH_PENALTY_OPTIONS = [0, 3, 5, 10];
 // Mines are a fraction of the board so density stays consistent across sizes.
 var DEFAULT_MINE_DENSITY = 0.10;
-// Low / Medium / High — the same three densities the ranked modes use.
+// Custom rooms pick density on a 10%–30% slider; these bound it (whole-percent steps).
+var MINE_DENSITY_MIN_PCT = 10;
+var MINE_DENSITY_MAX_PCT = 30;
+// Kept for any legacy consumers of the discrete list (the live UI uses the slider above).
 var MINE_DENSITY_OPTIONS = [0.10, 0.15, 0.20];
 var BOARD_SIZES = {
 	small: { rows: 10, cols: 13 },
@@ -135,9 +138,12 @@ function createRoom(id, ownerID, customMaxPlayers) {
 	}
 
 	function setMineDensity(density) {
-		if (MINE_DENSITY_OPTIONS.indexOf(density) === -1) return false;
 		if (room.phase !== "planning") return false;
-		room.mineDensity = density;
+		if (typeof density !== "number" || isNaN(density)) return false;
+		// Continuous slider on the client — accept any whole percent from 10% to 30%.
+		var pct = Math.round(density * 100);
+		if (pct < MINE_DENSITY_MIN_PCT || pct > MINE_DENSITY_MAX_PCT) return false;
+		room.mineDensity = pct / 100;
 		return true;
 	}
 

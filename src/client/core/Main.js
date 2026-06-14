@@ -685,7 +685,9 @@ var roundSecondsSelect = document.getElementById("round_seconds_select");
 var roundSecondsReadonly = document.getElementById("round_seconds_readonly");
 var deathPenaltySelect = document.getElementById("death_penalty_select");
 var deathPenaltyReadonly = document.getElementById("death_penalty_readonly");
-var mineDensitySelect = document.getElementById("mine_density_select");
+var mineDensitySlider = document.getElementById("mine_density_slider");
+var mineDensityControl = document.getElementById("mine_density_control");
+var mineDensityVal = document.getElementById("mine_density_val");
 var mineDensityReadonly = document.getElementById("mine_density_readonly");
 var boardSizeSelect = document.getElementById("board_size_select");
 var boardSizeReadonly = document.getElementById("board_size_readonly");
@@ -1003,11 +1005,18 @@ scoreboardEl.addEventListener("click", function(e) {
 		return seg ? seg.dataset.val : null;
 	}
 
+	// Mine density is a 10%–30% slider; reflect its value live next to the label.
+	var densitySlider = document.getElementById("cr_density");
+	var densityVal = document.getElementById("cr_density_val");
+	if (densitySlider && densityVal) {
+		densitySlider.addEventListener("input", function() { densityVal.textContent = densitySlider.value + "%"; });
+	}
+
 	document.getElementById("cr_create").addEventListener("click", function() {
 		socket.emit("create_room", {
 			players: parseInt(selected("players"), 10),
 			boardSize: selected("boardSize"),
-			mineDensity: parseFloat(selected("mineDensity")),
+			mineDensity: densitySlider ? parseInt(densitySlider.value, 10) / 100 : 0.1,
 			roundSeconds: parseInt(selected("roundSeconds"), 10),
 			deathPenalty: parseInt(selected("deathPenalty"), 10),
 			gameCount: parseInt(selected("gameCount"), 10)
@@ -1092,9 +1101,21 @@ deathPenaltySelect.addEventListener("change", function() {
 	socket.emit("set_death_penalty", { seconds: parseInt(deathPenaltySelect.value, 10) });
 });
 
-mineDensitySelect.addEventListener("change", function() {
-	socket.emit("set_mine_density", { density: parseFloat(mineDensitySelect.value) });
-});
+if (mineDensitySlider) {
+	// Live %, plus a debounced server update so dragging doesn't spam the socket.
+	var densityCommit = null;
+	mineDensitySlider.addEventListener("input", function() {
+		if (mineDensityVal) mineDensityVal.textContent = mineDensitySlider.value + "%";
+		clearTimeout(densityCommit);
+		densityCommit = setTimeout(function() {
+			socket.emit("set_mine_density", { density: parseInt(mineDensitySlider.value, 10) / 100 });
+		}, 150);
+	});
+	mineDensitySlider.addEventListener("change", function() {
+		clearTimeout(densityCommit);
+		socket.emit("set_mine_density", { density: parseInt(mineDensitySlider.value, 10) / 100 });
+	});
+}
 
 boardSizeSelect.addEventListener("change", function() {
 	socket.emit("set_board_size", { size: boardSizeSelect.value });

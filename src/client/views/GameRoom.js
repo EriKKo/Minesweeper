@@ -153,13 +153,17 @@ function renderRoomState(state) {
 	populateSelect(roundSecondsSelect, state.roundSecondsOptions, formatRoundOption);
 	populateSelect(deathPenaltySelect, state.deathPenaltyOptions, formatPenaltyOption);
 	populateSelect(boardSizeSelect, state.boardSizeOptions, formatBoardSize);
-	populateSelect(mineDensitySelect, state.mineDensityOptions, formatMineDensity);
 
 	gameCountSelect.value = String(state.gameCount);
 	roundSecondsSelect.value = String(state.roundSeconds);
 	deathPenaltySelect.value = String(state.deathPenalty);
 	boardSizeSelect.value = String(state.boardSize);
-	mineDensitySelect.value = String(state.mineDensity);
+	// Mine density is a 10%–30% slider; don't yank it out from under the owner while they drag.
+	if (mineDensitySlider) {
+		var densityPct = Math.round((state.mineDensity || 0.1) * 100);
+		if (document.activeElement !== mineDensitySlider) mineDensitySlider.value = String(densityPct);
+		if (mineDensityVal) mineDensityVal.textContent = mineDensitySlider.value + "%";
+	}
 
 	rankedTag.style.display = state.ranked ? "" : "none";
 	// Ranked rooms have a locked ruleset — show the values read-only, even to the owner.
@@ -169,12 +173,12 @@ function renderRoomState(state) {
 	roundSecondsSelect.disabled = !canEdit;
 	deathPenaltySelect.disabled = !canEdit;
 	boardSizeSelect.disabled = !canEdit;
-	mineDensitySelect.disabled = !canEdit;
+	if (mineDensitySlider) mineDensitySlider.disabled = !canEdit;
 	gameCountSelect.style.display = showSelects ? "" : "none";
 	roundSecondsSelect.style.display = showSelects ? "" : "none";
 	deathPenaltySelect.style.display = showSelects ? "" : "none";
 	boardSizeSelect.style.display = showSelects ? "" : "none";
-	mineDensitySelect.style.display = showSelects ? "" : "none";
+	if (mineDensityControl) mineDensityControl.style.display = showSelects ? "" : "none";
 	gameCountReadonly.style.display = showSelects ? "none" : "";
 	roundSecondsReadonly.style.display = showSelects ? "none" : "";
 	deathPenaltyReadonly.style.display = showSelects ? "none" : "";

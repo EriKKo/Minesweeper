@@ -906,6 +906,35 @@ main {
 .cr-seg button:hover { border-color: var(--muted); }
 .cr-seg button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 1px var(--accent), 0 6px 16px -6px var(--accent); }
 .cr-seg button.active small { color: rgba(255, 255, 255, 0.82); }
+/* Mine-density slider (create modal) */
+.cr-field-head { display: flex; align-items: baseline; justify-content: space-between; }
+.cr-slider-val { font-weight: 700; font-size: 0.95rem; color: var(--accent-hover); }
+.cr-slider-scale { display: flex; justify-content: space-between; margin-top: 0.3rem; font-size: 0.7rem; color: var(--muted); }
+/* Shared range-input look (create modal + lobby ruleset) */
+input[type="range"].cr-slider,
+#mine_density_slider {
+	-webkit-appearance: none; appearance: none;
+	width: 100%; height: 6px; padding: 0; margin: 0.35rem 0;
+	border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border);
+	cursor: pointer;
+}
+input[type="range"].cr-slider::-webkit-slider-thumb,
+#mine_density_slider::-webkit-slider-thumb {
+	-webkit-appearance: none; appearance: none;
+	width: 18px; height: 18px; border-radius: 50%;
+	background: var(--accent); border: 2px solid #fff; cursor: pointer;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+input[type="range"].cr-slider::-moz-range-thumb,
+#mine_density_slider::-moz-range-thumb {
+	width: 18px; height: 18px; border-radius: 50%;
+	background: var(--accent); border: 2px solid #fff; cursor: pointer;
+}
+input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
+/* Lobby density row: slider + live value, sharing the series-config layout */
+.series-density-control { flex: 1 1 auto; display: flex; align-items: center; gap: 0.7rem; }
+.series-density-control #mine_density_slider { flex: 1 1 auto; }
+.series-density-val { flex: 0 0 auto; min-width: 2.8rem; text-align: right; font-weight: 700; font-size: 0.9rem; color: var(--accent-hover); }
 .cr-dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.5rem; }
 .cr-dialog-actions .btn { min-width: 7rem; }
 @media (max-width: 560px) {

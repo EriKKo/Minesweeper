@@ -304,12 +304,12 @@
 							</div>
 						</div>
 						<div class="cr-field">
-							<span class="cr-field-label">Mine density</span>
-							<div class="cr-seg" data-cr="mineDensity">
-								<button type="button" data-val="0.1" class="active">Low<small>10%</small></button>
-								<button type="button" data-val="0.15">Medium<small>15%</small></button>
-								<button type="button" data-val="0.2">High<small>20%</small></button>
+							<div class="cr-field-head">
+								<span class="cr-field-label">Mine density</span>
+								<span class="cr-slider-val" id="cr_density_val">10%</span>
 							</div>
+							<input type="range" class="cr-slider" id="cr_density" min="10" max="30" step="1" value="10" aria-label="Mine density">
+							<div class="cr-slider-scale"><span>10%</span><span>20%</span><span>30%</span></div>
 						</div>
 						<div class="cr-field">
 							<span class="cr-field-label">Round time</span>
@@ -611,7 +611,10 @@
 						</div>
 						<div class="series-config">
 							<span class="series-config-label">Mine density</span>
-							<select id="mine_density_select" disabled></select>
+							<span class="series-density-control" id="mine_density_control">
+								<input type="range" id="mine_density_slider" min="10" max="30" step="1" value="10" aria-label="Mine density" disabled>
+								<span class="series-density-val" id="mine_density_val"></span>
+							</span>
 							<span id="mine_density_readonly" class="series-config-readonly"></span>
 						</div>
 						<div id="series_status" class="series-status"></div>

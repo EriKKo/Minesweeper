@@ -555,10 +555,14 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
 - **Custom rooms.** The Custom page (`#custom_view`) is casual race-only — Territory is **not** creatable
   here (it lives in Ranked). A "+ Create room" button opens the create-room modal (`#create_room_modal`,
   wired in `wireCreateRoomModal` in Main.js): segmented `.cr-seg` controls (one `.active` per group) pick
-  players (2–6), board size, mine density, round time, mine penalty, and series length up front. "Create
-  room" emits `create_room` with those options; the server (`minesweeperServer.js`) applies each through the
-  room's validated setters (`setBoardSize`/`setMineDensity`/`setRoundSeconds`/`setDeathPenalty`/`setGameCount`,
-  player count via `createRoom`'s `customMaxPlayers`), so a bad payload just falls back to defaults. The room
+  players (2–6), board size, round time, mine penalty, and series length up front, plus a **10%–30% mine-
+  density slider** (`#cr_density`). "Create room" emits `create_room` with those options; the server
+  (`minesweeperServer.js`) applies each through the room's validated setters (`setBoardSize`/`setMineDensity`/
+  `setRoundSeconds`/`setDeathPenalty`/`setGameCount`, player count via `createRoom`'s `customMaxPlayers`), so a
+  bad payload just falls back to defaults. `setMineDensity` range-validates whole-percent steps in 10%–30%
+  (`MINE_DENSITY_*_PCT` in RoomCreator) — density is a slider, not discrete options, in both the modal and the
+  lobby (`#mine_density_slider`, which debounces `set_mine_density` while dragging and isn't re-set from
+  `room_state` while focused). The room
   list (`roomRow` in Lobby.js) shows each room's full ruleset as `.room-chip`s (players X/Y — red when full,
   board dims, % mines, round time, series); `roomSummary` (roomState.js) now includes `boardSize`+`mineDensity`.
   Once you're in a casual room, the **planning phase uses a clean waiting-room lobby** (`.game-view.lobby`,
