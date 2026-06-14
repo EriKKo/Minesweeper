@@ -42,7 +42,7 @@ function renderDesign() {
 		var cell = document.createElement("div");
 		cell.className = "design-rank";
 		var badge = buildRankBadge(rating);
-		badge.style.fontSize = "38px";
+		badge.style.fontSize = "26px";
 		cell.appendChild(badge);
 		var name = document.createElement("div");
 		name.className = "design-rank-name";
