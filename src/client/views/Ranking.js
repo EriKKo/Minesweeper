@@ -82,14 +82,14 @@ function buildRankBadge(rating) {
 // One wing of swept feathers fanning up-and-out from a pivot beside the crest. `n` feathers, the top
 // one longest; drawn for the right side (mirrored by the caller for the left).
 function rankWingSVG(n) {
-	var parts = "", px = 56, py = 56;
+	var parts = "", px = 53, py = 58;
 	for (var i = 0; i < n; i++) {
 		var t = n > 1 ? i / (n - 1) : 0;
-		var ang = -70 + t * 88;          // -70° (top, up-out) → +18° (outer, swept out and down): a wing
-		var L = 40 - i * 2.4;            // top primary longest, tapering outward
+		var ang = -64 + t * 72;          // a tight, full fan from up (top primary) to swept-out (lower coverts)
+		var L = 39 - i * 1.6;            // gentle taper so the feathers overlap into a lush wing
 		var c = (L * 0.5).toFixed(1);
 		parts += '<path class="rank-feather" transform="translate(' + px + ' ' + py + ') rotate(' + ang.toFixed(1) + ')"'
-			+ ' d="M0 -1.7 Q' + c + ' -6 ' + L.toFixed(1) + ' -0.5 Q' + c + ' 4.5 0 2.6 Z"/>';
+			+ ' d="M0 -3.2 Q' + c + ' -8 ' + L.toFixed(1) + ' -0.5 Q' + c + ' 6.5 0 4 Z"/>';
 	}
 	return parts;
 }
@@ -120,7 +120,7 @@ function rankCrownSVG() {
 function rankEmblemSVG(info) {
 	var isMaster = info.tierClass === "master";
 	var subIdx = info.subNum ? Math.max(0, SUB_TIER_NUMERALS.indexOf(info.subNum)) : 2;
-	var feathers = isMaster ? 5 : (subIdx + 2);
+	var feathers = isMaster ? 6 : (subIdx + 3); // I = 3 per side, II = 4, III = 5 → the wing fills out
 	var svg = '<svg class="rank-emblem" viewBox="0 0 100 100" aria-hidden="true">';
 	svg += '<g class="rank-wings">' + rankWingSVG(feathers)
 		+ '<g transform="translate(100 0) scale(-1 1)">' + rankWingSVG(feathers) + '</g></g>';
