@@ -2577,32 +2577,25 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	inset: 0;
 	background: linear-gradient(150deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.1) 38%, rgba(255, 255, 255, 0) 60%);
 }
-/* Platinum/Diamond wear faceted gems instead of chevrons — one per sub-tier. A brighter "crown"
-   facet up top + a darker pavilion below give the cut-stone look; Diamond sparkles a touch more. */
-.rank-gem {
-	position: relative;
-	width: 1.5em;
-	height: 1.3em;
-	clip-path: polygon(26% 0, 74% 0, 100% 34%, 50% 100%, 0 34%);
-	background: linear-gradient(165deg, var(--rb-c2), var(--rb-c3));
-	filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5));
+/* Platinum/Diamond/Master wear an SVG winged crest (built in Ranking.js): a gem or star flanked by
+   wings whose feather count grows with the sub-tier, so the rank visibly levels up. */
+.rank-emblem {
+	width: 100%; height: 100%;
+	overflow: visible;                 /* let the wings reach toward the patch edges */
+	filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
-.rank-gem::before { /* crown — the lit table + upper facets above the girdle */
-	content: "";
-	position: absolute;
-	left: 0; right: 0; top: 0;
-	height: 34%;
-	background: linear-gradient(160deg, var(--rb-c1), var(--rb-c2));
-}
-.rank-gem::after { /* a facet ridge down the pavilion for a cut-stone read */
-	content: "";
-	position: absolute;
-	left: 50%; top: 34%; bottom: 6%;
-	width: 1px; transform: translateX(-50%);
-	background: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
-}
-.tier-diamond .rank-gem { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5)) brightness(1.12); }
-.tier-platinum, .tier-diamond { gap: 0.3em; }
+/* Wings — feathers shaded so the inner edge catches light and the outer dips into the tier shadow. */
+.rank-feather { fill: var(--rb-c2); stroke: var(--rb-c3); stroke-width: 0.6; stroke-linejoin: round; }
+.tier-diamond .rank-feather { fill: var(--rb-c1); }
+/* Gem crest. */
+.rg-body { fill: var(--rb-c2); }
+.rg-crown { fill: var(--rb-c1); }
+.rg-facets path { fill: none; stroke: rgba(255, 255, 255, 0.4); stroke-width: 0.8; stroke-linecap: round; }
+.tier-diamond .rg-body { filter: brightness(1.08); }
+/* Master star + crown. */
+.rs-body { fill: var(--rb-c2); stroke: var(--rb-c1); stroke-width: 1.2; stroke-linejoin: round; }
+.rs-shine { fill: var(--rb-c1); opacity: 0.55; }
+.rank-crown { fill: var(--rb-c1); stroke: var(--rb-c3); stroke-width: 0.8; stroke-linejoin: round; }
 .rank-badge-star {
 	font-size: 1.95em;
 	line-height: 1;
@@ -2995,8 +2988,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 .opp-rank-badge { display: none; }
 /* Just the compact chevron(s), card chrome stripped; shown only when filled (in the multi layout). */
 .game-view.multi .opp-rank-badge:not(:empty) { display: flex; align-items: center; flex: 0 0 auto; margin-right: 0.5rem; }
+/* Fixed square so it sizes the SVG emblem (winged crest) as well as the chevron stack; chrome
+   stripped so it sits inline before the opponent's name. */
 .opp-rank-badge .rank-badge {
-	font-size: 6px; width: auto; min-height: 0; padding: 0; gap: 0.2em;
+	font-size: 3.6px; width: 5em; height: 5em; min-height: 0; padding: 0; gap: 0.2em;
 	background: none; border: 0; box-shadow: none; border-radius: 0;
 }
 /* Leader glow on whichever board is ahead (own or an opponent). */

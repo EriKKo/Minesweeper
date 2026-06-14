@@ -49,25 +49,26 @@ function rankIconFor(rating) {
 	};
 }
 
-// Military rank-insignia badge: a dark service patch with 1-3 metallic chevrons
-// (the sub-tier) tinted by the tier, glowing in the tier colour. Master tops out
-// with a star instead of chevrons. No tier text inside — the rank name is always
-// shown beside it (modal, profile, duel HUD, mode cards). The patch is sized in
-// `em` off its font-size, so callers scale the whole badge by setting font-size.
+// Rank-insignia badge — a dark service patch glowing in the tier colour, with an emblem that grows
+// in prestige as you climb. The rank NAME is always shown beside it, so the emblem is pure flair.
+//  • Bronze / Silver / Gold: metallic chevrons (1-3 = the sub-tier) — the foot-soldier insignia.
+//  • Platinum / Diamond: a faceted gem crest whose WINGS unfurl with the sub-tier (I=2 feathers per
+//    side, II=3, III=4) — it visibly levels up rather than stacking copies.
+//  • Master: a crowned, fully-winged star — the pinnacle.
+// The patch is sized in `em` off its font-size, so callers scale the whole badge with one rule.
 function buildRankBadge(rating) {
 	var info = rankIconFor(rating);
 	var badge = document.createElement("div");
 	badge.className = "rank-badge tier-" + info.tierClass;
-	if (info.subNum) {
+	if (info.tierClass === "platinum" || info.tierClass === "diamond" || info.tierClass === "master") {
+		badge.innerHTML = rankEmblemSVG(info);
+	} else if (info.subNum) {
 		var count = SUB_TIER_NUMERALS.indexOf(info.subNum) + 1;
 		if (count < 1) count = 1;
-		// Bronze/Silver/Gold wear chevrons; Platinum/Diamond graduate to faceted gems (one per
-		// sub-tier) so the top tiers read as distinctly more prestigious, not just recoloured chevrons.
-		var gemTier = (info.tierClass === "platinum" || info.tierClass === "diamond");
 		for (var i = 0; i < count; i++) {
-			var pip = document.createElement("span");
-			pip.className = gemTier ? "rank-gem" : "rank-chev";
-			badge.appendChild(pip);
+			var chev = document.createElement("span");
+			chev.className = "rank-chev";
+			badge.appendChild(chev);
 		}
 	} else {
 		var star = document.createElement("span");
@@ -76,6 +77,57 @@ function buildRankBadge(rating) {
 		badge.appendChild(star);
 	}
 	return badge;
+}
+
+// One wing of swept feathers fanning up-and-out from a pivot beside the crest. `n` feathers, the top
+// one longest; drawn for the right side (mirrored by the caller for the left).
+function rankWingSVG(n) {
+	var parts = "", px = 56, py = 56;
+	for (var i = 0; i < n; i++) {
+		var t = n > 1 ? i / (n - 1) : 0;
+		var ang = -70 + t * 88;          // -70° (top, up-out) → +18° (outer, swept out and down): a wing
+		var L = 40 - i * 2.4;            // top primary longest, tapering outward
+		var c = (L * 0.5).toFixed(1);
+		parts += '<path class="rank-feather" transform="translate(' + px + ' ' + py + ') rotate(' + ang.toFixed(1) + ')"'
+			+ ' d="M0 -1.7 Q' + c + ' -6 ' + L.toFixed(1) + ' -0.5 Q' + c + ' 4.5 0 2.6 Z"/>';
+	}
+	return parts;
+}
+// Brilliant-cut gem crest (Platinum/Diamond): a lit crown above the girdle, darker pavilion below,
+// thin facet lines for the cut-stone read.
+function rankGemSVG() {
+	return '<g class="rank-gem-crest">'
+		+ '<polygon class="rg-body" points="38,45 62,45 78,59 50,88 22,59"/>'
+		+ '<polygon class="rg-crown" points="38,45 62,45 78,59 22,59"/>'
+		+ '<g class="rg-facets"><path d="M22,59 H78 M38,45 L50,59 L22,59 M62,45 L50,59 L78,59 M50,59 V88 M44,45 L50,59 M56,45 L50,59"/></g>'
+		+ '</g>';
+}
+// Five-point star (Master), built from a loop so it's cleanly symmetric.
+function rankStarSVG() {
+	var pts = [], cx = 50, cy = 60, ro = 20, ri = 8.4;
+	for (var k = 0; k < 10; k++) {
+		var a = (-90 + k * 36) * Math.PI / 180, r = (k % 2) ? ri : ro;
+		pts.push((cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1));
+	}
+	return '<g class="rank-star-crest"><polygon class="rs-body" points="' + pts.join(" ") + '"/>'
+		+ '<polygon class="rs-shine" points="' + pts.slice(0, 6).join(" ") + ' 50,60"/></g>';
+}
+// A small crown riding above the Master star.
+function rankCrownSVG() {
+	return '<path class="rank-crown" d="M36,34 L40,20 L45.5,27 L50,15 L54.5,27 L60,20 L64,34 Z"/>';
+}
+// Compose the emblem: wings (grown to the sub-tier) behind a tier crest, with Master crowned.
+function rankEmblemSVG(info) {
+	var isMaster = info.tierClass === "master";
+	var subIdx = info.subNum ? Math.max(0, SUB_TIER_NUMERALS.indexOf(info.subNum)) : 2;
+	var feathers = isMaster ? 5 : (subIdx + 2);
+	var svg = '<svg class="rank-emblem" viewBox="0 0 100 100" aria-hidden="true">';
+	svg += '<g class="rank-wings">' + rankWingSVG(feathers)
+		+ '<g transform="translate(100 0) scale(-1 1)">' + rankWingSVG(feathers) + '</g></g>';
+	if (isMaster) { svg += rankCrownSVG() + rankStarSVG(); }
+	else { svg += rankGemSVG(); }
+	svg += '</svg>';
+	return svg;
 }
 
 // Progress within the current sub-tier toward the next one (the ranked result modal's bar).
