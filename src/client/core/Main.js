@@ -75,7 +75,7 @@ function fillDuelId(el, p, isYou) {
 		var rt = document.createElement("div");
 		rt.className = "duel-id-rating";
 		rt.style.color = t.color;
-		rt.textContent = t.name + "  ·  " + (p.provisional ? "~" : "") + p.rating;
+		rt.textContent = t.name + "  ·  " + p.rating;
 		info.appendChild(rt);
 	}
 	el.appendChild(info);

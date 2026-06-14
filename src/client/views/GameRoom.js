@@ -272,7 +272,7 @@ function renderScoreboard() {
 			tierChip.className = "score-tier";
 			tierChip.textContent = t.name;
 			tierChip.style.color = t.color;
-			if (p.id === id) tierChip.title = (p.provisional ? "~" : "") + p.rating;
+			if (p.id === id) tierChip.title = String(p.rating);
 			name.appendChild(document.createTextNode(" "));
 			name.appendChild(tierChip);
 		}

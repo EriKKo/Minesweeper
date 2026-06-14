@@ -35,7 +35,7 @@ function renderLeaderboard(players) {
 
 			var rating = document.createElement("span");
 			rating.className = "lb-rating";
-			rating.textContent = (prov ? "~" : "") + p.rating;
+			rating.textContent = p.rating;
 			li.appendChild(rating);
 
 			target.appendChild(li);

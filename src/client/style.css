@@ -396,7 +396,7 @@ body {
 /* Small rank badge beside the topbar rating chip. */
 .topbar-rank-badge { display: inline-flex; align-items: center; }
 .topbar-rank-badge:empty { display: none; }
-.topbar-rank-badge .rank-badge { font-size: 7px; }
+.topbar-rank-badge .rank-badge { font-size: 5.5px; }
 
 input[type="text"] {
 	background: var(--surface);

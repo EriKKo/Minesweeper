@@ -46,18 +46,17 @@ var devSigninButton = document.getElementById("dev_signin");
 var ratingBadgeSlot = document.getElementById("rating_badge");
 function renderRatingBadge() {
 	renderHomeRankChips();
+	if (ratingChip) ratingChip.style.display = "none"; // tier/rating text removed from the topbar
 	if (!account) { if (ratingBadgeSlot) ratingBadgeSlot.innerHTML = ""; return; }
-	// Topbar chip shows your overall (best-across-modes) rank, with its rank badge beside it.
+	// The topbar shows just your overall (best-across-modes) rank badge; the tier + rating are on
+	// the badge's hover title rather than spelled out in the bar.
 	var overall = overallRating(account);
 	var t = tierFor(overall, account.provisional);
 	if (ratingBadgeSlot && typeof buildRankBadge === "function") {
 		ratingBadgeSlot.innerHTML = "";
 		ratingBadgeSlot.appendChild(buildRankBadge(overall));
+		ratingBadgeSlot.title = t.name + " · " + overall;
 	}
-	ratingChip.textContent = t.name + " · " + (account.provisional ? "~" : "") + overall;
-	ratingChip.style.color = t.color;
-	ratingChip.style.background = t.color + "22";
-	ratingChip.style.display = "";
 }
 
 nameForm.addEventListener("submit", function(e) {

@@ -32,7 +32,7 @@ function renderProfile() {
 	var ratingLine = document.createElement("div");
 	ratingLine.className = "profile-summary-rating";
 	var t = tierFor(overall, account.provisional);
-	ratingLine.textContent = t.name + " · " + (account.provisional ? "~" : "") + overall + (account.provisional ? " (provisional)" : "");
+	ratingLine.textContent = t.name + " · " + overall;
 	ratingLine.style.color = t.color;
 	text.appendChild(ratingLine);
 	summary.appendChild(text);
@@ -81,7 +81,7 @@ function renderHomeRankChips() {
 		var t = tierFor(rating, account.provisional);
 		tierEl.textContent = t.name;
 		tierEl.style.color = t.color;
-		ratingEl.textContent = (account.provisional ? "~" : "") + rating;
+		ratingEl.textContent = rating;
 	}
 	var sprint = account ? account.ratingSprint : null;
 	var standard = account ? account.ratingStandard : null;

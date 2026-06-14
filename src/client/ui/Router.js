@@ -77,7 +77,7 @@ function showRankedPickerView(style) {
 	if (rating != null && typeof tierFor === "function") {
 		var t = tierFor(rating, account && account.provisional);
 		tierEl.textContent = t.name; tierEl.style.color = t.color;
-		ratingEl.textContent = (account && account.provisional ? "~" : "") + rating;
+		ratingEl.textContent = rating;
 	} else {
 		tierEl.textContent = "—"; ratingEl.textContent = "";
 	}

@@ -204,9 +204,12 @@ function updateRatingFromStandings(standings, opts) {
 	var newOverall = overallRating(account);
 	var newTier = tierFor(newOverall, account.provisional);
 	renderRatingBadge();
-	ratingChip.classList.remove("rating-chip-bump");
-	void ratingChip.offsetWidth;
-	ratingChip.classList.add("rating-chip-bump");
+	// Pulse the topbar rank badge on a change (the chip text was removed — the badge is the indicator).
+	if (ratingBadgeSlot) {
+		ratingBadgeSlot.classList.remove("rating-chip-bump");
+		void ratingBadgeSlot.offsetWidth;
+		ratingBadgeSlot.classList.add("rating-chip-bump");
+	}
 	// Float + banner track the headline (overall) rating; a gain in a non-best mode is shown in the
 	// result modal's own delta, not on the topbar.
 	var delta = newOverall - oldOverall;
@@ -214,11 +217,12 @@ function updateRatingFromStandings(standings, opts) {
 	if (newTier.name !== oldTier.name && !opts.suppressBanner) showRankChangeBanner(newOverall > oldOverall, newTier);
 }
 
-// Floating "+15"/"-15" that drifts up from below the topbar rating chip, so
-// the animation always travels into the viewport even when the chip is near
+// Floating "+15"/"-15" that drifts up from below the topbar rank badge, so
+// the animation always travels into the viewport even when the badge is near
 // the top of the screen.
 function showRatingDelta(delta) {
-	var rect = ratingChip.getBoundingClientRect();
+	var anchor = (ratingBadgeSlot && ratingBadgeSlot.firstChild) ? ratingBadgeSlot : ratingChip;
+	var rect = anchor.getBoundingClientRect();
 	var el = document.createElement("span");
 	el.className = "rating-delta " + (delta > 0 ? "rating-delta-gain" : "rating-delta-loss");
 	el.textContent = (delta > 0 ? "+" : "") + delta;
@@ -403,7 +407,7 @@ function showTournamentChampionPanel(data) {
 		var rating = document.createElement("div");
 		rating.className = "champion-rating";
 		rating.innerHTML = '<span class="champion-tier" style="color:' + tier.color + '">'
-			+ tier.name + "</span> · " + (winnerEntry.provisional ? "~" : "") + winnerEntry.rating;
+			+ tier.name + "</span> · " + winnerEntry.rating;
 		if (typeof winnerEntry.ratingDelta === "number" && winnerEntry.ratingDelta !== 0) {
 			var d = document.createElement("span");
 			d.className = "champion-delta " + (winnerEntry.ratingDelta > 0 ? "up" : "down");
