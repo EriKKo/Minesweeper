@@ -828,7 +828,90 @@ main {
 .home-card-actions .home-card-action { flex: 1 1 auto; }
 .home-card-actions .btn-secondary { flex: 0 0 auto; }
 
-.custom-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 1.4rem; }
+/* Custom lobby header: title block on the left, create/refresh actions on the right. */
+.custom-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	margin: 0 0 1.6rem;
+}
+.custom-head-text { min-width: 0; }
+.custom-head-actions { display: flex; gap: 0.6rem; align-items: center; flex: 0 0 auto; }
+.custom-create-btn { font-weight: 700; }
+.custom-refresh {
+	width: 2.6rem; height: 2.6rem; padding: 0; flex: 0 0 auto;
+	font-size: 1.2rem; line-height: 1; border-radius: 10px;
+}
+.custom-refresh:hover { transform: rotate(45deg); }
+
+/* Room ruleset chips on each lobby row. */
+.room-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.1rem 0 0.05rem; }
+.room-chip {
+	font-size: 0.74rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	padding: 0.16rem 0.5rem;
+	border-radius: 999px;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--muted);
+	white-space: nowrap;
+}
+.room-chip-players { color: var(--text); border-color: rgba(129, 140, 248, 0.4); background: rgba(99, 102, 241, 0.14); }
+.room-chip-full { color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.12); }
+.room-join { flex: 0 0 auto; }
+
+/* === Create-a-room modal === */
+.cr-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
+.cr-modal[hidden] { display: none; }
+.cr-backdrop { position: absolute; inset: 0; background: rgba(7, 11, 22, 0.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.cr-dialog {
+	position: relative;
+	width: min(560px, 100%);
+	max-height: calc(100dvh - 2.5rem);
+	overflow-y: auto;
+	background: linear-gradient(180deg, var(--surface-2), var(--surface));
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+	padding: 1.5rem 1.6rem 1.4rem;
+	animation: cr-pop var(--motion-standard) var(--ease) both;
+}
+@keyframes cr-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.cr-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.cr-dialog-head h2 { margin: 0; font-size: 1.4rem; }
+.cr-close {
+	flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 8px;
+	background: none; border: 1px solid var(--border); color: var(--muted);
+	font-size: 1.3rem; line-height: 1; cursor: pointer; transition: all var(--motion-micro) var(--ease-out);
+}
+.cr-close:hover { color: var(--text); border-color: var(--muted); }
+.cr-dialog-sub { color: var(--muted); font-size: 0.9rem; margin: 0.35rem 0 1.25rem; }
+.cr-fields { display: flex; flex-direction: column; gap: 1rem; }
+.cr-field { display: flex; flex-direction: column; gap: 0.45rem; }
+.cr-field-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.cr-seg { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.cr-seg button {
+	flex: 1 1 0; min-width: 3.2rem;
+	display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+	font: inherit; font-weight: 600; font-size: 0.92rem;
+	padding: 0.5rem 0.4rem;
+	background: var(--surface); color: var(--text);
+	border: 1px solid var(--border); border-radius: 10px;
+	cursor: pointer; transition: all var(--motion-micro) var(--ease-out);
+}
+.cr-seg button small { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+.cr-seg button:hover { border-color: var(--muted); }
+.cr-seg button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 1px var(--accent), 0 6px 16px -6px var(--accent); }
+.cr-seg button.active small { color: rgba(255, 255, 255, 0.82); }
+.cr-dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.5rem; }
+.cr-dialog-actions .btn { min-width: 7rem; }
+@media (max-width: 560px) {
+	.cr-seg button { font-size: 0.85rem; min-width: 2.6rem; padding: 0.45rem 0.3rem; }
+	.cr-dialog-actions .btn { flex: 1 1 0; }
+}
 
 .puzzles-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 0.6rem; }
 .puzzles-toolbar { display: flex; gap: 1.4rem; flex-wrap: wrap; align-items: center; margin: 0 0 0.6rem; }

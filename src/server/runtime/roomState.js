@@ -32,6 +32,8 @@ function roomSummary(room) {
 		gamesPlayed: room.gamesPlayed,
 		roundSeconds: room.roundSeconds,
 		deathPenalty: room.deathPenalty,
+		boardSize: room.boardSize,
+		mineDensity: room.mineDensity,
 		players: room.players.map(function(pid) { return names[pid] || "Anonymous"; })
 	};
 }

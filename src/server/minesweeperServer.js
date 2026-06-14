@@ -789,14 +789,18 @@ io.on("connection", function (socket) {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
 		var id = nextRoomId++;
-		var isTerritory = data && data.mode === "territory";
-		// Territory is a shared-board mode: 2 players (opposite corners) or 4 (one per corner).
-		var territorySeats = (data && data.players === 4) ? 4 : 2;
-		var room = roomCreator.createRoom(id, playerID, isTerritory ? territorySeats : undefined);
-		if (isTerritory) {
-			room.gameMode = "territory";
-			var td = territory.dims(territorySeats); room.rows = td.rows; room.cols = td.cols;
-			room.roundSeconds = 0; // no clock — territory ends when the board is fully played out (stuck)
+		// Custom rooms are casual races configured up front in the create-room modal. Player count and
+		// each ruleset option are applied through the room's own validated setters, which silently
+		// ignore anything out of range — so a malformed payload just falls back to the defaults.
+		var players = data && parseInt(data.players, 10);
+		var maxPlayers = (players >= 2 && players <= 6) ? players : undefined;
+		var room = roomCreator.createRoom(id, playerID, maxPlayers);
+		if (data) {
+			if (data.boardSize) room.setBoardSize(data.boardSize);
+			if (data.mineDensity != null) room.setMineDensity(parseFloat(data.mineDensity));
+			if (data.roundSeconds != null) room.setRoundSeconds(parseInt(data.roundSeconds, 10));
+			if (data.deathPenalty != null) room.setDeathPenalty(parseInt(data.deathPenalty, 10));
+			if (data.gameCount != null) room.setGameCount(parseInt(data.gameCount, 10));
 		}
 		rooms[id] = room;
 		addPlayerToRoom(socket, room);

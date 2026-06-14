@@ -552,6 +552,15 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `rankedSearch` is set (so "Play another"'s `leave_room`+re-queue doesn't bounce you to the lobby).
   NB the picker (`Router.js`) must NOT `navigate("/")` for race modes — that would hide the battle UI;
   it only routes home for the overlay modes.
+- **Custom rooms.** The Custom page (`#custom_view`) is casual race-only — Territory is **not** creatable
+  here (it lives in Ranked). A "+ Create room" button opens the create-room modal (`#create_room_modal`,
+  wired in `wireCreateRoomModal` in Main.js): segmented `.cr-seg` controls (one `.active` per group) pick
+  players (2–6), board size, mine density, round time, mine penalty, and series length up front. "Create
+  room" emits `create_room` with those options; the server (`minesweeperServer.js`) applies each through the
+  room's validated setters (`setBoardSize`/`setMineDensity`/`setRoundSeconds`/`setDeathPenalty`/`setGameCount`,
+  player count via `createRoom`'s `customMaxPlayers`), so a bad payload just falls back to defaults. The room
+  list (`roomRow` in Lobby.js) shows each room's full ruleset as `.room-chip`s (players X/Y — red when full,
+  board dims, % mines, round time, series); `roomSummary` (roomState.js) now includes `boardSize`+`mineDensity`.
 - **Territory & Tournament** still use the legacy **waiting-room overlay** (`#ranked_searching`, a centred
   full-viewport card): `renderMatchRoster(info)` turns the `members` roster into a filling slot list
   (name + tier chip, "YOU" tag, "Waiting for player…" placeholders) above a mode label + tagline

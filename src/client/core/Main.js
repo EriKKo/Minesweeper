@@ -972,16 +972,48 @@ scoreboardEl.addEventListener("click", function(e) {
 });
 
 
-document.getElementById("create_room_button").addEventListener("click", function() {
-	socket.emit("create_room");
-});
+// --- Create-a-room modal: pick the full ruleset up front, then drop into the room. ---
+(function wireCreateRoomModal() {
+	var modal = document.getElementById("create_room_modal");
+	if (!modal) return;
+	function openModal() { modal.removeAttribute("hidden"); }
+	function closeModal() { modal.setAttribute("hidden", ""); }
 
-document.getElementById("create_territory_button").addEventListener("click", function() {
-	socket.emit("create_room", { mode: "territory" });
-});
-document.getElementById("create_territory4_button").addEventListener("click", function() {
-	socket.emit("create_room", { mode: "territory", players: 4 });
-});
+	document.getElementById("create_room_button").addEventListener("click", openModal);
+	modal.addEventListener("click", function(e) {
+		if (e.target.hasAttribute("data-cr-close")) closeModal();
+	});
+	document.addEventListener("keydown", function(e) {
+		if (e.key === "Escape" && !modal.hasAttribute("hidden")) closeModal();
+	});
+
+	// Segmented controls: one active button per group.
+	modal.querySelectorAll(".cr-seg").forEach(function(seg) {
+		seg.addEventListener("click", function(e) {
+			var btn = e.target.closest("button[data-val]");
+			if (!btn || !seg.contains(btn)) return;
+			seg.querySelectorAll("button").forEach(function(b) { b.classList.remove("active"); });
+			btn.classList.add("active");
+		});
+	});
+
+	function selected(group) {
+		var seg = modal.querySelector('.cr-seg[data-cr="' + group + '"] button.active');
+		return seg ? seg.dataset.val : null;
+	}
+
+	document.getElementById("cr_create").addEventListener("click", function() {
+		socket.emit("create_room", {
+			players: parseInt(selected("players"), 10),
+			boardSize: selected("boardSize"),
+			mineDensity: parseFloat(selected("mineDensity")),
+			roundSeconds: parseInt(selected("roundSeconds"), 10),
+			deathPenalty: parseInt(selected("deathPenalty"), 10),
+			gameCount: parseInt(selected("gameCount"), 10)
+		});
+		closeModal();
+	});
+})();
 
 document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");

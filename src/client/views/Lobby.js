@@ -257,6 +257,13 @@ function emptyRow(text) {
 	return li;
 }
 
+function roomChip(text, cls) {
+	var s = document.createElement("span");
+	s.className = "room-chip" + (cls ? " " + cls : "");
+	s.textContent = text;
+	return s;
+}
+
 function roomRow(room, joinable) {
 	var li = document.createElement("li");
 	li.className = "room-row";
@@ -269,24 +276,32 @@ function roomRow(room, joinable) {
 	title.textContent = room.ownerName + "'s room";
 	info.appendChild(title);
 
+	// At-a-glance ruleset chips: how full it is, then the board/density/timer/series options.
+	var chips = document.createElement("div");
+	chips.className = "room-chips";
+	var full = room.playerCount >= room.maxPlayers;
+	chips.appendChild(roomChip(room.playerCount + " / " + room.maxPlayers + " players",
+		"room-chip-players" + (full ? " room-chip-full" : "")));
+	var dims = BOARD_DIMS[room.boardSize];
+	if (dims) chips.appendChild(roomChip(dims[0] + "×" + dims[1]));
+	if (typeof room.mineDensity === "number") chips.appendChild(roomChip(Math.round(room.mineDensity * 100) + "% mines"));
+	chips.appendChild(roomChip(formatRoundOption(room.roundSeconds)));
+	chips.appendChild(roomChip(room.gameCount === 1 ? "Single game" : "Best of " + room.gameCount));
+	info.appendChild(chips);
+
 	var meta = document.createElement("div");
 	meta.className = "room-meta";
-	var statusText;
-	if (room.phase === "planning") {
-		statusText = "Best of " + room.gameCount;
-	} else {
-		statusText = "Game " + room.gamesPlayed + " of " + room.gameCount;
-	}
-	meta.textContent = room.playerCount + "/" + room.maxPlayers + " · " + statusText + " · " + room.players.join(", ");
+	meta.textContent = (room.phase === "planning" ? "" : "Game " + room.gamesPlayed + " of " + room.gameCount + " · ")
+		+ room.players.join(", ");
 	info.appendChild(meta);
 
 	li.appendChild(info);
 
 	if (joinable) {
 		var joinBtn = document.createElement("button");
-		joinBtn.className = "btn btn-secondary";
-		joinBtn.textContent = "Join";
-		joinBtn.disabled = room.playerCount >= room.maxPlayers;
+		joinBtn.className = "btn btn-secondary room-join";
+		joinBtn.textContent = full ? "Full" : "Join";
+		joinBtn.disabled = full;
 		joinBtn.addEventListener("click", function() {
 			socket.emit("join_room", { roomId: room.id });
 		});
