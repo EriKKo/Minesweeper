@@ -3754,6 +3754,69 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the
    actual board rendered. */
+/* ===== Home dashboard ("player dashboard" layout) ===== */
+.dash { max-width: 1180px; margin: 0 auto; padding: 0.4rem 0; }
+.dash-you {
+	display: flex; align-items: center; gap: 1.1rem;
+	background: linear-gradient(110deg, var(--surface-2), var(--surface));
+	border: 1px solid var(--border); border-radius: 16px;
+	padding: 1rem 1.3rem; margin-bottom: 1rem;
+}
+.dash-you-badge { flex: 0 0 auto; display: inline-flex; }
+.dash-you-badge .rank-badge { font-size: 11px; }
+.dash-you-main { min-width: 0; }
+.dash-you-name { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em; }
+.dash-you-line { color: var(--muted); font-size: 0.9rem; margin-top: 0.15rem; }
+.dash-you-stats { margin-left: auto; display: flex; gap: 1.5rem; }
+.dash-stat { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.dash-stat b { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; }
+.dash-stat span { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.1rem; }
+
+.dash-main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.95fr); gap: 1.1rem; align-items: start; }
+@media (max-width: 880px) { .dash-main { grid-template-columns: 1fr; } .dash-you { flex-wrap: wrap; } .dash-you-stats { margin-left: 0; width: 100%; justify-content: space-between; } }
+
+.dash-modes { display: flex; flex-direction: column; gap: 0.7rem; }
+.dash-row {
+	display: flex; align-items: center; gap: 1rem;
+	background: var(--surface); border: 1px solid var(--border);
+	border-left: 3px solid var(--dash-acc, var(--accent));
+	border-radius: 12px; padding: 0.8rem 1rem;
+	text-decoration: none; color: var(--text);
+	transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.dash-row:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); border-color: var(--dash-acc, var(--accent)); }
+.dash-row-board { flex: 0 0 auto; }
+.dash-row-info { min-width: 0; flex: 1 1 auto; }
+.dash-row-title { margin: 0; font-size: 1.2rem; font-weight: 700; }
+.dash-row-sub { margin: 0.12rem 0 0; font-size: 0.8rem; color: var(--muted); }
+.dash-row-stat { flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; }
+.dash-row-stat-text { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.dash-row-stat .mode-card-rank-tier { font-weight: 700; }
+.dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
+.dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
+.dash-row-sprint { --dash-acc: var(--mode-sprint); }
+.dash-row-standard { --dash-acc: var(--mode-standard); }
+.dash-row-puzzles { --dash-acc: #60a5fa; }
+.dash-row-custom { --dash-acc: #34d399; }
+
+.dash-aside { display: flex; flex-direction: column; gap: 1.1rem; }
+.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; }
+.dash-card-title { font-size: 1rem; margin: 0 0 0.5rem; }
+.dash-lb-list { list-style: none; margin: 0; padding: 0; }
+.dash-lb-list .lb-row { font-size: 0.86rem; }
+.dash-lb-list .lb-row:nth-child(n+9) { display: none; } /* home strip shows the top 8 */
+.dash-lb-more { display: inline-block; margin-top: 0.5rem; font-size: 0.82rem; color: var(--accent); text-decoration: none; font-weight: 600; }
+.dash-lb-more:hover { text-decoration: underline; }
+
+/* Mini board previews (one per mode) — static, just to convey each mode's feel. */
+.dboard { display: grid; gap: 2px; background: #0c1322; padding: 5px; border-radius: 7px; width: max-content; }
+.dcell { width: var(--dcs, 11px); height: var(--dcs, 11px); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: calc(var(--dcs, 11px) * 0.62); line-height: 1; }
+.dcell.d-cov { background: linear-gradient(160deg, #5b9bf5, #3a76db); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3); }
+.dcell.d-rev { background: rgba(255, 255, 255, 0.025); }
+.dcell.d-flag::after { content: "\1F6A9"; font-size: calc(var(--dcs, 11px) * 0.72); }
+.dcell.d-n1 { color: #60a5fa; } .dcell.d-n2 { color: #4ade80; } .dcell.d-n3 { color: #f87171; } .dcell.d-n4 { color: #c084fc; } .dcell.d-n5 { color: #fbbf24; }
+
 .lobby-grid {
 	display: grid;
 	grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.85fr);
