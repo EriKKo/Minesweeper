@@ -167,10 +167,12 @@ var DASH_MODE_BOARDS = {
 		flagged: [[1,6],[2,6],[3,6],[3,7],[5,2]]
 	},
 	custom: {
+		// Wacky / busy on purpose — custom can be any mode, so this one is a denser, deeply-explored
+		// board scattered with flags (not a single clean opening like the racing modes).
 		rows: 6, cols: 9,
-		mines: [[0,5],[0,7],[1,6],[1,7],[1,8],[3,8],[4,6],[5,4]],
-		revealStart: [3, 4],
-		flagged: [[0,5],[5,4]]
+		mines: [[0,5],[1,0],[1,1],[1,5],[2,2],[2,8],[3,0],[4,1],[4,6],[5,2]],
+		revealed: [[0,2],[0,3],[0,4],[0,6],[1,2],[1,3],[1,4],[1,7],[2,0],[2,1],[2,3],[2,4],[2,5],[2,6],[2,7],[3,1],[3,3],[3,4],[3,5],[3,6],[3,8],[4,0],[4,2],[4,3],[4,4],[4,5],[5,0],[5,1],[5,3],[5,4],[5,5],[5,6]],
+		flagged: [[0,5],[1,0],[1,1],[1,5],[2,2],[3,0],[4,1],[4,6],[5,2]]
 	},
 	puzzles: {
 		rows: 6, cols: 6,
