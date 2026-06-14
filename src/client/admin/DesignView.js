@@ -21,7 +21,7 @@ function renderDesign() {
 	view.appendChild(section);
 	var note = document.createElement("p");
 	note.className = "section-page-sub";
-	note.textContent = "Chevrons through Gold, faceted gems whose wings unfurl per sub-tier for Platinum/Diamond, a crowned winged star at Master.";
+	note.textContent = "Chevrons throughout — bare for Bronze/Silver/Gold, framed in a hexagon plate for Platinum/Diamond, and a star in the plate for Master.";
 	view.appendChild(note);
 
 	// Build one rating per sub-tier (Bronze I … Diamond III) plus Master, from the ladder constants.
