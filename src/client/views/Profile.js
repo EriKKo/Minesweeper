@@ -157,12 +157,14 @@ function renderDashIdentity() {
 // change between loads; flags are only placed on the deducible frontier (mines next to a revealed
 // cell), never randomly. Tune a board by changing its `seed`.
 var DASH_MODE_PREVIEW = {
-	// Each mode gets a distinct play-state silhouette so they don't read alike: where the unexplored
-	// area sits (cover corner + size), how much is cleared, and how many of the deduced mines are
-	// flagged. Puzzle is a fresh tight cascade (zoomed in, no flags).
-	sprint:   { rows: 6, cols: 10, density: 0.10, cover: { corner: "br", r: 2, c: 3 }, flagFrac: 0.35, seed: 13 }, // fast: almost cleared, barely flagged
-	standard: { rows: 6, cols: 9,  density: 0.22, cover: { corner: "tr", r: 4, c: 5 }, flagFrac: 1.0,  seed: 9 },  // methodical: half-explored, dense, fully flagged
-	custom:   { rows: 6, cols: 9,  density: 0.14, cover: { corner: "bl", r: 3, c: 4 }, flagFrac: 0.6,  seed: 24 }, // casual: medium
+	// Each board is a REAL, legal mid-game position: we flood-reveal from a start cell (exactly like a
+	// real cascade), so every covered region is bounded by numbered frontier cells — never a bare 0 next
+	// to a covered cell (which would look like a missing number). Modes read differently via where the
+	// opening starts, the mine density, and how many deduced mines are flagged. Puzzle is a fresh tight
+	// cascade (zoomed in, no flags). Tune a board by changing its `seed`.
+	sprint:   { rows: 6, cols: 10, density: 0.10, start: "c",  flagFrac: 0.4, seed: 13 }, // fast: wide central clear, barely flagged
+	standard: { rows: 6, cols: 9,  density: 0.20, start: "tl", flagFrac: 1.0, seed: 9 },  // methodical: explored from a corner, dense, fully flagged
+	custom:   { rows: 6, cols: 9,  density: 0.14, start: "br", flagFrac: 0.6, seed: 24 }, // casual: medium
 	puzzles:  { rows: 5, cols: 6,  density: 0.22, puzzle: true, seed: 4 }
 };
 function dashRng(seed) {
@@ -170,7 +172,11 @@ function dashRng(seed) {
 }
 function genModeBoard(cfg) {
 	var R = cfg.rows, C = cfg.cols, rand = dashRng(cfg.seed);
-	var sr = R >> 1, sc = C >> 1; // mine-free 3x3 start pocket so the centre has open ground
+	// Start pocket location: a mine-free 3x3 around the seed guarantees a 0-cell to flood from. The
+	// opening grows from here, so placing it centrally vs. in a corner shifts where the explored area sits.
+	var start = cfg.start || "c";
+	var sr = start.indexOf("t") >= 0 ? 1 : start.indexOf("b") >= 0 ? R - 2 : R >> 1;
+	var sc = start.indexOf("l") >= 0 ? 1 : start.indexOf("r") >= 0 ? C - 2 : C >> 1;
 	var mineSet = {}, mines = [], target = Math.round(R * C * cfg.density), guard = 0;
 	while (mines.length < target && guard++ < 6000) {
 		var r = (rand() * R) | 0, c = (rand() * C) | 0, k = r + "," + c;
@@ -179,25 +185,17 @@ function genModeBoard(cfg) {
 		mineSet[k] = true; mines.push([r, c]);
 	}
 	function clue(r, c) { var n = 0; for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) { var nr = r + dr, nc = c + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C && mineSet[nr + "," + nc]) n++; } return n; }
+	// Flood-reveal from the start cell — a real cascade. A 0-cell pulls in all 8 neighbours; a numbered
+	// cell is revealed but stops the spread (it's the frontier). Mines are never reached. The result is
+	// always a LEGAL position: the boundary of the covered area is numbered cells, never a bare 0.
 	var rev = {};
-	if (cfg.puzzle) {
-		// Puzzle: flood just the central 0-region (a fresh opening to solve).
-		var q = [[sr, sc]];
-		while (q.length) {
-			var p = q.shift(), pk = p[0] + "," + p[1];
-			if (rev[pk] || mineSet[pk]) continue;
-			rev[pk] = true;
-			if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-				var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
-			}
-		}
-	} else {
-		// Played board: clear every safe cell except an unexplored corner (position/size per mode).
-		var cv = cfg.cover, bottom = cv.corner.indexOf("b") >= 0, right = cv.corner.indexOf("r") >= 0;
-		for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
-			var inR = bottom ? (r >= R - cv.r) : (r < cv.r);
-			var inC = right ? (c >= C - cv.c) : (c < cv.c);
-			if (!mineSet[r + "," + c] && !(inR && inC)) rev[r + "," + c] = true;
+	var q = [[sr, sc]];
+	while (q.length) {
+		var p = q.shift(), pk = p[0] + "," + p[1];
+		if (rev[pk] || mineSet[pk]) continue;
+		rev[pk] = true;
+		if (clue(p[0], p[1]) === 0) for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+			var nr = p[0] + dr, nc = p[1] + dc; if (nr >= 0 && nr < R && nc >= 0 && nc < C) q.push([nr, nc]);
 		}
 	}
 	var revealed = Object.keys(rev).map(function(k) { return k.split(",").map(Number); });
