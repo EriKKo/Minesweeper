@@ -1164,6 +1164,7 @@ socket.on("ranked_rejected", function(data) {
 function teardownRoomUI() {
 	if (typeof territoryReset === "function") territoryReset();
 	if (typeof clearPlaceBadges === "function") clearPlaceBadges();
+	if (typeof music !== "undefined") music.pause(); // stop the music only when truly leaving the game
 	inRoom = false;
 	currentRoom = null;
 	iAmEliminated = null;
@@ -1428,7 +1429,8 @@ socket.on("series_ended", function(data) {
 	setDanger(false);
 	gameProgressText.textContent = "";
 	stopRoundTimer();
-	if (typeof music !== "undefined") music.pause();
+	// Music keeps playing under the result modal — and straight through "Play another" into the next
+	// match. It's only stopped when you actually leave the game (teardownRoomUI).
 	var iWon = data.winnerId === id;
 	if (typeof sound !== "undefined") (iWon ? sound.seriesWin : sound.lose)();
 	// Both 1v1 and 6-player show the same flow: the finish-place stamps (1st/2nd/…) are already on
