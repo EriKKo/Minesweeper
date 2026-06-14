@@ -111,6 +111,31 @@ try {
 // The single legacy `rating` column is gone — "overall" rating is now max-across-modes, computed
 // on demand (readUserRating with no style / topPlayers). Drop it so it can't be read by accident.
 dropColumnIfExists("users", "rating");
+
+// --- Multi-provider identities + email-based account linking -------------------------------------
+// One account can be reached through more than one login (Google, Discord, …). Each provider login is
+// a row here keyed by (provider, provider_id), all pointing at a single users.id. The verified `email`
+// is what unifies them: signing in with a NEW provider whose email matches an existing account links to
+// that account instead of creating a duplicate. (`users.provider/provider_id` stays as the account's
+// original/primary login for back-compat; additional logins live only here.)
+db.exec(
+	"CREATE TABLE IF NOT EXISTS user_identities (" +
+	"  provider TEXT NOT NULL," +
+	"  provider_id TEXT NOT NULL," +
+	"  user_id INTEGER NOT NULL," +
+	"  email TEXT," +
+	"  created_at INTEGER NOT NULL," +
+	"  PRIMARY KEY (provider, provider_id)" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_identities_user ON user_identities(user_id);"
+);
+// Backfill one identity row per existing real account from its original provider login.
+try {
+	db.exec(
+		"INSERT OR IGNORE INTO user_identities (provider, provider_id, user_id, email, created_at) " +
+		"SELECT provider, provider_id, id, email, created_at FROM users WHERE is_guest = 0"
+	);
+} catch (e) { console.error("identity backfill failed", e); }
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -223,11 +248,33 @@ db.exec(
 try { db.exec("ALTER TABLE patterns RENAME COLUMN action TO method"); } catch (e) {}
 addColumnIfMissing("starting_positions", "pattern_id", "INTEGER");
 
+// Record a provider login as a route into an account (idempotent on (provider, provider_id)).
+function linkIdentity(userId, provider, providerId, emailLower) {
+	db.prepare(
+		"INSERT OR IGNORE INTO user_identities (provider, provider_id, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)"
+	).run(provider, String(providerId), userId, emailLower || null, Date.now());
+}
+
+// Which account a provider login belongs to: first an already-linked identity, then (account
+// linking) a real account sharing the same verified email. Null if it's a brand-new login.
+function findAccountForLogin(provider, providerId, emailLower) {
+	var ident = db.prepare("SELECT user_id FROM user_identities WHERE provider = ? AND provider_id = ?").get(provider, String(providerId));
+	if (ident) return db.prepare("SELECT * FROM users WHERE id = ?").get(ident.user_id) || null;
+	if (emailLower) {
+		var byEmail = db.prepare("SELECT * FROM users WHERE LOWER(email) = ? AND is_guest = 0 ORDER BY id LIMIT 1").get(emailLower);
+		if (byEmail) return byEmail;
+	}
+	return null;
+}
+
 function upsertUser(provider, providerId, name, avatarUrl, email) {
 	providerId = String(providerId);
 	var emailLower = email ? String(email).toLowerCase() : null;
-	var existing = db.prepare("SELECT * FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
+	var existing = findAccountForLogin(provider, providerId, emailLower);
 	if (existing) {
+		// Make sure this provider is recorded as a way into the account (links a new login to an
+		// existing email on first use), then refresh the profile.
+		linkIdentity(existing.id, provider, providerId, emailLower);
 		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
 			.run(name, avatarUrl || null, emailLower, existing.id);
 		var updated = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
@@ -242,6 +289,7 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 		"VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
 	).run(provider, providerId, name, avatarUrl || null, emailLower, Date.now());
 	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+	linkIdentity(created.id, provider, providerId, emailLower);
 	applyAdminForEmail(created);
 	return created;
 }
@@ -271,11 +319,12 @@ function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email)
 		// Not actually a guest (e.g. a stale token) — treat as a normal login.
 		return { user: upsertUser(provider, providerId, name, avatarUrl, email), switched: false };
 	}
-	var existing = db.prepare("SELECT * FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId);
-	if (existing) {
-		// Collision: that account already exists → use it, drop the guest.
+	var existing = findAccountForLogin(provider, providerId, emailLower);
+	if (existing && existing.id !== guestUserId) {
+		// The provider — or its verified email — already belongs to a real account → use it, drop the guest.
 		db.prepare("DELETE FROM sessions WHERE user_id = ?").run(guestUserId);
 		db.prepare("DELETE FROM users WHERE id = ?").run(guestUserId);
+		linkIdentity(existing.id, provider, providerId, emailLower);
 		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
 			.run(name, avatarUrl || null, emailLower, existing.id);
 		var ex = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
@@ -284,6 +333,7 @@ function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email)
 	}
 	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, avatar_url = ?, email = ?, is_guest = 0 WHERE id = ?")
 		.run(provider, providerId, name, avatarUrl || null, emailLower, guestUserId);
+	linkIdentity(guestUserId, provider, providerId, emailLower);
 	var upgraded = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
 	applyAdminForEmail(upgraded);
 	return { user: upgraded, switched: false };

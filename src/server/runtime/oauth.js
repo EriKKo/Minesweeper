@@ -151,7 +151,10 @@ function authGoogleCallback(req, res, url) {
 				headers: { "Authorization": "Bearer " + accessToken }
 			});
 			var g = await uResp.json();
-			var user = resolveOAuthUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, g.email, stateData.upgrade);
+			// Only trust a verified email for account linking (Google sets email_verified; treat a
+				// present-and-not-false value as verified to stay compatible with older userinfo shapes).
+				var gEmail = (g.email && g.email_verified !== false) ? g.email : null;
+				var user = resolveOAuthUser("google", g.sub, g.name || g.email || ("user" + g.sub), g.picture, gEmail, stateData.upgrade);
 			finishLogin(res, user.id);
 		} catch (e) {
 			console.error("google oauth error", e);

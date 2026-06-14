@@ -789,6 +789,19 @@ io.on("connection", function (socket) {
 		if (!names[playerID]) return;
 		if (roomMapping[playerID]) return;
 		var id = nextRoomId++;
+		// Territory is a shared-board mode (2 or 4 seats). It's no longer offered in the custom UI
+		// (race-only there), but the socket still creates it — ranked territory and the territory tests
+		// rely on this wiring.
+		if (data && data.mode === "territory") {
+			var seats = parseInt(data.players, 10) === 4 ? 4 : 2;
+			var troom = roomCreator.createRoom(id, playerID, seats);
+			troom.gameMode = "territory";
+			var td = territory.dims(seats); troom.rows = td.rows; troom.cols = td.cols;
+			troom.roundSeconds = 0; // no clock — territory ends when the board is played out
+			rooms[id] = troom;
+			addPlayerToRoom(socket, troom);
+			return;
+		}
 		// Custom rooms are casual races configured up front in the create-room modal. Player count and
 		// each ruleset option are applied through the room's own validated setters, which silently
 		// ignore anything out of range — so a malformed payload just falls back to the defaults.

@@ -193,6 +193,19 @@ else is grouped:
   with `played=0` AND `puzzles_attempted=0` older than the TTL, plus their sessions/attempts; a guest who
   played anything is kept). The server runs it on startup and daily (`reapGuests`, TTL = `GUEST_TTL_DAYS`
   env, default 7).
+- **Multi-provider accounts (email linking).** A single account can be reached through several logins
+  (Google + Discord, …). Each provider login is a row in the **`user_identities`** table
+  (`(provider, provider_id)` PK → `user_id`); `users.provider/provider_id` is just the original/primary
+  login. `db.upsertUser` / `db.upgradeGuest` resolve via `findAccountForLogin`: an **existing linked
+  identity** first, then (account-linking) **a real account with the same verified email** — in which case
+  the new provider is linked to that account (`linkIdentity`) instead of making a duplicate; otherwise a
+  new account is created. So signing in with Google and later Discord under the same email lands on the
+  same player, and either login works thereafter. Only **verified** emails link (Discord gates on
+  `verified`, GitHub on primary+verified, Google on `email_verified`). Caveat: this links a *new* provider
+  to an existing account — it does **not** merge two accounts both created separately before the identity
+  existed (no auto-merge of pre-existing duplicates). Existing rows are backfilled into `user_identities`
+  on startup. NB the `create_room` socket still creates a Territory room for `{mode:"territory"}` (ranked +
+  the territory test use it), even though the custom UI is race-only.
 - `StartPatterns.js` — size-parametric enumeration of starting-cascade positions (any H×W
   block) and the unique first-deduction patterns they yield, reusing `Patterns.js`'s
   canonicalisation. Driven by `scripts/generate-patterns.js`, which catalogues into
