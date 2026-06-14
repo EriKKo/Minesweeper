@@ -6,8 +6,12 @@
 var mobileMQL = window.matchMedia ? window.matchMedia("(max-width: 700px)") : null;
 var mobileLayout = !!(mobileMQL && mobileMQL.matches);
 function sizeBoardCanvas(canvas, cellPx) {
-	canvas.width = Math.round(cols * cellPx * DPR);
-	canvas.height = Math.round(rows * cellPx * DPR);
+	var w = Math.round(cols * cellPx * DPR), h = Math.round(rows * cellPx * DPR);
+	// Only reassign the backing size when it actually changes — assigning canvas.width/height clears
+	// the canvas even to the same value, which would wipe a board we want to keep on screen (e.g. the
+	// final board states under the game-over result, repainted only by live frames that have stopped).
+	if (canvas.width !== w) canvas.width = w;
+	if (canvas.height !== h) canvas.height = h;
 	canvas.style.width = (cols * cellPx) + "px";
 	canvas.style.maxWidth = "100%";
 	canvas.style.height = "auto";
@@ -53,8 +57,10 @@ function sizePlayerCanvas() {
 	} else {
 		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : fitDesktopCellPx();
 	}
-	playerCanvas.width = Math.round(cols * cellPx * DPR);
-	playerCanvas.height = Math.round(rows * cellPx * DPR);
+	var pw = Math.round(cols * cellPx * DPR), ph = Math.round(rows * cellPx * DPR);
+	// Same guard as sizeBoardCanvas: don't clear the player board by re-assigning the same size.
+	if (playerCanvas.width !== pw) playerCanvas.width = pw;
+	if (playerCanvas.height !== ph) playerCanvas.height = ph;
 	playerCanvas.style.width = (cols * cellPx) + "px";
 	if (mobileLayout) {
 		playerCanvas.style.height = (rows * cellPx) + "px";
