@@ -650,12 +650,22 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   payload), lifetime stats (played/wins/win rate/daily streak), **per-mode ranked ladder cards**
   (Sprint/Standard/Tournament/Territory, each `buildRankBadge` + tier + rating), puzzle stats, and a
   free-play **best-times matrix** (size × density from `account.soloBests`). Below it, an **Achievements**
-  card (`#achievements_card`, `renderAchievements`): a data-driven `ACHIEVEMENTS` catalogue evaluated
-  against the live (server-trusted) stats — tiered counters (`value` + `tiers`, e.g. Victories 1/10/50/250,
-  Ascendant by tier rating, Deductionist puzzles, …) plus one boolean (Sharpshooter = 60%+ over 20+).
-  `computeAchievement` derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked
-  (dimmed, greyscale icon) with a progress bar and an "X / Y unlocked" count. Achievements are **derived**
-  (no storage) — persisting earned-dates / unlock toasts is the next layer.
+  card (`#achievements_card`, `renderAchievements`): a **data-driven** `ACHIEVEMENTS` catalogue (~25 + a
+  meta **Collector**) evaluated against a flat **metrics bag** = `account` fields merged with the server's
+  `db.achievementStats(userId)` aggregates. Two entry shapes — TIERED counter (`value(m)` + `tiers`, e.g.
+  Victories 1/10/50/250/1000, Ascendant by tier, Deductionist, On Fire win-streak, Duelist, Daily Devotee,
+  …) or BOOLEAN (`bool(m)` + `progress(m)`, e.g. Two-Sport, Well-rounded, Sharpshooter, Sub-minute).
+  **Adding an achievement is one catalogue entry** (plus, if it needs a number we don't track, one metric
+  in `achievementStats`). Rank/streak/peak achievements read **peak/best** metrics (`stats.peak.*`,
+  `winStreakBest`, `dailyStreakBest`, `peakPuzzleRating`) so they **never un-earn** when the current value
+  drops. `achievementStats` aggregates from `match_history` (per-mode wins, peak-per-style, win streak,
+  best day wins/gain, big swing, 1v1/6-player wins), `puzzle_attempts` (peak puzzle rating), and
+  `daily_attempts` (dailies solved, best daily streak, distinct active days); it's defensive (returns `{}`
+  on error) and ships in the `get_match_history` payload as `stats`. The client renders achievements from
+  `account` immediately, then re-renders when `renderMatchHistory` fills the aggregates. `computeTiered`
+  derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked (dimmed, greyscale
+  icon) + a progress bar + an "X / Y unlocked" count. Still **derived** (no per-achievement storage) —
+  earned-dates / unlock toasts are the next layer.
 - **Match history** (rating graph + recent games on the profile). A `match_history` table
   (`db.js`: `user_id, style, rating_before, rating_after, placement, players, won, opponent, created_at`)
   gets one row per human per completed ranked match, written wherever Elo persists: `elo.js`

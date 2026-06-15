@@ -101,10 +101,11 @@ function registerSocketHandlers(socket, playerID) {
 	// Profile: recent ranked matches + per-style rating points (graph). Empty for signed-out.
 	socket.on("get_match_history", function() {
 		var acc = accounts[playerID];
-		if (!acc) { socket.emit("match_history", { matches: [], ratings: [] }); return; }
+		if (!acc) { socket.emit("match_history", { matches: [], ratings: [], stats: {} }); return; }
 		socket.emit("match_history", {
 			matches: db.getMatchHistory(acc.userId, 50),
-			ratings: db.getRatingHistory(acc.userId, 1000)
+			ratings: db.getRatingHistory(acc.userId, 1000),
+			stats: db.achievementStats(acc.userId) // achievement metrics bag
 		});
 	});
 

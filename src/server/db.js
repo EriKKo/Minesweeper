@@ -608,6 +608,72 @@ function getRatingHistory(userId, limit) {
 	).all(userId, limit || 1000);
 }
 
+// --- Achievement metrics --------------------------------------------------------------------------
+// A flat bag of aggregates the profile's achievement catalogue evaluates against. Uses PEAK/BEST
+// values (not current) for rank/streaks so achievements never un-earn. Adding a new metric here is
+// all it takes to back a new achievement client-side. Defensive — returns {} on any failure.
+var ISO_DAY = function(ms) { return new Date(ms).toISOString().slice(0, 10); };
+function longestDailyRun(dates) { // dates: sorted unique "YYYY-MM-DD"
+	if (!dates.length) return 0;
+	var best = 1, run = 1;
+	for (var i = 1; i < dates.length; i++) {
+		var prev = Date.parse(dates[i - 1] + "T00:00:00Z"), cur = Date.parse(dates[i] + "T00:00:00Z");
+		if (cur - prev === 86400000) { run++; if (run > best) best = run; } else { run = 1; }
+	}
+	return best;
+}
+function achievementStats(userId) {
+	try {
+		var stats = {
+			perModeWins: { sprint: 0, standard: 0, tournament: 0, territory: 0 },
+			maxModeWins: 0,
+			peak: { sprint: 0, standard: 0, tournament: 0, territory: 0, overall: 0 },
+			winStreakBest: 0, bestDayWins: 0, bestDayGain: 0, bigSwing: 0,
+			wins1v1: 0, wins6p: 0,
+			peakPuzzleRating: 0, dailiesSolved: 0, dailyStreakBest: 0, distinctDays: 0
+		};
+		var rows = db.prepare(
+			"SELECT style, rating_before, rating_after, players, won, created_at FROM match_history WHERE user_id = ? ORDER BY created_at ASC"
+		).all(userId);
+		var streak = 0, dayWins = {}, dayGain = {};
+		rows.forEach(function(r) {
+			var day = ISO_DAY(r.created_at);
+			if (r.won) {
+				if (stats.perModeWins[r.style] != null) stats.perModeWins[r.style]++;
+				if (r.players === 2) stats.wins1v1++;
+				if (r.players >= 5) stats.wins6p++;
+				dayWins[day] = (dayWins[day] || 0) + 1;
+				streak++; if (streak > stats.winStreakBest) stats.winStreakBest = streak;
+			} else { streak = 0; }
+			if (stats.peak[r.style] != null && r.rating_after > stats.peak[r.style]) stats.peak[r.style] = r.rating_after;
+			var swing = r.rating_after - r.rating_before;
+			if (swing > stats.bigSwing) stats.bigSwing = swing;
+			dayGain[day] = (dayGain[day] || 0) + swing;
+		});
+		["sprint", "standard", "tournament", "territory"].forEach(function(s) {
+			if (stats.perModeWins[s] > stats.maxModeWins) stats.maxModeWins = stats.perModeWins[s];
+			if (stats.peak[s] > stats.peak.overall) stats.peak.overall = stats.peak[s];
+		});
+		Object.keys(dayWins).forEach(function(d) { if (dayWins[d] > stats.bestDayWins) stats.bestDayWins = dayWins[d]; });
+		Object.keys(dayGain).forEach(function(d) { if (dayGain[d] > stats.bestDayGain) stats.bestDayGain = dayGain[d]; });
+
+		var pr = db.prepare("SELECT MAX(player_rating_after) AS m FROM puzzle_attempts WHERE user_id = ?").get(userId);
+		stats.peakPuzzleRating = (pr && pr.m) || 0;
+		var ds = db.prepare("SELECT COUNT(*) AS c FROM daily_attempts WHERE user_id = ? AND solved = 1").get(userId);
+		stats.dailiesSolved = (ds && ds.c) || 0;
+		var dailyDates = db.prepare("SELECT date FROM daily_attempts WHERE user_id = ? AND solved = 1 ORDER BY date ASC").all(userId).map(function(x) { return x.date; });
+		stats.dailyStreakBest = longestDailyRun(dailyDates);
+
+		var dayset = {};
+		db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM match_history WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
+		db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM puzzle_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
+		db.prepare("SELECT DISTINCT date FROM daily_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.date) dayset[x.date] = 1; });
+		stats.distinctDays = Object.keys(dayset).length;
+
+		return stats;
+	} catch (e) { console.error("achievementStats failed", e); return {}; }
+}
+
 // Map the CSP-driven score (max complexity + small total bonus) to a
 // chess-style puzzle rating. Linear `240·(score − 0.5)`, clamped at 0,
 // so the easiest possible puzzle (a single trivial cascade reveal,
@@ -1144,6 +1210,7 @@ module.exports = {
 	recordMatch: recordMatch,
 	getMatchHistory: getMatchHistory,
 	getRatingHistory: getRatingHistory,
+	achievementStats: achievementStats,
 	// Puzzles
 	scoreToRating: scoreToRating,
 	insertPuzzle: insertPuzzle,

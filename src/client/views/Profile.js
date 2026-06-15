@@ -146,8 +146,9 @@ function renderProfile() {
 	card.appendChild(profileSectionTitle("Free-play best times"));
 	card.appendChild(profileBestsGrid(account.soloBests || {}));
 
+	profileStats = {}; // cleared until this account's history aggregates arrive (avoids cross-account staleness)
 	renderAchievements();
-	// Rating graph + recent games come from a separate request (match_history handler → renderMatchHistory).
+	// Rating graph + recent games + achievement aggregates come from get_match_history → renderMatchHistory.
 	if (typeof socket !== "undefined") socket.emit("get_match_history");
 }
 
@@ -215,43 +216,79 @@ function profileBestsGrid(bests) {
 }
 
 // --- Achievements ---------------------------------------------------------------------------
-// Data-driven catalogue evaluated against the player's live stats (the same trusted numbers the
-// server sends). Each entry is either a TIERED counter (value + tiers thresholds) or a single
-// BOOLEAN (bool + progress text). Persisting earned-dates / unlock toasts is a future layer.
+// Data-driven catalogue evaluated against a flat metrics bag = the player's account fields merged
+// with the server's `achievementStats` (history aggregates). Each entry is a TIERED counter
+// (`value` + `tiers`) or a single BOOLEAN (`bool` + `progress`). Rank/streak achievements read PEAK/
+// BEST metrics so they never un-earn. **Adding an achievement is one entry here** (and, if it needs a
+// number we don't track yet, one metric in db.achievementStats). Persisting earned-dates / unlock
+// toasts is a future layer.
 var ACH_ROMAN = ["", "I", "II", "III", "IV", "V"];
 function achTierName(rating) { return tierFor(rating).name.replace(/ I+$/, ""); } // bare tier (Silver/Gold/…)
+function modeWins(m, s) { return (m.perModeWins && m.perModeWins[s]) || 0; }
+function peakOf(m, s) { return (m.peak && m.peak[s]) || m["rating" + s.charAt(0).toUpperCase() + s.slice(1)] || 0; }
+function peakOverallOf(m) { return (m.peak && m.peak.overall) || Math.max(m.ratingSprint || 0, m.ratingStandard || 0, m.ratingTournament || 0, m.ratingTerritory || 0); }
+function minSolo(m, sizePrefix) {
+	var b = m.soloBests, min = Infinity;
+	if (b) Object.keys(b).forEach(function(k) { if ((!sizePrefix || k.indexOf(sizePrefix + "_") === 0) && b[k] < min) min = b[k]; });
+	return min;
+}
+function fmtSec(ms) { return (typeof formatSoloTime === "function") ? formatSoloTime(ms) : (Math.round(ms / 100) / 10 + "s"); }
 
 var ACHIEVEMENTS = [
-	{ id: "wins", icon: "🏆", name: "Victories", value: function(a) { return a.wins || 0; }, tiers: [1, 10, 50, 250], desc: function(t) { return "Win " + t + " ranked match" + (t > 1 ? "es" : ""); } },
-	{ id: "played", icon: "⚔️", name: "Battle-tested", value: function(a) { return a.played || 0; }, tiers: [10, 50, 200, 1000], desc: function(t) { return "Play " + t + " ranked matches"; } },
-	{ id: "climb", icon: "📈", name: "Ascendant", value: function(a) { return overallRating(a); }, tiers: [600, 1200, 1800, 2400, 3000], desc: function(t) { return "Reach " + achTierName(t) + " (" + t + ")"; } },
-	{ id: "allmodes", icon: "🎯", name: "All-Rounder", value: function(a) { return ["ratingSprint", "ratingStandard", "ratingTournament", "ratingTerritory"].filter(function(k) { return (a[k] || 0) > 0; }).length; }, tiers: [4], desc: function() { return "Earn a rating in all 4 ranked modes"; } },
-	{ id: "winrate", icon: "🎖️", name: "Sharpshooter", bool: function(a) { return (a.played || 0) >= 20 && (a.wins || 0) / (a.played || 1) >= 0.6; }, progress: function(a) { var p = a.played || 0; return p >= 20 ? (Math.round((a.wins || 0) / p * 100) + "% win rate") : (p + " / 20 matches"); }, desc: function() { return "60%+ win rate over 20+ matches"; } },
-	{ id: "solved", icon: "🧩", name: "Deductionist", value: function(a) { return a.puzzlesSolved || 0; }, tiers: [10, 100, 500, 2000], desc: function(t) { return "Solve " + t + " puzzles"; } },
-	{ id: "streak", icon: "🔥", name: "On a Roll", value: function(a) { return a.streakBest || 0; }, tiers: [5, 10, 25], desc: function(t) { return t + "-puzzle streak"; } },
-	{ id: "storm", icon: "⛈️", name: "Storm Chaser", value: function(a) { return a.stormBest || 0; }, tiers: [15, 30, 50], desc: function(t) { return "Solve " + t + " in one Storm"; } },
-	{ id: "daily", icon: "📅", name: "Daily Devotee", value: function(a) { return a.dailyStreak || 0; }, tiers: [3, 7, 30], desc: function(t) { return t + "-day daily streak"; } },
-	{ id: "freeplay", icon: "⏱️", name: "Free Spirit", value: function(a) { return a.soloBests ? Object.keys(a.soloBests).length : 0; }, tiers: [1, 5, 9], desc: function(t) { return t >= 9 ? "Clear all 9 free-play boards" : "Clear " + t + " free-play board" + (t > 1 ? "s" : ""); } }
+	// Ranked milestones
+	{ icon: "🏆", name: "Victories", value: function(m) { return m.wins || 0; }, tiers: [1, 10, 50, 250, 1000], desc: function(t) { return "Win " + t + " ranked match" + (t > 1 ? "es" : ""); } },
+	{ icon: "🛡️", name: "Battle-tested", value: function(m) { return m.played || 0; }, tiers: [10, 50, 200, 1000, 5000], desc: function(t) { return "Play " + t + " ranked matches"; } },
+	{ icon: "🎯", name: "Specialist", value: function(m) { return m.maxModeWins || 0; }, tiers: [25, 100], desc: function(t) { return "Win " + t + " matches in a single mode"; } },
+	{ icon: "⚔️", name: "Two-Sport Star", bool: function(m) { return modeWins(m, "sprint") > 0 && modeWins(m, "standard") > 0; }, progress: function(m) { return ((modeWins(m, "sprint") > 0 ? 1 : 0) + (modeWins(m, "standard") > 0 ? 1 : 0)) + " / 2 modes"; }, desc: function() { return "Win in both Sprint and Standard"; } },
+	// Rank — peak-based so they never un-earn
+	{ icon: "📈", name: "Ascendant", value: function(m) { return peakOverallOf(m); }, tiers: [600, 1200, 1800, 2400, 3000], desc: function(t) { return "Reach " + achTierName(t) + " (" + t + ")"; } },
+	{ icon: "🌟", name: "Well-rounded", bool: function(m) { return peakOf(m, "sprint") >= 1200 && peakOf(m, "standard") >= 1200; }, progress: function(m) { return ((peakOf(m, "sprint") >= 1200 ? 1 : 0) + (peakOf(m, "standard") >= 1200 ? 1 : 0)) + " / 2 at Gold"; }, desc: function() { return "Reach Gold in both Sprint and Standard"; } },
+	// Performance
+	{ icon: "🔥", name: "On Fire", value: function(m) { return m.winStreakBest || 0; }, tiers: [3, 5, 10, 20], desc: function(t) { return "Win " + t + " matches in a row"; } },
+	{ icon: "🌀", name: "Grinder", value: function(m) { return m.bestDayWins || 0; }, tiers: [5, 10], desc: function(t) { return "Win " + t + " matches in one day"; } },
+	{ icon: "⚡", name: "Surge", value: function(m) { return m.bestDayGain || 0; }, tiers: [150, 300], desc: function(t) { return "Climb +" + t + " rating in one day"; } },
+	{ icon: "💥", name: "Big Swing", value: function(m) { return m.bigSwing || 0; }, tiers: [40], desc: function(t) { return "Gain +" + t + " from a single match"; } },
+	{ icon: "🤺", name: "Duelist", value: function(m) { return m.wins1v1 || 0; }, tiers: [10, 50, 200], desc: function(t) { return "Win " + t + " 1v1 matches"; } },
+	{ icon: "👑", name: "Free-for-all King", value: function(m) { return m.wins6p || 0; }, tiers: [1, 10], desc: function(t) { return t === 1 ? "Win a 6-player free-for-all" : "Win " + t + " 6-player free-for-alls"; } },
+	{ icon: "🎖️", name: "Sharpshooter", bool: function(m) { return (m.played || 0) >= 20 && (m.wins || 0) / (m.played || 1) >= 0.6; }, progress: function(m) { var p = m.played || 0; return p >= 20 ? (Math.round((m.wins || 0) / p * 100) + "% win rate") : (p + " / 20 matches"); }, desc: function() { return "60%+ win rate over 20+ matches"; } },
+	// Speed (free play)
+	{ icon: "⏱️", name: "Sub-minute", bool: function(m) { return minSolo(m) < 60000; }, progress: function(m) { var v = minSolo(m); return isFinite(v) ? ("best " + fmtSec(v)) : "no clears yet"; }, desc: function() { return "Clear any free-play board under 1:00"; } },
+	{ icon: "🚀", name: "Quick Sweep", bool: function(m) { return minSolo(m, "small") < 30000; }, progress: function(m) { var v = minSolo(m, "small"); return isFinite(v) ? ("best " + fmtSec(v)) : "no Small clears"; }, desc: function() { return "Clear a Small board under 0:30"; } },
+	{ icon: "🧭", name: "Free Spirit", value: function(m) { return m.soloBests ? Object.keys(m.soloBests).length : 0; }, tiers: [1, 5, 9], desc: function(t) { return t >= 9 ? "Clear all 9 free-play boards" : "Clear " + t + " free-play board" + (t > 1 ? "s" : ""); } },
+	// Puzzles
+	{ icon: "🧩", name: "Deductionist", value: function(m) { return m.puzzlesSolved || 0; }, tiers: [10, 100, 500, 2000, 5000], desc: function(t) { return "Solve " + t + " puzzles"; } },
+	{ icon: "🧠", name: "Puzzle Rank", value: function(m) { return Math.max(m.peakPuzzleRating || 0, m.puzzleRating || 0); }, tiers: [1000, 1500, 2000, 2500], desc: function(t) { return "Reach a puzzle rating of " + t; } },
+	{ icon: "🎲", name: "On a Roll", value: function(m) { return m.streakBest || 0; }, tiers: [5, 10, 25, 50], desc: function(t) { return "Hit an " + t + "-puzzle streak"; } },
+	{ icon: "⛈️", name: "Storm Chaser", value: function(m) { return m.stormBest || 0; }, tiers: [15, 30, 50, 75], desc: function(t) { return "Solve " + t + " in one Storm"; } },
+	// Daily
+	{ icon: "📅", name: "Daily Devotee", value: function(m) { return Math.max(m.dailyStreakBest || 0, m.dailyStreak || 0); }, tiers: [3, 7, 30, 100], desc: function(t) { return "Reach a " + t + "-day daily streak"; } },
+	{ icon: "🗓️", name: "Daily Regular", value: function(m) { return m.dailiesSolved || 0; }, tiers: [10, 50, 200], desc: function(t) { return "Solve " + t + " daily puzzles"; } },
+	// Dedication
+	{ icon: "🎂", name: "Veteran", value: function(m) { return m.createdAt ? Math.floor((Date.now() - m.createdAt) / 86400000) : 0; }, tiers: [30, 180, 365], desc: function(t) { return "Be a member for " + t + " days"; } },
+	{ icon: "📆", name: "Regular", value: function(m) { return m.distinctDays || 0; }, tiers: [7, 30, 100], desc: function(t) { return "Play on " + t + " different days"; } },
+	{ icon: "🌐", name: "Tried It All", bool: function(m) { return (m.played || 0) > 0 && (m.puzzlesAttempted || 0) > 0 && m.soloBests && Object.keys(m.soloBests).length > 0; }, progress: function(m) { var n = ((m.played || 0) > 0 ? 1 : 0) + ((m.puzzlesAttempted || 0) > 0 ? 1 : 0) + ((m.soloBests && Object.keys(m.soloBests).length > 0) ? 1 : 0); return n + " / 3"; }, desc: function() { return "Play ranked, puzzles, and free play"; } }
 ];
 
-function computeAchievement(a, account) {
-	if (a.tiers) {
-		var v = a.value(account);
-		var reached = 0;
-		for (var i = 0; i < a.tiers.length; i++) if (v >= a.tiers[i]) reached++;
-		var maxed = reached >= a.tiers.length;
-		var next = maxed ? a.tiers[a.tiers.length - 1] : a.tiers[reached];
-		return {
-			icon: a.icon,
-			name: a.name + (a.tiers.length > 1 && reached > 0 ? " " + ACH_ROMAN[reached] : ""),
-			desc: a.desc(next),
-			unlocked: reached > 0,
-			frac: maxed ? 1 : (next ? Math.min(1, v / next) : 1),
-			progText: maxed ? "Complete" : (v + " / " + next)
-		};
-	}
-	var on = a.bool(account);
-	return { icon: a.icon, name: a.name, desc: a.desc(), unlocked: on, frac: on ? 1 : 0, progText: on ? "Unlocked" : a.progress(account) };
+// Tiered-achievement evaluator (shared by the catalogue and the meta "Collector").
+function computeTiered(icon, name, value, tiers, descFn) {
+	var reached = 0;
+	for (var i = 0; i < tiers.length; i++) if (value >= tiers[i]) reached++;
+	var maxed = reached >= tiers.length;
+	var next = maxed ? tiers[tiers.length - 1] : tiers[reached];
+	return {
+		icon: icon,
+		name: name + (tiers.length > 1 && reached > 0 ? " " + ACH_ROMAN[reached] : ""),
+		desc: descFn(next),
+		unlocked: reached > 0,
+		frac: maxed ? 1 : (next ? Math.min(1, value / next) : 1),
+		progText: maxed ? "Complete" : (Math.round(value) + " / " + next)
+	};
+}
+
+function computeAchievement(a, m) {
+	if (a.tiers) return computeTiered(a.icon, a.name, a.value(m), a.tiers, a.desc);
+	var on = a.bool(m);
+	return { icon: a.icon, name: a.name, desc: a.desc(), unlocked: on, frac: on ? 1 : 0, progText: on ? "Unlocked" : a.progress(m) };
 }
 
 function achTile(c) {
@@ -275,13 +312,20 @@ function renderAchievements() {
 	if (!account) { card.innerHTML = ""; card.style.display = "none"; return; }
 	card.style.display = "";
 	card.innerHTML = "";
-	var computed = ACHIEVEMENTS.map(function(a) { return computeAchievement(a, account); });
+	// Account fields + the server's history aggregates (empty until get_match_history returns,
+	// at which point this re-renders — so account-derived ones show instantly, history ones fill in).
+	var metrics = Object.assign({}, account, profileStats);
+	var computed = ACHIEVEMENTS.map(function(a) { return computeAchievement(a, metrics); });
+	// Meta: "Collector" tracks how many of the others you've unlocked.
 	var unlockedCount = computed.filter(function(c) { return c.unlocked; }).length;
+	computed.push(computeTiered("🏅", "Collector", unlockedCount, [10, 20, ACHIEVEMENTS.length], function(t) { return "Unlock " + t + " achievements"; }));
 
 	var head = document.createElement("div");
 	head.className = "ach-head";
 	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Achievements"; head.appendChild(h);
-	var count = document.createElement("span"); count.className = "ach-count"; count.textContent = unlockedCount + " / " + computed.length + " unlocked"; head.appendChild(count);
+	var count = document.createElement("span"); count.className = "ach-count";
+	count.textContent = computed.filter(function(c) { return c.unlocked; }).length + " / " + computed.length + " unlocked";
+	head.appendChild(count);
 	card.appendChild(head);
 
 	var grid = document.createElement("div");
@@ -292,6 +336,7 @@ function renderAchievements() {
 
 // --- Match history: rating graph + recent games (from the server's get_match_history) -----------
 var matchHistory = { matches: [], ratings: [] };
+var profileStats = {}; // server's achievementStats bag, merged into the achievement metrics
 var ratingChartStyle = null; // which ladder the rating graph is showing
 var STYLE_LABELS = { sprint: "Sprint", standard: "Standard", tournament: "Tournament", territory: "Territory" };
 function styleLabelOf(s) { return STYLE_LABELS[s] || s; }
@@ -308,12 +353,15 @@ function relTime(ms) {
 // Server reply: cache + render the graph (only if there's rating data) and the games list.
 function renderMatchHistory(data) {
 	matchHistory = data || { matches: [], ratings: [] };
+	profileStats = (data && data.stats) || {};
 	var ratingsCard = document.getElementById("rating_history_card");
 	var gamesCard = document.getElementById("recent_games_card");
 	var hasRatings = matchHistory.ratings && matchHistory.ratings.length > 0;
 	var hasMatches = matchHistory.matches && matchHistory.matches.length > 0;
 	if (ratingsCard) { ratingsCard.style.display = hasRatings ? "" : "none"; if (hasRatings) renderRatingGraphCard(); }
 	if (gamesCard) { gamesCard.style.display = hasMatches ? "" : "none"; if (hasMatches) renderRecentGamesCard(); }
+	// History aggregates just arrived — re-render achievements so the history-based ones fill in.
+	if (typeof renderAchievements === "function") renderAchievements();
 }
 
 function renderRatingGraphCard() {
