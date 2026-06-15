@@ -658,10 +658,19 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   **Adding an achievement is one catalogue entry** (plus, if it needs a number we don't track, one metric
   in `achievementStats`). Rank/streak/peak achievements read **peak/best** metrics (`stats.peak.*`,
   `winStreakBest`, `dailyStreakBest`, `peakPuzzleRating`) so they **never un-earn** when the current value
-  drops. `achievementStats` aggregates from `match_history` (per-mode wins, peak-per-style, win streak,
-  best day wins/gain, big swing, 1v1/6-player wins), `puzzle_attempts` (peak puzzle rating), and
-  `daily_attempts` (dailies solved, best daily streak, distinct active days); it's defensive (returns `{}`
-  on error) and ships in the `get_match_history` payload as `stats`. The client renders achievements from
+  drops. `achievementStats` reads a **pre-aggregated `player_stats` row** (one per user — a PK lookup, no
+  scans): per-mode wins, peak-per-style, win streak, best day wins/gain, big swing, 1v1/6-player wins,
+  peak puzzle rating, dailies solved, best daily streak, distinct active days. That row is maintained
+  **incrementally** at the event seams — `recordMatch`→`bumpMatchStats` (read-modify-write: per-mode win +
+  peak, streak cur/best, day counters + bests, swing, 1v1/6p, active day), `updateUserPuzzleRating`→
+  `bumpPuzzleStats`, `recordDailyAttempt`→`bumpDailyStats`; the `*_current`/`stat_day`/`day_*` columns are
+  the working state the `*_best` columns need. A **one-time lazy backfill**
+  (`computeStatsFromHistory`→`backfillPlayerStats`, gated by `player_stats.backfilled`) seeds the row from
+  existing `match_history`/`puzzle_attempts`/`daily_attempts` the first time it's read — so existing
+  players keep their numbers and the expensive aggregation runs **once per user, never per profile-open**.
+  All bumps swallow their own errors. `achievementStats` ships in the `get_match_history` payload as
+  `stats` (shape unchanged → client untouched; rank achievements client-fallback to current ratings when
+  a player has no match history yet). The client renders achievements from
   `account` immediately, then re-renders when `renderMatchHistory` fills the aggregates. `computeTiered`
   derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked (dimmed, greyscale
   icon) + a progress bar + an "X / Y unlocked" count. Still **derived** (no per-achievement storage) —

@@ -194,6 +194,29 @@ db.exec(
 	");" +
 	"CREATE INDEX IF NOT EXISTS idx_match_user ON match_history(user_id, created_at);"
 );
+// Pre-aggregated per-player stats — the achievement/progress metrics, maintained INCREMENTALLY at the
+// event seams (match end / puzzle solve / daily) so reading them is a single PK lookup, never a scan.
+// `backfilled` gates a one-time migration that seeds the row from existing history the first time it's
+// read (so existing players keep their numbers); after that it's pure increments. The *_current / stat_day
+// / day_* columns are working state needed to maintain the *_best columns incrementally.
+db.exec(
+	"CREATE TABLE IF NOT EXISTS player_stats (" +
+	"  user_id INTEGER PRIMARY KEY," +
+	"  wins_sprint INTEGER NOT NULL DEFAULT 0, wins_standard INTEGER NOT NULL DEFAULT 0," +
+	"  wins_tournament INTEGER NOT NULL DEFAULT 0, wins_territory INTEGER NOT NULL DEFAULT 0," +
+	"  peak_sprint INTEGER NOT NULL DEFAULT 0, peak_standard INTEGER NOT NULL DEFAULT 0," +
+	"  peak_tournament INTEGER NOT NULL DEFAULT 0, peak_territory INTEGER NOT NULL DEFAULT 0," +
+	"  win_streak_current INTEGER NOT NULL DEFAULT 0, win_streak_best INTEGER NOT NULL DEFAULT 0," +
+	"  stat_day TEXT, day_wins INTEGER NOT NULL DEFAULT 0, best_day_wins INTEGER NOT NULL DEFAULT 0," +
+	"  day_gain INTEGER NOT NULL DEFAULT 0, best_day_gain INTEGER NOT NULL DEFAULT 0," +
+	"  best_swing INTEGER NOT NULL DEFAULT 0," +
+	"  wins_1v1 INTEGER NOT NULL DEFAULT 0, wins_6p INTEGER NOT NULL DEFAULT 0," +
+	"  peak_puzzle_rating INTEGER NOT NULL DEFAULT 0," +
+	"  dailies_solved INTEGER NOT NULL DEFAULT 0, daily_streak_best INTEGER NOT NULL DEFAULT 0," +
+	"  last_active_day TEXT, distinct_days INTEGER NOT NULL DEFAULT 0," +
+	"  backfilled INTEGER NOT NULL DEFAULT 0" +
+	");"
+);
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -582,9 +605,54 @@ function topPlayers(limit, mode) {
 	).all(limit || 20);
 }
 
-// --- Ranked match history ------------------------------------------------------------------------
-// History is a non-critical analytics write — never let a failure here break rating
-// application / match-end, so it swallows its own errors.
+// --- Ranked match history + incremental player stats ---------------------------------------------
+// Both writes are non-critical — never let them break rating application / match-end, so each
+// swallows its own errors. recordMatch appends the history row AND bumps the player_stats counters.
+var STAT_WIN_COL = { sprint: "wins_sprint", standard: "wins_standard", tournament: "wins_tournament", territory: "wins_territory" };
+var STAT_PEAK_COL = { sprint: "peak_sprint", standard: "peak_standard", tournament: "peak_tournament", territory: "peak_territory" };
+var ISO_DAY = function(ms) { return new Date(ms).toISOString().slice(0, 10); };
+function longestDailyRun(dates) { // dates: sorted unique "YYYY-MM-DD"
+	if (!dates.length) return 0;
+	var best = 1, run = 1;
+	for (var i = 1; i < dates.length; i++) {
+		var prev = Date.parse(dates[i - 1] + "T00:00:00Z"), cur = Date.parse(dates[i] + "T00:00:00Z");
+		if (cur - prev === 86400000) { run++; if (run > best) best = run; } else { run = 1; }
+	}
+	return best;
+}
+function ensurePlayerStats(userId) { db.prepare("INSERT OR IGNORE INTO player_stats (user_id) VALUES (?)").run(userId); }
+// Count today as an active day if it's new since the last recorded activity (any mode).
+function touchActiveDay(userId, day) {
+	day = day || todayUtc();
+	ensurePlayerStats(userId);
+	db.prepare("UPDATE player_stats SET distinct_days = distinct_days + (CASE WHEN last_active_day = ? THEN 0 ELSE 1 END), last_active_day = ? WHERE user_id = ?").run(day, day, userId);
+}
+// Fold one finished match into the player's counters (read-modify-write; cheap, runs at match end).
+function bumpMatchStats(m) {
+	try {
+		if (!m.userId) return;
+		var winCol = STAT_WIN_COL[m.style], peakCol = STAT_PEAK_COL[m.style];
+		if (!winCol || !peakCol) return; // unknown style
+		ensurePlayerStats(m.userId);
+		var s = db.prepare("SELECT win_streak_current, win_streak_best, stat_day, day_wins, day_gain FROM player_stats WHERE user_id = ?").get(m.userId);
+		var today = todayUtc(), won = m.won ? 1 : 0, swing = (m.ratingAfter || 0) - (m.ratingBefore || 0);
+		var newCur = won ? (s.win_streak_current || 0) + 1 : 0;
+		var newBest = Math.max(s.win_streak_best || 0, newCur);
+		var sameDay = s.stat_day === today;
+		var dayWins = (sameDay ? (s.day_wins || 0) : 0) + won;
+		var dayGain = (sameDay ? (s.day_gain || 0) : 0) + swing;
+		db.prepare(
+			"UPDATE player_stats SET " +
+			winCol + " = " + winCol + " + ?, " + peakCol + " = MAX(" + peakCol + ", ?), " +
+			"wins_1v1 = wins_1v1 + ?, wins_6p = wins_6p + ?, best_swing = MAX(best_swing, ?), " +
+			"win_streak_current = ?, win_streak_best = ?, " +
+			"stat_day = ?, day_wins = ?, best_day_wins = MAX(best_day_wins, ?), day_gain = ?, best_day_gain = MAX(best_day_gain, ?) " +
+			"WHERE user_id = ?"
+		).run(won, m.ratingAfter || 0, (m.players === 2 ? won : 0), (m.players >= 5 ? won : 0), swing,
+			newCur, newBest, today, dayWins, dayWins, dayGain, dayGain, m.userId);
+		touchActiveDay(m.userId, today);
+	} catch (e) { console.error("bumpMatchStats failed", e); }
+}
 function recordMatch(m) {
 	try {
 		db.prepare(
@@ -592,6 +660,22 @@ function recordMatch(m) {
 			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 		).run(m.userId, m.style, m.ratingBefore, m.ratingAfter, m.placement, m.players, m.won ? 1 : 0, m.opponent || null, Date.now());
 	} catch (e) { console.error("recordMatch failed", e); }
+	bumpMatchStats(m);
+}
+// Puzzle solve/attempt: keep the peak puzzle rating + an active day. (Called from updateUserPuzzleRating.)
+function bumpPuzzleStats(userId, newRating) {
+	try {
+		ensurePlayerStats(userId);
+		db.prepare("UPDATE player_stats SET peak_puzzle_rating = MAX(peak_puzzle_rating, ?) WHERE user_id = ?").run(newRating || 0, userId);
+		touchActiveDay(userId, todayUtc());
+	} catch (e) { console.error("bumpPuzzleStats failed", e); }
+}
+// Daily attempt: active day always; on a solve bump the count + best streak. (Called from recordDailyAttempt.)
+function bumpDailyStats(userId, streak, solved) {
+	try {
+		touchActiveDay(userId, todayUtc());
+		if (solved) db.prepare("UPDATE player_stats SET dailies_solved = dailies_solved + 1, daily_streak_best = MAX(daily_streak_best, ?) WHERE user_id = ?").run(streak || 0, userId);
+	} catch (e) { console.error("bumpDailyStats failed", e); }
 }
 // Recent matches across all styles (newest first) — the "recent games" list.
 function getMatchHistory(userId, limit) {
@@ -609,68 +693,87 @@ function getRatingHistory(userId, limit) {
 }
 
 // --- Achievement metrics --------------------------------------------------------------------------
-// A flat bag of aggregates the profile's achievement catalogue evaluates against. Uses PEAK/BEST
-// values (not current) for rank/streaks so achievements never un-earn. Adding a new metric here is
-// all it takes to back a new achievement client-side. Defensive — returns {} on any failure.
-var ISO_DAY = function(ms) { return new Date(ms).toISOString().slice(0, 10); };
-function longestDailyRun(dates) { // dates: sorted unique "YYYY-MM-DD"
-	if (!dates.length) return 0;
-	var best = 1, run = 1;
-	for (var i = 1; i < dates.length; i++) {
-		var prev = Date.parse(dates[i - 1] + "T00:00:00Z"), cur = Date.parse(dates[i] + "T00:00:00Z");
-		if (cur - prev === 86400000) { run++; if (run > best) best = run; } else { run = 1; }
-	}
-	return best;
+// Steady state: a single PK read of player_stats (no scans). The first read for a user with no
+// player_stats row yet runs a ONE-TIME backfill from existing history, then sets `backfilled`.
+// computeStatsFromHistory produces the full column set (incl. the working state the incremental
+// updates need) so post-backfill increments stay correct.
+function computeStatsFromHistory(userId) {
+	var c = {
+		wins_sprint: 0, wins_standard: 0, wins_tournament: 0, wins_territory: 0,
+		peak_sprint: 0, peak_standard: 0, peak_tournament: 0, peak_territory: 0,
+		win_streak_current: 0, win_streak_best: 0,
+		stat_day: null, day_wins: 0, best_day_wins: 0, day_gain: 0, best_day_gain: 0,
+		best_swing: 0, wins_1v1: 0, wins_6p: 0,
+		peak_puzzle_rating: 0, dailies_solved: 0, daily_streak_best: 0,
+		last_active_day: null, distinct_days: 0
+	};
+	var rows = db.prepare("SELECT style, rating_before, rating_after, players, won, created_at FROM match_history WHERE user_id = ? ORDER BY created_at ASC").all(userId);
+	var streak = 0, dayWins = {}, dayGain = {}, lastDay = null;
+	rows.forEach(function(r) {
+		var day = ISO_DAY(r.created_at); lastDay = day;
+		if (r.won) {
+			var wc = STAT_WIN_COL[r.style]; if (wc) c[wc]++;
+			if (r.players === 2) c.wins_1v1++;
+			if (r.players >= 5) c.wins_6p++;
+			dayWins[day] = (dayWins[day] || 0) + 1;
+			streak++; if (streak > c.win_streak_best) c.win_streak_best = streak;
+		} else { streak = 0; }
+		var pc = STAT_PEAK_COL[r.style]; if (pc && r.rating_after > c[pc]) c[pc] = r.rating_after;
+		var swing = r.rating_after - r.rating_before;
+		if (swing > c.best_swing) c.best_swing = swing;
+		dayGain[day] = (dayGain[day] || 0) + swing;
+	});
+	c.win_streak_current = streak;
+	Object.keys(dayWins).forEach(function(d) { if (dayWins[d] > c.best_day_wins) c.best_day_wins = dayWins[d]; });
+	Object.keys(dayGain).forEach(function(d) { if (dayGain[d] > c.best_day_gain) c.best_day_gain = dayGain[d]; });
+	if (lastDay) { c.stat_day = lastDay; c.day_wins = dayWins[lastDay] || 0; c.day_gain = dayGain[lastDay] || 0; }
+	var pr = db.prepare("SELECT MAX(player_rating_after) AS m FROM puzzle_attempts WHERE user_id = ?").get(userId);
+	c.peak_puzzle_rating = (pr && pr.m) || 0;
+	var ds = db.prepare("SELECT COUNT(*) AS c FROM daily_attempts WHERE user_id = ? AND solved = 1").get(userId);
+	c.dailies_solved = (ds && ds.c) || 0;
+	var dailyDates = db.prepare("SELECT date FROM daily_attempts WHERE user_id = ? AND solved = 1 ORDER BY date ASC").all(userId).map(function(x) { return x.date; });
+	c.daily_streak_best = longestDailyRun(dailyDates);
+	var dayset = {};
+	db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM match_history WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
+	db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM puzzle_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
+	db.prepare("SELECT DISTINCT date FROM daily_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.date) dayset[x.date] = 1; });
+	var days = Object.keys(dayset).sort();
+	c.distinct_days = days.length;
+	c.last_active_day = days.length ? days[days.length - 1] : null;
+	return c;
+}
+function backfillPlayerStats(userId) {
+	var c = computeStatsFromHistory(userId);
+	ensurePlayerStats(userId);
+	db.prepare(
+		"UPDATE player_stats SET wins_sprint=?, wins_standard=?, wins_tournament=?, wins_territory=?, " +
+		"peak_sprint=?, peak_standard=?, peak_tournament=?, peak_territory=?, " +
+		"win_streak_current=?, win_streak_best=?, stat_day=?, day_wins=?, best_day_wins=?, day_gain=?, best_day_gain=?, " +
+		"best_swing=?, wins_1v1=?, wins_6p=?, peak_puzzle_rating=?, dailies_solved=?, daily_streak_best=?, " +
+		"last_active_day=?, distinct_days=?, backfilled=1 WHERE user_id=?"
+	).run(c.wins_sprint, c.wins_standard, c.wins_tournament, c.wins_territory,
+		c.peak_sprint, c.peak_standard, c.peak_tournament, c.peak_territory,
+		c.win_streak_current, c.win_streak_best, c.stat_day, c.day_wins, c.best_day_wins, c.day_gain, c.best_day_gain,
+		c.best_swing, c.wins_1v1, c.wins_6p, c.peak_puzzle_rating, c.dailies_solved, c.daily_streak_best,
+		c.last_active_day, c.distinct_days, userId);
 }
 function achievementStats(userId) {
 	try {
-		var stats = {
-			perModeWins: { sprint: 0, standard: 0, tournament: 0, territory: 0 },
-			maxModeWins: 0,
-			peak: { sprint: 0, standard: 0, tournament: 0, territory: 0, overall: 0 },
-			winStreakBest: 0, bestDayWins: 0, bestDayGain: 0, bigSwing: 0,
-			wins1v1: 0, wins6p: 0,
-			peakPuzzleRating: 0, dailiesSolved: 0, dailyStreakBest: 0, distinctDays: 0
+		ensurePlayerStats(userId);
+		var row = db.prepare("SELECT * FROM player_stats WHERE user_id = ?").get(userId);
+		if (!row.backfilled) { backfillPlayerStats(userId); row = db.prepare("SELECT * FROM player_stats WHERE user_id = ?").get(userId); }
+		var perMode = { sprint: row.wins_sprint, standard: row.wins_standard, tournament: row.wins_tournament, territory: row.wins_territory };
+		var peak = { sprint: row.peak_sprint, standard: row.peak_standard, tournament: row.peak_tournament, territory: row.peak_territory };
+		peak.overall = Math.max(peak.sprint, peak.standard, peak.tournament, peak.territory);
+		return {
+			perModeWins: perMode,
+			maxModeWins: Math.max(perMode.sprint, perMode.standard, perMode.tournament, perMode.territory),
+			peak: peak,
+			winStreakBest: row.win_streak_best, bestDayWins: row.best_day_wins, bestDayGain: row.best_day_gain,
+			bigSwing: row.best_swing, wins1v1: row.wins_1v1, wins6p: row.wins_6p,
+			peakPuzzleRating: row.peak_puzzle_rating, dailiesSolved: row.dailies_solved,
+			dailyStreakBest: row.daily_streak_best, distinctDays: row.distinct_days
 		};
-		var rows = db.prepare(
-			"SELECT style, rating_before, rating_after, players, won, created_at FROM match_history WHERE user_id = ? ORDER BY created_at ASC"
-		).all(userId);
-		var streak = 0, dayWins = {}, dayGain = {};
-		rows.forEach(function(r) {
-			var day = ISO_DAY(r.created_at);
-			if (r.won) {
-				if (stats.perModeWins[r.style] != null) stats.perModeWins[r.style]++;
-				if (r.players === 2) stats.wins1v1++;
-				if (r.players >= 5) stats.wins6p++;
-				dayWins[day] = (dayWins[day] || 0) + 1;
-				streak++; if (streak > stats.winStreakBest) stats.winStreakBest = streak;
-			} else { streak = 0; }
-			if (stats.peak[r.style] != null && r.rating_after > stats.peak[r.style]) stats.peak[r.style] = r.rating_after;
-			var swing = r.rating_after - r.rating_before;
-			if (swing > stats.bigSwing) stats.bigSwing = swing;
-			dayGain[day] = (dayGain[day] || 0) + swing;
-		});
-		["sprint", "standard", "tournament", "territory"].forEach(function(s) {
-			if (stats.perModeWins[s] > stats.maxModeWins) stats.maxModeWins = stats.perModeWins[s];
-			if (stats.peak[s] > stats.peak.overall) stats.peak.overall = stats.peak[s];
-		});
-		Object.keys(dayWins).forEach(function(d) { if (dayWins[d] > stats.bestDayWins) stats.bestDayWins = dayWins[d]; });
-		Object.keys(dayGain).forEach(function(d) { if (dayGain[d] > stats.bestDayGain) stats.bestDayGain = dayGain[d]; });
-
-		var pr = db.prepare("SELECT MAX(player_rating_after) AS m FROM puzzle_attempts WHERE user_id = ?").get(userId);
-		stats.peakPuzzleRating = (pr && pr.m) || 0;
-		var ds = db.prepare("SELECT COUNT(*) AS c FROM daily_attempts WHERE user_id = ? AND solved = 1").get(userId);
-		stats.dailiesSolved = (ds && ds.c) || 0;
-		var dailyDates = db.prepare("SELECT date FROM daily_attempts WHERE user_id = ? AND solved = 1 ORDER BY date ASC").all(userId).map(function(x) { return x.date; });
-		stats.dailyStreakBest = longestDailyRun(dailyDates);
-
-		var dayset = {};
-		db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM match_history WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
-		db.prepare("SELECT DISTINCT date(created_at/1000,'unixepoch') AS d FROM puzzle_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.d) dayset[x.d] = 1; });
-		db.prepare("SELECT DISTINCT date FROM daily_attempts WHERE user_id = ?").all(userId).forEach(function(x) { if (x.date) dayset[x.date] = 1; });
-		stats.distinctDays = Object.keys(dayset).length;
-
-		return stats;
 	} catch (e) { console.error("achievementStats failed", e); return {}; }
 }
 
@@ -1019,6 +1122,7 @@ function updateUserPuzzleRating(userId, newRating, solved) {
 	db.prepare(
 		"UPDATE users SET puzzle_rating = ?, puzzles_attempted = puzzles_attempted + 1, puzzles_solved = puzzles_solved + ? WHERE id = ?"
 	).run(newRating, solved ? 1 : 0, userId);
+	bumpPuzzleStats(userId, newRating); // keep peak puzzle rating + active day for achievements
 }
 
 function setCurrentPuzzle(userId, puzzleId) {
@@ -1072,11 +1176,13 @@ function recordDailyAttempt(userId, date, solved) {
 	db.prepare(
 		"INSERT OR REPLACE INTO daily_attempts (user_id, date, solved, attempted_at) VALUES (?, ?, ?, ?)"
 	).run(userId, date, solved ? 1 : 0, Date.now());
+	var streak = 0;
 	if (solved) {
 		var u = getUserById(userId);
-		var streak = (u && u.daily_last_solved === yesterdayOf(date)) ? (u.daily_streak || 0) + 1 : 1;
+		streak = (u && u.daily_last_solved === yesterdayOf(date)) ? (u.daily_streak || 0) + 1 : 1;
 		db.prepare("UPDATE users SET daily_streak = ?, daily_last_solved = ? WHERE id = ?").run(streak, date, userId);
 	}
+	bumpDailyStats(userId, streak, !!solved); // active day + (on solve) dailies count & best streak
 }
 
 function dailyStreakForUser(userId) {
