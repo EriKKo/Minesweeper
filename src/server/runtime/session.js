@@ -47,7 +47,9 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
 		isAdmin: !!user.is_admin,
 		guest: !!user.is_guest,
-		provider: user.provider // "google" | "discord" | "github" | "dev" | "guest" — drives the topbar auth logo
+		// The provider most recently signed in with (for accounts linked across several) — drives the
+		// topbar auth logo. Falls back to the original provider for rows predating last_provider.
+		provider: user.last_provider || user.provider
 	};
 	if (sendToken) payload.token = token;
 	socket.emit("authenticated", payload);

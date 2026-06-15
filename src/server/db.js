@@ -86,6 +86,9 @@ addColumnIfMissing("users", "email", "TEXT");
 // Guests: a real user row (with ratings/stats) that isn't linked to an auth provider yet.
 // provider = "guest", provider_id = a random token. Signing in later upgrades the row in place.
 addColumnIfMissing("users", "is_guest", "INTEGER NOT NULL DEFAULT 0");
+// `provider` is the account's ORIGINAL/primary login (never changes once set). `last_provider` is the
+// one most recently signed in with — for accounts linked across providers, the topbar shows this.
+addColumnIfMissing("users", "last_provider", "TEXT");
 // Ranked is split into Sprint / Standard playstyles (and Tournament keeps
 // its own pool). Each playstyle carries its own Elo and provisional
 // counter so a player can be Bronze at Sprint and Gold at Standard.
@@ -275,8 +278,8 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 		// Make sure this provider is recorded as a way into the account (links a new login to an
 		// existing email on first use), then refresh the profile.
 		linkIdentity(existing.id, provider, providerId, emailLower);
-		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
-			.run(name, avatarUrl || null, emailLower, existing.id);
+		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
+			.run(name, avatarUrl || null, emailLower, provider, existing.id);
 		var updated = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
 		applyAdminForEmail(updated);
 		return updated;
@@ -284,10 +287,10 @@ function upsertUser(provider, providerId, name, avatarUrl, email) {
 	// Ranked ratings start at 0 (Bronze I) — set explicitly so a pre-existing DB whose columns
 	// still carry the old DEFAULT 1000 doesn't seed new accounts at Silver III.
 	var info = db.prepare(
-		"INSERT INTO users (provider, provider_id, name, avatar_url, email, created_at, " +
+		"INSERT INTO users (provider, provider_id, name, avatar_url, email, last_provider, created_at, " +
 		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
-	).run(provider, providerId, name, avatarUrl || null, emailLower, Date.now());
+		"VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
+	).run(provider, providerId, name, avatarUrl || null, emailLower, provider, Date.now());
 	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 	linkIdentity(created.id, provider, providerId, emailLower);
 	applyAdminForEmail(created);
@@ -325,14 +328,14 @@ function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email)
 		db.prepare("DELETE FROM sessions WHERE user_id = ?").run(guestUserId);
 		db.prepare("DELETE FROM users WHERE id = ?").run(guestUserId);
 		linkIdentity(existing.id, provider, providerId, emailLower);
-		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email) WHERE id = ?")
-			.run(name, avatarUrl || null, emailLower, existing.id);
+		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
+			.run(name, avatarUrl || null, emailLower, provider, existing.id);
 		var ex = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
 		applyAdminForEmail(ex);
 		return { user: ex, switched: true };
 	}
-	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, avatar_url = ?, email = ?, is_guest = 0 WHERE id = ?")
-		.run(provider, providerId, name, avatarUrl || null, emailLower, guestUserId);
+	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, avatar_url = ?, email = ?, is_guest = 0, last_provider = ? WHERE id = ?")
+		.run(provider, providerId, name, avatarUrl || null, emailLower, provider, guestUserId);
 	linkIdentity(guestUserId, provider, providerId, emailLower);
 	var upgraded = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
 	applyAdminForEmail(upgraded);
