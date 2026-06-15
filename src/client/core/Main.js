@@ -1041,6 +1041,35 @@ scoreboardEl.addEventListener("click", function(e) {
 	});
 })();
 
+// --- Help modal: concise rules + controls, opened from the navbar Help button. ---
+(function wireHelpModal() {
+	var modal = document.getElementById("help_modal");
+	var trigger = document.getElementById("help_nav_link");
+	if (!modal || !trigger) return;
+	function openHelp() {
+		// Fill the control-key chips from the live (rebindable) keybindings.
+		if (typeof keybindings !== "undefined") {
+			var set = function(id, action) {
+				var el = document.getElementById(id);
+				if (el) el.textContent = keybindings.label(keybindings.get(action));
+			};
+			set("help_key_reveal", "reveal");
+			set("help_key_flag", "flag");
+			set("help_key_next", "next");
+		}
+		modal.removeAttribute("hidden");
+	}
+	function closeHelp() { modal.setAttribute("hidden", ""); }
+	trigger.addEventListener("click", openHelp);
+	modal.addEventListener("click", function(e) {
+		// Close on backdrop, the × button, or the Profile link (which also navigates).
+		if (e.target.closest("[data-help-close]")) closeHelp();
+	});
+	document.addEventListener("keydown", function(e) {
+		if (e.key === "Escape" && !modal.hasAttribute("hidden")) closeHelp();
+	});
+})();
+
 document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });

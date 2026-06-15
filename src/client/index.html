@@ -23,6 +23,7 @@
 			<a href="/learn" class="site-nav-link" data-route="learn">Learn</a>
 			<a href="/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
 			<a href="/profile" class="site-nav-link" data-route="profile">Profile</a>
+			<button type="button" id="help_nav_link" class="site-nav-link">Help</button>
 			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
 		</nav>
 		<div class="topbar-right">
@@ -755,6 +756,49 @@
 			<a href="/privacy">Privacy Policy</a>
 		</div>
 	</footer>
+
+	<!-- Help: concise rules + controls. Opened from the navbar Help button (wireHelpModal in Main.js). -->
+	<div id="help_modal" class="cr-modal" hidden>
+		<div class="cr-backdrop" data-help-close></div>
+		<div class="cr-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help_title">
+			<div class="cr-dialog-head">
+				<h2 id="help_title">How to play</h2>
+				<button class="cr-close" data-help-close type="button" aria-label="Close">×</button>
+			</div>
+
+			<section class="help-section">
+				<h3 class="help-section-title">The rules</h3>
+				<ul class="help-list">
+					<li><b>Reveal</b> tiles to uncover them. A number tells you how many of the 8 neighbouring tiles are mines.</li>
+					<li><b>Flag</b> the tiles you've worked out are mines.</li>
+					<li>Clear <b>every safe tile</b> to win. Reveal a mine and the game ends.</li>
+					<li>Every board is <b>always solvable with logic</b> — you never have to guess.</li>
+				</ul>
+			</section>
+
+			<section class="help-section">
+				<h3 class="help-section-title">Game modes</h3>
+				<ul class="help-list">
+					<li><b>Solo</b> — practice any board size &amp; mine density against your own best time.</li>
+					<li><b>Ranked</b> (Sprint &amp; Standard) — race others to clear the same board fastest.</li>
+					<li><b>Puzzles</b> — bite-size deduction challenges: rated, streak, storm &amp; daily.</li>
+					<li><b>Territory</b> — grow from your corner and claim more of a shared board than your rivals.</li>
+				</ul>
+			</section>
+
+			<section class="help-section">
+				<h3 class="help-section-title">Controls</h3>
+				<div class="help-controls">
+					<div class="help-ctrl"><span class="help-ctrl-act">Reveal a tile</span><span class="help-ctrl-keys">Left-click <i>or</i> <kbd id="help_key_reveal">X</kbd></span></div>
+					<div class="help-ctrl"><span class="help-ctrl-act">Flag / unflag</span><span class="help-ctrl-keys">Right-click <i>or</i> <kbd id="help_key_flag">Z</kbd></span></div>
+					<div class="help-ctrl"><span class="help-ctrl-act">Chord (clear neighbours)</span><span class="help-ctrl-keys">Click a number once its mines are flagged</span></div>
+					<div class="help-ctrl"><span class="help-ctrl-act">Move the cursor</span><span class="help-ctrl-keys"><kbd id="help_key_move">↑ ↓ ← →</kbd></span></div>
+					<div class="help-ctrl"><span class="help-ctrl-act">Jump to next area</span><span class="help-ctrl-keys"><kbd id="help_key_next">Tab</kbd></span></div>
+				</div>
+				<p class="help-foot">Keys are rebindable on the <a href="/profile" data-help-close>Profile</a> page.</p>
+			</section>
+		</div>
+	</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/BoardLogic.js"></script>

@@ -607,6 +607,12 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   button when joinable, **Full**/​**In game** tags otherwise), capped at `HOME_ROOMS_MAX` (6) with a
   "+N more" line, above a **Browse Custom Lobbies** button → `/custom`. (`#leaderboard_list` is gone;
   `renderLeaderboard` already `.filter(Boolean)`s its now-null home target and only fills the full list.)
+- **Help modal** (`#help_modal`, `wireHelpModal` in Main.js). The navbar **Help** item is a `<button>`
+  (not an `<a>`, so the router's link interceptor ignores it) that opens a concise modal — rules, game
+  modes, and controls — reusing the `.cr-modal`/`.cr-dialog` chrome. On open it fills the control-key
+  chips (`#help_key_reveal`/`flag`/`next`) from the live rebindable bindings via
+  `keybindings.label(keybindings.get(action))`, so they track the player's actual keys. Closes on the ×,
+  Esc, backdrop, or the Profile link (all carry `data-help-close`; the Profile link also navigates).
 - **Ranked search.** The racing modes (1v1 + 6-player Sprint/Standard) drop you **straight into the
   battle UI** and slot opponents into the opponent boards as they're found — search and play share one
   screen, so there's no separate waiting room and "Play another" never leaves the page. `findRanked`

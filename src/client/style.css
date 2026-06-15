@@ -153,6 +153,8 @@ body {
 
 .site-nav-link:hover { color: var(--text); background: var(--surface); }
 .site-nav-link.active { color: #fff; background: rgba(99, 102, 241, 0.22); }
+/* The Help nav item is a <button> (opens a modal, not a route) — strip native button chrome. */
+button.site-nav-link { background: none; border: 0; font-family: inherit; cursor: pointer; }
 
 @media (max-width: 800px) {
 	.site-nav { flex-wrap: wrap; justify-content: flex-start; gap: 0.1rem; }
@@ -894,6 +896,34 @@ main {
 }
 .cr-close:hover { color: var(--text); border-color: var(--muted); }
 .cr-dialog-sub { color: var(--muted); font-size: 0.9rem; margin: 0.35rem 0 1.25rem; }
+
+/* Help modal — concise rules + controls. Reuses .cr-modal/.cr-dialog chrome. */
+.help-dialog { width: min(540px, 100%); }
+.help-section { margin-top: 1.25rem; }
+.help-section:first-of-type { margin-top: 1rem; }
+.help-section-title {
+	margin: 0 0 0.55rem; font-size: 0.78rem; font-weight: 700;
+	text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent-hover);
+}
+.help-list { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.help-list li { font-size: 0.9rem; line-height: 1.5; color: var(--text); }
+.help-list b { font-weight: 700; }
+.help-controls { display: flex; flex-direction: column; gap: 0.4rem; }
+.help-ctrl {
+	display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+	padding: 0.4rem 0.6rem; border-radius: 9px; background: var(--bg); border: 1px solid var(--border);
+}
+.help-ctrl-act { font-size: 0.88rem; font-weight: 600; }
+.help-ctrl-keys { font-size: 0.82rem; color: var(--muted); text-align: right; }
+.help-ctrl-keys i { font-style: normal; opacity: 0.7; margin: 0 0.1rem; }
+.help-ctrl-keys kbd {
+	font-family: var(--font-display, inherit); font-size: 0.78rem; font-weight: 700;
+	color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+	border-bottom-width: 2px; border-radius: 6px; padding: 0.12rem 0.42rem; white-space: nowrap;
+}
+.help-foot { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--muted); }
+.help-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.help-foot a:hover { text-decoration: underline; }
 .cr-fields { display: flex; flex-direction: column; gap: 1rem; }
 .cr-field { display: flex; flex-direction: column; gap: 0.45rem; }
 .cr-field-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
