@@ -2277,6 +2277,26 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	z-index: 3;
 }
 
+/* Solo pre-game gate: a scrim + Start button centered over the board. Clicking it
+   runs the countdown and unlocks the board (see Solo.js beginSolo). */
+.solo-start-overlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(11, 16, 32, 0.55);
+	border-radius: 4px;
+	z-index: 4;
+}
+.solo-start-overlay-btn {
+	font-size: 1.4rem;
+	font-weight: 700;
+	padding: 0.85rem 2.8rem;
+	border-radius: 999px;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
 .board-overlay-count { font-size: 6rem; background: rgba(11, 16, 32, 0.3); }
 .board-overlay-go { color: var(--success); font-size: 5rem; background: rgba(34, 197, 94, 0.15); }
 .board-overlay-frozen { color: #fde68a; font-size: 4.5rem; background: rgba(239, 68, 68, 0.25); }

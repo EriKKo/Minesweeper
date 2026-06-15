@@ -102,15 +102,17 @@ function hideReadyButton() {
 	readyButton.style.display = "none";
 }
 
-function countDown(time) {
-	countDownStep(time);
+// onDone (optional) fires the moment "GO" shows — used by solo to unlock the board.
+function countDown(time, onDone) {
+	countDownStep(time, onDone);
 }
 
-function countDownStep(number) {
+function countDownStep(number, onDone) {
 	if (number <= 0) {
 		showOverlay("GO", "go");
 		sound.go();
 		roundStartTime = Date.now(); // danger-warning grace period starts here
+		if (typeof onDone === "function") onDone();
 		setTimeout(function() {
 			if (boardOverlay.textContent === "GO") hideOverlay();
 		}, 700);
@@ -119,5 +121,5 @@ function countDownStep(number) {
 	showOverlay(String(number), "count");
 	boardOverlay.style.color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
 	sound.beep(392 + (3 - Math.min(number, 3)) * 110);
-	setTimeout(function() { countDownStep(number - 1); }, 1000);
+	setTimeout(function() { countDownStep(number - 1, onDone); }, 1000);
 }

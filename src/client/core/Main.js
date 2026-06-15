@@ -595,7 +595,8 @@ socket.on("solo_board", function(data) {
 		totalMines: data.mines,
 		startTime: null,
 		finishTime: null,
-		finished: false
+		finished: false,
+		started: false // becomes true after the pre-game Start countdown; gates board input
 	};
 	// Reset BEFORE seeding state — resetBoardAnimations nulls prevPlayerState
 	// and cellAnims, so doing it after would discard the cascade we just set up.
@@ -636,6 +637,8 @@ socket.on("solo_board", function(data) {
 	if (typeof updateSoloBest === "function") updateSoloBest();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+	// Gate the board behind a Start button + countdown (board input stays locked until then).
+	if (typeof showSoloStart === "function") showSoloStart();
 });
 
 // Server's verdict on a just-submitted Free-play clear: cache the new best and refresh the displays
@@ -1040,6 +1043,11 @@ scoreboardEl.addEventListener("click", function(e) {
 
 document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
+});
+
+// Pre-game Start button over the board → run the countdown, then unlock the board.
+document.getElementById("solo_start_btn").addEventListener("click", function() {
+	if (typeof beginSolo === "function") beginSolo();
 });
 
 // In-game solo sidebar (#solo_card): quick re-rolls — these launch a new board immediately.

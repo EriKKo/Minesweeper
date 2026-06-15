@@ -17,6 +17,10 @@ function hideAllViews() {
 	// Default to "not in a game"; the game entry points (showGameView / solo / puzzle) re-add
 	// `in-game` right after. Drives chrome that should vanish during play (e.g. the site footer).
 	document.body.classList.remove("in-game");
+	// The solo pre-game Start overlay must never linger into another view (the solo_board
+	// handler re-shows it right after, so this is safe to clear unconditionally).
+	var soloStart = document.getElementById("solo_start_overlay");
+	if (soloStart) soloStart.style.display = "none";
 }
 
 function showNameView() {

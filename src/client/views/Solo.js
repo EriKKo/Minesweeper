@@ -113,6 +113,27 @@ function startSolo(size) {
 	socket.emit("request_solo_board", { size: soloSelectedSize, density: soloSelectedDensity });
 }
 
+// --- Pre-game Start gate + countdown ---------------------------------------------------------
+// A solo board loads in a not-started state: the board is covered, input is blocked
+// (Input.js gates on soloSession.started), and a Start button sits over the board.
+// Clicking it runs the 3-2-1-GO countdown, then unlocks the board. The clock still
+// starts on the first real move (soloStartTimerOnce), so the countdown is just the
+// "get ready" ritual.
+function showSoloStart() {
+	var ov = document.getElementById("solo_start_overlay");
+	if (ov) ov.style.display = "";
+}
+function hideSoloStart() {
+	var ov = document.getElementById("solo_start_overlay");
+	if (ov) ov.style.display = "none";
+}
+function beginSolo() {
+	if (!soloSession || soloSession.started) return;
+	hideSoloStart();
+	var session = soloSession; // guard against a new board replacing it mid-countdown
+	countDown(3, function() { if (soloSession === session) soloSession.started = true; });
+}
+
 function exitSolo() {
 	exitGameFullscreen();
 	soloSession = null;

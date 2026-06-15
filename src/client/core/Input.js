@@ -97,6 +97,8 @@ function performAction(r, c, asFlag) {
 	if (iAmEliminated) return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+	// Solo is locked until the player hits Start and the countdown finishes.
+	if (mode === "solo" && soloSession && !soloSession.started) return;
 	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
 	focusedR = r;
 	focusedC = c;

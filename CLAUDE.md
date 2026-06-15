@@ -578,6 +578,14 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `showSoloView` keeps **Play** highlighted. `exitSolo` returns **home** (`/`), not `/solo` (navigating
   back to `/solo` re-launches a board). The old `/practice` path **redirects** to `/solo`. `/solo` is the
   lone `inGameRoutes` entry (the board shows over it, URL stays `/solo`).
+  **Pre-game Start gate:** a solo board loads **locked** with a centered **Start** button over the board
+  (`#solo_start_overlay`, a scrim + button inside `.board-wrap`; `soloSession.started` starts `false`).
+  Input is blocked while not started — `performAction` early-returns for solo when `!soloSession.started`,
+  and the overlay scrim also eats mouse clicks. Clicking Start (`#solo_start_btn` → `beginSolo`) hides the
+  overlay and runs the shared `countDown(3, onDone)` (the 3-2-1-GO board overlay reused from ranked round
+  starts; `onDone` fires at "GO" and sets `started = true`, capturing the session so a mid-countdown "New
+  board" can't unlock the new one). `hideAllViews` clears the overlay defensively; the `solo_board` handler
+  re-shows it for every fresh board.
   **Timer:** starts on the **first real move**, not on cursor moves or no-op clicks. `soloStartTimerOnce`
   (Solo.js, idempotent) is called from `soloOnAfterReveal` only when the reveal/chord actually changed the
   board (`result.anyChange || result.hitMine`) and from Input.js's flag branch when a flag is placed — NOT
