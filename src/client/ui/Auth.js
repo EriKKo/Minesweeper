@@ -106,8 +106,42 @@ function openNameCard() {
 	showNameView();
 }
 changeNameButton.addEventListener("click", openNameCard);
+
+// Home dashboard: the pen turns the name into an inline text field (no page change). Enter / blur
+// commit via set_name; Escape cancels. The name display updates from the name_accepted re-render.
 var dashEditNameButton = document.getElementById("dash_edit_name");
-if (dashEditNameButton) dashEditNameButton.addEventListener("click", openNameCard);
+var dashNameEl = document.getElementById("dash_you_name");
+var dashNameInput = document.getElementById("dash_name_input");
+var editingDashName = false;
+function enterDashNameEdit() {
+	if (!dashNameInput || editingDashName) return;
+	editingDashName = true;
+	dashNameInput.value = myName || (account && account.name) || "";
+	dashNameEl.style.display = "none";
+	dashEditNameButton.style.display = "none";
+	dashNameInput.style.display = "";
+	dashNameInput.focus();
+	dashNameInput.select();
+}
+function exitDashNameEdit(commit) {
+	if (!editingDashName) return;
+	editingDashName = false;
+	if (commit) {
+		var v = (dashNameInput.value || "").trim();
+		if (v && v !== myName) socket.emit("set_name", { name: v });
+	}
+	dashNameInput.style.display = "none";
+	dashNameEl.style.display = "";
+	dashEditNameButton.style.display = "";
+}
+if (dashEditNameButton) dashEditNameButton.addEventListener("click", enterDashNameEdit);
+if (dashNameInput) {
+	dashNameInput.addEventListener("keydown", function(e) {
+		if (e.key === "Enter") { e.preventDefault(); exitDashNameEdit(true); }
+		else if (e.key === "Escape") { e.preventDefault(); exitDashNameEdit(false); }
+	});
+	dashNameInput.addEventListener("blur", function() { exitDashNameEdit(true); });
+}
 
 googleSigninButton.addEventListener("click", function() {
 	window.location.href = "/auth/google/login" + guestUpgradeQuery("?");

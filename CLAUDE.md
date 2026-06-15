@@ -198,6 +198,8 @@ else is grouped:
   carries `provider` for this. **Change** opens `#name_view` via `showNameView`, which retitles to "Change
   your name" and hides the provider sign-in options when you're already signed in (vs "Sign in" + options for
   a guest); submitting the form emits `set_name` → `db.setUserName` (works for real accounts and guests alike).
+  The home dashboard also has a **pen icon** next to the name that edits it **inline** (`#dash_name_input`
+  toggles in place — Enter/blur commit via `set_name`, Escape cancels; no page change), wired in Auth.js.
   **Cleanup:** drive-by guests are reaped by `db.pruneStaleGuests(maxAgeMs)` (deletes `is_guest=1` rows
   with `played=0` AND `puzzles_attempted=0` older than the TTL, plus their sessions/attempts; a guest who
   played anything is kept). The server runs it on startup and daily (`reapGuests`, TTL = `GUEST_TTL_DAYS`
