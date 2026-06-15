@@ -222,6 +222,9 @@ db.exec(
 	");" +
 	"CREATE INDEX IF NOT EXISTS idx_replay_player ON match_replay_players(user_id, replay_id);"
 );
+// Link each match_history row to its stored replay (set after the replay is saved at series end).
+// Null for matches with no replay (pre-feature history, or matches with no recorded moves).
+addColumnIfMissing("match_history", "replay_id", "INTEGER");
 // Pre-aggregated per-player stats — the achievement/progress metrics, maintained INCREMENTALLY at the
 // event seams (match end / puzzle solve / daily) so reading them is a single PK lookup, never a scan.
 // `backfilled` gates a one-time migration that seeds the row from existing history the first time it's
@@ -717,10 +720,11 @@ function recordClear(userId, noFlag, noReveal) {
 			.run(noFlag ? 1 : 0, noReveal ? 1 : 0, userId);
 	} catch (e) { console.error("recordClear failed", e); }
 }
-// Recent matches across all styles (newest first) — the "recent games" list.
+// Recent matches across all styles (newest first) — the "recent games" list. `replay_id` is non-null
+// when a stored replay exists for that match (drives the inline "Watch" link).
 function getMatchHistory(userId, limit) {
 	return db.prepare(
-		"SELECT style, rating_before, rating_after, placement, players, won, opponent, created_at " +
+		"SELECT style, rating_before, rating_after, placement, players, won, opponent, created_at, replay_id " +
 		"FROM match_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
 	).all(userId, limit || 50);
 }
@@ -766,6 +770,16 @@ function listReplaysForUser(userId, limit) {
 // Full replay row incl. the gzipped blob, for playback.
 function getReplay(id) {
 	return db.prepare("SELECT * FROM match_replays WHERE id = ?").get(id);
+}
+// Stamp the just-saved replay id onto this match's history rows. Scoped by user + created_at >= the
+// match's start so it touches only this match's rows (a user is in one match at a time, so their
+// earlier matches all have created_at < sinceTs); `replay_id IS NULL` keeps it idempotent.
+function linkReplayToMatches(replayId, userIds, sinceTs) {
+	if (!replayId || !userIds || !userIds.length) return;
+	try {
+		var stmt = db.prepare("UPDATE match_history SET replay_id = ? WHERE user_id = ? AND replay_id IS NULL AND created_at >= ?");
+		for (var i = 0; i < userIds.length; i++) stmt.run(replayId, userIds[i], sinceTs || 0);
+	} catch (e) { console.error("linkReplayToMatches failed", e); }
 }
 
 // --- Achievement metrics --------------------------------------------------------------------------
@@ -1397,6 +1411,7 @@ module.exports = {
 	saveReplay: saveReplay,
 	listReplaysForUser: listReplaysForUser,
 	getReplay: getReplay,
+	linkReplayToMatches: linkReplayToMatches,
 	achievementStats: achievementStats,
 	// Puzzles
 	scoreToRating: scoreToRating,

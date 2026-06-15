@@ -704,7 +704,9 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (`#rating_history_card`, per-style toggle, seeded from each series' first `rating_before`) and a
   **recent-games list** (`#recent_games_card`: style chip, Won/Lost or "Nth of M", Δrating, opponent/
   player-count, relative time). Both cards hide when empty. NB history accrues **going forward** —
-  pre-existing accounts have no rows until they play.
+  pre-existing accounts have no rows until they play. Each row also carries a **`replay_id`** (nullable
+  FK to `match_replays`); when set, the row renders as a link to `/replay?id=N` with a "▶ Watch"
+  affordance — there is no separate replays list, the recent-games list IS the replays list.
 - **Match replays** (ranked matches, server-side capture — `runtime/replay.js`). The format is an
   **input log**, not a state log: store the mine layout once per round (a `rows*cols`-bit bitmask) plus
   each player's ordered **applied** clicks, and re-simulate cascades at playback. An event is
@@ -720,20 +722,21 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   logged (bots included, since they call the same handlers). Storage (`db.js`): `match_replays` (summary
   columns + gzipped `data` BLOB) and `match_replay_players` (side table mapping replay→real user ids, so a
   user's replays list without touching the blob). `saveReplay(meta,blob,participants)`, `listReplaysForUser`,
-  `getReplay`. `winner_id` is null when a bot won the match (bots have no user id). Replays accrue **going
-  forward**.
-- **Replay playback** (`/replay?id=N`, `#replay_view`, `views/Replay.js`). Two socket handlers in
-  `session.js`: `get_replays` (→ `replays`, this user's replay metadata for the profile **Replays card**)
-  and `get_replay` (→ `replay_data`; participant-gated; the server **gunzips** and ships the raw binary so
-  the client needs only the decoder, not a gzip dep — arrives as an ArrayBuffer). `Replay.js` decodes the
-  input log, then for each round builds a mine+clue model and **re-simulates** each player's board by
-  applying their events up to the playhead time `T` — `dfs`/`chord` mirror GameCreator exactly (templated
-  board, so no first-click relocation; `autoChordOnFlag` is unused so it's ignored). Renders one
-  `BoardView` per player (always the default `classic` skin — per-player skins aren't stored), with a
-  timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game tabs when `gameCount>1`.
-  Steady-state redraws are skipped unless a player's applied-event count changed. `teardownReplay` (called
-  from `hideAllViews`) cancels the rAF on navigation. Entry point: a **Replays card** on the profile
-  (`renderReplaysList` in Profile.js, fed by `get_replays`), each row linking to `/replay?id=N`.
+  `getReplay`. `winner_id` is null when a bot won the match (bots have no user id). After `saveReplay`,
+  `finishMatch` calls `db.linkReplayToMatches(id, participants, rp.createdAt)` to stamp the new id onto
+  this match's `match_history` rows (scoped by `user_id` + `created_at >= matchStart` + `replay_id IS
+  NULL`, so it touches only this match). Replays accrue **going forward**.
+- **Replay playback** (`/replay?id=N`, `#replay_view`, `views/Replay.js`). One socket handler in
+  `session.js`: `get_replay` (→ `replay_data`; participant-gated via `listReplaysForUser`; the server
+  **gunzips** and ships the raw binary so the client needs only the decoder, not a gzip dep — arrives as an
+  ArrayBuffer). `Replay.js` decodes the input log, then for each round builds a mine+clue model and
+  **re-simulates** each player's board by applying their events up to the playhead time `T` — `dfs`/`chord`
+  mirror GameCreator exactly (templated board, so no first-click relocation; `autoChordOnFlag` is unused so
+  it's ignored). Renders one `BoardView` per player (always the default `classic` skin — per-player skins
+  aren't stored), with a timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game
+  tabs when `gameCount>1`. Steady-state redraws are skipped unless a player's applied-event count changed.
+  `teardownReplay` (called from `hideAllViews`) cancels the rAF on navigation. Entry point: the **recent-
+  games rows** on the profile that have a `replay_id` link to `/replay?id=N` (see Match history above).
 - **Settings page** (`/settings`, `#settings_view`, `showSettingsView`) — local, on-device preferences,
   split out from Profile: the **Board skin** picker (`#skins_card`, admin-only) and **Controls** /
   keybindings (`#controls_card`). `showSettingsView` calls `renderBoardSkins` + `renderKeybindings`

@@ -199,7 +199,10 @@ function finishMatch(room, seriesStandings) {
 			format: REPLAY_VERSION,
 			rawBytes: raw.length
 		};
-		return db.saveReplay(meta, blob, participants);
+		var id = db.saveReplay(meta, blob, participants);
+		// Back-link this match's history rows so the profile's recent-games list can offer a "Watch".
+		if (id) db.linkReplayToMatches(id, participants, rp.createdAt);
+		return id;
 	} catch (e) {
 		console.error("replay.finishMatch failed", e);
 		return null;

@@ -116,20 +116,6 @@ function registerSocketHandlers(socket, playerID) {
 		});
 	});
 
-	// Profile: list this user's stored ranked-match replays (metadata only, no blob).
-	socket.on("get_replays", function() {
-		var acc = accounts[playerID];
-		if (!acc) { socket.emit("replays", { replays: [] }); return; }
-		var rows = db.listReplaysForUser(acc.userId, 50).map(function(r) {
-			return {
-				id: r.id, createdAt: r.created_at, style: r.style, mode: r.mode,
-				rows: r.rows, cols: r.cols, mineCount: r.mine_count, gameCount: r.game_count,
-				winnerId: r.winner_id, players: r.players ? JSON.parse(r.players) : []
-			};
-		});
-		socket.emit("replays", { replays: rows });
-	});
-
 	// Profile: fetch one replay for playback. We gunzip server-side and ship the raw binary
 	// (input-log format) so the client only needs the decoder, not a gzip dependency. Only a
 	// participant in the match may fetch it.

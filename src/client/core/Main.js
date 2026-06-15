@@ -1258,9 +1258,6 @@ socket.on("match_history", function(data) {
 	if (typeof renderMatchHistory === "function") renderMatchHistory(data);
 });
 
-socket.on("replays", function(data) {
-	if (typeof renderReplaysList === "function") renderReplaysList(data);
-});
 socket.on("replay_data", function(data) {
 	if (typeof onReplayData === "function") onReplayData(data);
 });

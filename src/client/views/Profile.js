@@ -143,36 +143,9 @@ function renderProfile() {
 
 	profileStats = {}; // cleared until this account's history aggregates arrive (avoids cross-account staleness)
 	renderAchievements();
-	// Rating graph + recent games + achievement aggregates come from get_match_history → renderMatchHistory.
+	// Rating graph + recent games (incl. replay links) + achievement aggregates come from
+	// get_match_history → renderMatchHistory.
 	if (typeof socket !== "undefined") socket.emit("get_match_history");
-	// Stored ranked-match replays (→ renderReplaysList). Card hides itself when empty.
-	if (typeof socket !== "undefined") socket.emit("get_replays");
-}
-
-// --- Replays: list of stored ranked matches with a watch link ---------------------------------
-function renderReplaysList(data) {
-	var card = document.getElementById("replays_card");
-	if (!card) return;
-	var replays = (data && data.replays) || [];
-	if (!replays.length) { card.style.display = "none"; return; }
-	card.style.display = "";
-	card.innerHTML = "";
-	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Replays"; card.appendChild(h);
-	var list = document.createElement("div"); list.className = "games-list";
-	replays.slice(0, 30).forEach(function(rp) { list.appendChild(replayRow(rp)); });
-	card.appendChild(list);
-}
-function replayRow(rp) {
-	var row = document.createElement("a"); row.className = "game-row replay-row"; row.href = "/replay?id=" + rp.id;
-	var chip = document.createElement("span"); chip.className = "game-chip game-chip-" + rp.style; chip.textContent = styleLabelOf(rp.style); row.appendChild(chip);
-	var opp = document.createElement("span"); opp.className = "game-opp";
-	var others = (rp.players || []).filter(function(p) { return !(account && p.userId === account.userId); });
-	opp.textContent = others.length === 1 ? ("vs " + others[0].name) : ((rp.players ? rp.players.length : 0) + " players");
-	row.appendChild(opp);
-	var size = document.createElement("span"); size.className = "game-opp"; size.textContent = rp.rows + "×" + rp.cols + (rp.gameCount > 1 ? (" · " + rp.gameCount + " games") : ""); row.appendChild(size);
-	var t = document.createElement("span"); t.className = "game-time"; t.textContent = relTime(rp.createdAt); row.appendChild(t);
-	var watch = document.createElement("span"); watch.className = "replay-watch"; watch.textContent = "▶ Watch"; row.appendChild(watch);
-	return row;
 }
 
 function formatMemberSince(ms) {
@@ -509,7 +482,11 @@ function renderRecentGamesCard() {
 	card.appendChild(list);
 }
 function gameRow(m) {
-	var row = document.createElement("div"); row.className = "game-row";
+	// Rows with a stored replay become a link to the player; the rest stay plain.
+	var hasReplay = !!m.replay_id;
+	var row = document.createElement(hasReplay ? "a" : "div");
+	row.className = "game-row" + (hasReplay ? " game-row-replay" : "");
+	if (hasReplay) row.href = "/replay?id=" + m.replay_id;
 	var chip = document.createElement("span"); chip.className = "game-chip game-chip-" + m.style; chip.textContent = styleLabelOf(m.style); row.appendChild(chip);
 	var res = document.createElement("span"); res.className = "game-result " + (m.won ? "game-won" : "game-lost");
 	res.textContent = m.players <= 2 ? (m.won ? "Won" : "Lost") : (ordinal(m.placement) + " of " + m.players);
@@ -521,6 +498,10 @@ function gameRow(m) {
 	var d = document.createElement("span"); d.className = "game-delta " + (delta >= 0 ? "game-delta-pos" : "game-delta-neg");
 	d.textContent = (delta >= 0 ? "+" : "") + delta; row.appendChild(d);
 	var t = document.createElement("span"); t.className = "game-time"; t.textContent = relTime(m.created_at); row.appendChild(t);
+	// Watch affordance (only when a replay exists) — keeps the grid's last column consistent.
+	var watch = document.createElement("span"); watch.className = "replay-watch";
+	if (hasReplay) watch.textContent = "▶ Watch";
+	row.appendChild(watch);
 	return row;
 }
 
