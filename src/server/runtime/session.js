@@ -7,6 +7,7 @@
 
 var appState = require("./appState");
 var db = require("../db");
+var zlib = require("zlib");
 var roomState = require("./roomState");
 var gameUtil = require("./gameUtil");
 
@@ -112,6 +113,40 @@ function registerSocketHandlers(socket, playerID) {
 			matches: db.getMatchHistory(acc.userId, 50),
 			ratings: db.getRatingHistory(acc.userId, 1000),
 			stats: db.achievementStats(acc.userId) // achievement metrics bag
+		});
+	});
+
+	// Profile: list this user's stored ranked-match replays (metadata only, no blob).
+	socket.on("get_replays", function() {
+		var acc = accounts[playerID];
+		if (!acc) { socket.emit("replays", { replays: [] }); return; }
+		var rows = db.listReplaysForUser(acc.userId, 50).map(function(r) {
+			return {
+				id: r.id, createdAt: r.created_at, style: r.style, mode: r.mode,
+				rows: r.rows, cols: r.cols, mineCount: r.mine_count, gameCount: r.game_count,
+				winnerId: r.winner_id, players: r.players ? JSON.parse(r.players) : []
+			};
+		});
+		socket.emit("replays", { replays: rows });
+	});
+
+	// Profile: fetch one replay for playback. We gunzip server-side and ship the raw binary
+	// (input-log format) so the client only needs the decoder, not a gzip dependency. Only a
+	// participant in the match may fetch it.
+	socket.on("get_replay", function(data) {
+		var acc = accounts[playerID];
+		var id = data && data.id;
+		if (!acc || !id) { socket.emit("replay_data", { id: id || null, error: "not_found" }); return; }
+		var mine = db.listReplaysForUser(acc.userId, 500).some(function(r) { return r.id === id; });
+		if (!mine) { socket.emit("replay_data", { id: id, error: "forbidden" }); return; }
+		var row = db.getReplay(id);
+		if (!row) { socket.emit("replay_data", { id: id, error: "not_found" }); return; }
+		var raw;
+		try { raw = zlib.gunzipSync(row.data); } catch (e) { socket.emit("replay_data", { id: id, error: "corrupt" }); return; }
+		socket.emit("replay_data", {
+			id: id, createdAt: row.created_at, style: row.style, mode: row.mode,
+			winnerId: row.winner_id, players: row.players ? JSON.parse(row.players) : [],
+			data: raw // Buffer → socket.io sends as binary; arrives as ArrayBuffer on the client
 		});
 	});
 

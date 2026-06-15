@@ -61,22 +61,32 @@ function startMatch(room) {
 	};
 }
 
-// Snapshot the round's mine layout and open a fresh per-player event log.
+// Snapshot the round's mine layout + pre-revealed opening, and open a fresh per-player event log.
+// Two bitmasks: `mines` (where the bombs are) and `known` (the no-guess opening cells `init` reveals
+// before any click). Playback needs both — without `known` the re-simulated board starts fully covered
+// and diverges from what the players actually saw.
 function startRound(room, template, startR, startC) {
 	var rp = room.replay;
 	if (!rp) return;
 	var rows = rp.rows, cols = rp.cols;
 	var board = template.board;
-	var bits = new Uint8Array(Math.ceil((rows * cols) / 8));
+	var bytes = Math.ceil((rows * cols) / 8);
+	var mines = new Uint8Array(bytes);
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			if (board[r][c] < 0) {
 				var idx = r * cols + c;
-				bits[idx >> 3] |= (1 << (idx & 7));
+				mines[idx >> 3] |= (1 << (idx & 7));
 			}
 		}
 	}
-	rp.cur = { mines: bits, startR: startR, startC: startC, t0: null, tracks: {} };
+	var known = new Uint8Array(bytes);
+	var kc = template.knownCells || [];
+	for (var k = 0; k < kc.length; k++) {
+		var ki = kc[k][0] * cols + kc[k][1];
+		known[ki >> 3] |= (1 << (ki & 7));
+	}
+	rp.cur = { mines: mines, known: known, startR: startR, startC: startC, t0: null, tracks: {} };
 	rp.rounds.push(rp.cur);
 }
 
@@ -137,7 +147,8 @@ function serialize(rp, winnerIndex) {
 		var round = rp.rounds[ri];
 		w.varint(round.startR);
 		w.varint(round.startC);
-		w.raw(round.mines);                // fixed bitLen bytes
+		w.raw(round.mines);                // fixed bitLen bytes — mine layout
+		w.raw(round.known);                // fixed bitLen bytes — pre-revealed opening
 		var t0 = round.t0 || 0;
 		for (var pi = 0; pi < rp.players.length; pi++) {
 			var pid = rp.players[pi].pid;

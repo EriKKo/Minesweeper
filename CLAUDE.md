@@ -709,18 +709,31 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   **input log**, not a state log: store the mine layout once per round (a `rows*cols`-bit bitmask) plus
   each player's ordered **applied** clicks, and re-simulate cascades at playback. An event is
   `varint(dt_ms) + varint(cell<<1 | button)` (~2-3 B; button is 1 bit, 0=left/1=right — reveal-vs-chord
-  is decided by board state on replay). A whole 1v1 sprint is ~250-300 B raw, gzipped to a BLOB. Capture
-  rides three seams in `minesweeperServer.js`: `startSeries`→`replay.startMatch` (arms `room.replay` for
-  ranked non-territory rooms), `startGame`→`replay.startRound` (snapshots the round's mine bitmask) +
-  `replay.attach` (wires `game.onMove` per player), and `endSeries`→`replay.finishMatch` (serialize +
-  gzip + persist, then clear). Moves are captured via a new **`game.onMove(button,r,c)`** hook in
-  `engine/GameCreator.js`, fired *after* the `playing && !frozen` guard in `handleLeftClick`/
-  `handleRightClick` — so only real in-play moves are logged (bots included, since they call the same
-  handlers). Storage (`db.js`): `match_replays` (summary columns + gzipped `data` BLOB) and
-  `match_replay_players` (side table mapping replay→real user ids, so a user's replays list without
-  touching the blob). `saveReplay(meta,blob,participants)`, `listReplaysForUser`, `getReplay`. `winner_id`
-  is null when a bot won the match (bots have no user id). Replays accrue **going forward**; playback UI
-  is not built yet.
+  is decided by board state on replay). Each round stores **two** bitmasks — `mines` (bomb layout) and
+  `known` (the no-guess opening `init` reveals before any click; needed so playback's board doesn't start
+  fully covered). A whole 1v1 sprint is ~300-350 B raw, gzipped to a BLOB. Capture rides three seams in
+  `minesweeperServer.js`: `startSeries`→`replay.startMatch` (arms `room.replay` for ranked non-territory
+  rooms), `startGame`→`replay.startRound` (snapshots the two bitmasks) + `replay.attach` (wires
+  `game.onMove` per player), and `endSeries`→`replay.finishMatch` (serialize + gzip + persist, then clear).
+  Moves are captured via a **`game.onMove(button,r,c)`** hook in `engine/GameCreator.js`, fired *after* the
+  `playing && !frozen` guard in `handleLeftClick`/`handleRightClick` — so only real in-play moves are
+  logged (bots included, since they call the same handlers). Storage (`db.js`): `match_replays` (summary
+  columns + gzipped `data` BLOB) and `match_replay_players` (side table mapping replay→real user ids, so a
+  user's replays list without touching the blob). `saveReplay(meta,blob,participants)`, `listReplaysForUser`,
+  `getReplay`. `winner_id` is null when a bot won the match (bots have no user id). Replays accrue **going
+  forward**.
+- **Replay playback** (`/replay?id=N`, `#replay_view`, `views/Replay.js`). Two socket handlers in
+  `session.js`: `get_replays` (→ `replays`, this user's replay metadata for the profile **Replays card**)
+  and `get_replay` (→ `replay_data`; participant-gated; the server **gunzips** and ships the raw binary so
+  the client needs only the decoder, not a gzip dep — arrives as an ArrayBuffer). `Replay.js` decodes the
+  input log, then for each round builds a mine+clue model and **re-simulates** each player's board by
+  applying their events up to the playhead time `T` — `dfs`/`chord` mirror GameCreator exactly (templated
+  board, so no first-click relocation; `autoChordOnFlag` is unused so it's ignored). Renders one
+  `BoardView` per player (always the default `classic` skin — per-player skins aren't stored), with a
+  timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game tabs when `gameCount>1`.
+  Steady-state redraws are skipped unless a player's applied-event count changed. `teardownReplay` (called
+  from `hideAllViews`) cancels the rAF on navigation. Entry point: a **Replays card** on the profile
+  (`renderReplaysList` in Profile.js, fed by `get_replays`), each row linking to `/replay?id=N`.
 - **Settings page** (`/settings`, `#settings_view`, `showSettingsView`) — local, on-device preferences,
   split out from Profile: the **Board skin** picker (`#skins_card`, admin-only) and **Controls** /
   keybindings (`#controls_card`). `showSettingsView` calls `renderBoardSkins` + `renderKeybindings`

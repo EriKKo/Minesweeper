@@ -21,6 +21,8 @@ function hideAllViews() {
 	// handler re-shows it right after, so this is safe to clear unconditionally).
 	var soloStart = document.getElementById("solo_start_overlay");
 	if (soloStart) soloStart.style.display = "none";
+	// Stop any running replay playback loop when leaving the replay view.
+	if (typeof teardownReplay === "function") teardownReplay();
 }
 
 function showNameView() {
@@ -391,6 +393,12 @@ function applyRouteFromHash() {
 	if (hash === "/admin/combined-puzzles") return showCombinedPuzzlesView();
 	if (hash === "/admin/design") return showDesignView();
 	if (hash === "/leaderboard") return showLeaderboardView();
+	if (hash === "/replay" || hash.indexOf("/replay?") === 0) {
+		var rid = parseInt(new URLSearchParams(location.search).get("id"), 10);
+		hideAllViews();
+		if (rid && typeof showReplayView === "function") return showReplayView(rid);
+		return showProfileView();
+	}
 	if (hash === "/profile") return showProfileView();
 	if (hash === "/settings") return showSettingsView();
 	if (hash === "/privacy") return showPrivacyView();
