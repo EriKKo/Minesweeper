@@ -13,6 +13,12 @@ Run from this directory (`Minesweeper/`):
 - `npm run restart` — stop + start (use this after server-side changes).
 - `npm start` — plain start (no dev login); this is what the Docker/prod image runs.
 
+**Always manage the server with these npm scripts** — never ad-hoc `node …` / `kill` / `lsof`
+commands. They're the stable, approved lifecycle commands (safe to run without confirmation), so
+using them consistently avoids per-command approval prompts. After any **server-side** change
+(`src/server/**`), run `npm run restart`; client assets are served from disk, so a browser reload
+picks those up with no restart.
+
 Requires **Node ≥ 22** (uses the built-in `node:sqlite`).
 
 There is no build step. `npm test` runs the integration tests (`node --test`,
