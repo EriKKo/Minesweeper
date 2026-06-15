@@ -475,26 +475,26 @@ main {
 	display: flex;
 	flex-direction: column;
 	gap: 0.6rem;
-	margin: 0.5rem 0 1.25rem;
+	margin: 0.5rem 0 0;
 }
 
-.signin-note { color: var(--muted); font-size: 0.85rem; margin: 0.1rem 0 0; }
-
-.signin-divider {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	color: var(--muted);
-	font-size: 0.8rem;
-	margin-top: 0.4rem;
+/* Standard provider sign-in buttons: brand colour + the provider's own logo. */
+.btn-oauth {
+	display: flex; align-items: center; justify-content: center; gap: 0.65rem;
+	width: 100%;
+	font: inherit; font-weight: 600; font-size: 0.98rem;
+	padding: 0.7rem 1rem; border-radius: 10px; border: 1px solid transparent;
+	cursor: pointer; user-select: none;
+	transition: background var(--motion-micro) var(--ease-out), box-shadow var(--motion-micro) var(--ease-out);
 }
-
-.signin-divider::before, .signin-divider::after {
-	content: "";
-	flex: 1;
-	height: 1px;
-	background: var(--border);
-}
+.btn-oauth-logo { display: inline-flex; flex: 0 0 auto; }
+.btn-oauth-logo svg { width: 1.25rem; height: 1.25rem; display: block; }
+/* Google: white button, dark text, multicolour G (per Google's button guidelines). */
+.btn-oauth-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
+.btn-oauth-google:hover { background: #f6f7f9; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+/* Discord: brand blurple, white text + logo. */
+.btn-oauth-discord { background: #5865f2; color: #fff; }
+.btn-oauth-discord:hover { background: #4752c4; }
 
 .rating-chip {
 	background: var(--accent);

@@ -191,7 +191,8 @@ else is grouped:
   already exists, in which case it logs into the existing account and discards the guest (`switched`).
   Sign-out drops back to a fresh guest, never a login wall. Client: `Auth.js` (`applyConnected` →
   `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + calls `applyUserIdentity`);
-  the repurposed `#name_view` is the on-demand sign-in / rename card. **Topbar identity** (`applyUserIdentity`):
+  `#name_view` is the sign-in card — **provider buttons only** (`.btn-oauth-google`/`.btn-oauth-discord`,
+  brand-styled with their logos); the old "set your name" form was removed (renaming is the dashboard pen). **Topbar identity** (`applyUserIdentity`):
   a real account shows its **auth-provider logo** (`providerLogoSVG`, Google/Discord marks; dev/github get
   none) + name + a "Sign out" button — **no rank badge** (rank lives on the home dashboard chips); a guest
   shows **only the "Sign in" button** (no name/logo). The `authenticated` payload carries `provider` for this.

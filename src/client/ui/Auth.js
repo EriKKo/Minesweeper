@@ -22,8 +22,6 @@
 var myName = "";
 var account = null; // { name, rating, ... } when signed in
 
-var nameForm = document.getElementById("name_form");
-var nameInput = document.getElementById("name_input");
 var nameError = document.getElementById("name_error");
 var userBadge = document.getElementById("user_badge");
 var userIdentity = document.getElementById("user_identity");
@@ -84,16 +82,6 @@ function applyUserIdentity(data) {
 	signOutButton.style.display = isGuest ? "none" : "";
 	if (userBadge) userBadge.style.display = "";
 }
-
-nameForm.addEventListener("submit", function(e) {
-	e.preventDefault();
-	var name = (nameInput.value || "").trim();
-	if (!name) {
-		showNameError("Please enter a nickname.");
-		return;
-	}
-	socket.emit("set_name", { name: name });
-});
 
 // Home dashboard: the pen turns the name into an inline text field (no page change). Enter / blur
 // commit via set_name; Escape cancels. The name display updates from the name_accepted re-render.

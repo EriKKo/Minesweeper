@@ -24,7 +24,6 @@ function showNameView() {
 	nameView.style.display = "";
 	nameError.style.display = "none";
 	setSiteNavActive(null);
-	setTimeout(function() { nameInput.focus(); }, 0);
 }
 
 // Sub-page that lets you pick 1v1 or 6P after choosing a Sprint /
