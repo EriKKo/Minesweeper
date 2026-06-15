@@ -4105,8 +4105,34 @@ body.touch .find-next-arrow { display: inline-flex; }
    zoomed-out, the small puzzle board zoomed-in); width follows the aspect, capped to the slot. */
 .dash-board-preview .learn-board { line-height: 0; padding: 3px; }
 .dash-board-preview .learn-board canvas { display: block; height: 92px !important; width: auto !important; max-width: 165px; border-radius: 4px; }
-/* Solo card uses a big stopwatch glyph instead of a board preview. */
-.dash-board-icon { width: 100%; height: 88px; color: var(--dash-acc, var(--accent)); }
+/* Solo card: an accent wash + a faded stopwatch watermark in the right half, with a
+   rounded "tile badge" stopwatch in the board slot. isolation + the art's negative
+   z-index keep the watermark above the card's own background but behind the content. */
+.dash-row-solo {
+	position: relative;
+	overflow: hidden;
+	isolation: isolate;
+	background: linear-gradient(110deg, rgba(52, 211, 153, 0.16), rgba(52, 211, 153, 0.03) 55%), var(--surface);
+}
+.dash-row-solo-art {
+	position: absolute; top: 50%; left: 74%;
+	width: 140px; height: 140px;
+	transform: translate(-50%, -50%) rotate(-8deg);
+	color: var(--dash-acc);
+	opacity: 0.13;
+	z-index: -1;
+	pointer-events: none;
+}
+.dash-row-solo-art svg { width: 100%; height: 100%; display: block; }
+.dash-row-solo .dash-row-board { justify-content: center; }
+.dash-solo-badge {
+	display: flex; align-items: center; justify-content: center;
+	width: 62px; height: 62px;
+	border-radius: 15px;
+	background: rgba(52, 211, 153, 0.16);
+	color: var(--dash-acc);
+}
+.dash-solo-badge svg { width: 34px; height: 34px; display: block; }
 
 .lobby-grid {
 	display: grid;
