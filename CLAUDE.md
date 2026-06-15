@@ -554,8 +554,9 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   the client also emits it on connect (`applyConnected`). Server mirrors the `names`/`set_name` pattern:
   `appState.skins[pid]`, the `set_skin` handler (session.js) stores it + updates the live `game.skin` +
   rebroadcasts, `createPlayerGame` seeds `game.skin = skins[pid] || null`, `gameForBroadcast` ships
-  `skin`, and disconnect clears it. The picker is on **Profile** (`renderBoardSkins` → `#skins_card`),
-  **admin-only** (gated on `dev || account.isAdmin`, like the Admin nav link — so non-admins keep classic).
+  `skin`, and disconnect clears it. The picker is on the **Settings** page (`renderBoardSkins` →
+  `#skins_card`), **admin-only** (gated on `dev || account.isAdmin`, like the Admin nav link — so
+  non-admins keep classic).
   New skins = a `BOARD_SKINS` entry (+ optional CSS frame); image texture packs extend the same hook.
   (Derived from a Figma "futuristic board" export, translated into this canvas palette + CSS frame.)
   **Home-page previews always show classic:** `buildLearnPuzzle` takes a `spec.skin` (→ `learnBoardView`
@@ -703,8 +704,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (`#rating_history_card`, per-style toggle, seeded from each series' first `rating_before`) and a
   **recent-games list** (`#recent_games_card`: style chip, Won/Lost or "Nth of M", Δrating, opponent/
   player-count, relative time). Both cards hide when empty. NB history accrues **going forward** —
-  pre-existing accounts have no rows until they play. The skin picker (`#skins_card`, admin) and Controls
-  (`#controls_card`) cards follow.
+  pre-existing accounts have no rows until they play.
+- **Settings page** (`/settings`, `#settings_view`, `showSettingsView`) — local, on-device preferences,
+  split out from Profile: the **Board skin** picker (`#skins_card`, admin-only) and **Controls** /
+  keybindings (`#controls_card`). `showSettingsView` calls `renderBoardSkins` + `renderKeybindings`
+  (Profile no longer does). Its own nav link (`data-route="settings"`).
 - **Help modal** (`#help_modal`, `wireHelpModal` in Main.js). The navbar **Help** item is a `<button>`
   (not an `<a>`, so the router's link interceptor ignores it) that opens a concise modal — rules, game
   modes, and controls — reusing the `.cr-modal`/`.cr-dialog` chrome. On open it fills the control-key

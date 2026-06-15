@@ -257,6 +257,15 @@ function showProfileView() {
 	renderProfile();
 }
 
+// Settings = local, on-device preferences (board skin + controls); separate from the Profile stats page.
+function showSettingsView() {
+	hideAllViews();
+	document.getElementById("settings_view").style.display = "";
+	setSiteNavActive("settings");
+	if (typeof renderBoardSkins === "function") renderBoardSkins();
+	if (typeof renderKeybindings === "function") renderKeybindings();
+}
+
 // Legal pages render as normal in-app views (navbar stays); not a main-nav item, so no link is marked active.
 function showPrivacyView() {
 	hideAllViews();
@@ -383,6 +392,7 @@ function applyRouteFromHash() {
 	if (hash === "/admin/design") return showDesignView();
 	if (hash === "/leaderboard") return showLeaderboardView();
 	if (hash === "/profile") return showProfileView();
+	if (hash === "/settings") return showSettingsView();
 	if (hash === "/privacy") return showPrivacyView();
 	if (hash === "/terms") return showTermsView();
 	showLobbyView();

@@ -65,10 +65,7 @@ function renderBoardSkins() {
 
 // Profile renders from the account cache plus the most recent leaderboard snapshot.
 function renderProfile() {
-	// Board skin + keybindings are local (not tied to an account), so render them
-	// regardless of sign-in state.
-	if (typeof renderBoardSkins === "function") renderBoardSkins();
-	if (typeof renderKeybindings === "function") renderKeybindings();
+	// Board skin + controls moved to the Settings page (showSettingsView renders them).
 	var card = document.getElementById("profile_card");
 	if (!card) return;
 	if (!account) {
