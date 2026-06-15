@@ -568,6 +568,20 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
   (`Overlay.js` also holds `showConfirm(message, opts)` — the app's promise-based confirm
   modal, used app-wide instead of `window.confirm()`.)
+- **Solo hub** (`/solo`, nav "Solo", `#solo_view`, `showSoloView`). The single single-player landing
+  page — it replaced the old temporary Practice menu and absorbed the standalone puzzle picker. Two
+  parts: (1) **Free play** — inline segmented size + density pickers (`#solo_size_seg`/`#solo_density_seg`,
+  reusing the create-room `.cr-seg` style) that are **choose-then-start** (they only set
+  `soloSelectedSize`/`soloSelectedDensity` + refresh the best line; the `#solo_start` button launches via
+  `startSolo`), with the per-combo best time shown (`updateSoloBest` writes both the page `#solo_page_best`
+  and the in-game sidebar `#solo_best`); and (2) **Puzzles** — the Rated/Streak/Storm/Daily mode cards
+  (`.solo-puzzle-modes`, reusing `.ranked-picker-option`) linking straight to `/puzzles/play|streak|storm|daily`.
+  `Solo.js` `syncSoloControls()` keeps the page pickers AND the in-game sidebar quick-reroll buttons
+  (`.solo-size-btn`/`.solo-density-btn`) in lockstep with the current selection (called on `showSoloView`
+  and at the top of `startSolo`, so picking Large/High on the page lights up the sidebar's Large/High too).
+  `exitSolo` returns to `/solo`. The old `/practice` and `/puzzles` paths **redirect** to `/solo`
+  (Router), and the home dashboard "Puzzles" row points at `/solo`. `/solo` is the lone `inGameRoutes`
+  entry (solo gameplay shows `#game_view` over it, keeping the URL at `/solo`).
 - **Ranked search.** The racing modes (1v1 + 6-player Sprint/Standard) drop you **straight into the
   battle UI** and slot opponents into the opponent boards as they're found — search and play share one
   screen, so there's no separate waiting room and "Play another" never leaves the page. `findRanked`

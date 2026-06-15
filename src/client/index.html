@@ -21,7 +21,7 @@
 		<nav id="site_nav" class="site-nav" aria-label="Main navigation">
 			<a href="/" class="site-nav-link" data-route="home">Play</a>
 			<a href="/learn" class="site-nav-link" data-route="learn">Learn</a>
-			<a href="/practice" class="site-nav-link" data-route="practice">Practice</a>
+			<a href="/solo" class="site-nav-link" data-route="solo">Solo</a>
 			<a href="/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
 			<a href="/profile" class="site-nav-link" data-route="profile">Profile</a>
 			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
@@ -118,7 +118,7 @@
 								</span>
 							</span>
 						</a>
-						<a class="dash-row dash-row-puzzles" href="/puzzles" data-style="puzzles" aria-label="Open Puzzles">
+						<a class="dash-row dash-row-puzzles" href="/solo" data-style="puzzles" aria-label="Open Solo puzzles">
 							<span class="dash-row-board" id="dash_board_puzzles" aria-hidden="true"></span>
 							<span class="dash-row-info">
 								<h4 class="dash-row-title">Puzzles</h4>
@@ -214,48 +214,6 @@
 					<span class="ranked-picker-option-title" id="ranked_picker_six_title">6-player</span>
 					<span class="ranked-picker-option-sub" id="ranked_picker_six_sub">Free-for-all sprint</span>
 				</button>
-			</div>
-		</section>
-
-		<section id="puzzle_picker_view" class="view section-view" style="display:none">
-			<button id="puzzle_picker_back" class="btn btn-ghost learn-back-btn" type="button">← Back to lobby</button>
-			<header class="ranked-picker-head">
-				<div class="ranked-picker-icon" style="color:#60a5fa" aria-hidden="true">
-					<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-				</div>
-				<div>
-					<h1 class="ranked-picker-title">Puzzles</h1>
-					<p class="ranked-picker-sub">Solo deduction · served near your rating</p>
-				</div>
-				<div class="ranked-picker-rating">
-					<span class="ranked-picker-rating-tier">Rating</span>
-					<span class="ranked-picker-rating-num" id="puzzle_picker_rating">—</span>
-				</div>
-			</header>
-			<p class="ranked-picker-pitch">One puzzle at a time. Three ways to play.</p>
-			<h2 class="ranked-picker-prompt">Choose a mode</h2>
-			<div class="ranked-picker-options puzzle-picker-options">
-				<a class="ranked-picker-option" href="/puzzles/play" aria-label="Play rated puzzles">
-					<span class="ranked-picker-option-icon" aria-hidden="true">
-						<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-					</span>
-					<span class="ranked-picker-option-title">Rated</span>
-					<span class="ranked-picker-option-sub">Climb the ladder — every solve moves your rating.</span>
-				</a>
-				<a class="ranked-picker-option" href="/puzzles/streak" aria-label="Play streak">
-					<span class="ranked-picker-option-icon" aria-hidden="true">
-						<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
-					</span>
-					<span class="ranked-picker-option-title">Streak</span>
-					<span class="ranked-picker-option-sub">Chain solves without slipping — one mistake ends it.</span>
-				</a>
-				<a class="ranked-picker-option" href="/puzzles/storm" aria-label="Play storm">
-					<span class="ranked-picker-option-icon" aria-hidden="true">
-						<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-					</span>
-					<span class="ranked-picker-option-title">Storm</span>
-					<span class="ranked-picker-option-sub">Crack as many as you can in three minutes.</span>
-				</a>
 			</div>
 		</section>
 
@@ -387,30 +345,77 @@
 			</div>
 		</section>
 
-		<section id="practice_view" class="view section-view" style="display:none">
-			<h1 class="section-page-title">Practice</h1>
-			<p class="section-page-sub">Warm up before going ranked — no rating on the line.</p>
-			<div class="section-grid">
-				<div class="section-card section-card-stub">
-					<h2>Daily Speedrun</h2>
-					<p>Same shared no-guess board for everyone today. Race the clock; leaderboard resets weekly.</p>
-					<p class="section-stub-note">Coming soon.</p>
+		<section id="solo_view" class="view section-view" style="display:none">
+			<h1 class="section-page-title">Solo</h1>
+			<p class="section-page-sub">Practice on your own — no rating on the line. Drill boards, or train deduction puzzles.</p>
+
+			<div class="section-card solo-freeplay">
+				<h2>Free play</h2>
+				<p>Generate a fresh no-guess board at any size and mine density, then race your own best time.</p>
+				<div class="solo-fp-fields">
+					<div class="cr-field">
+						<span class="cr-field-label">Board size</span>
+						<div class="cr-seg" id="solo_size_seg">
+							<button type="button" data-size="small">Small<small>10×13</small></button>
+							<button type="button" data-size="medium" class="active">Medium<small>15×20</small></button>
+							<button type="button" data-size="large">Large<small>16×30</small></button>
+						</div>
+					</div>
+					<div class="cr-field">
+						<span class="cr-field-label">Mine density</span>
+						<div class="cr-seg" id="solo_density_seg">
+							<button type="button" data-density="0.1" class="active">Low<small>10%</small></button>
+							<button type="button" data-density="0.15">Medium<small>15%</small></button>
+							<button type="button" data-density="0.2">High<small>20%</small></button>
+						</div>
+					</div>
 				</div>
-				<div class="section-card">
-					<h2>Free play</h2>
-					<p>Make a casual room with any board size, mine density, or game count. Play solo or invite a bot.</p>
-					<button id="practice_create_room" class="btn btn-primary">Create casual room</button>
+				<div class="solo-fp-foot">
+					<span class="solo-bestline">
+						<span class="solo-bestline-label">Your best</span>
+						<span class="solo-bestline-value" id="solo_page_best">—</span>
+					</span>
+					<button id="solo_start" class="btn btn-primary solo-start-btn" type="button">Start board</button>
 				</div>
-				<div class="section-card section-card-stub">
-					<h2>Pattern drills</h2>
-					<p>Short focused puzzles on classic minesweeper patterns (1-1-2 walls, edge corners, 1-2-1 chains).</p>
-					<p class="section-stub-note">Coming soon.</p>
-				</div>
-				<div class="section-card section-card-stub">
-					<h2>Bot trainer</h2>
-					<p>Pick a tier and play a 1v1 against a bot tuned to that Elo.</p>
-					<p class="section-stub-note">Coming soon.</p>
-				</div>
+			</div>
+
+			<div class="solo-puzzles-head">
+				<h2 class="section-title">Puzzles</h2>
+				<span class="solo-puzzles-rating">
+					<span class="solo-puzzles-rating-label">Rating</span>
+					<span class="solo-puzzles-rating-num" id="solo_puzzle_rating">—</span>
+				</span>
+			</div>
+			<p class="section-page-sub solo-puzzles-sub">Hand-picked deduction positions served near your rating — one at a time.</p>
+			<div class="ranked-picker-options solo-puzzle-modes">
+				<a class="ranked-picker-option" href="/puzzles/play" aria-label="Play rated puzzles">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Rated</span>
+					<span class="ranked-picker-option-sub">Climb the ladder — every solve moves your rating.</span>
+				</a>
+				<a class="ranked-picker-option" href="/puzzles/streak" aria-label="Play streak">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Streak</span>
+					<span class="ranked-picker-option-sub">Chain solves without slipping — one mistake ends it.</span>
+				</a>
+				<a class="ranked-picker-option" href="/puzzles/storm" aria-label="Play storm">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Storm</span>
+					<span class="ranked-picker-option-sub">Crack as many as you can in three minutes.</span>
+				</a>
+				<a class="ranked-picker-option" href="/puzzles/daily" aria-label="Play today's daily puzzle">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 14l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					</span>
+					<span class="ranked-picker-option-title">Daily</span>
+					<span class="ranked-picker-option-sub">One shared board a day. Keep your streak alive.</span>
+				</a>
 			</div>
 		</section>
 

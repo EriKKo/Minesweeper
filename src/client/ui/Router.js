@@ -1,7 +1,7 @@
 // Hash-based SPA router and view show/hide helpers.
 //
 // Each show*View hides everything and reveals one of the top-level cards
-// (#name_view, #game_view, #learn_view, #practice_view, #leaderboard_view,
+// (#name_view, #game_view, #learn_view, #solo_view, #leaderboard_view,
 // #profile_view, #lobby_view) plus marks the matching nav link active.
 // applyRouteFromHash is the central dispatcher — registered on hashchange,
 // called directly by code paths that change layout mode (mobile <-> desktop).
@@ -95,15 +95,6 @@ function showRankedPickerView(style) {
 	document.getElementById("ranked_picker_back").onclick = function() { navigate("/"); };
 }
 
-// Puzzle mode chooser (mirrors the ranked picker): Rated / Streak / Storm each link to their run.
-function showPuzzlePickerView() {
-	hideAllViews();
-	document.getElementById("puzzle_picker_view").style.display = "";
-	setSiteNavActive("home");
-	var el = document.getElementById("puzzle_picker_rating");
-	if (el) el.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
-	document.getElementById("puzzle_picker_back").onclick = function() { navigate("/"); };
-}
 
 function showLobbyView() {
 	hideAllViews();
@@ -129,10 +120,16 @@ function showLearnView() {
 	renderLearn();
 }
 
-function showPracticeView() {
+// Solo hub: free-play board drills (size + density, choose-then-start) plus the
+// puzzle-training mode cards (Rated / Streak / Storm / Daily). Replaces the old
+// Practice page and absorbs the standalone puzzle picker.
+function showSoloView() {
 	hideAllViews();
-	document.getElementById("practice_view").style.display = "";
-	setSiteNavActive("practice");
+	document.getElementById("solo_view").style.display = "";
+	setSiteNavActive("solo");
+	var ratingEl = document.getElementById("solo_puzzle_rating");
+	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
+	if (typeof renderSoloPage === "function") renderSoloPage();
 }
 
 function showCustomView() {
@@ -337,7 +334,7 @@ function applyRouteFromHash() {
 	// view: it's the room list, and even inside a custom room the URL stays `/custom` through the
 	// (silent) waiting lobby. Custom + ranked matches start the music from the `start_game` handler
 	// instead, so it only kicks in once a game is actually live.
-	var inGameRoutes = ["/practice"];
+	var inGameRoutes = ["/solo"];
 	var inGame = inGameRoutes.indexOf(hash) !== -1;
 	if (typeof music !== "undefined") {
 		if (inGame) music.resume(); else music.pause();
@@ -351,9 +348,10 @@ function applyRouteFromHash() {
 	}
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
-	if (hash === "/practice") return showPracticeView();
+	if (hash === "/solo") return showSoloView();
+	// Back-compat: the old Practice page and standalone puzzle picker both live in Solo now.
+	if (hash === "/practice" || hash === "/puzzles") { navigate("/solo"); return; }
 	if (hash === "/custom") return showCustomView();
-	if (hash === "/puzzles") return showPuzzlePickerView();
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
 	if (hash === "/puzzles/streak") return showPuzzleStreakView();
 	if (hash === "/puzzles/storm") return showPuzzleStormView();

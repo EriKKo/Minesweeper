@@ -1,6 +1,6 @@
 // Solo (single-player "Free play") mode.
 //
-// The user picks a board size from the Practice menu and plays a generated
+// The user picks a board size + mine density from the Solo page and plays a generated
 // no-guess board offline — no socket, no opponents, just timer + win/lose.
 // Loaded as a separate <script> tag; it shares a small set of globals with
 // the main inline script (myState, cellAnims, focused R/C, board dims, the
@@ -50,13 +50,39 @@ function soloBestFor(size, density) {
 	var bests = (typeof account !== "undefined" && account && account.soloBests) || null;
 	return bests ? bests[soloComboKey(size, density)] : null;
 }
-// Reflect the best time for the CURRENTLY selected size+density on the Free-play card.
+// Reflect the best time for the CURRENTLY selected size+density on both the
+// in-game sidebar (#solo_best) and the Solo page free-play card (#solo_page_best).
 function updateSoloBest() {
-	var el = document.getElementById("solo_best");
-	if (!el) return;
 	var b = soloBestFor(soloSelectedSize, soloSelectedDensity);
-	el.textContent = b ? formatSoloTime(b) : "—";
+	var text = b ? formatSoloTime(b) : "—";
+	var sidebar = document.getElementById("solo_best");
+	if (sidebar) sidebar.textContent = text;
+	var page = document.getElementById("solo_page_best");
+	if (page) page.textContent = text;
 }
+
+// Sync every solo picker (the Solo page segmented controls AND the in-game
+// sidebar buttons) to the current selection, and refresh the best-time line.
+// Called when the Solo view is shown and whenever a board starts, so the two
+// pickers never drift apart (e.g. picking Large/High on the page must light up
+// the sidebar's Large/High too, not its hardcoded Medium/Low defaults).
+function syncSoloControls() {
+	function sync(els, attr, val, parse) {
+		for (var i = 0; i < els.length; i++) {
+			var a = els[i].getAttribute(attr);
+			els[i].classList.toggle("active", (parse ? parseFloat(a) : a) === val);
+		}
+	}
+	var sizeSeg = document.getElementById("solo_size_seg");
+	if (sizeSeg) sync(sizeSeg.querySelectorAll("button"), "data-size", soloSelectedSize, false);
+	var densSeg = document.getElementById("solo_density_seg");
+	if (densSeg) sync(densSeg.querySelectorAll("button"), "data-density", soloSelectedDensity, true);
+	sync(document.querySelectorAll(".solo-size-btn"), "data-size", soloSelectedSize, false);
+	sync(document.querySelectorAll(".solo-density-btn"), "data-density", soloSelectedDensity, true);
+	updateSoloBest();
+}
+// Router calls this on showSoloView; keep the old name as an alias.
+function renderSoloPage() { syncSoloControls(); }
 // Report a clear to the server, which records it as a best for this combo if it's faster.
 function submitSoloResult() {
 	if (!soloSession || !soloSession.startTime || typeof socket === "undefined") return;
@@ -86,6 +112,7 @@ function countSoloSafeRevealed() {
 function startSolo(size) {
 	enterGameFullscreen();
 	soloSelectedSize = size || soloSelectedSize || "medium";
+	syncSoloControls();
 	socket.emit("request_solo_board", { size: soloSelectedSize, density: soloSelectedDensity });
 }
 
@@ -97,9 +124,9 @@ function exitSolo() {
 	myState = null;
 	prevPlayerState = null;
 	boardDecoder = null;
-	// Solo lives at /practice. navigate() routes even when the path is unchanged, so calling it
+	// Solo lives at /solo. navigate() routes even when the path is unchanged, so calling it
 	// unconditionally drives the view and keeps the URL in sync.
-	navigate("/practice");
+	navigate("/solo");
 }
 
 function startSoloTimer() {
@@ -185,7 +212,7 @@ function showSoloOutcome(won) {
 
 	var back = document.createElement("button");
 	back.className = "btn btn-secondary";
-	back.textContent = "Back to Practice";
+	back.textContent = "Back to Solo";
 	back.addEventListener("click", exitSolo);
 	actions.appendChild(back);
 
