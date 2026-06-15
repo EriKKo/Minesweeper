@@ -51,6 +51,12 @@ function renderLeaderboard(players) {
 			rank.textContent = (i + 1);
 			li.appendChild(rank);
 
+			if (typeof buildAvatarChip === "function") {
+				var chip = buildAvatarChip(p.avatar_color || DEFAULT_AVATAR_COLOR, p.country || null, 24);
+				chip.classList.add("lb-avatar");
+				li.appendChild(chip);
+			}
+
 			var name = document.createElement("span");
 			name.className = "lb-name";
 			name.textContent = p.name;

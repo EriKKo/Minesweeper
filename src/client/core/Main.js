@@ -71,12 +71,38 @@ function playerLabel(name, progress) {
 	return (name || "") + "  ·  " + Math.round((progress || 0) * 100) + "%";
 }
 
+// Set an in-game name tag from a broadcast game-snapshot, with an avatar chip (flag + country). The
+// chip canvas is cached on the element and only rebuilt when the player/avatar/country changes — this
+// runs every draw_board frame, so we must not recreate a canvas per frame. Pass a falsy `g` to clear.
+function setHudName(el, g) {
+	if (!el) return;
+	if (!g) { el.innerHTML = ""; el._chipKey = null; el._textNode = null; return; }
+	var key = (g.id || "") + "|" + (g.avatar || "") + "|" + (g.country || "");
+	if (el._chipKey !== key || !el._textNode) {
+		el._chipKey = key;
+		el.innerHTML = "";
+		if (typeof buildAvatarChip === "function") {
+			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR_COLOR, g.country || null, 18);
+			ch.classList.add("hud-avatar");
+			el.appendChild(ch);
+		}
+		var t = document.createElement("span"); t.className = "hud-name-text";
+		el.appendChild(t); el._textNode = t;
+	}
+	el._textNode.textContent = playerLabel(g.playerName, g.progress);
+}
+
 // --- 1v1 duel battle HUD: identity panels (rank badge + name + tier), per-board progress bars,
 // and the center tug-of-war bar + leader glow. ---
 function fillDuelId(el, p, isYou) {
 	if (!el) return;
 	el.innerHTML = "";
 	if (!p) return;
+	if (typeof buildAvatarChip === "function") {
+		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 30);
+		chip.classList.add("duel-id-avatar");
+		el.appendChild(chip);
+	}
 	if (typeof p.rating === "number" && typeof buildRankBadge === "function") el.appendChild(buildRankBadge(p.rating));
 	var info = document.createElement("div");
 	info.className = "duel-id-info";
@@ -1706,11 +1732,11 @@ function repaintSpectatorView(games) {
 		var slot = slots[i - 1];
 		var opp = i <= 2 ? opponents[i - 1] : null;
 		if (opp) {
-			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
+			setHudName(nameEl, opp);
 			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) { slot.style.display = ""; slot.dataset.pid = opp.id || ""; }
 		} else {
-			nameEl.textContent = "";
+			setHudName(nameEl, null);
 			clearCanvas(canvasEl);
 			if (slot) { slot.style.display = "none"; delete slot.dataset.pid; }
 		}
@@ -1746,7 +1772,7 @@ socket.on("draw_board", function(data) {
 		paintSpectatorBigBoard(games);
 	}
 	if (me) {
-		document.getElementById("player_name0").textContent = playerLabel(me.playerName, me.progress);
+		setHudName(document.getElementById("player_name0"), me);
 		if (myState) {
 			for (var rr = 0; rr < rows; rr++) {
 				for (var cc = 0; cc < cols; cc++) {
@@ -1816,14 +1842,14 @@ socket.on("draw_board", function(data) {
 		var slot = slots[i - 1];
 		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
-			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
+			setHudName(nameEl, opp);
 			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";
 			}
 		} else {
-			nameEl.textContent = "";
+			setHudName(nameEl, null);
 			clearCanvas(canvasEl);
 			if (slot) {
 				slot.style.display = "none";

@@ -491,6 +491,25 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .replay-speed { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.55rem; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 0.8rem; }
 .replay-speed.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* --- Avatars (recoloured game flag) + country flags --- */
+.avatar-chip { display: inline-flex; align-items: center; gap: 0.35rem; flex: 0 0 auto; line-height: 0; }
+.avatar-canvas { display: block; border-radius: 28%; }
+.country-flag { display: block; width: auto; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+.profile-avatar { margin-right: 0.15rem; }
+.lb-avatar, .dash-avatar, .hud-avatar { vertical-align: middle; }
+/* in-game name tag now holds a chip + text */
+[id^="player_name"] { display: inline-flex; align-items: center; gap: 0.4rem; }
+.hud-name-text { white-space: nowrap; }
+/* Appearance picker (profile) */
+.appearance { display: flex; flex-direction: column; gap: 0.5rem; }
+.appearance-sub { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 0.35rem; }
+.avatar-swatches { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.avatar-swatch { padding: 0.25rem; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; line-height: 0; transition: border-color .12s, transform .12s; }
+.avatar-swatch:hover { border-color: var(--muted); transform: translateY(-1px); }
+.avatar-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.country-select { max-width: 22rem; padding: 0.5rem 0.7rem; border-radius: 9px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font: inherit; cursor: pointer; }
+.country-select:focus { outline: none; border-color: var(--accent); }
+
 /* --- Achievement unlock toasts --- */
 .toast-stack { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
 .ach-toast {
@@ -692,7 +711,7 @@ main {
 
 .lb-row {
 	display: grid;
-	grid-template-columns: 1.75rem 1fr auto auto;
+	grid-template-columns: 1.75rem auto 1fr auto auto;
 	align-items: center;
 	gap: 0.6rem;
 	padding: 0.45rem 0.7rem;

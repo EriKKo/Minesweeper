@@ -8,6 +8,7 @@ var botPlayer = require("../engine/BotPlayer");
 var gameUtil = require("./gameUtil");
 
 var names = appState.names, rooms = appState.rooms, roundDeadlines = appState.roundDeadlines;
+var avatars = appState.avatars, countries = appState.countries;
 var games = appState.games, accounts = appState.accounts, botRating = appState.botRating, botDifficulty = appState.botDifficulty;
 var isBot = gameUtil.isBot, accountRating = gameUtil.accountRating;
 
@@ -90,6 +91,8 @@ function buildRoomState(room) {
 			return {
 				id: pid,
 				name: names[pid] || "Anonymous",
+				avatar: avatars[pid] || null,
+				country: countries[pid] || null,
 				ready: room.isReady(pid),
 				score: room.scores[pid] || 0,
 				isOwner: pid === room.owner,

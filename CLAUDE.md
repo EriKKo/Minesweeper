@@ -558,6 +558,22 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `#skins_card`), **admin-only** (gated on `dev || account.isAdmin`, like the Admin nav link — so
   non-admins keep classic).
   New skins = a `BOARD_SKINS` entry (+ optional CSS frame); image texture packs extend the same hook.
+- **Avatars + country** — account-level cosmetic identity, mirroring the skin pattern. The **avatar** is
+  the in-game flag recoloured to `avatar_color` (a `#rrggbb` cloth colour; null → default red), rendered
+  on canvas by `buildAvatarCanvas` (no image assets). The **country** is an ISO-3166 alpha-2 code; its
+  flag is an SVG under `/flags/<code>.svg` (copied from the trevelur project). Country **names are not
+  hardcoded** — `Intl.DisplayNames` resolves them at runtime in `core/Countries.js` (which also lists the
+  flag codes + `countryFlagSrc`); this both avoids a maintenance burden and sidesteps content-filter
+  false-positives on long disputed-territory name lists. `buildAvatarChip(color, country, px)` (BoardRender)
+  is the reusable avatar+flag element used on the **profile** (header + an Appearance picker: colour
+  swatches from `AVATAR_COLORS` + a country `<select>`), the **leaderboard** rows, the **home** dashboard
+  identity, the **in-game** HUD (duel identity panels + the `player_name0..5` board tags — `setHudName`
+  caches the chip so it isn't rebuilt every `draw_board` frame), and **replays** (format **v3** stores
+  per-player avatar+country). **Data flow:** `users.avatar_color`/`country` columns; `db.setAvatarColor`/
+  `setCountry`; `appState.avatars`/`countries` maps populated in `loginSocket`; `set_avatar`/`set_country`
+  handlers (session.js, validated) persist + update the live game + rebroadcast; `gameForBroadcast` and the
+  room-state players list carry `avatar`/`country`; `topPlayers` selects them; the `authenticated` payload
+  carries `avatarColor`/`country`; disconnect clears the maps.
   (Derived from a Figma "futuristic board" export, translated into this canvas palette + CSS frame.)
   **Home-page previews always show classic:** `buildLearnPuzzle` takes a `spec.skin` (→ `learnBoardView`
   → `BoardView.skin`); the dashboard mode previews (`renderModeBoardPreviews`) and the daily-puzzle hero

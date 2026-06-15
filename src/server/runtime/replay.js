@@ -19,7 +19,8 @@ var db = require("../db");
 var appState = require("./appState");
 var gameUtil = require("./gameUtil");
 
-var REPLAY_VERSION = 2; // v2 adds a per-player board-skin id to the header (v1 readers default to classic)
+// v2 added a per-player board-skin id; v3 adds avatar cloth colour + country code (older readers default).
+var REPLAY_VERSION = 3;
 
 function shouldCapture(room) {
 	return !!(room && room.ranked && room.rankedMode !== "territory" && room.gameMode !== "territory");
@@ -33,7 +34,9 @@ function describePlayer(pid) {
 		name: appState.names[pid] || "Anonymous",
 		isBot: !!gameUtil.isBot(pid),
 		userId: (acc && acc.userId) || null,
-		skin: appState.skins[pid] || null // board skin active at match time (null → default/classic)
+		skin: appState.skins[pid] || null, // board skin active at match time (null → default/classic)
+		avatar: appState.avatars[pid] || null, // avatar cloth colour
+		country: appState.countries[pid] || null // ISO country code
 	};
 }
 
@@ -143,6 +146,8 @@ function serialize(rp, winnerIndex) {
 		w.u8(pl.isBot ? 1 : 0);
 		w.varint(pl.userId || 0);
 		w.str(pl.skin || ""); // v2: board skin id ("" → default)
+		w.str(pl.avatar || ""); // v3: avatar cloth colour ("" → default)
+		w.str(pl.country || ""); // v3: country code ("" → none)
 	}
 	var bitLen = Math.ceil((rp.rows * rp.cols) / 8);
 	for (var ri = 0; ri < rp.rounds.length; ri++) {
@@ -197,7 +202,7 @@ function finishMatch(room, seriesStandings) {
 			mineCount: rp.mineCount,
 			gameCount: rp.rounds.length,
 			winnerId: winnerIndex >= 0 ? (rp.players[winnerIndex].userId || null) : null,
-			players: rp.players.map(function(p) { return { name: p.name, bot: p.isBot, userId: p.userId, skin: p.skin || null }; }),
+			players: rp.players.map(function(p) { return { name: p.name, bot: p.isBot, userId: p.userId, skin: p.skin || null, avatar: p.avatar || null, country: p.country || null }; }),
 			format: REPLAY_VERSION,
 			rawBytes: raw.length
 		};

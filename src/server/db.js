@@ -127,6 +127,10 @@ addColumnIfMissing("users", "tournament_provisional", "INTEGER NOT NULL DEFAULT 
 // Bronze with fresh placement games. One-shot, guarded by ranked_reset_v2 so it runs once per
 // row (a player who earns rating after the reset keeps it across reboots).
 addColumnIfMissing("users", "ranked_reset_v2", "INTEGER NOT NULL DEFAULT 0");
+// Cosmetic identity: avatar is the in-game flag recoloured to `avatar_color` (a #rrggbb cloth colour;
+// null → the default red). `country` is an ISO-3166 alpha-2 code (null → none), shown as a flag emoji.
+addColumnIfMissing("users", "avatar_color", "TEXT");
+addColumnIfMissing("users", "country", "TEXT");
 try {
 	db.exec(
 		"UPDATE users SET rating_sprint = 0, rating_standard = 0, rating_tournament = 0, " +
@@ -636,9 +640,12 @@ function topPlayers(limit, mode) {
 	var ratingExpr = col || "MAX(rating_sprint, rating_standard, rating_tournament, rating_territory)";
 	return db.prepare(
 		"SELECT COALESCE(display_name, name) AS name, " + ratingExpr + " AS rating, " +
-		"wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
+		"wins, played, avatar_color, country FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
 	).all(limit || 20);
 }
+// Cosmetic identity setters (avatar cloth colour + country code). Null clears.
+function setAvatarColor(userId, color) { db.prepare("UPDATE users SET avatar_color = ? WHERE id = ?").run(color || null, userId); }
+function setCountry(userId, country) { db.prepare("UPDATE users SET country = ? WHERE id = ?").run(country || null, userId); }
 
 // --- Ranked match history + incremental player stats ---------------------------------------------
 // Both writes are non-critical — never let them break rating application / match-end, so each
@@ -1404,6 +1411,8 @@ module.exports = {
 	setRating: setRating,
 	deleteSession: deleteSession,
 	topPlayers: topPlayers,
+	setAvatarColor: setAvatarColor,
+	setCountry: setCountry,
 	recordMatch: recordMatch,
 	recordClear: recordClear,
 	getMatchHistory: getMatchHistory,

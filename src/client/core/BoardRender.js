@@ -39,6 +39,9 @@ var BOARD_SKINS = {
 	}
 };
 var BOARD_SKIN_LIST = ["classic", "tactical"];
+// Avatar cloth colours — the in-game flag recoloured. First entry is the default (classic red flag).
+var AVATAR_COLORS = ["#ef4444", "#f97316", "#fbbf24", "#22c55e", "#22d3ee", "#3b82f6", "#a78bfa", "#ec4899", "#e5e7eb", "#64748b"];
+var DEFAULT_AVATAR_COLOR = "#ef4444";
 // localBoardSkin = the skin the *local* user picked (their own board + UI previews).
 // Other players' boards render in THEIR skin (passed per-BoardView); bots/unknown fall
 // back to classic. Each BoardView.draw() loads its skin's palette into these vars for the
@@ -446,6 +449,45 @@ function drawFlag(ctx, w, h, scale, clothColor) {
 	ctx.fillStyle = clothColor || COLOR_FLAG_CLOTH;
 	ctx.fill();
 	ctx.restore();
+}
+
+// --- Avatars -------------------------------------------------------------------------------------
+// The avatar is the in-game flag recoloured to the player's `avatar_color`, on a rounded tile. Rendered
+// to a canvas so it matches the board art exactly (no image assets). Country flags are separate <img>s.
+function buildAvatarCanvas(color, px) {
+	px = px || 28;
+	var dpr = window.devicePixelRatio || 1;
+	var c = document.createElement("canvas");
+	c.className = "avatar-canvas";
+	c.width = Math.round(px * dpr); c.height = Math.round(px * dpr);
+	c.style.width = px + "px"; c.style.height = px + "px";
+	var ctx = c.getContext("2d");
+	ctx.scale(dpr, dpr);
+	setPaletteVars("classic"); // ensure the flag pole colour is defined (board draws reset this per-paint)
+	roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28);
+	ctx.fillStyle = "#1a2240"; ctx.fill();
+	ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke();
+	drawFlag(ctx, px, px, px >= 44 ? 1.15 : 1.0, color || DEFAULT_AVATAR_COLOR);
+	return c;
+}
+
+// A reusable identity chip: the flag-avatar tile plus (optionally) the player's country flag. Used on
+// the profile, leaderboard, home card, match panels, and replays.
+function buildAvatarChip(color, country, px) {
+	var wrap = document.createElement("span");
+	wrap.className = "avatar-chip";
+	wrap.appendChild(buildAvatarCanvas(color, px || 28));
+	if (country && typeof countryFlagSrc === "function") {
+		var img = document.createElement("img");
+		img.className = "country-flag";
+		img.src = countryFlagSrc(country);
+		img.alt = country;
+		img.title = (typeof countryName === "function") ? countryName(country) : country;
+		img.loading = "lazy";
+		img.style.height = Math.round((px || 28) * 0.62) + "px"; // flag scales with the avatar
+		wrap.appendChild(img);
+	}
+	return wrap;
 }
 
 // Territory structure charge gauge: a thin bar across the bottom of the cell, filling 0..1 in the owner

@@ -12,6 +12,7 @@ var roomState = require("./roomState");
 var gameUtil = require("./gameUtil");
 
 var accounts = appState.accounts, names = appState.names, games = appState.games, roomMapping = appState.roomMapping, skins = appState.skins;
+var avatars = appState.avatars, countries = appState.countries;
 var updateDraw = gameUtil.updateDraw;
 
 var PROVISIONAL_GAMES;
@@ -26,8 +27,12 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 	var displayName = db.displayNameOf(user); // editable display_name, falling back to the legacy/guest name
 	var isFirst = !names[playerID];
 	names[playerID] = displayName;
+	avatars[playerID] = user.avatar_color || null;
+	countries[playerID] = user.country || null;
 	if (games[playerID]) {
 		games[playerID].playerName = displayName;
+		games[playerID].avatar = avatars[playerID];
+		games[playerID].country = countries[playerID];
 		updateDraw(roomMapping[playerID]);
 	}
 	var today = db.todayUtc();
@@ -37,6 +42,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
 		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory,
 		avatarUrl: user.avatar_url,
+		avatarColor: user.avatar_color || null,
+		country: user.country || null,
 		wins: user.wins,
 		played: user.played,
 		createdAt: user.created_at, // for "Member since" on the profile
@@ -97,6 +104,30 @@ function registerSocketHandlers(socket, playerID) {
 			games[playerID].skin = skins[playerID];
 			updateDraw(roomMapping[playerID]);
 		}
+	});
+
+	// Avatar cloth colour (the in-game flag, recoloured). Persisted on the account + mirrored to opponents.
+	socket.on("set_avatar", function(data) {
+		var acc = accounts[playerID];
+		if (!acc) return;
+		var color = (data && typeof data.color === "string") ? data.color.trim() : "";
+		if (color && !/^#[0-9a-f]{6}$/i.test(color)) return; // only #rrggbb (or "" to clear → default red)
+		var value = color || null;
+		db.setAvatarColor(acc.userId, value);
+		avatars[playerID] = value;
+		if (games[playerID]) { games[playerID].avatar = value; updateDraw(roomMapping[playerID]); }
+	});
+
+	// Country (ISO-3166 alpha-2). Persisted on the account + mirrored to opponents.
+	socket.on("set_country", function(data) {
+		var acc = accounts[playerID];
+		if (!acc) return;
+		var country = (data && typeof data.country === "string") ? data.country.trim().toUpperCase() : "";
+		if (country && !/^[A-Z]{2}$/.test(country)) return; // two letters, or "" to clear
+		var value = country || null;
+		db.setCountry(acc.userId, value);
+		countries[playerID] = value;
+		if (games[playerID]) { games[playerID].country = value; updateDraw(roomMapping[playerID]); }
 	});
 
 	// A solo/racing board cleared with no flag and/or no direct reveal (chord only) — challenge counters.

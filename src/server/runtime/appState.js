@@ -24,6 +24,8 @@ module.exports = {
 	sockets: {},        // playerID -> socket
 	names: {},          // playerID -> display name
 	skins: {},          // playerID -> board skin id (renders each player's board in their own skin)
+	avatars: {},        // playerID -> avatar cloth colour (#rrggbb; null → default red flag)
+	countries: {},      // playerID -> ISO-3166 alpha-2 country code (null → none)
 	accounts: {},       // playerID -> { userId, token, ratings… } for signed-in players
 
 	// --- round/series timers ---

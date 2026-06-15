@@ -120,9 +120,14 @@ function renderProfile() {
 	if (tabsBar) tabsBar.style.display = "";
 	card.innerHTML = "";
 
-	// --- Identity: overall rank badge + name + tier/rating + member since ---
+	// --- Identity: avatar + country flag, overall rank badge + name + tier/rating + member since ---
 	var summary = document.createElement("div");
 	summary.className = "profile-summary";
+	if (typeof buildAvatarChip === "function") {
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 56);
+		chip.classList.add("profile-avatar");
+		summary.appendChild(chip);
+	}
 	var overall = overallRating(account); // best across modes — the headline rank
 	summary.appendChild(buildRankBadge(overall));
 	var text = document.createElement("div");
@@ -179,12 +184,70 @@ function renderProfile() {
 	card.appendChild(profileSectionTitle("Free-play best times"));
 	card.appendChild(profileBestsGrid(account.soloBests || {}));
 
+	// --- Appearance: avatar flag colour + country ---
+	card.appendChild(profileSectionTitle("Appearance"));
+	card.appendChild(renderAppearance());
+
 	profileStats = {}; // cleared until this account's history aggregates arrive (avoids cross-account staleness)
 	renderAchievements();
 	// Rating graph + recent games (incl. replay links) + achievement aggregates come from
 	// get_match_history → renderMatchHistory.
 	if (typeof socket !== "undefined") socket.emit("get_match_history");
 	selectProfileTab(profileTab); // restore the active tab (defaults to Overview)
+}
+
+// Avatar (recolored flag) palette + country dropdown. Choices persist via set_avatar / set_country and
+// update the header chip in place (no full re-render → no refetch/toast churn).
+function renderAppearance() {
+	var wrap = document.createElement("div");
+	wrap.className = "appearance";
+
+	var aLabel = document.createElement("div"); aLabel.className = "appearance-sub"; aLabel.textContent = "Avatar flag"; wrap.appendChild(aLabel);
+	var swatches = document.createElement("div"); swatches.className = "avatar-swatches";
+	var current = (account.avatarColor || DEFAULT_AVATAR_COLOR).toLowerCase();
+	AVATAR_COLORS.forEach(function(col) {
+		var b = document.createElement("button"); b.type = "button";
+		b.className = "avatar-swatch" + (col.toLowerCase() === current ? " active" : "");
+		b.dataset.color = col;
+		b.appendChild(buildAvatarCanvas(col, 40));
+		b.addEventListener("click", function() { setAvatarColor(col); });
+		swatches.appendChild(b);
+	});
+	wrap.appendChild(swatches);
+
+	var cLabel = document.createElement("div"); cLabel.className = "appearance-sub"; cLabel.textContent = "Country"; wrap.appendChild(cLabel);
+	var sel = document.createElement("select"); sel.className = "country-select";
+	var none = document.createElement("option"); none.value = ""; none.textContent = "— None —"; sel.appendChild(none);
+	var cur = (account.country || "").toLowerCase();
+	countryList().forEach(function(c) {
+		var o = document.createElement("option"); o.value = c.code; o.textContent = c.name;
+		if (c.code === cur) o.selected = true;
+		sel.appendChild(o);
+	});
+	sel.addEventListener("change", function() { setCountry(sel.value); });
+	wrap.appendChild(sel);
+	return wrap;
+}
+
+function refreshProfileAvatar() {
+	var head = document.querySelector("#profile_card .profile-avatar");
+	if (head && typeof buildAvatarChip === "function") {
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 56);
+		chip.classList.add("profile-avatar");
+		head.replaceWith(chip);
+	}
+}
+function setAvatarColor(col) {
+	account.avatarColor = col;
+	if (typeof socket !== "undefined") socket.emit("set_avatar", { color: col });
+	refreshProfileAvatar();
+	var btns = document.querySelectorAll(".avatar-swatch");
+	for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", (btns[i].dataset.color || "").toLowerCase() === col.toLowerCase());
+}
+function setCountry(code) {
+	account.country = code || null;
+	if (typeof socket !== "undefined") socket.emit("set_country", { country: code });
+	refreshProfileAvatar();
 }
 
 function formatMemberSince(ms) {
@@ -626,6 +689,16 @@ function renderDashIdentity() {
 		if (lineEl) lineEl.textContent = "Sign in to track your rank.";
 		if (statsEl) statsEl.innerHTML = "";
 		return;
+	}
+	// Avatar + country flag at the start of the name row (cleared first so re-renders don't stack).
+	var nameRow = nameEl.parentNode;
+	if (nameRow) {
+		var old = nameRow.querySelector(".dash-avatar"); if (old) old.remove();
+		if (typeof buildAvatarChip === "function") {
+			var ch = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 32);
+			ch.classList.add("dash-avatar");
+			nameRow.insertBefore(ch, nameRow.firstChild);
+		}
 	}
 	var overall = overallRating(account);
 	var t = tierFor(overall, account.provisional);

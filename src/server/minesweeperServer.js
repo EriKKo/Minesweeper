@@ -97,6 +97,8 @@ var nextRoomId = 1;
 var sockets = appState.sockets;
 var names = appState.names;
 var skins = appState.skins; // playerID -> board skin id
+var avatars = appState.avatars; // playerID -> avatar cloth colour
+var countries = appState.countries; // playerID -> ISO country code
 var accounts = appState.accounts; // socketId -> { userId, token } for signed-in players
 var nextGameTimers = appState.nextGameTimers;
 var roundTimers = appState.roundTimers;
@@ -557,6 +559,8 @@ function createPlayerGame(playerID, gameRows, gameCols) {
 	var game = gameCreator.createGame(0, gameRows, gameCols);
 	game.playerName = names[playerID] || "Anonymous";
 	game.skin = skins[playerID] || null; // null → opponents render this board in the default skin (bots, too)
+	game.avatar = avatars[playerID] || null; // avatar cloth colour, broadcast so panels show each player's flag
+	game.country = countries[playerID] || null;
 	game.win = function() { gameWin(playerID); };
 	game.mineHit = function() { gameMineHit(playerID); };
 	return game;
@@ -1016,6 +1020,8 @@ io.on("connection", function (socket) {
 		delete sockets[playerID];
 		delete names[playerID];
 		delete skins[playerID];
+		delete avatars[playerID];
+		delete countries[playerID];
 		delete accounts[playerID]; // session stays valid in the DB for reconnect
 	});
 });

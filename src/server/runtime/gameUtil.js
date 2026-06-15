@@ -31,6 +31,8 @@ function gameForBroadcast(g, pid) {
 		id: pid,
 		playerName: g.playerName,
 		skin: g.skin || null,
+		avatar: g.avatar || null,
+		country: g.country || null,
 		state: g.state,
 		finished: g.finished,
 		finishedAt: g.finishedAt,

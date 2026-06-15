@@ -41,6 +41,7 @@
 		for (var p = 0; p < pc; p++) {
 			var pl = { name: rd.str(), bot: !!rd.u8(), userId: rd.varint() || null };
 			pl.skin = version >= 2 ? (rd.str() || null) : null; // v2+ stores each player's board skin
+			if (version >= 3) { pl.avatar = rd.str() || null; pl.country = rd.str() || null; } // v3+ avatar + country
 			players.push(pl);
 		}
 		var bitLen = Math.ceil((rows * cols) / 8);
@@ -155,6 +156,7 @@
 		var pl = rep.players[p];
 		var wrap = document.createElement("div"); wrap.className = "replay-board";
 		var label = document.createElement("div"); label.className = "replay-board-label";
+		if (typeof buildAvatarChip === "function") label.appendChild(buildAvatarChip(pl.avatar || DEFAULT_AVATAR_COLOR, pl.country || null, px >= 20 ? 26 : 18));
 		var nm = document.createElement("span"); nm.className = "replay-board-name"; nm.textContent = pl.name;
 		label.appendChild(nm);
 		if (pl.bot) { var bt = document.createElement("span"); bt.className = "replay-bot-tag"; bt.textContent = "BOT"; label.appendChild(bt); }
