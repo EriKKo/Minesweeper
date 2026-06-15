@@ -39,11 +39,15 @@ var BOARD_SKINS = {
 	}
 };
 var BOARD_SKIN_LIST = ["classic", "tactical"];
-var currentBoardSkin = "classic";
+// localBoardSkin = the skin the *local* user picked (their own board + UI previews).
+// Other players' boards render in THEIR skin (passed per-BoardView); bots/unknown fall
+// back to classic. Each BoardView.draw() loads its skin's palette into these vars for the
+// duration of the paint, then restores localBoardSkin — so the draw helpers stay simple.
+var localBoardSkin = "classic";
 
-function applyBoardSkin(id) {
-	if (!BOARD_SKINS[id]) id = "classic";
-	var s = BOARD_SKINS[id];
+// Load a skin's colours into the module palette vars the draw helpers read.
+function setPaletteVars(id) {
+	var s = BOARD_SKINS[id] || BOARD_SKINS.classic;
 	COLOR_MINE = s.mine;
 	NUMBER_COLORS = s.numbers;
 	COLOR_KNOWN_BG = s.knownBg; COLOR_KNOWN_EDGE = s.knownEdge;
@@ -51,14 +55,23 @@ function applyBoardSkin(id) {
 	COLOR_UNKNOWN_HILITE = s.unknownHilite;
 	COLOR_FLAG_CLOTH = s.flagCloth; COLOR_FLAG_POLE = s.flagPole;
 	NUMBER_FONT = s.font; NUMBER_GLOW = s.glow;
-	currentBoardSkin = id;
+}
+
+// Set the LOCAL user's skin: drives their own board, the CSS frame (body[data-board-skin]),
+// and the resting palette. Other boards override per-draw.
+function applyBoardSkin(id) {
+	if (!BOARD_SKINS[id]) id = "classic";
+	localBoardSkin = id;
+	setPaletteVars(id);
 	if (document.body) document.body.setAttribute("data-board-skin", id);
 }
 
-// Persist + apply + repaint any board currently on screen + refresh the picker.
+// User picked a skin in the Profile picker: persist, apply, tell the server (so opponents
+// see it), repaint the live board, and refresh the picker's active state.
 function setBoardSkin(id) {
 	applyBoardSkin(id);
-	try { localStorage.setItem("ms_board_skin", currentBoardSkin); } catch (e) {}
+	try { localStorage.setItem("ms_board_skin", localBoardSkin); } catch (e) {}
+	if (typeof socket !== "undefined" && socket) socket.emit("set_skin", { skin: localBoardSkin });
 	if (typeof myState !== "undefined" && myState && typeof redrawOwnBoardWithFocus === "function") redrawOwnBoardWithFocus();
 	if (typeof renderBoardSkins === "function") renderBoardSkins();
 }
@@ -127,6 +140,9 @@ function BoardView(canvas, rows, cols, state, cellAt, opts) {
 	this.hideClue = opts.hideClue || null;
 	this.structureCharge = opts.structureCharge || null;
 	this.structureBuild = opts.structureBuild || null;
+	// Which skin to paint this board in (null → the local user's skin). Opponent boards
+	// pass the owner's skin so each player renders in their own theme.
+	this.skinId = opts.skin || null;
 	this._underlays = [];
 	this._overlays = [];
 }
@@ -148,6 +164,9 @@ BoardView.prototype.draw = function() {
 	var ctx = this.canvas.getContext("2d");
 	var sw = this.canvas.width / this.cols, sh = this.canvas.height / this.rows;
 	ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+	// Paint this board in its own skin, then restore the local user's skin. Rendering is
+	// synchronous so the swap can't interleave with another board's draw.
+	setPaletteVars(this.skinId || localBoardSkin);
 	var i, r, c;
 	for (i = 0; i < this._underlays.length; i++) this._underlays[i](ctx, sw, sh);
 	for (r = 0; r < this.rows; r++) {
@@ -157,6 +176,7 @@ BoardView.prototype.draw = function() {
 		}
 	}
 	for (i = 0; i < this._overlays.length; i++) this._overlays[i](ctx, sw, sh);
+	setPaletteVars(localBoardSkin);
 };
 
 // Create a DPR-scaled canvas sized to a cols×rows grid of `cellPx` logical px.

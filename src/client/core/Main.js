@@ -738,6 +738,7 @@ var liveProgress = {};         // playerId -> { progress, finished, finishedAt }
 var lastGames = null;          // last draw_board.games — used to repaint the duel opponent board on resize
 var iAmEliminated = null;      // tournament: { round, place, totalParticipants } once cut
 var spectatorTarget = null;    // when iAmEliminated, the player id whose board is rendered on slot 0
+var spectatorTargetSkin = null; // and the skin to paint that watched board in (their skin, not yours)
 // soloSession / soloTimerHandle / soloSelectedSize live in Solo.js.
 var elimPanelDismissed = false;// player chose "Keep watching" — don't redraw the panel each round
 var roundStartTime = 0;        // ms timestamp when the current round actually went live (after GO!)
@@ -1422,7 +1423,7 @@ function paintOpponentCovered() {
 				slot.classList.toggle("opponent-searching", searching && !p);
 			}
 			if (nameEl) nameEl.textContent = p ? playerLabel(p.name, 0) : "Searching…";
-			if (cv) drawBoardStatic(covered, cv);
+			if (cv) drawBoardStatic(covered, cv, (p && p.skin) || "classic");
 			setOppRankBadge(slot, p && typeof p.rating === "number" ? p.rating : null);
 		} else if (slot) {
 			slot.style.display = "none";
@@ -1639,6 +1640,7 @@ function paintSpectatorBigBoard(games) {
 		nameEl0.textContent = "Spectating " + target.playerName;
 		myState = target.state;
 		prevPlayerState = cloneState(target.state);
+		spectatorTargetSkin = target.skin || "classic"; // watched board paints in its owner's skin
 		renderPlayerBoard();
 	} else {
 		nameEl0.textContent = "Eliminated";
@@ -1669,7 +1671,7 @@ function repaintSpectatorView(games) {
 		var opp = i <= 2 ? opponents[i - 1] : null;
 		if (opp) {
 			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
-			drawBoardStatic(opp.state, canvasEl);
+			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) { slot.style.display = ""; slot.dataset.pid = opp.id || ""; }
 		} else {
 			nameEl.textContent = "";
@@ -1777,7 +1779,7 @@ socket.on("draw_board", function(data) {
 		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
 			nameEl.textContent = playerLabel(opp.playerName, opp.progress);
-			drawBoardStatic(opp.state, canvasEl);
+			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";

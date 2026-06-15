@@ -30,6 +30,7 @@ function gameForBroadcast(g, pid) {
 	return {
 		id: pid,
 		playerName: g.playerName,
+		skin: g.skin || null,
 		state: g.state,
 		finished: g.finished,
 		finishedAt: g.finishedAt,

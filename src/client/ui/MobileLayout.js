@@ -209,7 +209,7 @@ function refreshPlayerBoardSize() {
 	// the last frame, since resizing a canvas clears it and the opponent may not be moving.
 	if (typeof sizeOpponentCanvases === "function") sizeOpponentCanvases();
 	if (typeof isDuoRacing === "function" && isDuoRacing() && lastGames && lastGames[1]) {
-		drawBoardStatic(lastGames[1].state, document.getElementById("game1"));
+		drawBoardStatic(lastGames[1].state, document.getElementById("game1"), lastGames[1].skin || "classic");
 	}
 }
 var playerBoardResizeRaf = null;

@@ -26,7 +26,7 @@ function renderBoardSkins() {
 		var s = BOARD_SKINS[id];
 		var btn = document.createElement("button");
 		btn.type = "button";
-		btn.className = "skin-option" + (id === currentBoardSkin ? " active" : "");
+		btn.className = "skin-option" + (id === localBoardSkin ? " active" : "");
 		var prev = document.createElement("span");
 		prev.className = "skin-preview";
 		var unknown = document.createElement("span");

@@ -151,6 +151,9 @@ signOutButton.addEventListener("click", function() {
 // Socket handler bodies — inline registers the events and calls these.
 function applyConnected(data) {
 	id = data.id;
+	// Tell the server our board skin so opponents render our board in it (re-sent on
+	// every (re)connect; setBoardSkin re-emits on change).
+	if (typeof localBoardSkin !== "undefined") socket.emit("set_skin", { skin: localBoardSkin });
 	var oauth = (data && data.oauth) || {};
 	googleSigninButton.style.display = oauth.google ? "" : "none";
 	discordSigninButton.style.display = oauth.discord ? "" : "none";

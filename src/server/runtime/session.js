@@ -10,7 +10,7 @@ var db = require("../db");
 var roomState = require("./roomState");
 var gameUtil = require("./gameUtil");
 
-var accounts = appState.accounts, names = appState.names, games = appState.games, roomMapping = appState.roomMapping;
+var accounts = appState.accounts, names = appState.names, games = appState.games, roomMapping = appState.roomMapping, skins = appState.skins;
 var updateDraw = gameUtil.updateDraw;
 
 var PROVISIONAL_GAMES;
@@ -81,6 +81,19 @@ function registerSocketHandlers(socket, playerID) {
 		if (accounts[playerID]) {
 			db.deleteSession(accounts[playerID].token);
 			delete accounts[playerID];
+		}
+	});
+
+	// Board skin: a display preference relayed to opponents so each player's board renders in
+	// their own skin. Stored per-player (like names); mirrored into any live game + rebroadcast.
+	// The id is just a short slug — the client maps unknown ids to its default skin.
+	socket.on("set_skin", function(data) {
+		var skin = (data && typeof data.skin === "string") ? data.skin.trim().slice(0, 32) : "";
+		if (!/^[a-z0-9_-]*$/i.test(skin)) return;
+		skins[playerID] = skin || "classic";
+		if (games[playerID]) {
+			games[playerID].skin = skins[playerID];
+			updateDraw(roomMapping[playerID]);
 		}
 	});
 

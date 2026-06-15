@@ -95,6 +95,7 @@ var rooms = appState.rooms;
 var nextRoomId = 1;
 var sockets = appState.sockets;
 var names = appState.names;
+var skins = appState.skins; // playerID -> board skin id
 var accounts = appState.accounts; // socketId -> { userId, token } for signed-in players
 var nextGameTimers = appState.nextGameTimers;
 var roundTimers = appState.roundTimers;
@@ -548,6 +549,7 @@ function startSeries(room) {
 function createPlayerGame(playerID, gameRows, gameCols) {
 	var game = gameCreator.createGame(0, gameRows, gameCols);
 	game.playerName = names[playerID] || "Anonymous";
+	game.skin = skins[playerID] || null; // null → opponents render this board in the default skin (bots, too)
 	game.win = function() { gameWin(playerID); };
 	game.mineHit = function() { gameMineHit(playerID); };
 	return game;
@@ -1005,6 +1007,7 @@ io.on("connection", function (socket) {
 		botDemo.stopBotDemo(playerID);
 		delete sockets[playerID];
 		delete names[playerID];
+		delete skins[playerID];
 		delete accounts[playerID]; // session stays valid in the DB for reconnect
 	});
 });

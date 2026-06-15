@@ -23,6 +23,7 @@ module.exports = {
 	roomMapping: {},     // playerID -> room
 	sockets: {},        // playerID -> socket
 	names: {},          // playerID -> display name
+	skins: {},          // playerID -> board skin id (renders each player's board in their own skin)
 	accounts: {},       // playerID -> { userId, token, ratings… } for signed-in players
 
 	// --- round/series timers ---

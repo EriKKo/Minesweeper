@@ -48,8 +48,9 @@ function redrawOwnBoardWithFocus() {
 // The live game's board: a BoardView over the decoded board (boardCell) plus the
 // territory-only accessors the renderer consults when present (no-ops in racing/
 // solo/puzzle, which share this path). Callers add per-cell animation and overlays.
-function liveBoardView(canvas, state) {
+function liveBoardView(canvas, state, skinId) {
 	return new BoardView(canvas, rows, cols, state, boardCell, {
+		skin: skinId || null,
 		// Territory mode tints claimed cells by owner colour; gated on territoryActive so the
 		// colours never bleed into the racing/solo/puzzle boards (they share this render path).
 		getOwner: function(r, c) { return (typeof territoryActive !== "undefined" && territoryActive && territoryOwnerColors) ? territoryOwnerColors[r][c] : null; },
@@ -88,8 +89,10 @@ function liveBoardView(canvas, state) {
 }
 
 // ---- whole boards ------------------------------------------------------
-function drawBoardStatic(state, canvas) {
-	liveBoardView(canvas, state).draw();
+// skinId: the board owner's skin (opponents render in their own theme; pass "classic"
+// for bots / unknown so they never inherit the local user's skin).
+function drawBoardStatic(state, canvas, skinId) {
+	liveBoardView(canvas, state, skinId).draw();
 }
 
 function renderPlayerBoard() {
@@ -98,7 +101,10 @@ function renderPlayerBoard() {
 	// countdown / ranked match-reveal board. A null myState clears the canvas (no game).
 	if (myState) {
 		var now = performance.now();
-		var bv = liveBoardView(playerCanvas, myState);
+		// Normally your own board uses your skin; while spectating (eliminated) slot 0 shows a
+		// rival's board, so paint it in their skin instead.
+		var ownSkin = (typeof iAmEliminated !== "undefined" && iAmEliminated && typeof spectatorTargetSkin !== "undefined" && spectatorTargetSkin) ? spectatorTargetSkin : localBoardSkin;
+		var bv = liveBoardView(playerCanvas, myState, ownSkin);
 		bv.animAt = function(r, c) {
 			var a = cellAnims[r + "," + c];
 			if (!a) return null;
