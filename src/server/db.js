@@ -194,6 +194,34 @@ db.exec(
 	");" +
 	"CREATE INDEX IF NOT EXISTS idx_match_user ON match_history(user_id, created_at);"
 );
+// Stored replays of ranked matches. `data` is a gzipped binary input-log (see runtime/replay.js):
+// a header + per-round mine layout bitmask + per-player event tracks (varint dt + cell<<1|button),
+// re-simulated at playback time. Participants live in a side table so we can list a user's replays
+// without scanning the (compressed) blob column.
+db.exec(
+	"CREATE TABLE IF NOT EXISTS match_replays (" +
+	"  id INTEGER PRIMARY KEY," +
+	"  created_at INTEGER NOT NULL," +
+	"  style TEXT," +
+	"  mode TEXT," +
+	"  rows INTEGER NOT NULL," +
+	"  cols INTEGER NOT NULL," +
+	"  mine_count INTEGER NOT NULL," +
+	"  game_count INTEGER NOT NULL," +
+	"  winner_id INTEGER," +
+	"  players TEXT," +
+	"  format INTEGER NOT NULL DEFAULT 1," +
+	"  raw_bytes INTEGER NOT NULL," +
+	"  data BLOB NOT NULL" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_replay_created ON match_replays(created_at);" +
+	"CREATE TABLE IF NOT EXISTS match_replay_players (" +
+	"  replay_id INTEGER NOT NULL," +
+	"  user_id INTEGER NOT NULL," +
+	"  PRIMARY KEY (replay_id, user_id)" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_replay_player ON match_replay_players(user_id, replay_id);"
+);
 // Pre-aggregated per-player stats — the achievement/progress metrics, maintained INCREMENTALLY at the
 // event seams (match end / puzzle solve / daily) so reading them is a single PK lookup, never a scan.
 // `backfilled` gates a one-time migration that seeds the row from existing history the first time it's
@@ -702,6 +730,42 @@ function getRatingHistory(userId, limit) {
 		"SELECT style, rating_before, rating_after, created_at " +
 		"FROM match_history WHERE user_id = ? ORDER BY created_at ASC LIMIT ?"
 	).all(userId, limit || 1000);
+}
+
+// --- Match replays --------------------------------------------------------------------------------
+// Persist one finished ranked match. `meta` carries the summary columns; `blob` is the gzipped
+// input-log (a Buffer). `participants` is the list of real (non-bot) user ids in the match, used to
+// populate the side table so a user's replays are listable without touching the blob.
+function saveReplay(meta, blob, participants) {
+	try {
+		var info = db.prepare(
+			"INSERT INTO match_replays (created_at, style, mode, rows, cols, mine_count, game_count, winner_id, players, format, raw_bytes, data) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(
+			meta.createdAt || Date.now(), meta.style || null, meta.mode || null,
+			meta.rows, meta.cols, meta.mineCount, meta.gameCount,
+			meta.winnerId || null, meta.players ? JSON.stringify(meta.players) : null,
+			meta.format || 1, meta.rawBytes || blob.length, blob
+		);
+		var id = info.lastInsertRowid;
+		if (participants && participants.length) {
+			var stmt = db.prepare("INSERT OR IGNORE INTO match_replay_players (replay_id, user_id) VALUES (?, ?)");
+			for (var i = 0; i < participants.length; i++) stmt.run(id, participants[i]);
+		}
+		return id;
+	} catch (e) { console.error("saveReplay failed", e); return null; }
+}
+// Replay metadata for a user (newest first), no blob — for a "your matches" list.
+function listReplaysForUser(userId, limit) {
+	return db.prepare(
+		"SELECT r.id, r.created_at, r.style, r.mode, r.rows, r.cols, r.mine_count, r.game_count, r.winner_id, r.players " +
+		"FROM match_replays r JOIN match_replay_players p ON p.replay_id = r.id " +
+		"WHERE p.user_id = ? ORDER BY r.created_at DESC LIMIT ?"
+	).all(userId, limit || 50);
+}
+// Full replay row incl. the gzipped blob, for playback.
+function getReplay(id) {
+	return db.prepare("SELECT * FROM match_replays WHERE id = ?").get(id);
 }
 
 // --- Achievement metrics --------------------------------------------------------------------------
@@ -1330,6 +1394,9 @@ module.exports = {
 	recordClear: recordClear,
 	getMatchHistory: getMatchHistory,
 	getRatingHistory: getRatingHistory,
+	saveReplay: saveReplay,
+	listReplaysForUser: listReplaysForUser,
+	getReplay: getReplay,
 	achievementStats: achievementStats,
 	// Puzzles
 	scoreToRating: scoreToRating,

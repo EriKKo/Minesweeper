@@ -24,6 +24,7 @@ var http = require("http")
   , standings = require("./runtime/standings")
   , roomState = require("./runtime/roomState")
   , session = require("./runtime/session")
+  , replay = require("./runtime/replay")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -380,6 +381,8 @@ function endSeries(room) {
 		seriesStandings = standings.buildSeriesStandings(room);
 		if (room.ranked) elo.applyRankedElo(seriesStandings, room.rankedStyle);
 	}
+	// Persist the captured replay (no-op unless this was a ranked match being recorded).
+	replay.finishMatch(room, seriesStandings);
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
@@ -458,6 +461,8 @@ function startGame(room) {
 	var centerR = Math.floor(room.rows / 2);
 	var centerC = Math.floor(room.cols / 2);
 	var template = noGuess.createNoGuessTemplate(centerR, centerC, mines, undefined, room.rows, room.cols);
+	// Open a new replay round (mine layout snapshot) for ranked matches before wiring move capture.
+	replay.startRound(room, template, centerR, centerC);
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		// Recreate each game at the room's dimensions so a mid-lobby size change applies.
@@ -469,6 +474,7 @@ function startGame(room) {
 			games[pid].botDifficultyByCell = template.difficultyByCell || null;
 		}
 		games[pid].init(template);
+		replay.attach(room, games[pid], pid);
 	}
 	// For tournament rounds, compute how many will be cut this round so the
 	// client can show a "X to be eliminated" banner during the countdown.
@@ -539,6 +545,7 @@ function startGame(room) {
 
 function startSeries(room) {
 	room.startSeries();
+	replay.startMatch(room);
 	roomState.broadcastRoomState(room);
 	roomState.broadcastRoomList();
 	startGame(room);

@@ -43,6 +43,7 @@ function createGame(mineCount, gameRows, gameCols) {
 	game.totalSafeSquares = rows * cols - numMines;
 	game.win = null;
 	game.mineHit = null;
+	game.onMove = null; // optional (button, r, c) hook, fired on each APPLIED move — used for replay capture
 	game.playerName = "New player";
 	game.autoChordOnFlag = false; // powerup: flagging a cell chords its satisfied numbered neighbours
 
@@ -52,6 +53,7 @@ function createGame(mineCount, gameRows, gameCols) {
 
 	function handleLeftClick(r, c) {
 		if (!game.playing || isFrozen()) return;
+		if (game.onMove) game.onMove(0, r, c);
 		if (state[r][c] == UNKNOWN) {
 			dfs(r, c);
 		} else if (state[r][c] == KNOWN) {
@@ -64,6 +66,7 @@ function createGame(mineCount, gameRows, gameCols) {
 
 	function handleRightClick(r, c) {
 		if (!game.playing || isFrozen()) return;
+		if (game.onMove) game.onMove(1, r, c);
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
 			if (game.autoChordOnFlag) {
