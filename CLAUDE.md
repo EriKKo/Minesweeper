@@ -639,6 +639,18 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   column via a **whitelist** map (`LEADERBOARD_COLUMNS`; unknown/`overall` → `MAX(...)` across modes) and
   returns it as `rating`, so `renderLeaderboard` stays mode-agnostic (tier via `tierFor` on that rating).
   Puzzles is excluded (separate rating scale).
+- **Profile page** (`Profile.js`, `renderProfile`) is a full stats dashboard: identity (overall rank
+  badge + name + tier/rating + "Member since" from `account.createdAt`, added to the `authenticated`
+  payload), lifetime stats (played/wins/win rate/daily streak), **per-mode ranked ladder cards**
+  (Sprint/Standard/Tournament/Territory, each `buildRankBadge` + tier + rating), puzzle stats, and a
+  free-play **best-times matrix** (size × density from `account.soloBests`). Below it, an **Achievements**
+  card (`#achievements_card`, `renderAchievements`): a data-driven `ACHIEVEMENTS` catalogue evaluated
+  against the live (server-trusted) stats — tiered counters (`value` + `tiers`, e.g. Victories 1/10/50/250,
+  Ascendant by tier rating, Deductionist puzzles, …) plus one boolean (Sharpshooter = 60%+ over 20+).
+  `computeAchievement` derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked
+  (dimmed, greyscale icon) with a progress bar and an "X / Y unlocked" count. Everything is **derived**
+  (no new storage) — persisting earned-dates / unlock toasts is the next layer. The skin picker
+  (`#skins_card`, admin) and Controls (`#controls_card`) cards follow.
 - **Help modal** (`#help_modal`, `wireHelpModal` in Main.js). The navbar **Help** item is a `<button>`
   (not an `<a>`, so the router's link interceptor ignores it) that opens a concise modal — rules, game
   modes, and controls — reusing the `.cr-modal`/`.cr-dialog` chrome. On open it fills the control-key

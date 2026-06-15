@@ -76,9 +76,13 @@ function renderProfile() {
 		var p = document.createElement("p");
 		p.textContent = "Sign in to see your rating, win rate, and recent matches.";
 		card.appendChild(p);
+		var ac0 = document.getElementById("achievements_card");
+		if (ac0) ac0.innerHTML = "";
 		return;
 	}
 	card.innerHTML = "";
+
+	// --- Identity: overall rank badge + name + tier/rating + member since ---
 	var summary = document.createElement("div");
 	summary.className = "profile-summary";
 	var overall = overallRating(account); // best across modes — the headline rank
@@ -95,24 +99,190 @@ function renderProfile() {
 	ratingLine.textContent = t.name + " · " + overall;
 	ratingLine.style.color = t.color;
 	text.appendChild(ratingLine);
+	if (account.createdAt) {
+		var since = document.createElement("div");
+		since.className = "profile-summary-since";
+		since.textContent = "Member since " + formatMemberSince(account.createdAt);
+		text.appendChild(since);
+	}
 	summary.appendChild(text);
 	card.appendChild(summary);
 
+	// --- Lifetime stats ---
+	var played = account.played || 0, wins = account.wins || 0;
+	var winRate = played > 0 ? Math.round((wins / played) * 100) + "%" : "—";
 	var stats = document.createElement("div");
 	stats.className = "profile-stats";
-	var played = (account.played != null) ? account.played : 0;
-	var wins = (account.wins != null) ? account.wins : 0;
-	var winRate = played > 0 ? Math.round((wins / played) * 100) + "%" : "—";
 	stats.appendChild(profileStat("Played", String(played)));
 	stats.appendChild(profileStat("Wins", String(wins)));
 	stats.appendChild(profileStat("Win rate", winRate));
+	stats.appendChild(profileStat("Daily streak", "🔥 " + (account.dailyStreak || 0)));
 	card.appendChild(stats);
 
+	// --- Ranked ladders (one card per mode) ---
+	card.appendChild(profileSectionTitle("Ranked ladders"));
+	var ladders = document.createElement("div");
+	ladders.className = "profile-ladders";
+	ladders.appendChild(profileLadderCard("Sprint", account.ratingSprint || 0));
+	ladders.appendChild(profileLadderCard("Standard", account.ratingStandard || 0));
+	ladders.appendChild(profileLadderCard("Tournament", account.ratingTournament || 0));
+	ladders.appendChild(profileLadderCard("Territory", account.ratingTerritory || 0));
+	card.appendChild(ladders);
+
+	// --- Puzzles ---
+	card.appendChild(profileSectionTitle("Puzzles"));
+	var pz = document.createElement("div");
+	pz.className = "profile-stats";
+	pz.appendChild(profileStat("Rating", String(account.puzzleRating != null ? account.puzzleRating : 800)));
+	pz.appendChild(profileStat("Solved", (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)));
+	pz.appendChild(profileStat("Best streak", String(account.streakBest || 0)));
+	pz.appendChild(profileStat("Best storm", String(account.stormBest || 0)));
+	card.appendChild(pz);
+
+	// --- Free-play best times (per board size × mine density) ---
+	card.appendChild(profileSectionTitle("Free-play best times"));
+	card.appendChild(profileBestsGrid(account.soloBests || {}));
+
+	renderAchievements();
+}
+
+function formatMemberSince(ms) {
+	var d = new Date(ms);
+	if (isNaN(d.getTime())) return "—";
+	return d.toLocaleString(undefined, { month: "short", year: "numeric" });
+}
+
+function profileSectionTitle(textStr) {
+	var h = document.createElement("h3");
+	h.className = "profile-section-title";
+	h.textContent = textStr;
+	return h;
+}
+
+// One ranked mode's standing: mini rank badge + mode name + tier + rating.
+function profileLadderCard(label, rating) {
+	var c = document.createElement("div");
+	c.className = "profile-ladder";
+	var badge = buildRankBadge(rating);
+	badge.classList.add("profile-ladder-badge");
+	c.appendChild(badge);
+	var info = document.createElement("div");
+	info.className = "profile-ladder-info";
+	var nm = document.createElement("div"); nm.className = "profile-ladder-mode"; nm.textContent = label; info.appendChild(nm);
+	var tr = tierFor(rating);
+	var tl = document.createElement("div"); tl.className = "profile-ladder-tier"; tl.textContent = tr.name; tl.style.color = tr.color; info.appendChild(tl);
+	c.appendChild(info);
+	var rt = document.createElement("div"); rt.className = "profile-ladder-rating"; rt.textContent = rating; c.appendChild(rt);
+	return c;
+}
+
+// Free-play best-time matrix: board size (cols) × mine density (rows). soloBests is
+// keyed "<size>_<density%>" (see Solo.js soloComboKey).
+var PROFILE_SIZES = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+var PROFILE_DENS = [[10, "Low"], [15, "Med"], [20, "High"]];
+function profileBestsCell(textStr, cls) {
+	var c = document.createElement("div"); c.className = cls; c.textContent = textStr; return c;
+}
+function profileBestsGrid(bests) {
+	var grid = document.createElement("div");
+	grid.className = "profile-bests";
+	grid.appendChild(profileBestsCell("", "profile-bests-head"));
+	PROFILE_SIZES.forEach(function(s) { grid.appendChild(profileBestsCell(s[1], "profile-bests-head")); });
+	var any = false;
+	PROFILE_DENS.forEach(function(d) {
+		grid.appendChild(profileBestsCell(d[1], "profile-bests-rowhead"));
+		PROFILE_SIZES.forEach(function(s) {
+			var ms = bests[s[0] + "_" + d[0]];
+			if (ms != null) any = true;
+			var txt = ms == null ? "—" : (typeof formatSoloTime === "function" ? formatSoloTime(ms) : (Math.round(ms / 100) / 10 + "s"));
+			grid.appendChild(profileBestsCell(txt, "profile-bests-val" + (ms == null ? " profile-bests-empty" : "")));
+		});
+	});
+	if (any) return grid;
+	var wrap = document.createElement("div");
+	wrap.appendChild(grid);
 	var note = document.createElement("p");
 	note.className = "section-stub-note";
-	note.style.marginTop = "1rem";
-	note.textContent = "Per-mode breakdown, match history, and rating chart are coming next.";
-	card.appendChild(note);
+	note.style.margin = "0.5rem 0 0";
+	note.textContent = "No clears yet — set a time in Solo.";
+	wrap.appendChild(note);
+	return wrap;
+}
+
+// --- Achievements ---------------------------------------------------------------------------
+// Data-driven catalogue evaluated against the player's live stats (the same trusted numbers the
+// server sends). Each entry is either a TIERED counter (value + tiers thresholds) or a single
+// BOOLEAN (bool + progress text). Persisting earned-dates / unlock toasts is a future layer.
+var ACH_ROMAN = ["", "I", "II", "III", "IV", "V"];
+function achTierName(rating) { return tierFor(rating).name.replace(/ I+$/, ""); } // bare tier (Silver/Gold/…)
+
+var ACHIEVEMENTS = [
+	{ id: "wins", icon: "🏆", name: "Victories", value: function(a) { return a.wins || 0; }, tiers: [1, 10, 50, 250], desc: function(t) { return "Win " + t + " ranked match" + (t > 1 ? "es" : ""); } },
+	{ id: "played", icon: "⚔️", name: "Battle-tested", value: function(a) { return a.played || 0; }, tiers: [10, 50, 200, 1000], desc: function(t) { return "Play " + t + " ranked matches"; } },
+	{ id: "climb", icon: "📈", name: "Ascendant", value: function(a) { return overallRating(a); }, tiers: [600, 1200, 1800, 2400, 3000], desc: function(t) { return "Reach " + achTierName(t) + " (" + t + ")"; } },
+	{ id: "allmodes", icon: "🎯", name: "All-Rounder", value: function(a) { return ["ratingSprint", "ratingStandard", "ratingTournament", "ratingTerritory"].filter(function(k) { return (a[k] || 0) > 0; }).length; }, tiers: [4], desc: function() { return "Earn a rating in all 4 ranked modes"; } },
+	{ id: "winrate", icon: "🎖️", name: "Sharpshooter", bool: function(a) { return (a.played || 0) >= 20 && (a.wins || 0) / (a.played || 1) >= 0.6; }, progress: function(a) { var p = a.played || 0; return p >= 20 ? (Math.round((a.wins || 0) / p * 100) + "% win rate") : (p + " / 20 matches"); }, desc: function() { return "60%+ win rate over 20+ matches"; } },
+	{ id: "solved", icon: "🧩", name: "Deductionist", value: function(a) { return a.puzzlesSolved || 0; }, tiers: [10, 100, 500, 2000], desc: function(t) { return "Solve " + t + " puzzles"; } },
+	{ id: "streak", icon: "🔥", name: "On a Roll", value: function(a) { return a.streakBest || 0; }, tiers: [5, 10, 25], desc: function(t) { return t + "-puzzle streak"; } },
+	{ id: "storm", icon: "⛈️", name: "Storm Chaser", value: function(a) { return a.stormBest || 0; }, tiers: [15, 30, 50], desc: function(t) { return "Solve " + t + " in one Storm"; } },
+	{ id: "daily", icon: "📅", name: "Daily Devotee", value: function(a) { return a.dailyStreak || 0; }, tiers: [3, 7, 30], desc: function(t) { return t + "-day daily streak"; } },
+	{ id: "freeplay", icon: "⏱️", name: "Free Spirit", value: function(a) { return a.soloBests ? Object.keys(a.soloBests).length : 0; }, tiers: [1, 5, 9], desc: function(t) { return t >= 9 ? "Clear all 9 free-play boards" : "Clear " + t + " free-play board" + (t > 1 ? "s" : ""); } }
+];
+
+function computeAchievement(a, account) {
+	if (a.tiers) {
+		var v = a.value(account);
+		var reached = 0;
+		for (var i = 0; i < a.tiers.length; i++) if (v >= a.tiers[i]) reached++;
+		var maxed = reached >= a.tiers.length;
+		var next = maxed ? a.tiers[a.tiers.length - 1] : a.tiers[reached];
+		return {
+			icon: a.icon,
+			name: a.name + (a.tiers.length > 1 && reached > 0 ? " " + ACH_ROMAN[reached] : ""),
+			desc: a.desc(next),
+			unlocked: reached > 0,
+			frac: maxed ? 1 : (next ? Math.min(1, v / next) : 1),
+			progText: maxed ? "Complete" : (v + " / " + next)
+		};
+	}
+	var on = a.bool(account);
+	return { icon: a.icon, name: a.name, desc: a.desc(), unlocked: on, frac: on ? 1 : 0, progText: on ? "Unlocked" : a.progress(account) };
+}
+
+function achTile(c) {
+	var tile = document.createElement("div");
+	tile.className = "ach-tile " + (c.unlocked ? "ach-earned" : "ach-locked");
+	var icon = document.createElement("span"); icon.className = "ach-icon"; icon.textContent = c.icon; tile.appendChild(icon);
+	var body = document.createElement("div"); body.className = "ach-body";
+	var nm = document.createElement("div"); nm.className = "ach-name"; nm.textContent = c.name; body.appendChild(nm);
+	var ds = document.createElement("div"); ds.className = "ach-desc"; ds.textContent = c.desc; body.appendChild(ds);
+	var bar = document.createElement("div"); bar.className = "ach-prog";
+	var fill = document.createElement("span"); fill.className = "ach-prog-bar"; fill.style.width = Math.round(c.frac * 100) + "%"; bar.appendChild(fill);
+	body.appendChild(bar);
+	var pt = document.createElement("div"); pt.className = "ach-prog-text"; pt.textContent = c.progText; body.appendChild(pt);
+	tile.appendChild(body);
+	return tile;
+}
+
+function renderAchievements() {
+	var card = document.getElementById("achievements_card");
+	if (!card) return;
+	if (!account) { card.innerHTML = ""; card.style.display = "none"; return; }
+	card.style.display = "";
+	card.innerHTML = "";
+	var computed = ACHIEVEMENTS.map(function(a) { return computeAchievement(a, account); });
+	var unlockedCount = computed.filter(function(c) { return c.unlocked; }).length;
+
+	var head = document.createElement("div");
+	head.className = "ach-head";
+	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Achievements"; head.appendChild(h);
+	var count = document.createElement("span"); count.className = "ach-count"; count.textContent = unlockedCount + " / " + computed.length + " unlocked"; head.appendChild(count);
+	card.appendChild(head);
+
+	var grid = document.createElement("div");
+	grid.className = "ach-grid";
+	computed.forEach(function(c) { grid.appendChild(achTile(c)); });
+	card.appendChild(grid);
 }
 
 function profileStat(label, value) {

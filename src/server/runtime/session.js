@@ -38,6 +38,7 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		avatarUrl: user.avatar_url,
 		wins: user.wins,
 		played: user.played,
+		createdAt: user.created_at, // for "Member since" on the profile
 		provisional: user.played < PROVISIONAL_GAMES,
 		puzzleRating: user.puzzle_rating,
 		puzzlesSolved: user.puzzles_solved,
