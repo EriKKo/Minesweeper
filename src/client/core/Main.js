@@ -590,6 +590,7 @@ socket.on("solo_board", function(data) {
 	cols = data.cols;
 	soloSession = {
 		size: data.size,
+		density: (typeof data.density === "number") ? data.density : soloSelectedDensity,
 		totalSafe: data.totalSafe,
 		totalMines: data.mines,
 		startTime: null,
@@ -616,23 +617,35 @@ socket.on("solo_board", function(data) {
 	cellAnims = {};
 	hideOverlay();
 
-	// Resize the player canvas to match the new board dimensions, then show
-	// the game view (with solo-only chrome via toggleSoloChrome).
-	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
-	sizeOpponentCanvases();
+	// Show the game view (with solo-only chrome) FIRST, then size the board — fitDesktopCellPx measures
+	// the .game-left column, which only has its real width once the solo layout is on screen. Sizing
+	// before the view is visible would lock the board at the small fallback cell size.
 	hideAllViews();
 	gameView.style.display = "";
 	document.body.classList.add("in-game");
 	gameView.classList.remove("duo");
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
+	sizePlayerCanvas();
+	playerCanvasWidth = playerCanvas.width;
+	playerCanvasHeight = playerCanvas.height;
+	playerCanvasSquareWidth = playerCanvasWidth / cols;
+	playerCanvasSquareHeight = playerCanvasHeight / rows;
+	sizeOpponentCanvases();
 	updateSoloHud();
+	if (typeof updateSoloBest === "function") updateSoloBest();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+});
+
+// Server's verdict on a just-submitted Free-play clear: cache the new best and refresh the displays
+// (the solo card stat + the open outcome panel, which marks a new record).
+socket.on("solo_record", function(data) {
+	if (!account) return;
+	if (!account.soloBests) account.soloBests = {};
+	account.soloBests[data.size + "_" + data.density] = data.best;
+	if (typeof updateSoloBest === "function") updateSoloBest();
+	if (typeof onSoloRecord === "function") onSoloRecord(data);
 });
 
 // Procedural sound effects (WebAudio, no asset files). Short and soft — these

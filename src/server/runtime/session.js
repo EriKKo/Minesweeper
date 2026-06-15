@@ -48,6 +48,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
 		isAdmin: !!user.is_admin,
 		guest: !!user.is_guest,
+		soloBests: db.getSoloBests(user.id), // { "<size>_<density%>": ms } — Free-play best clear times
+
 		// The provider most recently signed in with (for accounts linked across several) — drives the
 		// topbar auth logo. Falls back to the original provider for rows predating last_provider.
 		provider: user.last_provider || user.provider
@@ -103,6 +105,20 @@ function registerSocketHandlers(socket, playerID) {
 			if (roomMapping[playerID]) roomState.broadcastRoomState(roomMapping[playerID]);
 			roomState.broadcastRoomList();
 		}
+	});
+
+	// Free-play clear: record the best time for this (board size, mine density) and echo it back so the
+	// client can show the record / a "new best". Trusts the client's elapsed time — it's an unranked
+	// personal stat, not a leaderboard, so there's nothing to game.
+	socket.on("solo_result", function(data) {
+		if (!accounts[playerID]) return;
+		var size = data && data.size;
+		var ms = data && parseInt(data.ms, 10);
+		var pct = data && Math.round(parseFloat(data.density) * 100);
+		if (["small", "medium", "large"].indexOf(size) === -1) return;
+		if (!(ms > 0) || !(pct >= 1 && pct <= 100)) return;
+		var res = db.recordSoloBest(accounts[playerID].userId, size, pct, ms);
+		socket.emit("solo_record", { size: size, density: pct, best: res.best, isNewBest: res.isNewBest });
 	});
 }
 

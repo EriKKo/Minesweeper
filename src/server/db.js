@@ -162,6 +162,19 @@ try {
 		"SELECT provider, provider_id, id, email, created_at FROM users WHERE is_guest = 0"
 	);
 } catch (e) { console.error("identity backfill failed", e); }
+
+// Free-play (solo) best clear times, one row per (user, board size, mine-density%). density is a whole
+// percent so the key is stable across the float densities the picker uses (10 / 15 / 20).
+db.exec(
+	"CREATE TABLE IF NOT EXISTS solo_records (" +
+	"  user_id INTEGER NOT NULL," +
+	"  size TEXT NOT NULL," +
+	"  density INTEGER NOT NULL," +
+	"  best_ms INTEGER NOT NULL," +
+	"  achieved_at INTEGER NOT NULL," +
+	"  PRIMARY KEY (user_id, size, density)" +
+	");"
+);
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -850,6 +863,26 @@ function startingPositionCount(opts) {
 	return stmt.get.apply(stmt, f.params).n;
 }
 
+// Record a Free-play clear; updates the (user, size, density%) best only when it's faster.
+// Returns { best, isNewBest } so the client can celebrate a new record.
+function recordSoloBest(userId, size, densityPct, ms) {
+	var row = db.prepare("SELECT best_ms FROM solo_records WHERE user_id = ? AND size = ? AND density = ?").get(userId, size, densityPct);
+	var isNewBest = !row || ms < row.best_ms;
+	if (isNewBest) {
+		db.prepare("INSERT OR REPLACE INTO solo_records (user_id, size, density, best_ms, achieved_at) VALUES (?, ?, ?, ?, ?)")
+			.run(userId, size, densityPct, ms, Date.now());
+	}
+	return { best: isNewBest ? ms : row.best_ms, isNewBest: isNewBest };
+}
+
+// All of a user's Free-play bests as a { "<size>_<density%>": ms } map (for the solo card + result panel).
+function getSoloBests(userId) {
+	var map = {};
+	db.prepare("SELECT size, density, best_ms FROM solo_records WHERE user_id = ?").all(userId)
+		.forEach(function(r) { map[r.size + "_" + r.density] = r.best_ms; });
+	return map;
+}
+
 function getPuzzleById(id) {
 	var row = db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id);
 	return row ? deserializePuzzle(row) : null;
@@ -1041,6 +1074,8 @@ module.exports = {
 	upgradeGuest: upgradeGuest,
 	setUserName: setUserName,
 	displayNameOf: displayNameOf,
+	recordSoloBest: recordSoloBest,
+	getSoloBests: getSoloBests,
 	pruneStaleGuests: pruneStaleGuests,
 	createSession: createSession,
 	getUserByToken: getUserByToken,

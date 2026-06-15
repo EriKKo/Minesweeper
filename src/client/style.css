@@ -242,10 +242,14 @@ body {
 
 .solo-stats {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 0.5rem;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.45rem;
 	margin-bottom: 0.85rem;
 }
+.solo-stats .solo-stat-value { font-size: 1.02rem; }
+/* Best-time line on the Free-play result panel; turns gold when you set a new record. */
+.solo-best-line { margin-top: 0.35rem; font-size: 0.95rem; font-weight: 700; color: var(--muted); }
+.solo-best-line.solo-best-new { color: var(--energy-gold); }
 
 .solo-stat {
 	background: rgba(255, 255, 255, 0.04);
@@ -4660,8 +4664,12 @@ body.in-game .site-footer { display: none; }
    sit jammed against the left edge with a big empty gap. Center the play area instead.
    (Territory and puzzle keep their own bespoke fullscreen layouts.) */
 body.game-fullscreen .game-view.solo .game-grid {
-	grid-template-columns: auto;
-	justify-content: center;
+	/* Board fills the remaining width (a measurable 1fr track, not an auto column that hugs the canvas)
+	   with the Free-play controls in a fixed sidebar — so the board uses the whole screen but the timer
+	   and pickers stay on screen. */
+	grid-template-columns: minmax(0, 1fr) 320px;
+	align-items: start;
+	gap: 1.25rem;
 }
 body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo):not(.duo):not(.multi) .game-grid {
 	grid-template-columns: auto 320px;

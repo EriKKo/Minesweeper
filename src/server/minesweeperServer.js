@@ -774,6 +774,7 @@ io.on("connection", function (socket) {
 		var obf = obfuscateBoard(template.board, rows, cols);
 		socket.emit("solo_board", {
 			size: size,
+			density: density,
 			rows: rows,
 			cols: cols,
 			mines: mines,

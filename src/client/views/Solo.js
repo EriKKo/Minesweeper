@@ -39,7 +39,39 @@ function soloOnAfterReveal(result) {
 		soloSession.finishTime = Date.now();
 		stopSoloTimer();
 		sound.win && sound.win();
+		submitSoloResult();
 		showSoloOutcome(true);
+	}
+}
+
+// --- Free-play best times, per (board size, mine density) ---------------------------------------
+function soloComboKey(size, density) { return size + "_" + Math.round((density || 0) * 100); }
+function soloBestFor(size, density) {
+	var bests = (typeof account !== "undefined" && account && account.soloBests) || null;
+	return bests ? bests[soloComboKey(size, density)] : null;
+}
+// Reflect the best time for the CURRENTLY selected size+density on the Free-play card.
+function updateSoloBest() {
+	var el = document.getElementById("solo_best");
+	if (!el) return;
+	var b = soloBestFor(soloSelectedSize, soloSelectedDensity);
+	el.textContent = b ? formatSoloTime(b) : "—";
+}
+// Report a clear to the server, which records it as a best for this combo if it's faster.
+function submitSoloResult() {
+	if (!soloSession || !soloSession.startTime || typeof socket === "undefined") return;
+	var ms = (soloSession.finishTime || Date.now()) - soloSession.startTime;
+	socket.emit("solo_result", { size: soloSession.size, density: soloSession.density, ms: ms });
+}
+// Server's reply: if the open outcome panel is showing, mark a new record / show the standing best.
+function onSoloRecord(data) {
+	var line = document.querySelector(".solo-best-line");
+	if (!line) return;
+	if (data.isNewBest) {
+		line.textContent = "★ New best!";
+		line.classList.add("solo-best-new");
+	} else {
+		line.textContent = "Best: " + formatSoloTime(data.best);
 	}
 }
 
@@ -121,6 +153,15 @@ function showSoloOutcome(won) {
 	var elapsed = (soloSession.finishTime || Date.now()) - (soloSession.startTime || soloSession.finishTime || Date.now());
 	time.textContent = formatSoloTime(elapsed);
 	panel.appendChild(time);
+
+	if (won) {
+		// Shows the standing best (pre-clear); onSoloRecord upgrades it to "★ New best!" if this beat it.
+		var bestLine = document.createElement("div");
+		bestLine.className = "solo-best-line";
+		var prev = soloBestFor(soloSession.size, soloSession.density);
+		bestLine.textContent = prev ? "Best: " + formatSoloTime(prev) : "";
+		panel.appendChild(bestLine);
+	}
 
 	if (!won) {
 		var sub = document.createElement("div");
