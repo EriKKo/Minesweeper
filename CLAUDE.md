@@ -718,7 +718,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `varint(dt_ms) + varint(cell<<1 | button)` (~2-3 B; button is 1 bit, 0=left/1=right — reveal-vs-chord
   is decided by board state on replay). Each round stores **two** bitmasks — `mines` (bomb layout) and
   `known` (the no-guess opening `init` reveals before any click; needed so playback's board doesn't start
-  fully covered). A whole 1v1 sprint is ~300-350 B raw, gzipped to a BLOB. Capture rides three seams in
+  fully covered). The per-player header carries name / bot flag / userId / **board-skin id** (so playback
+  renders each board in the skin its player had at match time). Format is versioned (`REPLAY_VERSION`,
+  currently **2**; v2 added the skin — readers version-gate it so v1 replays still decode, defaulting to
+  classic). A whole 1v1 sprint is ~300-350 B raw, gzipped to a BLOB. Capture rides three seams in
   `minesweeperServer.js`: `startSeries`→`replay.startMatch` (arms `room.replay` for ranked non-territory
   rooms), `startGame`→`replay.startRound` (snapshots the two bitmasks) + `replay.attach` (wires
   `game.onMove` per player), and `endSeries`→`replay.finishMatch` (serialize + gzip + persist, then clear).
@@ -737,8 +740,8 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   ArrayBuffer). `Replay.js` decodes the input log, then for each round builds a mine+clue model and
   **re-simulates** each player's board by applying their events up to the playhead time `T` — `dfs`/`chord`
   mirror GameCreator exactly (templated board, so no first-click relocation; `autoChordOnFlag` is unused so
-  it's ignored). Renders one `BoardView` per player (always the default `classic` skin — per-player skins
-  aren't stored), with a timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game
+  it's ignored). Renders one `BoardView` per player **in that player's stored board skin** (unknown/missing
+  ids fall back to `classic`), with a timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game
   tabs when `gameCount>1`. Steady-state redraws are skipped unless a player's applied-event count changed.
   `teardownReplay` (called from `hideAllViews`) cancels the rAF on navigation. Entry point: the **recent-
   games rows** on the profile that have a `replay_id` link to `/replay?id=N` (see Match history above).

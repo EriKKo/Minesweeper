@@ -38,7 +38,11 @@
 		var mineCount = rd.varint(), gameCount = rd.varint();
 		var style = rd.str(), mode = rd.str();
 		var pc = rd.varint(), players = [];
-		for (var p = 0; p < pc; p++) players.push({ name: rd.str(), bot: !!rd.u8(), userId: rd.varint() || null });
+		for (var p = 0; p < pc; p++) {
+			var pl = { name: rd.str(), bot: !!rd.u8(), userId: rd.varint() || null };
+			pl.skin = version >= 2 ? (rd.str() || null) : null; // v2+ stores each player's board skin
+			players.push(pl);
+		}
 		var bitLen = Math.ceil((rows * cols) / 8);
 		var rounds = [];
 		for (var g = 0; g < gameCount; g++) {
@@ -164,8 +168,10 @@
 			wrap.appendChild(canvas);
 			grid.appendChild(wrap);
 			var state = R.model.freshState();
-			// Replays always render in the default skin (we don't store per-player skins).
-			var view = new BoardView(canvas, rep.rows, rep.cols, state, R.model.cellAt, { skin: "classic" });
+			// Render each player's board in the skin they had at match time (v2+ replays). Unknown or
+			// missing ids fall back to the default so a removed skin can't break playback.
+			var skin = (pl.skin && typeof BOARD_SKIN_LIST !== "undefined" && BOARD_SKIN_LIST.indexOf(pl.skin) >= 0) ? pl.skin : "classic";
+			var view = new BoardView(canvas, rep.rows, rep.cols, state, R.model.cellAt, { skin: skin });
 			R.boards.push({ view: view, state: state, p: p });
 			R.lastApplied.push(-1);
 		}
