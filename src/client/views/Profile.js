@@ -64,11 +64,47 @@ function renderBoardSkins() {
 }
 
 // Profile renders from the account cache plus the most recent leaderboard snapshot.
+// The profile is split into three tabs (the page had grown large): Overview (identity + lifetime/
+// ranked/puzzle stats), Matches (rating graph + recent games/replays), and Achievements.
+var PROFILE_TABS = [
+	{ id: "overview", label: "Overview", panel: "profile_tab_overview" },
+	{ id: "matches", label: "Matches", panel: "profile_tab_matches" },
+	{ id: "achievements", label: "Achievements", panel: "profile_tab_achievements" }
+];
+var profileTab = "overview"; // remembered across re-renders within a session
+
+function buildProfileTabs() {
+	var bar = document.getElementById("profile_tabs");
+	if (!bar || bar.dataset.built) return;
+	PROFILE_TABS.forEach(function(t) {
+		var b = document.createElement("button"); b.type = "button"; b.className = "lb-tab"; b.textContent = t.label;
+		b.dataset.tab = t.id;
+		b.addEventListener("click", function() { selectProfileTab(t.id); });
+		bar.appendChild(b);
+	});
+	bar.dataset.built = "1";
+}
+
+// Show one panel, hide the others, and mark the matching tab button active.
+function selectProfileTab(id) {
+	profileTab = id;
+	PROFILE_TABS.forEach(function(t) {
+		var panel = document.getElementById(t.panel);
+		if (panel) panel.style.display = t.id === id ? "" : "none";
+	});
+	var bar = document.getElementById("profile_tabs");
+	if (bar) { var btns = bar.querySelectorAll(".lb-tab"); for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", btns[i].dataset.tab === id); }
+}
+
 function renderProfile() {
 	// Board skin + controls moved to the Settings page (showSettingsView renders them).
 	var card = document.getElementById("profile_card");
 	if (!card) return;
+	var tabsBar = document.getElementById("profile_tabs");
 	if (!account) {
+		// Signed out: no tabs — just the overview panel with a sign-in prompt.
+		if (tabsBar) tabsBar.style.display = "none";
+		selectProfileTab("overview");
 		card.innerHTML = "";
 		var p = document.createElement("p");
 		p.textContent = "Sign in to see your rating, win rate, and recent matches.";
@@ -80,6 +116,8 @@ function renderProfile() {
 		});
 		return;
 	}
+	buildProfileTabs();
+	if (tabsBar) tabsBar.style.display = "";
 	card.innerHTML = "";
 
 	// --- Identity: overall rank badge + name + tier/rating + member since ---
@@ -146,6 +184,7 @@ function renderProfile() {
 	// Rating graph + recent games (incl. replay links) + achievement aggregates come from
 	// get_match_history → renderMatchHistory.
 	if (typeof socket !== "undefined") socket.emit("get_match_history");
+	selectProfileTab(profileTab); // restore the active tab (defaults to Overview)
 }
 
 function formatMemberSince(ms) {
@@ -366,6 +405,9 @@ function renderMatchHistory(data) {
 	var hasMatches = matchHistory.matches && matchHistory.matches.length > 0;
 	if (ratingsCard) { ratingsCard.style.display = hasRatings ? "" : "none"; if (hasRatings) renderRatingGraphCard(); }
 	if (gamesCard) { gamesCard.style.display = hasMatches ? "" : "none"; if (hasMatches) renderRecentGamesCard(); }
+	// Matches tab placeholder when there's nothing to show yet.
+	var emptyEl = document.getElementById("matches_empty");
+	if (emptyEl) emptyEl.style.display = (!hasRatings && !hasMatches) ? "" : "none";
 	// History aggregates just arrived — re-render achievements so the history-based ones fill in,
 	// and toast anything that crossed a tier since the last check.
 	if (typeof renderAchievements === "function") renderAchievements();

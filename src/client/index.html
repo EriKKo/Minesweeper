@@ -408,12 +408,20 @@
 
 		<section id="profile_view" class="view section-view" style="display:none">
 			<h1 class="section-page-title">Profile</h1>
-			<div id="profile_card" class="section-card">
-				<p>Sign in to see your rating, win rate, and recent matches.</p>
+			<div id="profile_tabs" class="lb-tabs profile-tabs" style="display:none"></div>
+			<div id="profile_tab_overview" class="profile-tab-panel">
+				<div id="profile_card" class="section-card">
+					<p>Sign in to see your rating, win rate, and recent matches.</p>
+				</div>
 			</div>
-			<div id="rating_history_card" class="section-card" style="margin-top:1.25rem;display:none"></div>
-			<div id="recent_games_card" class="section-card" style="margin-top:1.25rem;display:none"></div>
-			<div id="achievements_card" class="section-card" style="margin-top:1.25rem"></div>
+			<div id="profile_tab_matches" class="profile-tab-panel" style="display:none">
+				<div id="rating_history_card" class="section-card" style="display:none"></div>
+				<div id="recent_games_card" class="section-card" style="margin-top:1.25rem;display:none"></div>
+				<div id="matches_empty" class="section-card" style="display:none"><p>No ranked matches yet — play a ranked match to start building your history.</p></div>
+			</div>
+			<div id="profile_tab_achievements" class="profile-tab-panel" style="display:none">
+				<div id="achievements_card" class="section-card"></div>
+			</div>
 		</section>
 
 		<section id="settings_view" class="view section-view" style="display:none">

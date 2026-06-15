@@ -669,6 +669,9 @@ main {
 .lb-tab:hover { color: var(--text); border-color: var(--muted); }
 .lb-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* Profile tabs — Overview / Matches / Achievements */
+.profile-tabs { margin-bottom: 1.25rem; }
+
 .leaderboard-list {
 	list-style: none;
 	margin: 0;

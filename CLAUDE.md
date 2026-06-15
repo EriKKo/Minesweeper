@@ -646,11 +646,15 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   column via a **whitelist** map (`LEADERBOARD_COLUMNS`; unknown/`overall` → `MAX(...)` across modes) and
   returns it as `rating`, so `renderLeaderboard` stays mode-agnostic (tier via `tierFor` on that rating).
   Puzzles is excluded (separate rating scale).
-- **Profile page** (`Profile.js`, `renderProfile`) is a full stats dashboard: identity (overall rank
-  badge + name + tier/rating + "Member since" from `account.createdAt`, added to the `authenticated`
-  payload), lifetime stats (played/wins/win rate/daily streak), **per-mode ranked ladder cards**
-  (Sprint + Standard only — Tournament/Territory are not surfaced), puzzle stats, and a
-  free-play **best-times matrix** (size × density from `account.soloBests`). Below it, an **Achievements**
+- **Profile page** (`Profile.js`, `renderProfile`) is a full stats dashboard, split into three **tabs**
+  (`#profile_tabs`, `PROFILE_TABS`/`selectProfileTab`, reusing the `.lb-tab` pill style; the active tab is
+  remembered in `profileTab` across re-renders, defaulting to Overview; the tab bar is hidden when signed
+  out): **Overview** (`#profile_tab_overview`) — identity (overall rank badge + name + tier/rating +
+  "Member since" from `account.createdAt`, added to the `authenticated` payload), lifetime stats
+  (played/wins/win rate/daily streak), **per-mode ranked ladder cards** (Sprint + Standard only —
+  Tournament/Territory are not surfaced), puzzle stats, and a free-play **best-times matrix** (size ×
+  density from `account.soloBests`); **Matches** (`#profile_tab_matches`) — the rating graph + recent-games
+  list (see Match history below); **Achievements** (`#profile_tab_achievements`). The **Achievements**
   card (`#achievements_card`, `renderAchievements`): a **data-driven** `ACHIEVEMENTS` catalogue (~25 + a
   meta **Collector**) evaluated against a flat **metrics bag** = `account` fields merged with the server's
   `db.achievementStats(userId)` aggregates. Two entry shapes — TIERED counter (`value(m)` + `tiers`, e.g.
@@ -703,7 +707,8 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `match_history` handler calls `renderMatchHistory` → a responsive **SVG line chart**
   (`#rating_history_card`, per-style toggle, seeded from each series' first `rating_before`) and a
   **recent-games list** (`#recent_games_card`: style chip, Won/Lost or "Nth of M", Δrating, opponent/
-  player-count, relative time). Both cards hide when empty. NB history accrues **going forward** —
+  player-count, relative time). Both cards hide when empty (and a `#matches_empty` placeholder shows when
+  both are). NB history accrues **going forward** —
   pre-existing accounts have no rows until they play. Each row also carries a **`replay_id`** (nullable
   FK to `match_replays`); when set, the row renders as a link to `/replay?id=N` with a "▶ Watch"
   affordance — there is no separate replays list, the recent-games list IS the replays list.
