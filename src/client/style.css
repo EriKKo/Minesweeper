@@ -467,8 +467,17 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 	padding: 0.3rem 0.8rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 0.85rem;
 }
 .replay-round-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.replay-boards { display: flex; gap: 1.25rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.25rem; }
 .replay-board { display: flex; flex-direction: column; gap: 0.4rem; align-items: center; }
+/* Focused (big) board */
+.replay-stage { display: flex; justify-content: center; margin-bottom: 1rem; }
+.replay-stage-board .replay-board-label { font-size: 1rem; }
+/* Filmstrip of all players — click a thumbnail to focus it */
+.replay-strip { display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.25rem; }
+.replay-thumb { cursor: pointer; padding: 0.4rem; border-radius: 10px; border: 1px solid transparent; opacity: 0.72; transition: opacity .12s, border-color .12s, background .12s; }
+.replay-thumb .replay-board-label { font-size: 0.78rem; }
+.replay-thumb:hover { opacity: 1; border-color: var(--border); background: rgba(255,255,255,0.03); }
+.replay-thumb.focused { opacity: 1; border-color: var(--accent); background: rgba(99, 102, 241, 0.1); cursor: default; }
+.replay-thumb .replay-canvas { box-shadow: none; }
 .replay-board-label { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.9rem; }
 .replay-bot-tag { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.05rem 0.35rem; border-radius: 4px; background: rgba(255,255,255,0.08); color: var(--muted); }
 .replay-win-tag { font-size: 0.95rem; }

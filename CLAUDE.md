@@ -740,8 +740,13 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   ArrayBuffer). `Replay.js` decodes the input log, then for each round builds a mine+clue model and
   **re-simulates** each player's board by applying their events up to the playhead time `T` — `dfs`/`chord`
   mirror GameCreator exactly (templated board, so no first-click relocation; `autoChordOnFlag` is unused so
-  it's ignored). Renders one `BoardView` per player **in that player's stored board skin** (unknown/missing
-  ids fall back to `classic`), with a timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game
+  it's ignored). Layout is a **focused stage** (one big board) above a **filmstrip** of small thumbnails —
+  all players, click any to focus it (`setFocus`, which rebuilds at the current playhead so position +
+  play state are preserved). Focus defaults to the viewer's own board (matched by `account.userId`),
+  falling back to player 0. Each player has one shared state array fed to all its `BoardView`s (the
+  thumbnail, plus the stage board when focused), so `renderFrame` re-sims each player once per frame and
+  draws all its views. Boards render **in that player's stored board skin** (unknown/missing ids fall back
+  to `classic`). Controls: timeline slider, play/pause (rAF loop), speed buttons (0.5/1/2/4×), and per-game
   tabs when `gameCount>1`. Steady-state redraws are skipped unless a player's applied-event count changed.
   `teardownReplay` (called from `hideAllViews`) cancels the rAF on navigation. Entry point: the **recent-
   games rows** on the profile that have a `replay_id` link to `/replay?id=N` (see Match history above).
