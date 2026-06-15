@@ -98,6 +98,16 @@ function registerSocketHandlers(socket, playerID) {
 		}
 	});
 
+	// Profile: recent ranked matches + per-style rating points (graph). Empty for signed-out.
+	socket.on("get_match_history", function() {
+		var acc = accounts[playerID];
+		if (!acc) { socket.emit("match_history", { matches: [], ratings: [] }); return; }
+		socket.emit("match_history", {
+			matches: db.getMatchHistory(acc.userId, 50),
+			ratings: db.getRatingHistory(acc.userId, 1000)
+		});
+	});
+
 	socket.on("set_name", function(data) {
 		var name = (data && typeof data.name === "string") ? data.name.trim().slice(0, 24) : "";
 		if (!name) {

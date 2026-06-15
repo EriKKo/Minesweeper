@@ -648,9 +648,22 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   against the live (server-trusted) stats — tiered counters (`value` + `tiers`, e.g. Victories 1/10/50/250,
   Ascendant by tier rating, Deductionist puzzles, …) plus one boolean (Sharpshooter = 60%+ over 20+).
   `computeAchievement` derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked
-  (dimmed, greyscale icon) with a progress bar and an "X / Y unlocked" count. Everything is **derived**
-  (no new storage) — persisting earned-dates / unlock toasts is the next layer. The skin picker
-  (`#skins_card`, admin) and Controls (`#controls_card`) cards follow.
+  (dimmed, greyscale icon) with a progress bar and an "X / Y unlocked" count. Achievements are **derived**
+  (no storage) — persisting earned-dates / unlock toasts is the next layer.
+- **Match history** (rating graph + recent games on the profile). A `match_history` table
+  (`db.js`: `user_id, style, rating_before, rating_after, placement, players, won, opponent, created_at`)
+  gets one row per human per completed ranked match, written wherever Elo persists: `elo.js`
+  `applyRankedElo` (racing + territory) and `applyEloForPlayer` (tournament), right after
+  `db.updateRating`. `db.recordMatch` (swallows its own errors so it can't break match-end),
+  `getMatchHistory(userId,limit)` (recent, desc — the games list), `getRatingHistory(userId,limit)`
+  (asc — bucketed per style for the graph). The `get_match_history` socket handler (session.js) returns
+  `{matches, ratings}` for the signed-in user; the client requests it from `renderProfile`, the
+  `match_history` handler calls `renderMatchHistory` → a responsive **SVG line chart**
+  (`#rating_history_card`, per-style toggle, seeded from each series' first `rating_before`) and a
+  **recent-games list** (`#recent_games_card`: style chip, Won/Lost or "Nth of M", Δrating, opponent/
+  player-count, relative time). Both cards hide when empty. NB history accrues **going forward** —
+  pre-existing accounts have no rows until they play. The skin picker (`#skins_card`, admin) and Controls
+  (`#controls_card`) cards follow.
 - **Help modal** (`#help_modal`, `wireHelpModal` in Main.js). The navbar **Help** item is a `<button>`
   (not an `<a>`, so the router's link interceptor ignores it) that opens a concise modal — rules, game
   modes, and controls — reusing the `.cr-modal`/`.cr-dialog` chrome. On open it fills the control-key

@@ -175,6 +175,25 @@ db.exec(
 	"  PRIMARY KEY (user_id, size, density)" +
 	");"
 );
+// Ranked match history: one row per human player per completed ranked match (written wherever Elo
+// is persisted — see elo.js). Powers the profile's rating graph + recent-games list. `rating_before`
+// / `rating_after` are the style's rating around this match; `placement`/`players` give the finish
+// (1 = won); `opponent` is a short label (the other player in 1v1, else null).
+db.exec(
+	"CREATE TABLE IF NOT EXISTS match_history (" +
+	"  id INTEGER PRIMARY KEY," +
+	"  user_id INTEGER NOT NULL," +
+	"  style TEXT NOT NULL," +
+	"  rating_before INTEGER NOT NULL," +
+	"  rating_after INTEGER NOT NULL," +
+	"  placement INTEGER NOT NULL," +
+	"  players INTEGER NOT NULL," +
+	"  won INTEGER NOT NULL," +
+	"  opponent TEXT," +
+	"  created_at INTEGER NOT NULL" +
+	");" +
+	"CREATE INDEX IF NOT EXISTS idx_match_user ON match_history(user_id, created_at);"
+);
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -561,6 +580,32 @@ function topPlayers(limit, mode) {
 		"SELECT COALESCE(display_name, name) AS name, " + ratingExpr + " AS rating, " +
 		"wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
 	).all(limit || 20);
+}
+
+// --- Ranked match history ------------------------------------------------------------------------
+// History is a non-critical analytics write — never let a failure here break rating
+// application / match-end, so it swallows its own errors.
+function recordMatch(m) {
+	try {
+		db.prepare(
+			"INSERT INTO match_history (user_id, style, rating_before, rating_after, placement, players, won, opponent, created_at) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		).run(m.userId, m.style, m.ratingBefore, m.ratingAfter, m.placement, m.players, m.won ? 1 : 0, m.opponent || null, Date.now());
+	} catch (e) { console.error("recordMatch failed", e); }
+}
+// Recent matches across all styles (newest first) — the "recent games" list.
+function getMatchHistory(userId, limit) {
+	return db.prepare(
+		"SELECT style, rating_before, rating_after, placement, players, won, opponent, created_at " +
+		"FROM match_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
+	).all(userId, limit || 50);
+}
+// Oldest-first rating points across all styles — the client buckets per style for the graph.
+function getRatingHistory(userId, limit) {
+	return db.prepare(
+		"SELECT style, rating_before, rating_after, created_at " +
+		"FROM match_history WHERE user_id = ? ORDER BY created_at ASC LIMIT ?"
+	).all(userId, limit || 1000);
 }
 
 // Map the CSP-driven score (max complexity + small total bonus) to a
@@ -1096,6 +1141,9 @@ module.exports = {
 	setRating: setRating,
 	deleteSession: deleteSession,
 	topPlayers: topPlayers,
+	recordMatch: recordMatch,
+	getMatchHistory: getMatchHistory,
+	getRatingHistory: getRatingHistory,
 	// Puzzles
 	scoreToRating: scoreToRating,
 	insertPuzzle: insertPuzzle,

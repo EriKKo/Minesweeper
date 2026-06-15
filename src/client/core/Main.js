@@ -1230,6 +1230,10 @@ socket.on("room_list", function(data) {
 	if (typeof renderHomeRooms === "function") renderHomeRooms(data.rooms || []);
 });
 
+socket.on("match_history", function(data) {
+	if (typeof renderMatchHistory === "function") renderMatchHistory(data);
+});
+
 socket.on("joined_room", function(data) {
 	inRoom = true;
 	if (data && data.mode) currentRankedMode = data.mode;

@@ -78,6 +78,9 @@ function renderProfile() {
 		card.appendChild(p);
 		var ac0 = document.getElementById("achievements_card");
 		if (ac0) ac0.innerHTML = "";
+		["rating_history_card", "recent_games_card"].forEach(function(id) {
+			var el = document.getElementById(id); if (el) el.style.display = "none";
+		});
 		return;
 	}
 	card.innerHTML = "";
@@ -144,6 +147,8 @@ function renderProfile() {
 	card.appendChild(profileBestsGrid(account.soloBests || {}));
 
 	renderAchievements();
+	// Rating graph + recent games come from a separate request (match_history handler → renderMatchHistory).
+	if (typeof socket !== "undefined") socket.emit("get_match_history");
 }
 
 function formatMemberSince(ms) {
@@ -283,6 +288,119 @@ function renderAchievements() {
 	grid.className = "ach-grid";
 	computed.forEach(function(c) { grid.appendChild(achTile(c)); });
 	card.appendChild(grid);
+}
+
+// --- Match history: rating graph + recent games (from the server's get_match_history) -----------
+var matchHistory = { matches: [], ratings: [] };
+var ratingChartStyle = null; // which ladder the rating graph is showing
+var STYLE_LABELS = { sprint: "Sprint", standard: "Standard", tournament: "Tournament", territory: "Territory" };
+function styleLabelOf(s) { return STYLE_LABELS[s] || s; }
+function ordinal(n) { var s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+function relTime(ms) {
+	var secs = Math.floor((Date.now() - ms) / 1000);
+	if (secs < 60) return "just now";
+	var m = Math.floor(secs / 60); if (m < 60) return m + "m ago";
+	var h = Math.floor(m / 60); if (h < 24) return h + "h ago";
+	var d = Math.floor(h / 24); if (d < 30) return d + "d ago";
+	return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Server reply: cache + render the graph (only if there's rating data) and the games list.
+function renderMatchHistory(data) {
+	matchHistory = data || { matches: [], ratings: [] };
+	var ratingsCard = document.getElementById("rating_history_card");
+	var gamesCard = document.getElementById("recent_games_card");
+	var hasRatings = matchHistory.ratings && matchHistory.ratings.length > 0;
+	var hasMatches = matchHistory.matches && matchHistory.matches.length > 0;
+	if (ratingsCard) { ratingsCard.style.display = hasRatings ? "" : "none"; if (hasRatings) renderRatingGraphCard(); }
+	if (gamesCard) { gamesCard.style.display = hasMatches ? "" : "none"; if (hasMatches) renderRecentGamesCard(); }
+}
+
+function renderRatingGraphCard() {
+	var card = document.getElementById("rating_history_card");
+	if (!card) return;
+	card.innerHTML = "";
+	var buckets = {};
+	matchHistory.ratings.forEach(function(p) { (buckets[p.style] = buckets[p.style] || []).push(p); });
+	var styles = Object.keys(buckets);
+	if (!styles.length) { card.style.display = "none"; return; }
+	// Default to the most-played ladder; keep the user's pick if still valid.
+	if (!ratingChartStyle || styles.indexOf(ratingChartStyle) < 0) {
+		ratingChartStyle = styles.reduce(function(best, s) { return buckets[s].length > buckets[best].length ? s : best; }, styles[0]);
+	}
+	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Rating history"; card.appendChild(h);
+	if (styles.length > 1) {
+		var tabs = document.createElement("div"); tabs.className = "lb-tabs rating-chart-tabs";
+		styles.forEach(function(s) {
+			var b = document.createElement("button"); b.type = "button";
+			b.className = "lb-tab" + (s === ratingChartStyle ? " active" : "");
+			b.textContent = styleLabelOf(s);
+			b.addEventListener("click", function() { ratingChartStyle = s; renderRatingGraphCard(); });
+			tabs.appendChild(b);
+		});
+		card.appendChild(tabs);
+	}
+	var rows = buckets[ratingChartStyle];
+	var points = [];
+	if (rows.length) points.push({ t: rows[0].created_at, r: rows[0].rating_before }); // seed from the entry rating
+	rows.forEach(function(p) { points.push({ t: p.created_at, r: p.rating_after }); });
+	var wrap = document.createElement("div"); wrap.className = "rating-chart-wrap";
+	wrap.innerHTML = buildRatingChartSVG(points);
+	card.appendChild(wrap);
+}
+
+// A simple responsive SVG line chart of rating over time.
+function buildRatingChartSVG(points) {
+	if (points.length < 2) return '<div class="rating-chart-empty">Current rating: ' + (points[0] ? points[0].r : "—") + " — play more matches to chart your progress.</div>";
+	var W = 600, H = 170, L = 42, Rp = 14, Tp = 14, Bp = 22;
+	var rs = points.map(function(p) { return p.r; }), ts = points.map(function(p) { return p.t; });
+	var rMin = Math.min.apply(null, rs), rMax = Math.max.apply(null, rs);
+	if (rMax === rMin) { rMin = Math.max(0, rMin - 50); rMax = rMax + 50; }
+	var span = rMax - rMin;
+	rMin = Math.max(0, Math.floor((rMin - span * 0.1) / 10) * 10);
+	rMax = Math.ceil((rMax + span * 0.1) / 10) * 10;
+	var tMin = ts[0], tMax = ts[ts.length - 1]; if (tMax === tMin) tMax = tMin + 1;
+	function X(t) { return L + (W - L - Rp) * (t - tMin) / (tMax - tMin); }
+	function Y(r) { return Tp + (H - Tp - Bp) * (1 - (r - rMin) / (rMax - rMin)); }
+	var d = points.map(function(p, i) { return (i ? "L" : "M") + X(p.t).toFixed(1) + " " + Y(p.r).toFixed(1); }).join(" ");
+	var area = d + " L " + X(tMax).toFixed(1) + " " + (H - Bp) + " L " + X(tMin).toFixed(1) + " " + (H - Bp) + " Z";
+	var last = points[points.length - 1];
+	var svg = '<svg viewBox="0 0 ' + W + " " + H + '" class="rating-chart">';
+	[rMin, Math.round((rMin + rMax) / 2), rMax].forEach(function(rv) {
+		var y = Y(rv).toFixed(1);
+		svg += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - Rp) + '" y2="' + y + '" class="rc-grid"/>';
+		svg += '<text x="' + (L - 6) + '" y="' + (parseFloat(y) + 3.5) + '" class="rc-label" text-anchor="end">' + rv + "</text>";
+	});
+	svg += '<path d="' + area + '" class="rc-area"/>';
+	svg += '<path d="' + d + '" class="rc-line"/>';
+	svg += '<circle cx="' + X(last.t).toFixed(1) + '" cy="' + Y(last.r).toFixed(1) + '" r="3.5" class="rc-dot"/>';
+	svg += "</svg>";
+	return svg;
+}
+
+function renderRecentGamesCard() {
+	var card = document.getElementById("recent_games_card");
+	if (!card) return;
+	card.innerHTML = "";
+	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Recent games"; card.appendChild(h);
+	var list = document.createElement("div"); list.className = "games-list";
+	matchHistory.matches.slice(0, 20).forEach(function(m) { list.appendChild(gameRow(m)); });
+	card.appendChild(list);
+}
+function gameRow(m) {
+	var row = document.createElement("div"); row.className = "game-row";
+	var chip = document.createElement("span"); chip.className = "game-chip game-chip-" + m.style; chip.textContent = styleLabelOf(m.style); row.appendChild(chip);
+	var res = document.createElement("span"); res.className = "game-result " + (m.won ? "game-won" : "game-lost");
+	res.textContent = m.players <= 2 ? (m.won ? "Won" : "Lost") : (ordinal(m.placement) + " of " + m.players);
+	row.appendChild(res);
+	var opp = document.createElement("span"); opp.className = "game-opp";
+	opp.textContent = m.opponent ? ("vs " + m.opponent) : (m.players > 2 ? (m.players + " players") : "");
+	row.appendChild(opp);
+	var delta = (m.rating_after || 0) - (m.rating_before || 0);
+	var d = document.createElement("span"); d.className = "game-delta " + (delta >= 0 ? "game-delta-pos" : "game-delta-neg");
+	d.textContent = (delta >= 0 ? "+" : "") + delta; row.appendChild(d);
+	var t = document.createElement("span"); t.className = "game-time"; t.textContent = relTime(m.created_at); row.appendChild(t);
+	return row;
 }
 
 function profileStat(label, value) {

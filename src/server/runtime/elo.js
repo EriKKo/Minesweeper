@@ -84,6 +84,11 @@ function applyEloForPlayer(targetPid, allParts, style) {
 	var newRating = Math.max(0, target.rating + delta); // Bronze I floors at 0
 	var provisional = (target.played + 1) < PROVISIONAL_GAMES;
 	db.updateRating(target.userId, newRating, target.rank === 1, style);
+	// Record for the profile history (tournament has many players → no single opponent label).
+	db.recordMatch({
+		userId: target.userId, style: style, ratingBefore: target.rating, ratingAfter: newRating,
+		placement: target.rank, players: n, won: target.rank === 1, opponent: null
+	});
 	if (accounts[targetPid]) {
 		// Cache the style-specific rating on the in-memory account so the
 		// lobby tile updates the right tier badge.
@@ -162,6 +167,13 @@ function applyRankedElo(standings, style) {
 		p.newRating = Math.max(0, p.rating + p.delta); // Bronze I floors at 0
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
 		db.updateRating(p.userId, p.newRating, p.rank === 1, style);
+		// Record the match for the profile rating graph + recent-games list. In 1v1 the opponent
+		// is the other standing; bigger lobbies have no single opponent label.
+		db.recordMatch({
+			userId: p.userId, style: style, ratingBefore: p.rating, ratingAfter: p.newRating,
+			placement: p.rank, players: n, won: p.rank === 1,
+			opponent: (n === 2 && standings[1 - i]) ? standings[1 - i].name : null
+		});
 	}
 	for (var k = 0; k < standings.length; k++) {
 		if (!parts[k].bot && parts[k].userId) {
