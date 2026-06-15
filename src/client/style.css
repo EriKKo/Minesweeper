@@ -509,6 +509,17 @@ main {
 }
 
 
+/* Leaderboard mode filter tabs. */
+.lb-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+.lb-tab {
+	padding: 0.4rem 0.95rem; border-radius: 999px; cursor: pointer;
+	background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+	font: inherit; font-size: 0.88rem; font-weight: 600;
+	transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.lb-tab:hover { color: var(--text); border-color: var(--muted); }
+.lb-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .leaderboard-list {
 	list-style: none;
 	margin: 0;

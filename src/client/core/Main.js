@@ -1212,6 +1212,8 @@ socket.on("authenticated", applyAuthenticated);
 var leaderboardProvisional = 10;
 socket.on("leaderboard", function(data) {
 	if (data && data.provisionalGames) leaderboardProvisional = data.provisionalGames;
+	// Ignore a reply for a mode the user has since switched away from (tab races).
+	if (data && data.mode && typeof currentLeaderboardMode !== "undefined" && data.mode !== currentLeaderboardMode) return;
 	renderLeaderboard((data && data.players) || []);
 });
 

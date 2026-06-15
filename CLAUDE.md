@@ -631,6 +631,14 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   button when joinable, **Full**/​**In game** tags otherwise), capped at `HOME_ROOMS_MAX` (6) with a
   "+N more" line, above a **Browse Custom Lobbies** button → `/custom`. (`#leaderboard_list` is gone;
   `renderLeaderboard` already `.filter(Boolean)`s its now-null home target and only fills the full list.)
+- **Leaderboard page** (`/leaderboard`) has **mode filter tabs** (`#leaderboard_tabs`: Overall · Sprint ·
+  Standard · Tournament · Territory). `Leaderboard.js` tracks `currentLeaderboardMode` and
+  `selectLeaderboardMode(mode)` (highlights the tab, shows a loading row, emits `get_leaderboard {mode}`);
+  the `leaderboard` handler ignores replies whose `mode` no longer matches (tab-switch races).
+  Server: `get_leaderboard` passes `mode` to `db.topPlayers(limit, mode)`, which ranks by that style's
+  column via a **whitelist** map (`LEADERBOARD_COLUMNS`; unknown/`overall` → `MAX(...)` across modes) and
+  returns it as `rating`, so `renderLeaderboard` stays mode-agnostic (tier via `tierFor` on that rating).
+  Puzzles is excluded (separate rating scale).
 - **Help modal** (`#help_modal`, `wireHelpModal` in Main.js). The navbar **Help** item is a `<button>`
   (not an `<a>`, so the router's link interceptor ignores it) that opens a concise modal — rules, game
   modes, and controls — reusing the `.cr-modal`/`.cr-dialog` chrome. On open it fills the control-key

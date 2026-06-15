@@ -545,10 +545,20 @@ function deleteSession(token) {
 	if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
 }
 
-function topPlayers(limit) {
-	// "Overall" rating is the player's best across modes (no single legacy column any more).
+// Top players for a leaderboard. `mode` picks the ranked style to rank by; anything else
+// (incl. "overall"/undefined) ranks by the player's best across modes. The mode→column map is
+// a whitelist, so the interpolated column name can never be attacker-controlled SQL.
+var LEADERBOARD_COLUMNS = {
+	sprint: "rating_sprint",
+	standard: "rating_standard",
+	tournament: "rating_tournament",
+	territory: "rating_territory"
+};
+function topPlayers(limit, mode) {
+	var col = LEADERBOARD_COLUMNS[mode];
+	var ratingExpr = col || "MAX(rating_sprint, rating_standard, rating_tournament, rating_territory)";
 	return db.prepare(
-		"SELECT COALESCE(display_name, name) AS name, MAX(rating_sprint, rating_standard, rating_tournament, rating_territory) AS rating, " +
+		"SELECT COALESCE(display_name, name) AS name, " + ratingExpr + " AS rating, " +
 		"wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
 	).all(limit || 20);
 }

@@ -2,6 +2,35 @@
 // (#leaderboard_list) and the full /leaderboard view (#leaderboard_full_list)
 // — from the same dataset, painting tier + rating + "you" highlight per row.
 
+// Which mode's ladder the /leaderboard page is showing. The server returns the
+// chosen mode's rating as `rating`, so renderLeaderboard stays mode-agnostic.
+var currentLeaderboardMode = "overall";
+
+// Open/refresh the leaderboard for a mode: highlight the tab, show a loading row,
+// and request that ladder. The `leaderboard` socket handler renders the reply.
+function selectLeaderboardMode(mode) {
+	currentLeaderboardMode = mode || "overall";
+	var tabs = document.querySelectorAll("#leaderboard_tabs .lb-tab");
+	for (var i = 0; i < tabs.length; i++) {
+		tabs[i].classList.toggle("active", tabs[i].getAttribute("data-mode") === currentLeaderboardMode);
+	}
+	if (typeof leaderboardFullList !== "undefined" && leaderboardFullList) {
+		leaderboardFullList.innerHTML = "";
+		leaderboardFullList.appendChild(emptyRow("Loading…"));
+	}
+	if (typeof socket !== "undefined") socket.emit("get_leaderboard", { mode: currentLeaderboardMode });
+}
+
+// Wire the mode tabs once (delegated; the buttons live in static markup).
+(function wireLeaderboardTabs() {
+	var tabsEl = document.getElementById("leaderboard_tabs");
+	if (!tabsEl) return;
+	tabsEl.addEventListener("click", function(e) {
+		var btn = e.target.closest(".lb-tab");
+		if (btn && tabsEl.contains(btn)) selectLeaderboardMode(btn.getAttribute("data-mode"));
+	});
+})();
+
 function renderLeaderboard(players) {
 	var targets = [leaderboardList, leaderboardFullList].filter(Boolean);
 	targets.forEach(function(target) { target.innerHTML = ""; });

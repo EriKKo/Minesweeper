@@ -245,7 +245,9 @@ function showLeaderboardView() {
 	hideAllViews();
 	document.getElementById("leaderboard_view").style.display = "";
 	setSiteNavActive("leaderboard");
-	socket.emit("get_leaderboard");
+	// Re-request the current mode's ladder (highlights the tab + shows a loading row).
+	if (typeof selectLeaderboardMode === "function") selectLeaderboardMode(currentLeaderboardMode || "overall");
+	else socket.emit("get_leaderboard");
 }
 
 function showProfileView() {

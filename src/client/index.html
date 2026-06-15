@@ -390,7 +390,14 @@
 
 		<section id="leaderboard_view" class="view section-view" style="display:none">
 			<h1 class="section-page-title">Leaderboard</h1>
-			<p class="section-page-sub">Top-rated players overall. Mode and time-window filters are coming in the next pass.</p>
+			<p class="section-page-sub">Top-rated players. Filter by mode — Overall is your best across all ladders.</p>
+			<div id="leaderboard_tabs" class="lb-tabs" role="tablist">
+				<button type="button" class="lb-tab active" data-mode="overall">Overall</button>
+				<button type="button" class="lb-tab" data-mode="sprint">Sprint</button>
+				<button type="button" class="lb-tab" data-mode="standard">Standard</button>
+				<button type="button" class="lb-tab" data-mode="tournament">Tournament</button>
+				<button type="button" class="lb-tab" data-mode="territory">Territory</button>
+			</div>
 			<div class="section-card">
 				<ol id="leaderboard_full_list" class="leaderboard-list">
 					<li class="room-empty">Loading…</li>

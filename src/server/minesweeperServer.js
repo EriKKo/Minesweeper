@@ -751,8 +751,9 @@ io.on("connection", function (socket) {
 		});
 	});
 
-	socket.on("get_leaderboard", function() {
-		socket.emit("leaderboard", { players: db.topPlayers(20), provisionalGames: PROVISIONAL_GAMES });
+	socket.on("get_leaderboard", function(data) {
+		var mode = (data && typeof data.mode === "string") ? data.mode : "overall";
+		socket.emit("leaderboard", { players: db.topPlayers(20, mode), provisionalGames: PROVISIONAL_GAMES, mode: mode });
 	});
 
 
