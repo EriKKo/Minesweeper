@@ -204,12 +204,6 @@ function updateRatingFromStandings(standings, opts) {
 	var newOverall = overallRating(account);
 	var newTier = tierFor(newOverall, account.provisional);
 	renderRatingBadge();
-	// Pulse the topbar rank badge on a change (the chip text was removed — the badge is the indicator).
-	if (ratingBadgeSlot) {
-		ratingBadgeSlot.classList.remove("rating-chip-bump");
-		void ratingBadgeSlot.offsetWidth;
-		ratingBadgeSlot.classList.add("rating-chip-bump");
-	}
 	// Float + banner track the headline (overall) rating; a gain in a non-best mode is shown in the
 	// result modal's own delta, not on the topbar.
 	var delta = newOverall - oldOverall;
@@ -217,11 +211,11 @@ function updateRatingFromStandings(standings, opts) {
 	if (newTier.name !== oldTier.name && !opts.suppressBanner) showRankChangeBanner(newOverall > oldOverall, newTier);
 }
 
-// Floating "+15"/"-15" that drifts up from below the topbar rank badge, so
-// the animation always travels into the viewport even when the badge is near
+// Floating "+15"/"-15" that drifts up from below the topbar user badge, so
+// the animation always travels into the viewport even when it's near
 // the top of the screen.
 function showRatingDelta(delta) {
-	var anchor = (ratingBadgeSlot && ratingBadgeSlot.firstChild) ? ratingBadgeSlot : ratingChip;
+	var anchor = (typeof userBadge !== "undefined" && userBadge) ? userBadge : document.body;
 	var rect = anchor.getBoundingClientRect();
 	var el = document.createElement("span");
 	el.className = "rating-delta " + (delta > 0 ? "rating-delta-gain" : "rating-delta-loss");

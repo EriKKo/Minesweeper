@@ -190,8 +190,11 @@ else is grouped:
   attaches the provider identity to the SAME row (keeping id/rating/stats) — unless that provider account
   already exists, in which case it logs into the existing account and discards the guest (`switched`).
   Sign-out drops back to a fresh guest, never a login wall. Client: `Auth.js` (`applyConnected` →
-  `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + shows the guest "Sign in"
-  button vs a real account's "Sign out"); the repurposed `#name_view` is the on-demand sign-in / rename card.
+  `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + calls `applyUserIdentity`);
+  the repurposed `#name_view` is the on-demand sign-in / rename card. **Topbar identity** (`applyUserIdentity`):
+  a real account shows its **auth-provider logo** (`providerLogoSVG`, Google/Discord marks; dev/github get
+  none) + name + a "Sign out" button — **no rank badge** (rank lives on the home dashboard chips); a guest
+  shows **only the "Sign in" button** (no name/logo). The `authenticated` payload carries `provider` for this.
   **Cleanup:** drive-by guests are reaped by `db.pruneStaleGuests(maxAgeMs)` (deletes `is_guest=1` rows
   with `played=0` AND `puzzles_attempted=0` older than the TTL, plus their sessions/attempts; a guest who
   played anything is kept). The server runs it on startup and daily (`reapGuests`, TTL = `GUEST_TTL_DAYS`

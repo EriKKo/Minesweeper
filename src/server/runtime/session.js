@@ -46,7 +46,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		dailyStreak: db.dailyStreakForUser(user.id),
 		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
 		isAdmin: !!user.is_admin,
-		guest: !!user.is_guest
+		guest: !!user.is_guest,
+		provider: user.provider // "google" | "discord" | "github" | "dev" | "guest" — drives the topbar auth logo
 	};
 	if (sendToken) payload.token = token;
 	socket.emit("authenticated", payload);

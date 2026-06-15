@@ -397,10 +397,11 @@ body {
 
 .user-badge strong { color: var(--text); font-weight: 600; }
 
-/* Small rank badge beside the topbar rating chip. */
-.topbar-rank-badge { display: inline-flex; align-items: center; }
-.topbar-rank-badge:empty { display: none; }
-.topbar-rank-badge .rank-badge { font-size: 5.5px; }
+/* Topbar identity: provider auth logo + name (real accounts only; guests show just the Sign in button). */
+.user-identity { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.user-identity strong { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
+.user-provider-logo { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.user-provider-logo svg { width: 1.05rem; height: 1.05rem; display: block; }
 
 input[type="text"] {
 	background: var(--surface);
