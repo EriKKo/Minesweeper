@@ -98,13 +98,16 @@ nameForm.addEventListener("submit", function(e) {
 	socket.emit("set_name", { name: name });
 });
 
-changeNameButton.addEventListener("click", function() {
-	if (inRoom) {
-		socket.emit("leave_room");
-	}
+// Open the rename / sign-in card with the current name pre-filled. Shared by the topbar "Change"
+// button and the home dashboard pen icon.
+function openNameCard() {
+	if (inRoom) socket.emit("leave_room");
 	nameInput.value = myName;
 	showNameView();
-});
+}
+changeNameButton.addEventListener("click", openNameCard);
+var dashEditNameButton = document.getElementById("dash_edit_name");
+if (dashEditNameButton) dashEditNameButton.addEventListener("click", openNameCard);
 
 googleSigninButton.addEventListener("click", function() {
 	window.location.href = "/auth/google/login" + guestUpgradeQuery("?");
