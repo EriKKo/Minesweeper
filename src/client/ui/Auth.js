@@ -179,6 +179,8 @@ function applyAuthenticated(data) {
 	// Prefetch the daily-puzzle state so the lobby hero card can render
 	// today's board immediately.
 	if (typeof socket !== "undefined") socket.emit("puzzle_daily_status");
+	// Baseline achievement progress now, so the first game's unlock toasts have a "before" to diff.
+	if (typeof socket !== "undefined") socket.emit("get_match_history");
 	if (!inRoom) applyRouteFromHash();
 }
 

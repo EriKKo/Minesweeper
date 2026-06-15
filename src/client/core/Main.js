@@ -503,6 +503,7 @@ socket.on("puzzle_result", function(data) {
 	}
 	updatePuzzleHud();
 	showPuzzleOutcome(data);
+	refreshAchievementProgress();
 });
 
 socket.on("puzzle_daily_status", function(data) {
@@ -541,6 +542,7 @@ socket.on("puzzle_daily_result", function(data) {
 		updatePuzzleHud();
 		showDailyOutcome(data);
 	});
+	refreshAchievementProgress();
 });
 
 socket.on("puzzle_run_end", function(data) {
@@ -555,6 +557,7 @@ socket.on("puzzle_run_end", function(data) {
 		}
 		showPuzzleRunOutcome(data);
 	});
+	refreshAchievementProgress();
 });
 
 // Hint pointer: server tells us which cell(s) to look at — clue cells and
@@ -649,7 +652,15 @@ socket.on("solo_record", function(data) {
 	account.soloBests[data.size + "_" + data.density] = data.best;
 	if (typeof updateSoloBest === "function") updateSoloBest();
 	if (typeof onSoloRecord === "function") onSoloRecord(data);
+	refreshAchievementProgress();
 });
+
+// After any result, pull fresh stats (cheap PK read server-side) so achievement progress + unlock
+// toasts reflect the just-finished game. The match_history handler → renderMatchHistory →
+// checkAchievementUnlocks does the diff.
+function refreshAchievementProgress() {
+	if (account && typeof socket !== "undefined") socket.emit("get_match_history");
+}
 
 // Procedural sound effects (WebAudio, no asset files). Short and soft — these
 // fire hundreds of times per game, so everything is brief and low-gain.
@@ -1594,6 +1605,7 @@ socket.on("series_ended", function(data) {
 	// Both 1v1 and 6-player show the same flow: the finish-place stamps (1st/2nd/…) are already on
 	// the boards, then the shared ranked result card.
 	showResultModal(data);
+	refreshAchievementProgress();
 });
 
 // Match found: no pre-game modal — the search waiting room already showed who's joining.

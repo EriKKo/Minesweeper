@@ -449,6 +449,25 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 	.game-time { display: none; }
 }
 
+/* --- Achievement unlock toasts --- */
+.toast-stack { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+.ach-toast {
+	display: flex; align-items: center; gap: 0.7rem; min-width: 240px; max-width: 320px;
+	padding: 0.7rem 0.9rem; border-radius: 12px;
+	background: linear-gradient(180deg, var(--surface-2), var(--surface));
+	border: 1px solid var(--accent); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+	transform: translateX(125%); opacity: 0; transition: transform 0.38s var(--ease, ease-out), opacity 0.38s;
+}
+.ach-toast-complete { border-color: var(--success, #4ade80); }
+.ach-toast-in { transform: none; opacity: 1; }
+.ach-toast-out { transform: translateX(125%); opacity: 0; }
+.ach-toast-icon { font-size: 1.7rem; line-height: 1; flex: 0 0 auto; }
+.ach-toast-text { min-width: 0; }
+.ach-toast-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; color: var(--accent); }
+.ach-toast-complete .ach-toast-label { color: var(--success, #4ade80); }
+.ach-toast-name { font-weight: 700; font-size: 0.98rem; }
+@media (max-width: 560px) { .toast-stack { left: 12px; right: 12px; } .ach-toast { max-width: none; } }
+
 /* --- Achievements --- */
 .ach-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.8rem; }
 .ach-count { font-size: 0.8rem; font-weight: 700; color: var(--accent-hover); }
@@ -459,7 +478,8 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 	padding: 0.7rem 0.85rem; border-radius: 11px;
 	background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border);
 }
-.ach-earned { border-color: rgba(99, 102, 241, 0.45); background: rgba(99, 102, 241, 0.08); }
+.ach-partial { border-color: rgba(99, 102, 241, 0.45); background: rgba(99, 102, 241, 0.08); }
+.ach-complete { border-color: rgba(74, 222, 128, 0.5); background: rgba(74, 222, 128, 0.09); }
 .ach-locked { opacity: 0.7; }
 .ach-icon { font-size: 1.5rem; line-height: 1.2; flex: 0 0 auto; }
 .ach-locked .ach-icon { filter: grayscale(1); opacity: 0.7; }
@@ -467,8 +487,8 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .ach-name { font-weight: 700; font-size: 0.95rem; }
 .ach-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.05rem; }
 .ach-prog { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin: 0.45rem 0 0.25rem; }
-.ach-prog-bar { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
-.ach-earned .ach-prog-bar { background: var(--success, #4ade80); }
+.ach-prog-bar { display: block; height: 100%; background: var(--accent); border-radius: 2px; } /* partial = blue */
+.ach-complete .ach-prog-bar { background: var(--success, #4ade80); } /* all tiers done = green */
 .ach-prog-text { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .audio-control {

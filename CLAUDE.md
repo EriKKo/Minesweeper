@@ -672,9 +672,17 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `stats` (shape unchanged → client untouched; rank achievements client-fallback to current ratings when
   a player has no match history yet). The client renders achievements from
   `account` immediately, then re-renders when `renderMatchHistory` fills the aggregates. `computeTiered`
-  derives reached-tier/roman-numeral/progress; tiles show earned (accent) vs locked (dimmed, greyscale
-  icon) + a progress bar + an "X / Y unlocked" count. Still **derived** (no per-achievement storage) —
-  earned-dates / unlock toasts are the next layer.
+  derives reached-tier/roman-numeral/progress and exposes `reached`/`tierCount`/`complete`; tiles are
+  **three-state** — `.ach-complete` (all tiers → green) / `.ach-partial` (some tiers → blue) / `.ach-locked`
+  (dimmed, greyscale). The header count is **tier-aware**: total tiers reached / total tiers (so multi-tier
+  achievements count fully), while the meta **Collector** still counts distinct achievements unlocked.
+  **Unlock toasts** (`checkAchievementUnlocks` + `showAchievementToast` → bottom-right `#toast_stack`): it
+  diffs each achievement's reached-tier count against the last snapshot (`achReached`); the first check
+  after (re)connect baselines silently, later checks toast any newly-crossed tier (blue=unlocked /
+  green=complete). A check runs whenever fresh stats land (`renderMatchHistory`); `refreshAchievementProgress`
+  (Main.js) re-requests `get_match_history` after every result (`series_ended`, `puzzle_result`,
+  `puzzle_run_end`, `puzzle_daily_result`, `solo_record`), and `applyAuthenticated` requests it once to
+  baseline before the first game.
 - **Match history** (rating graph + recent games on the profile). A `match_history` table
   (`db.js`: `user_id, style, rating_before, rating_after, placement, players, won, opponent, created_at`)
   gets one row per human per completed ranked match, written wherever Elo persists: `elo.js`

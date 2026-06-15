@@ -270,6 +270,8 @@ var ACHIEVEMENTS = [
 ];
 
 // Tiered-achievement evaluator (shared by the catalogue and the meta "Collector").
+// `reached`/`tierCount` drive the tier-aware "X / Y" header count; `complete` (all tiers done)
+// colours the tile green vs. blue for partial progress.
 function computeTiered(icon, name, value, tiers, descFn) {
 	var reached = 0;
 	for (var i = 0; i < tiers.length; i++) if (value >= tiers[i]) reached++;
@@ -279,7 +281,8 @@ function computeTiered(icon, name, value, tiers, descFn) {
 		icon: icon,
 		name: name + (tiers.length > 1 && reached > 0 ? " " + ACH_ROMAN[reached] : ""),
 		desc: descFn(next),
-		unlocked: reached > 0,
+		unlocked: reached > 0, complete: maxed,
+		reached: reached, tierCount: tiers.length,
 		frac: maxed ? 1 : (next ? Math.min(1, value / next) : 1),
 		progText: maxed ? "Complete" : (Math.round(value) + " / " + next)
 	};
@@ -288,12 +291,13 @@ function computeTiered(icon, name, value, tiers, descFn) {
 function computeAchievement(a, m) {
 	if (a.tiers) return computeTiered(a.icon, a.name, a.value(m), a.tiers, a.desc);
 	var on = a.bool(m);
-	return { icon: a.icon, name: a.name, desc: a.desc(), unlocked: on, frac: on ? 1 : 0, progText: on ? "Unlocked" : a.progress(m) };
+	return { icon: a.icon, name: a.name, desc: a.desc(), unlocked: on, complete: on, reached: on ? 1 : 0, tierCount: 1, frac: on ? 1 : 0, progText: on ? "Unlocked" : a.progress(m) };
 }
 
 function achTile(c) {
 	var tile = document.createElement("div");
-	tile.className = "ach-tile " + (c.unlocked ? "ach-earned" : "ach-locked");
+	// complete (all tiers) → green; partly done → blue; not started → dimmed.
+	tile.className = "ach-tile " + (c.complete ? "ach-complete" : (c.unlocked ? "ach-partial" : "ach-locked"));
 	var icon = document.createElement("span"); icon.className = "ach-icon"; icon.textContent = c.icon; tile.appendChild(icon);
 	var body = document.createElement("div"); body.className = "ach-body";
 	var nm = document.createElement("div"); nm.className = "ach-name"; nm.textContent = c.name; body.appendChild(nm);
@@ -316,15 +320,18 @@ function renderAchievements() {
 	// at which point this re-renders — so account-derived ones show instantly, history ones fill in).
 	var metrics = Object.assign({}, account, profileStats);
 	var computed = ACHIEVEMENTS.map(function(a) { return computeAchievement(a, metrics); });
-	// Meta: "Collector" tracks how many of the others you've unlocked.
+	// Meta: "Collector" tracks how many distinct achievements you've unlocked (≥1 tier).
 	var unlockedCount = computed.filter(function(c) { return c.unlocked; }).length;
 	computed.push(computeTiered("🏅", "Collector", unlockedCount, [10, 20, ACHIEVEMENTS.length], function(t) { return "Unlock " + t + " achievements"; }));
 
+	// Header count is tier-aware: total tiers reached across everything (so multi-tier achievements count).
+	var tiersReached = computed.reduce(function(s, c) { return s + c.reached; }, 0);
+	var tiersTotal = computed.reduce(function(s, c) { return s + c.tierCount; }, 0);
 	var head = document.createElement("div");
 	head.className = "ach-head";
 	var h = document.createElement("h2"); h.className = "controls-title"; h.textContent = "Achievements"; head.appendChild(h);
 	var count = document.createElement("span"); count.className = "ach-count";
-	count.textContent = computed.filter(function(c) { return c.unlocked; }).length + " / " + computed.length + " unlocked";
+	count.textContent = tiersReached + " / " + tiersTotal + " unlocked";
 	head.appendChild(count);
 	card.appendChild(head);
 
@@ -360,8 +367,48 @@ function renderMatchHistory(data) {
 	var hasMatches = matchHistory.matches && matchHistory.matches.length > 0;
 	if (ratingsCard) { ratingsCard.style.display = hasRatings ? "" : "none"; if (hasRatings) renderRatingGraphCard(); }
 	if (gamesCard) { gamesCard.style.display = hasMatches ? "" : "none"; if (hasMatches) renderRecentGamesCard(); }
-	// History aggregates just arrived — re-render achievements so the history-based ones fill in.
+	// History aggregates just arrived — re-render achievements so the history-based ones fill in,
+	// and toast anything that crossed a tier since the last check.
 	if (typeof renderAchievements === "function") renderAchievements();
+	checkAchievementUnlocks();
+}
+
+// --- Achievement unlock toasts ----------------------------------------------------------------
+// Diff each achievement's reached-tier count against the last snapshot. The FIRST check after
+// (re)connect just baselines silently; later checks (after a match/puzzle/daily/solo result, which
+// re-request stats) toast any tier that newly crossed. Driven entirely off the metrics bag.
+var achReached = null; // index -> tiers reached, or null until baselined
+function checkAchievementUnlocks() {
+	if (!account) { achReached = null; return; }
+	var metrics = Object.assign({}, account, profileStats);
+	var computed = ACHIEVEMENTS.map(function(a) { return computeAchievement(a, metrics); });
+	var now = computed.map(function(c) { return c.reached; });
+	if (achReached) {
+		for (var i = 0; i < computed.length; i++) {
+			if (now[i] > (achReached[i] || 0)) showAchievementToast(computed[i]);
+		}
+	}
+	achReached = now;
+}
+
+function showAchievementToast(c) {
+	var stack = document.getElementById("toast_stack");
+	if (!stack) { stack = document.createElement("div"); stack.id = "toast_stack"; stack.className = "toast-stack"; document.body.appendChild(stack); }
+	var t = document.createElement("div");
+	t.className = "ach-toast" + (c.complete ? " ach-toast-complete" : "");
+	var icon = document.createElement("span"); icon.className = "ach-toast-icon"; icon.textContent = c.icon;
+	var txt = document.createElement("div"); txt.className = "ach-toast-text";
+	var label = document.createElement("div"); label.className = "ach-toast-label"; label.textContent = c.complete ? "Achievement complete" : "Achievement unlocked";
+	var name = document.createElement("div"); name.className = "ach-toast-name"; name.textContent = c.name;
+	txt.appendChild(label); txt.appendChild(name);
+	t.appendChild(icon); t.appendChild(txt);
+	stack.appendChild(t);
+	if (typeof sound !== "undefined" && sound && sound.beep) { try { sound.beep(c.complete ? 1175 : 988); } catch (e) {} }
+	requestAnimationFrame(function() { t.classList.add("ach-toast-in"); });
+	setTimeout(function() {
+		t.classList.remove("ach-toast-in"); t.classList.add("ach-toast-out");
+		setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 450);
+	}, 5000);
 }
 
 function renderRatingGraphCard() {
