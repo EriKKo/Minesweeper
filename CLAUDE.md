@@ -193,13 +193,11 @@ else is grouped:
   `guest_session` when tokenless; `applyAuthenticated` stores `data.token` + calls `applyUserIdentity`);
   the repurposed `#name_view` is the on-demand sign-in / rename card. **Topbar identity** (`applyUserIdentity`):
   a real account shows its **auth-provider logo** (`providerLogoSVG`, Google/Discord marks; dev/github get
-  none) + name + a **"Change"** button + a "Sign out" button — **no rank badge** (rank lives on the home
-  dashboard chips); a guest shows **only the "Sign in" button** (no name/logo). The `authenticated` payload
-  carries `provider` for this. **Change** opens `#name_view` via `showNameView`, which retitles to "Change
-  your name" and hides the provider sign-in options when you're already signed in (vs "Sign in" + options for
-  a guest); submitting the form emits `set_name` → `db.setUserName` (works for real accounts and guests alike).
-  The home dashboard also has a **pen icon** next to the name that edits it **inline** (`#dash_name_input`
-  toggles in place — Enter/blur commit via `set_name`, Escape cancels; no page change), wired in Auth.js.
+  none) + name + a "Sign out" button — **no rank badge** (rank lives on the home dashboard chips); a guest
+  shows **only the "Sign in" button** (no name/logo). The `authenticated` payload carries `provider` for this.
+  **Renaming** is done **inline on the home dashboard**: a pen icon next to the name (`#dash_edit_name`) swaps
+  it for `#dash_name_input` in place — Enter/blur commit via `set_name` → `db.setUserName`, Escape cancels;
+  no page change (wired in Auth.js). `#name_view` is now just the **guest sign-in** card (`showNameView`).
   **Cleanup:** drive-by guests are reaped by `db.pruneStaleGuests(maxAgeMs)` (deletes `is_guest=1` rows
   with `played=0` AND `puzzles_attempted=0` older than the TTL, plus their sessions/attempts; a guest who
   played anything is kept). The server runs it on startup and daily (`reapGuests`, TTL = `GUEST_TTL_DAYS`

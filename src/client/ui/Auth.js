@@ -29,7 +29,6 @@ var userBadge = document.getElementById("user_badge");
 var userIdentity = document.getElementById("user_identity");
 var userProviderLogo = document.getElementById("user_provider_logo");
 var userBadgeName = document.getElementById("user_badge_name");
-var changeNameButton = document.getElementById("change_name_button");
 var signOutButton = document.getElementById("sign_out_button");
 var signinButton = document.getElementById("signin_button");
 
@@ -83,8 +82,6 @@ function applyUserIdentity(data) {
 	}
 	signinButton.style.display = isGuest ? "" : "none";
 	signOutButton.style.display = isGuest ? "none" : "";
-	// Signed-in accounts get a "Change" button to rename; guests rename via the Sign in card instead.
-	if (changeNameButton) changeNameButton.style.display = isGuest ? "none" : "";
 	if (userBadge) userBadge.style.display = "";
 }
 
@@ -97,15 +94,6 @@ nameForm.addEventListener("submit", function(e) {
 	}
 	socket.emit("set_name", { name: name });
 });
-
-// Open the rename / sign-in card with the current name pre-filled. Shared by the topbar "Change"
-// button and the home dashboard pen icon.
-function openNameCard() {
-	if (inRoom) socket.emit("leave_room");
-	nameInput.value = myName;
-	showNameView();
-}
-changeNameButton.addEventListener("click", openNameCard);
 
 // Home dashboard: the pen turns the name into an inline text field (no page change). Enter / blur
 // commit via set_name; Escape cancels. The name display updates from the name_accepted re-render.
@@ -173,15 +161,13 @@ signOutButton.addEventListener("click", function() {
 });
 
 // Socket handler bodies — inline registers the events and calls these.
-var signinOptionsAvailable = false;
 function applyConnected(data) {
 	id = data.id;
 	var oauth = (data && data.oauth) || {};
 	googleSigninButton.style.display = oauth.google ? "" : "none";
 	discordSigninButton.style.display = oauth.discord ? "" : "none";
 	devSigninButton.style.display = oauth.dev ? "" : "none";
-	signinOptionsAvailable = !!(oauth.google || oauth.discord || oauth.dev);
-	signinOptions.style.display = signinOptionsAvailable ? "" : "none";
+	signinOptions.style.display = (oauth.google || oauth.discord || oauth.dev) ? "" : "none";
 	if (typeof noteServerDev === "function") noteServerDev(!!oauth.dev);
 	var token = localStorage.getItem("ms_session");
 	// Stored token → resume that account/guest. No token → start a guest session automatically

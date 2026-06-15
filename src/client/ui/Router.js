@@ -23,14 +23,6 @@ function showNameView() {
 	hideAllViews();
 	nameView.style.display = "";
 	nameError.style.display = "none";
-	// A signed-in account is here to RENAME (it already has an identity), so drop the provider sign-in
-	// options and retitle the card; a guest is here to sign in (or set a guest name), so show them.
-	var renaming = !!(account && !account.guest);
-	var titleEl = document.getElementById("name_view_title");
-	if (titleEl) titleEl.textContent = renaming ? "Change your name" : "Sign in";
-	if (typeof signinOptions !== "undefined" && signinOptions) {
-		signinOptions.style.display = (!renaming && signinOptionsAvailable) ? "" : "none";
-	}
 	setSiteNavActive(null);
 	setTimeout(function() { nameInput.focus(); }, 0);
 }
