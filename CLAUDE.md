@@ -551,6 +551,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `skin`, and disconnect clears it. The picker is on **Profile** (`renderBoardSkins` → `#skins_card`).
   New skins = a `BOARD_SKINS` entry (+ optional CSS frame); image texture packs extend the same hook.
   (Derived from a Figma "futuristic board" export, translated into this canvas palette + CSS frame.)
+  **Home-page previews always show classic:** `buildLearnPuzzle` takes a `spec.skin` (→ `learnBoardView`
+  → `BoardView.skin`); the dashboard mode previews (`renderModeBoardPreviews`) and the daily-puzzle hero
+  (`renderLobbyDailyBoard`) pass `skin: "classic"` so the front page stays on-brand regardless of the
+  player's pick. Other `buildLearnPuzzle` boards (Learn, Help, admin) omit it and follow `localBoardSkin`.
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
 - `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors. Keyboard
   actions are resolved through `keybindings.actionFor()`. A chord that **detonates** clears every

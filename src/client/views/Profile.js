@@ -244,7 +244,8 @@ function renderModeBoardPreviews() {
 		var b = DASH_MODE_BOARDS[key];
 		var el = buildLearnPuzzle({
 			title: "", rows: b.rows, cols: b.cols, mines: b.mines,
-			revealed: b.revealed, revealStart: b.revealStart, flagged: b.flagged
+			revealed: b.revealed, revealStart: b.revealStart, flagged: b.flagged,
+			skin: "classic" // home-page previews always show the default skin, not the player's pick
 		}, false, function() {});
 		el.classList.add("dash-board-preview");
 		slot.appendChild(el);
@@ -296,7 +297,8 @@ function renderLobbyDailyBoard() {
 		rows: board.rows,
 		cols: board.cols,
 		mines: board.mines,
-		revealed: board.revealed
+		revealed: board.revealed,
+		skin: "classic" // daily-puzzle hero on the home page always uses the default skin
 	};
 	var puzzleEl = buildLearnPuzzle(pseudo, false, function() {});
 	puzzleEl.classList.add("lobby-daily-preview");

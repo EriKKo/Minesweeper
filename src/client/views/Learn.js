@@ -802,7 +802,7 @@ function buildBoardState(spec, isMineArr, clueValue) {
 function learnBoardView(canvas, spec, isMineArr, clueValue, state) {
 	return new BoardView(canvas, spec.rows, spec.cols, state,
 		function(r, c) { return isMineArr[r][c] ? MINE : clueValue[r][c]; },
-		{ xray: spec.xray });
+		{ xray: spec.xray, skin: spec.skin || null });
 }
 
 function buildBoardCanvas(R, C) {
