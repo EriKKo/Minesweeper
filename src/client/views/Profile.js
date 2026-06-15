@@ -166,14 +166,7 @@ var DASH_MODE_BOARDS = {
 		revealStart: [3, 4],
 		flagged: [[1,6],[2,6],[3,6],[3,7],[5,2]]
 	},
-	solo: {
-		// Relaxed practice board: a wide-open cascade with a couple of flags placed — the
-		// no-pressure feel of free play, distinct from the racing modes' tight openings.
-		rows: 6, cols: 9,
-		mines: [[0,0],[0,8],[1,4],[3,1],[3,7],[5,3],[5,5]],
-		revealStart: [3, 4],
-		flagged: [[1,4],[3,7]]
-	},
+	// NB: no `solo` entry — the Solo card uses a static stopwatch icon (in index.html), not a board preview.
 	puzzles: {
 		rows: 6, cols: 6,
 		mines: [[0,3],[1,0],[1,2],[2,0],[3,5],[4,3],[5,2]],

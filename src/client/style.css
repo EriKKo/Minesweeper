@@ -4105,6 +4105,8 @@ body.touch .find-next-arrow { display: inline-flex; }
    zoomed-out, the small puzzle board zoomed-in); width follows the aspect, capped to the slot. */
 .dash-board-preview .learn-board { line-height: 0; padding: 3px; }
 .dash-board-preview .learn-board canvas { display: block; height: 92px !important; width: auto !important; max-width: 165px; border-radius: 4px; }
+/* Solo card uses a big stopwatch glyph instead of a board preview. */
+.dash-board-icon { width: 100%; height: 88px; color: var(--dash-acc, var(--accent)); }
 
 .lobby-grid {
 	display: grid;
