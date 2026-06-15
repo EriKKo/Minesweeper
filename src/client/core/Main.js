@@ -1197,6 +1197,7 @@ socket.on("name_accepted", applyNameAccepted);
 
 socket.on("room_list", function(data) {
 	renderRoomList(data.rooms || []);
+	if (typeof renderHomeRooms === "function") renderHomeRooms(data.rooms || []);
 });
 
 socket.on("joined_room", function(data) {

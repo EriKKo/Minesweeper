@@ -568,8 +568,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
   (`Overlay.js` also holds `showConfirm(message, opts)` — the app's promise-based confirm
   modal, used app-wide instead of `window.confirm()`.)
-- **Solo hub** (`/solo`, nav "Solo", `#solo_view`, `showSoloView`). The single single-player landing
-  page — it replaced the old temporary Practice menu and absorbed the standalone puzzle picker. Two
+- **Solo hub** (`/solo`, `#solo_view`, `showSoloView`). The single single-player landing
+  page — it replaced the old temporary Practice menu and absorbed the standalone puzzle picker. It has
+  **no nav item** (it was removed); you reach it through Play → the home dashboard's **Solo** card, so
+  `showSoloView` marks the **Play** nav (`setSiteNavActive("home")`) active. Two
   parts: (1) **Free play** — inline segmented size + density pickers (`#solo_size_seg`/`#solo_density_seg`,
   reusing the create-room `.cr-seg` style) that are **choose-then-start** (they only set
   `soloSelectedSize`/`soloSelectedDensity` + refresh the best line; the `#solo_start` button launches via
@@ -580,8 +582,18 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (`.solo-size-btn`/`.solo-density-btn`) in lockstep with the current selection (called on `showSoloView`
   and at the top of `startSolo`, so picking Large/High on the page lights up the sidebar's Large/High too).
   `exitSolo` returns to `/solo`. The old `/practice` and `/puzzles` paths **redirect** to `/solo`
-  (Router), and the home dashboard "Puzzles" row points at `/solo`. `/solo` is the lone `inGameRoutes`
+  (Router), and BOTH the home dashboard's **Solo** card (`.dash-row-solo`, replaced the old Custom row)
+  and its **Puzzles** row point at `/solo`. `/solo` is the lone `inGameRoutes`
   entry (solo gameplay shows `#game_view` over it, keeping the URL at `/solo`).
+- **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · Puzzles ·
+  **Solo** (`.dash-row-solo`, green accent, free-play board preview keyed `solo` in
+  `DASH_MODE_BOARDS`). The right aside holds the daily-puzzle hero plus an **Active rooms** card
+  (`.dash-rooms`, `#home_room_list`) that replaced the old "Top players" leaderboard strip:
+  `showLobbyView` emits `list_rooms` (not `get_leaderboard` — the standalone `/leaderboard` page emits
+  its own), the `room_list` handler calls `renderHomeRooms`, which shows open rooms first (a **Join**
+  button when joinable, **Full**/​**In game** tags otherwise), capped at `HOME_ROOMS_MAX` (6) with a
+  "+N more" line, above a **Browse Custom Lobbies** button → `/custom`. (`#leaderboard_list` is gone;
+  `renderLeaderboard` already `.filter(Boolean)`s its now-null home target and only fills the full list.)
 - **Ranked search.** The racing modes (1v1 + 6-player Sprint/Standard) drop you **straight into the
   battle UI** and slot opponents into the opponent boards as they're found — search and play share one
   screen, so there's no separate waiting room and "Play another" never leaves the page. `findRanked`

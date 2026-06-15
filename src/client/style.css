@@ -4074,7 +4074,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-sprint { --dash-acc: var(--mode-sprint); }
 .dash-row-standard { --dash-acc: var(--mode-standard); }
 .dash-row-puzzles { --dash-acc: #60a5fa; }
-.dash-row-custom { --dash-acc: #34d399; }
+.dash-row-solo { --dash-acc: #34d399; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
 .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 1rem; }
@@ -4084,6 +4084,18 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-lb-list .lb-row:nth-child(n+6) { display: none; } /* home strip shows the top 5 */
 .dash-lb-more { display: inline-block; margin-top: 0.5rem; font-size: 0.82rem; color: var(--accent); text-decoration: none; font-weight: 600; }
 .dash-lb-more:hover { text-decoration: underline; }
+
+/* Home dashboard "Active rooms" strip (replaces the leaderboard in the aside). */
+.dash-rooms-list { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.dash-room-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.55rem; border-radius: 9px; background: var(--bg); border: 1px solid var(--border); }
+.dash-room-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dash-room-title { font-size: 0.86rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-room-meta { font-size: 0.74rem; color: var(--muted); }
+.dash-room-join { padding: 0.22rem 0.7rem; font-size: 0.78rem; flex-shrink: 0; }
+.dash-room-tag { font-size: 0.72rem; font-weight: 700; color: var(--muted); letter-spacing: 0.03em; flex-shrink: 0; }
+.dash-room-tag-full { color: var(--danger, #f87171); }
+.dash-rooms-more { font-size: 0.76rem; color: var(--muted); text-align: center; padding: 0.2rem 0; }
+.dash-rooms-browse { display: block; width: 100%; text-align: center; }
 
 /* Mode previews use the real game board renderer (buildLearnPuzzle); scale it down to a fixed
    thumbnail and make it non-interactive. Uniform width so every mode row is the same size. */

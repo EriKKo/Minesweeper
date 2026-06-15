@@ -250,6 +250,72 @@ function renderRoomList(rooms) {
 	}
 }
 
+// Compact active-rooms strip for the home dashboard aside (replaces the old
+// "Top players" leaderboard). Shows open rooms first (joinable), then in-progress
+// ones, capped so the card stays short — the "Browse Custom Lobbies" button leads
+// to the full list. Open + not-full rooms get a Join button; everything else a tag.
+var HOME_ROOMS_MAX = 6;
+function renderHomeRooms(rooms) {
+	var list = document.getElementById("home_room_list");
+	if (!list) return;
+	var open = rooms.filter(function(r) { return r.phase === "planning"; });
+	var busy = rooms.filter(function(r) { return r.phase !== "planning"; });
+	var ordered = open.concat(busy);
+	list.innerHTML = "";
+	if (ordered.length === 0) {
+		var empty = document.createElement("li");
+		empty.className = "room-empty";
+		empty.textContent = "No active rooms right now.";
+		list.appendChild(empty);
+		return;
+	}
+	ordered.slice(0, HOME_ROOMS_MAX).forEach(function(r) {
+		list.appendChild(homeRoomRow(r));
+	});
+	var extra = ordered.length - HOME_ROOMS_MAX;
+	if (extra > 0) {
+		var more = document.createElement("li");
+		more.className = "dash-rooms-more";
+		more.textContent = "+" + extra + " more";
+		list.appendChild(more);
+	}
+}
+
+function homeRoomRow(room) {
+	var joinable = room.phase === "planning";
+	var full = room.playerCount >= room.maxPlayers;
+	var li = document.createElement("li");
+	li.className = "dash-room-row";
+
+	var info = document.createElement("div");
+	info.className = "dash-room-info";
+	var title = document.createElement("span");
+	title.className = "dash-room-title";
+	title.textContent = room.ownerName + "'s room";
+	info.appendChild(title);
+	var meta = document.createElement("span");
+	meta.className = "dash-room-meta";
+	var dims = BOARD_DIMS[room.boardSize];
+	meta.textContent = room.playerCount + "/" + room.maxPlayers + " players"
+		+ (dims ? " · " + dims[0] + "×" + dims[1] : "");
+	info.appendChild(meta);
+	li.appendChild(info);
+
+	if (joinable && !full) {
+		var joinBtn = document.createElement("button");
+		joinBtn.className = "btn btn-secondary dash-room-join";
+		joinBtn.textContent = "Join";
+		joinBtn.addEventListener("click", function() { socket.emit("join_room", { roomId: room.id }); });
+		li.appendChild(joinBtn);
+	} else {
+		var tag = document.createElement("span");
+		tag.className = "dash-room-tag" + (joinable ? " dash-room-tag-full" : "");
+		tag.textContent = joinable ? "Full" : "In game";
+		li.appendChild(tag);
+	}
+	return li;
+}
+
 function emptyRow(text) {
 	var li = document.createElement("li");
 	li.className = "room-empty";

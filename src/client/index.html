@@ -21,7 +21,6 @@
 		<nav id="site_nav" class="site-nav" aria-label="Main navigation">
 			<a href="/" class="site-nav-link" data-route="home">Play</a>
 			<a href="/learn" class="site-nav-link" data-route="learn">Learn</a>
-			<a href="/solo" class="site-nav-link" data-route="solo">Solo</a>
 			<a href="/leaderboard" class="site-nav-link" data-route="leaderboard">Leaderboard</a>
 			<a href="/profile" class="site-nav-link" data-route="profile">Profile</a>
 			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
@@ -131,13 +130,13 @@
 								</span>
 							</span>
 						</a>
-						<a class="dash-row dash-row-custom" href="/custom" data-style="custom" aria-label="Open Custom rooms">
-							<span class="dash-row-board" id="dash_board_custom" aria-hidden="true"></span>
+						<a class="dash-row dash-row-solo" href="/solo" data-style="solo" aria-label="Open Solo practice">
+							<span class="dash-row-board" id="dash_board_solo" aria-hidden="true"></span>
 							<span class="dash-row-info">
-								<h4 class="dash-row-title">Custom</h4>
-								<p class="dash-row-sub">Casual · invite friends</p>
+								<h4 class="dash-row-title">Solo</h4>
+								<p class="dash-row-sub">Free play &amp; puzzle training</p>
 							</span>
-							<span class="dash-row-stat"><span class="dash-row-casual">Casual</span></span>
+							<span class="dash-row-stat"><span class="dash-row-casual">Practice</span></span>
 						</a>
 					</div>
 
@@ -165,10 +164,12 @@
 							<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
 						</div>
 
-						<div class="dash-card dash-lb">
-							<h3 class="dash-card-title">Top players</h3>
-							<ol id="leaderboard_list" class="dash-lb-list"></ol>
-							<a href="/leaderboard" class="dash-lb-more">Full leaderboard →</a>
+						<div class="dash-card dash-rooms">
+							<h3 class="dash-card-title">Active rooms</h3>
+							<ul id="home_room_list" class="dash-rooms-list">
+								<li class="room-empty">Loading…</li>
+							</ul>
+							<a href="/custom" class="btn btn-secondary dash-rooms-browse">Browse Custom Lobbies</a>
 						</div>
 					</aside>
 				</div>

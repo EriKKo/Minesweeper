@@ -108,7 +108,8 @@ function showLobbyView() {
 	}
 	renderHomeRankChips();
 	setSiteNavActive("home");
-	socket.emit("get_leaderboard");
+	// The home aside now lists active rooms (open + in-progress) instead of the leaderboard.
+	socket.emit("list_rooms");
 }
 
 // Learn page lives in Learn.js (loaded via a separate <script> tag).
@@ -126,7 +127,8 @@ function showLearnView() {
 function showSoloView() {
 	hideAllViews();
 	document.getElementById("solo_view").style.display = "";
-	setSiteNavActive("solo");
+	// Solo is reached through Play (the home dashboard), not its own nav item — keep Play highlighted.
+	setSiteNavActive("home");
 	var ratingEl = document.getElementById("solo_puzzle_rating");
 	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
 	if (typeof renderSoloPage === "function") renderSoloPage();
