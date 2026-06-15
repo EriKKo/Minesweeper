@@ -13,10 +13,15 @@ var soloSelectedSize = "medium";
 var soloSelectedDensity = 0.10; // Low; Medium = 0.15, High = 0.20
 
 // Solo mode hooks. performAction (in Input.js) drives the board for every
-// mode; these hooks plug in the solo-specific bits — start the timer on
-// first click, detect win/lose locally since there's no server-authoritative
+// mode; these hooks plug in the solo-specific bits — start the timer on the
+// first real move, detect win/lose locally since there's no server-authoritative
 // game.win / game.mineHit callback.
-function soloOnBeforeAction() {
+//
+// The timer starts on the first move that actually does something — a reveal/chord
+// that changes the board, or placing a flag — NOT on a no-op click (e.g. clicking
+// an already-revealed cell to position the cursor). soloOnAfterReveal and the flag
+// branch in Input.js call this; it's a no-op once the clock is running.
+function soloStartTimerOnce() {
 	if (!soloSession || soloSession.finished) return;
 	if (!soloSession.startTime) {
 		soloSession.startTime = Date.now();
@@ -26,6 +31,8 @@ function soloOnBeforeAction() {
 
 function soloOnAfterReveal(result) {
 	if (!soloSession || soloSession.finished) return;
+	// A reveal/chord only counts as the first move if it actually changed the board.
+	if (result && (result.anyChange || result.hitMine)) soloStartTimerOnce();
 	if (result.hitMine) {
 		soloSession.finished = true;
 		soloSession.finishTime = Date.now();
@@ -50,22 +57,18 @@ function soloBestFor(size, density) {
 	var bests = (typeof account !== "undefined" && account && account.soloBests) || null;
 	return bests ? bests[soloComboKey(size, density)] : null;
 }
-// Reflect the best time for the CURRENTLY selected size+density on both the
-// in-game sidebar (#solo_best) and the Solo page free-play card (#solo_page_best).
+// Reflect the best time for the CURRENTLY selected size+density on the in-game
+// sidebar (#solo_best).
 function updateSoloBest() {
-	var b = soloBestFor(soloSelectedSize, soloSelectedDensity);
-	var text = b ? formatSoloTime(b) : "—";
 	var sidebar = document.getElementById("solo_best");
-	if (sidebar) sidebar.textContent = text;
-	var page = document.getElementById("solo_page_best");
-	if (page) page.textContent = text;
+	if (!sidebar) return;
+	var b = soloBestFor(soloSelectedSize, soloSelectedDensity);
+	sidebar.textContent = b ? formatSoloTime(b) : "—";
 }
 
-// Sync every solo picker (the Solo page segmented controls AND the in-game
-// sidebar buttons) to the current selection, and refresh the best-time line.
-// Called when the Solo view is shown and whenever a board starts, so the two
-// pickers never drift apart (e.g. picking Large/High on the page must light up
-// the sidebar's Large/High too, not its hardcoded Medium/Low defaults).
+// Sync the in-game sidebar's size/density buttons to the current selection and
+// refresh the best-time line. Called whenever a board starts, so the sidebar
+// reflects the size/density actually in play.
 function syncSoloControls() {
 	function sync(els, attr, val, parse) {
 		for (var i = 0; i < els.length; i++) {
@@ -73,16 +76,10 @@ function syncSoloControls() {
 			els[i].classList.toggle("active", (parse ? parseFloat(a) : a) === val);
 		}
 	}
-	var sizeSeg = document.getElementById("solo_size_seg");
-	if (sizeSeg) sync(sizeSeg.querySelectorAll("button"), "data-size", soloSelectedSize, false);
-	var densSeg = document.getElementById("solo_density_seg");
-	if (densSeg) sync(densSeg.querySelectorAll("button"), "data-density", soloSelectedDensity, true);
 	sync(document.querySelectorAll(".solo-size-btn"), "data-size", soloSelectedSize, false);
 	sync(document.querySelectorAll(".solo-density-btn"), "data-density", soloSelectedDensity, true);
 	updateSoloBest();
 }
-// Router calls this on showSoloView; keep the old name as an alias.
-function renderSoloPage() { syncSoloControls(); }
 // Report a clear to the server, which records it as a best for this combo if it's faster.
 function submitSoloResult() {
 	if (!soloSession || !soloSession.startTime || typeof socket === "undefined") return;
@@ -124,9 +121,9 @@ function exitSolo() {
 	myState = null;
 	prevPlayerState = null;
 	boardDecoder = null;
-	// Solo lives at /solo. navigate() routes even when the path is unchanged, so calling it
-	// unconditionally drives the view and keeps the URL in sync.
-	navigate("/solo");
+	// Solo drops straight into a board, so /solo itself starts a new game. Exit goes
+	// home instead (navigating back to /solo would immediately re-launch a board).
+	navigate("/");
 }
 
 function startSoloTimer() {

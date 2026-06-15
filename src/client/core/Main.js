@@ -1042,36 +1042,7 @@ document.getElementById("refresh_button").addEventListener("click", function() {
 	socket.emit("list_rooms");
 });
 
-// Solo page: choose-then-start. The segmented pickers only set the selection
-// (and refresh the best-time line); the Start button launches the board.
-(function wireSoloPagePickers() {
-	var sizeSeg = document.getElementById("solo_size_seg");
-	if (sizeSeg) {
-		var sizeBtns = sizeSeg.querySelectorAll("button");
-		for (var i = 0; i < sizeBtns.length; i++) {
-			sizeBtns[i].addEventListener("click", function(e) {
-				soloSelectedSize = e.currentTarget.getAttribute("data-size");
-				for (var j = 0; j < sizeBtns.length; j++) sizeBtns[j].classList.toggle("active", sizeBtns[j] === e.currentTarget);
-				if (typeof updateSoloBest === "function") updateSoloBest();
-			});
-		}
-	}
-	var densSeg = document.getElementById("solo_density_seg");
-	if (densSeg) {
-		var densBtns = densSeg.querySelectorAll("button");
-		for (var k = 0; k < densBtns.length; k++) {
-			densBtns[k].addEventListener("click", function(e) {
-				soloSelectedDensity = parseFloat(e.currentTarget.getAttribute("data-density"));
-				for (var j = 0; j < densBtns.length; j++) densBtns[j].classList.toggle("active", densBtns[j] === e.currentTarget);
-				if (typeof updateSoloBest === "function") updateSoloBest();
-			});
-		}
-	}
-	var startBtn = document.getElementById("solo_start");
-	if (startBtn) startBtn.addEventListener("click", function() { startSolo(soloSelectedSize); });
-})();
-
-// In-game solo sidebar (#solo_card): quick re-rolls — these DO launch a new board immediately.
+// In-game solo sidebar (#solo_card): quick re-rolls — these launch a new board immediately.
 document.getElementById("solo_restart").addEventListener("click", function() {
 	startSolo(soloSelectedSize);
 });
@@ -1774,7 +1745,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "solo_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "design_view", "territory_view", "puzzle_play_view", "ranked_picker_view", "puzzle_picker_view", "privacy_view", "terms_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "leaderboard_view", "profile_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "design_view", "territory_view", "puzzle_play_view", "ranked_picker_view", "puzzle_picker_view", "privacy_view", "terms_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 

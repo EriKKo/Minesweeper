@@ -1,7 +1,7 @@
 // Hash-based SPA router and view show/hide helpers.
 //
 // Each show*View hides everything and reveals one of the top-level cards
-// (#name_view, #game_view, #learn_view, #solo_view, #leaderboard_view,
+// (#name_view, #game_view, #learn_view, #leaderboard_view,
 // #profile_view, #lobby_view) plus marks the matching nav link active.
 // applyRouteFromHash is the central dispatcher — registered on hashchange,
 // called directly by code paths that change layout mode (mobile <-> desktop).
@@ -121,14 +121,12 @@ function showLearnView() {
 	renderLearn();
 }
 
-// Solo: free-play board drills (size + density, choose-then-start). Puzzle training
-// is a separate page (showPuzzlePickerView). Both are reached through Play (the home
-// dashboard cards), so neither has its own nav item.
+// Solo drops you straight into a free-play board (size/density are changed from the
+// in-game sidebar). Reached through Play → the home Solo card; keep Play highlighted.
+// startSolo emits request_solo_board and the solo_board handler shows the game view.
 function showSoloView() {
-	hideAllViews();
-	document.getElementById("solo_view").style.display = "";
 	setSiteNavActive("home");
-	if (typeof renderSoloPage === "function") renderSoloPage();
+	if (typeof startSolo === "function") startSolo(soloSelectedSize);
 }
 
 // Puzzles page: the Rated / Streak / Storm / Daily mode cards. Reached from the

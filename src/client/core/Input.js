@@ -97,7 +97,6 @@ function performAction(r, c, asFlag) {
 	if (iAmEliminated) return;
 	if (Date.now() < frozenUntil) return;
 	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
-	if (mode === "solo") soloOnBeforeAction();
 	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
 	focusedR = r;
 	focusedC = c;
@@ -143,6 +142,8 @@ function performAction(r, c, asFlag) {
 			if (mode === "solo") soloOnAfterReveal(chordResult);
 		} else {
 			placeFlag(r, c);
+			// Placing/toggling a flag is a real first move — start the solo clock.
+			if (mode === "solo" && typeof soloStartTimerOnce === "function") soloStartTimerOnce();
 		}
 	} else {
 		var result = revealAt(r, c);

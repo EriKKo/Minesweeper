@@ -4481,25 +4481,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 .ranked-picker-option-title { font-size: 1.4rem; font-weight: 700; }
 .ranked-picker-option-sub { color: var(--muted); font-size: 0.85rem; }
 
-/* === Solo hub (free play + puzzle training) ====================== */
-.solo-freeplay { margin-bottom: 2rem; }
-.solo-fp-fields {
-	display: flex; flex-wrap: wrap; gap: 1.5rem;
-	margin: 1rem 0;
-}
-.solo-fp-fields .cr-field { flex: 1 1 240px; }
-.solo-fp-foot {
-	display: flex; align-items: center; justify-content: space-between;
-	flex-wrap: wrap; gap: 1rem;
-	margin-top: 1.25rem;
-}
-.solo-bestline { display: inline-flex; align-items: baseline; gap: 0.55rem; }
-.solo-bestline-label {
-	font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
-	letter-spacing: 0.07em; color: var(--muted);
-}
-.solo-bestline-value { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.solo-start-btn { min-width: 12rem; }
+/* === Puzzles page (mode cards) =================================== */
 .solo-puzzles-head { display: flex; align-items: baseline; gap: 0.9rem; }
 .solo-puzzles-head .section-title { margin-bottom: 0; }
 .solo-puzzles-rating { display: inline-flex; align-items: baseline; gap: 0.4rem; }

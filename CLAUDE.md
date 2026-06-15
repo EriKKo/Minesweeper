@@ -568,19 +568,21 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
   (`Overlay.js` also holds `showConfirm(message, opts)` — the app's promise-based confirm
   modal, used app-wide instead of `window.confirm()`.)
-- **Solo page** (`/solo`, `#solo_view`, `showSoloView`) — single-player **free play only**. It replaced
-  the old temporary Practice menu. It has **no nav item**; you reach it through Play → the home
-  dashboard's **Solo** card, so `showSoloView` marks the **Play** nav (`setSiteNavActive("home")`) active.
-  It's one card: inline segmented size + density pickers (`#solo_size_seg`/`#solo_density_seg`, reusing the
-  create-room `.cr-seg` style) that are **choose-then-start** (they only set
-  `soloSelectedSize`/`soloSelectedDensity` + refresh the best line; the `#solo_start` button launches via
-  `startSolo`), with the per-combo best time shown (`updateSoloBest` writes both the page `#solo_page_best`
-  and the in-game sidebar `#solo_best`). `Solo.js` `syncSoloControls()` keeps the page pickers AND the
-  in-game sidebar quick-reroll buttons (`.solo-size-btn`/`.solo-density-btn`) in lockstep with the current
-  selection (called on `showSoloView` and at the top of `startSolo`, so picking Large/High on the page
-  lights up the sidebar's Large/High too). `exitSolo` returns to `/solo`. The old `/practice` path
-  **redirects** to `/solo`. `/solo` is the lone `inGameRoutes` entry (solo gameplay shows `#game_view`
-  over it, keeping the URL at `/solo`).
+- **Solo** (`/solo`, `showSoloView`) — single-player **free play**, no config page: `showSoloView`
+  **drops you straight into a board** (`startSolo` → `request_solo_board` → the `solo_board` handler shows
+  `#game_view`). There is no `#solo_view` markup. Size + density are changed from the **in-game sidebar**
+  (`#solo_card`: `.solo-size-btn`/`.solo-density-btn` quick-re-roll a new board immediately; "New board" =
+  `#solo_restart`); `soloSelectedSize`/`soloSelectedDensity` persist the choice and `Solo.js`
+  `syncSoloControls()` (called from `startSolo`) lights up the sidebar's active buttons + best-time line
+  (`updateSoloBest` → `#solo_best`). No nav item — reached through Play → the home **Solo** card, so
+  `showSoloView` keeps **Play** highlighted. `exitSolo` returns **home** (`/`), not `/solo` (navigating
+  back to `/solo` re-launches a board). The old `/practice` path **redirects** to `/solo`. `/solo` is the
+  lone `inGameRoutes` entry (the board shows over it, URL stays `/solo`).
+  **Timer:** starts on the **first real move**, not on cursor moves or no-op clicks. `soloStartTimerOnce`
+  (Solo.js, idempotent) is called from `soloOnAfterReveal` only when the reveal/chord actually changed the
+  board (`result.anyChange || result.hitMine`) and from Input.js's flag branch when a flag is placed — NOT
+  from the top of `performAction` (which fired for any click, including clicking an already-revealed cell
+  to position the cursor — the bug this fixed).
 - **Puzzles page** (`/puzzles`, `#puzzle_picker_view`, `showPuzzlePickerView`) — a **separate** page from
   Solo: the Rated/Streak/Storm/Daily mode cards (`.solo-puzzle-modes`, reusing `.ranked-picker-option`)
   linking straight to `/puzzles/play|streak|storm|daily`, with the player's puzzle rating in the header
