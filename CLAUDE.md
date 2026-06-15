@@ -705,6 +705,22 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   **recent-games list** (`#recent_games_card`: style chip, Won/Lost or "Nth of M", Δrating, opponent/
   player-count, relative time). Both cards hide when empty. NB history accrues **going forward** —
   pre-existing accounts have no rows until they play.
+- **Match replays** (ranked matches, server-side capture — `runtime/replay.js`). The format is an
+  **input log**, not a state log: store the mine layout once per round (a `rows*cols`-bit bitmask) plus
+  each player's ordered **applied** clicks, and re-simulate cascades at playback. An event is
+  `varint(dt_ms) + varint(cell<<1 | button)` (~2-3 B; button is 1 bit, 0=left/1=right — reveal-vs-chord
+  is decided by board state on replay). A whole 1v1 sprint is ~250-300 B raw, gzipped to a BLOB. Capture
+  rides three seams in `minesweeperServer.js`: `startSeries`→`replay.startMatch` (arms `room.replay` for
+  ranked non-territory rooms), `startGame`→`replay.startRound` (snapshots the round's mine bitmask) +
+  `replay.attach` (wires `game.onMove` per player), and `endSeries`→`replay.finishMatch` (serialize +
+  gzip + persist, then clear). Moves are captured via a new **`game.onMove(button,r,c)`** hook in
+  `engine/GameCreator.js`, fired *after* the `playing && !frozen` guard in `handleLeftClick`/
+  `handleRightClick` — so only real in-play moves are logged (bots included, since they call the same
+  handlers). Storage (`db.js`): `match_replays` (summary columns + gzipped `data` BLOB) and
+  `match_replay_players` (side table mapping replay→real user ids, so a user's replays list without
+  touching the blob). `saveReplay(meta,blob,participants)`, `listReplaysForUser`, `getReplay`. `winner_id`
+  is null when a bot won the match (bots have no user id). Replays accrue **going forward**; playback UI
+  is not built yet.
 - **Settings page** (`/settings`, `#settings_view`, `showSettingsView`) — local, on-device preferences,
   split out from Profile: the **Board skin** picker (`#skins_card`, admin-only) and **Controls** /
   keybindings (`#controls_card`). `showSettingsView` calls `renderBoardSkins` + `renderKeybindings`
