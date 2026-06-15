@@ -9,6 +9,11 @@
 function renderBoardSkins() {
 	var card = document.getElementById("skins_card");
 	if (!card || typeof BOARD_SKINS === "undefined") return;
+	// Admin-only option for now (visible in local dev too, matching the Admin nav link).
+	var dev = window.serverInfo && window.serverInfo.dev;
+	var admin = (typeof account !== "undefined" && account && account.isAdmin);
+	if (!dev && !admin) { card.innerHTML = ""; card.style.display = "none"; return; }
+	card.style.display = "";
 	card.innerHTML = "";
 	var h = document.createElement("h2");
 	h.className = "controls-title";
