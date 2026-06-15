@@ -146,10 +146,16 @@ function performAction(r, c, asFlag) {
 			placeFlag(r, c);
 			// Placing/toggling a flag is a real first move — start the solo clock.
 			if (mode === "solo" && typeof soloStartTimerOnce === "function") soloStartTimerOnce();
+			// No-flag-clear challenge (solo + racing only, not puzzles): a flag disqualifies it.
+			if (mode === "solo" || mode === "multiplayer") clearNoFlag = false;
 		}
 	} else {
+		// A direct reveal of a covered cell (vs. a chord on a revealed number) disqualifies the
+		// "chord-only" clear challenge. Capture before revealAt mutates the cell.
+		var wasCovered = myState && myState[r][c] === UNKNOWN;
 		var result = revealAt(r, c);
 		actionResult = result;
+		if (wasCovered && (mode === "solo" || mode === "multiplayer")) clearNoReveal = false;
 		if (mode === "multiplayer" && result.hitMine && currentRoom.deathPenalty) {
 			frozenUntil = Date.now() + currentRoom.deathPenalty * 1000;
 			startFreezeTick();

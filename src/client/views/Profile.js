@@ -128,8 +128,6 @@ function renderProfile() {
 	ladders.className = "profile-ladders";
 	ladders.appendChild(profileLadderCard("Sprint", account.ratingSprint || 0));
 	ladders.appendChild(profileLadderCard("Standard", account.ratingStandard || 0));
-	ladders.appendChild(profileLadderCard("Tournament", account.ratingTournament || 0));
-	ladders.appendChild(profileLadderCard("Territory", account.ratingTerritory || 0));
 	card.appendChild(ladders);
 
 	// --- Puzzles ---
@@ -250,6 +248,9 @@ var ACHIEVEMENTS = [
 	{ icon: "💥", name: "Big Swing", value: function(m) { return m.bigSwing || 0; }, tiers: [40], desc: function(t) { return "Gain +" + t + " from a single match"; } },
 	{ icon: "🤺", name: "Duelist", value: function(m) { return m.wins1v1 || 0; }, tiers: [10, 50, 200], desc: function(t) { return "Win " + t + " 1v1 matches"; } },
 	{ icon: "👑", name: "Free-for-all King", value: function(m) { return m.wins6p || 0; }, tiers: [1, 10], desc: function(t) { return t === 1 ? "Win a 6-player free-for-all" : "Win " + t + " 6-player free-for-alls"; } },
+	// Style challenges — solo + racing only (never puzzles); backed by player_stats clear counters.
+	{ icon: "🧠", name: "No Flags", value: function(m) { return m.noFlagClears || 0; }, tiers: [1, 10, 50], desc: function(t) { return t === 1 ? "Clear a board without placing a flag" : "Clear " + t + " boards without a flag"; } },
+	{ icon: "🎹", name: "Chord Master", value: function(m) { return m.noRevealClears || 0; }, tiers: [1, 10, 50], desc: function(t) { return t === 1 ? "Clear a board without a left-click (chords only)" : "Clear " + t + " boards chord-only"; } },
 	{ icon: "🎖️", name: "Sharpshooter", bool: function(m) { return (m.played || 0) >= 20 && (m.wins || 0) / (m.played || 1) >= 0.6; }, progress: function(m) { var p = m.played || 0; return p >= 20 ? (Math.round((m.wins || 0) / p * 100) + "% win rate") : (p + " / 20 matches"); }, desc: function() { return "60%+ win rate over 20+ matches"; } },
 	// Speed (free play)
 	{ icon: "⏱️", name: "Sub-minute", bool: function(m) { return minSolo(m) < 60000; }, progress: function(m) { var v = minSolo(m); return isFinite(v) ? ("best " + fmtSec(v)) : "no clears yet"; }, desc: function() { return "Clear any free-play board under 1:00"; } },

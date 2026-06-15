@@ -214,9 +214,13 @@ db.exec(
 	"  peak_puzzle_rating INTEGER NOT NULL DEFAULT 0," +
 	"  dailies_solved INTEGER NOT NULL DEFAULT 0, daily_streak_best INTEGER NOT NULL DEFAULT 0," +
 	"  last_active_day TEXT, distinct_days INTEGER NOT NULL DEFAULT 0," +
+	"  noflag_clears INTEGER NOT NULL DEFAULT 0, noreveal_clears INTEGER NOT NULL DEFAULT 0," +
 	"  backfilled INTEGER NOT NULL DEFAULT 0" +
 	");"
 );
+// Added after the table shipped — present on fresh DBs via the CREATE above, added here for existing ones.
+addColumnIfMissing("player_stats", "noflag_clears", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("player_stats", "noreveal_clears", "INTEGER NOT NULL DEFAULT 0");
 // Per-technique pass counts (trivial/subset/overlap/chain/enum_passes) were a
 // product of the old pass-based PuzzleSolver, which has been removed. The CSP
 // analyzer's `csp_method` / `needs_case_split` classification replaced them, so
@@ -677,6 +681,14 @@ function bumpDailyStats(userId, streak, solved) {
 		if (solved) db.prepare("UPDATE player_stats SET dailies_solved = dailies_solved + 1, daily_streak_best = MAX(daily_streak_best, ?) WHERE user_id = ?").run(streak || 0, userId);
 	} catch (e) { console.error("bumpDailyStats failed", e); }
 }
+// A finished board (solo/racing, never puzzles) cleared without a flag and/or without a direct reveal.
+function recordClear(userId, noFlag, noReveal) {
+	try {
+		ensurePlayerStats(userId);
+		db.prepare("UPDATE player_stats SET noflag_clears = noflag_clears + ?, noreveal_clears = noreveal_clears + ? WHERE user_id = ?")
+			.run(noFlag ? 1 : 0, noReveal ? 1 : 0, userId);
+	} catch (e) { console.error("recordClear failed", e); }
+}
 // Recent matches across all styles (newest first) — the "recent games" list.
 function getMatchHistory(userId, limit) {
 	return db.prepare(
@@ -772,7 +784,8 @@ function achievementStats(userId) {
 			winStreakBest: row.win_streak_best, bestDayWins: row.best_day_wins, bestDayGain: row.best_day_gain,
 			bigSwing: row.best_swing, wins1v1: row.wins_1v1, wins6p: row.wins_6p,
 			peakPuzzleRating: row.peak_puzzle_rating, dailiesSolved: row.dailies_solved,
-			dailyStreakBest: row.daily_streak_best, distinctDays: row.distinct_days
+			dailyStreakBest: row.daily_streak_best, distinctDays: row.distinct_days,
+			noFlagClears: row.noflag_clears, noRevealClears: row.noreveal_clears
 		};
 	} catch (e) { console.error("achievementStats failed", e); return {}; }
 }
@@ -1314,6 +1327,7 @@ module.exports = {
 	deleteSession: deleteSession,
 	topPlayers: topPlayers,
 	recordMatch: recordMatch,
+	recordClear: recordClear,
 	getMatchHistory: getMatchHistory,
 	getRatingHistory: getRatingHistory,
 	achievementStats: achievementStats,

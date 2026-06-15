@@ -648,7 +648,7 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
 - **Profile page** (`Profile.js`, `renderProfile`) is a full stats dashboard: identity (overall rank
   badge + name + tier/rating + "Member since" from `account.createdAt`, added to the `authenticated`
   payload), lifetime stats (played/wins/win rate/daily streak), **per-mode ranked ladder cards**
-  (Sprint/Standard/Tournament/Territory, each `buildRankBadge` + tier + rating), puzzle stats, and a
+  (Sprint + Standard only — Tournament/Territory are not surfaced), puzzle stats, and a
   free-play **best-times matrix** (size × density from `account.soloBests`). Below it, an **Achievements**
   card (`#achievements_card`, `renderAchievements`): a **data-driven** `ACHIEVEMENTS` catalogue (~25 + a
   meta **Collector**) evaluated against a flat **metrics bag** = `account` fields merged with the server's
@@ -683,6 +683,14 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (Main.js) re-requests `get_match_history` after every result (`series_ended`, `puzzle_result`,
   `puzzle_run_end`, `puzzle_daily_result`, `solo_record`), and `applyAuthenticated` requests it once to
   baseline before the first game.
+  **Style-challenge achievements** ("No Flags" / "Chord Master") are event-driven, not cumulative-stat
+  derived: Input.js tracks per-board `clearNoFlag`/`clearNoReveal` (a flag placement / a direct reveal of
+  a covered cell flips them — chords don't), **only in solo + racing, never puzzles/territory**; reset at
+  each board start (`resetClearChallenge` in `setCoveredBoard` + `solo_board`); on a clear (`reportClear`
+  from solo win / racing `me.finished`) the client emits `record_clear {noFlag,noReveal}` →
+  `db.recordClear` bumps `player_stats.noflag_clears`/`noreveal_clears` (these have no history source, so
+  backfill leaves them untouched — they only accrue going forward) → exposed as `noFlagClears`/
+  `noRevealClears` in the stats bag.
 - **Match history** (rating graph + recent games on the profile). A `match_history` table
   (`db.js`: `user_id, style, rating_before, rating_after, placement, players, won, opponent, created_at`)
   gets one row per human per completed ranked match, written wherever Elo persists: `elo.js`

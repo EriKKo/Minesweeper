@@ -98,6 +98,12 @@ function registerSocketHandlers(socket, playerID) {
 		}
 	});
 
+	// A solo/racing board cleared with no flag and/or no direct reveal (chord only) — challenge counters.
+	socket.on("record_clear", function(data) {
+		var acc = accounts[playerID];
+		if (acc && data) db.recordClear(acc.userId, !!data.noFlag, !!data.noReveal);
+	});
+
 	// Profile: recent ranked matches + per-style rating points (graph). Empty for signed-out.
 	socket.on("get_match_history", function() {
 		var acc = accounts[playerID];

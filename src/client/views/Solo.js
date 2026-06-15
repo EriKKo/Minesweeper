@@ -47,6 +47,7 @@ function soloOnAfterReveal(result) {
 		stopSoloTimer();
 		sound.win && sound.win();
 		submitSoloResult();
+		if (typeof reportClear === "function") reportClear(); // no-flag / chord-only challenge
 		showSoloOutcome(true);
 	}
 }

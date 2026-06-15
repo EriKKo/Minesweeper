@@ -619,6 +619,7 @@ socket.on("solo_board", function(data) {
 	focusVisible = false;
 	lastFinished = {};
 	cellAnims = {};
+	resetClearChallenge(); // new solo board → reset the no-flag / chord-only tracking
 	hideOverlay();
 
 	// Show the game view (with solo-only chrome) FIRST, then size the board — fitDesktopCellPx measures
@@ -660,6 +661,18 @@ socket.on("solo_record", function(data) {
 // checkAchievementUnlocks does the diff.
 function refreshAchievementProgress() {
 	if (account && typeof socket !== "undefined") socket.emit("get_match_history");
+}
+
+// "Clear without a flag" / "clear without a direct reveal (chord only)" challenges. Tracked per board
+// in solo + racing (Input.js flips these); reset at each board start; reported to the server on a clear.
+// Puzzles/territory don't participate. clearReported gates one report per board.
+var clearNoFlag = true, clearNoReveal = true, clearReported = false;
+function resetClearChallenge() { clearNoFlag = true; clearNoReveal = true; clearReported = false; }
+function reportClear() {
+	if (clearReported) return;
+	clearReported = true;
+	if (account && typeof socket !== "undefined") socket.emit("record_clear", { noFlag: clearNoFlag, noReveal: clearNoReveal });
+	refreshAchievementProgress(); // pull fresh stats so any unlock toasts
 }
 
 // Procedural sound effects (WebAudio, no asset files). Short and soft — these
@@ -1398,6 +1411,7 @@ socket.on("territory_result", function(data) { if (typeof territoryResult === "f
 function setCoveredBoard() {
 	if (!rows || !cols) return;
 	clearPlaceBadges(); // a fresh round starts covered — drop the previous round's finish places
+	resetClearChallenge(); // new board → reset the no-flag / chord-only tracking
 
 	myState = new Array(rows);
 	for (var r = 0; r < rows; r++) {
@@ -1752,6 +1766,8 @@ socket.on("draw_board", function(data) {
 		prevPlayerState = cloneState(me.state);
 		renderPlayerBoard();
 		updateMobileFindNextHint();
+		// Racing clear → report the no-flag / chord-only challenge (once per board).
+		if (me.finished && me.totalSafe > 0 && (me.safeCount || 0) >= me.totalSafe) reportClear();
 	}
 
 	// Slots 1-2 = top two opponents by live progress (finished outranks playing,
