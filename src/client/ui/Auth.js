@@ -83,6 +83,8 @@ function applyUserIdentity(data) {
 	}
 	signinButton.style.display = isGuest ? "" : "none";
 	signOutButton.style.display = isGuest ? "none" : "";
+	// Signed-in accounts get a "Change" button to rename; guests rename via the Sign in card instead.
+	if (changeNameButton) changeNameButton.style.display = isGuest ? "none" : "";
 	if (userBadge) userBadge.style.display = "";
 }
 
@@ -134,13 +136,15 @@ signOutButton.addEventListener("click", function() {
 });
 
 // Socket handler bodies — inline registers the events and calls these.
+var signinOptionsAvailable = false;
 function applyConnected(data) {
 	id = data.id;
 	var oauth = (data && data.oauth) || {};
 	googleSigninButton.style.display = oauth.google ? "" : "none";
 	discordSigninButton.style.display = oauth.discord ? "" : "none";
 	devSigninButton.style.display = oauth.dev ? "" : "none";
-	signinOptions.style.display = (oauth.google || oauth.discord || oauth.dev) ? "" : "none";
+	signinOptionsAvailable = !!(oauth.google || oauth.discord || oauth.dev);
+	signinOptions.style.display = signinOptionsAvailable ? "" : "none";
 	if (typeof noteServerDev === "function") noteServerDev(!!oauth.dev);
 	var token = localStorage.getItem("ms_session");
 	// Stored token → resume that account/guest. No token → start a guest session automatically
@@ -155,9 +159,8 @@ function applyAuthenticated(data) {
 	// A freshly-minted guest session ships its token back so it survives reloads.
 	if (data.token) localStorage.setItem("ms_session", data.token);
 	renderRatingBadge();
-	// Topbar: real accounts show name + provider logo + Sign out; guests show only the Sign in button.
+	// Topbar: real accounts show name + provider logo + Change + Sign out; guests show only Sign in.
 	applyUserIdentity(data);
-	changeNameButton.style.display = "none";
 	if (typeof refreshAdminNavLink === "function") refreshAdminNavLink();
 	// Prefetch the daily-puzzle state so the lobby hero card can render
 	// today's board immediately.
