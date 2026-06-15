@@ -589,12 +589,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (`#puzzle_picker_rating`). Also has no nav item — reached via the home dashboard's **Puzzles** row;
   keeps **Play** highlighted.
 - **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · **Puzzles**
-  (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row). The Solo row has a
-  bespoke treatment instead of a board preview: a green accent wash, a rounded **tile-badge** stopwatch in
-  the slot (`.dash-solo-badge`), and a large faded stopwatch **watermark** in the right half
-  (`.dash-row-solo-art`, `z-index:-1` under `isolation:isolate` so it sits above the wash but behind the
-  content) — subtitle "Practice to improve your times". There is intentionally no `solo` key in
-  `DASH_MODE_BOARDS`. The right aside holds the daily-puzzle hero plus an **Active rooms** card
+  (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row; green accent,
+  subtitle "Practice to improve your times"). Like the other mode rows it uses a generated **board
+  preview** (the `solo` key in `DASH_MODE_BOARDS`, a calm wide-open free-play board) so all four rows share
+  the same layout and height. The right aside holds the daily-puzzle hero plus an **Active rooms** card
   (`.dash-rooms`, `#home_room_list`) that replaced the old "Top players" leaderboard strip:
   `showLobbyView` emits `list_rooms` (not `get_leaderboard` — the standalone `/leaderboard` page emits
   its own), the `room_list` handler calls `renderHomeRooms`, which shows open rooms first (a **Join**
