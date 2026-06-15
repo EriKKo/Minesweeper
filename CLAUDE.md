@@ -568,26 +568,28 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `StartPatternsView.js`, `CombinedPuzzlesView.js` — one feature each.
   (`Overlay.js` also holds `showConfirm(message, opts)` — the app's promise-based confirm
   modal, used app-wide instead of `window.confirm()`.)
-- **Solo hub** (`/solo`, `#solo_view`, `showSoloView`). The single single-player landing
-  page — it replaced the old temporary Practice menu and absorbed the standalone puzzle picker. It has
-  **no nav item** (it was removed); you reach it through Play → the home dashboard's **Solo** card, so
-  `showSoloView` marks the **Play** nav (`setSiteNavActive("home")`) active. Two
-  parts: (1) **Free play** — inline segmented size + density pickers (`#solo_size_seg`/`#solo_density_seg`,
-  reusing the create-room `.cr-seg` style) that are **choose-then-start** (they only set
+- **Solo page** (`/solo`, `#solo_view`, `showSoloView`) — single-player **free play only**. It replaced
+  the old temporary Practice menu. It has **no nav item**; you reach it through Play → the home
+  dashboard's **Solo** card, so `showSoloView` marks the **Play** nav (`setSiteNavActive("home")`) active.
+  It's one card: inline segmented size + density pickers (`#solo_size_seg`/`#solo_density_seg`, reusing the
+  create-room `.cr-seg` style) that are **choose-then-start** (they only set
   `soloSelectedSize`/`soloSelectedDensity` + refresh the best line; the `#solo_start` button launches via
   `startSolo`), with the per-combo best time shown (`updateSoloBest` writes both the page `#solo_page_best`
-  and the in-game sidebar `#solo_best`); and (2) **Puzzles** — the Rated/Streak/Storm/Daily mode cards
-  (`.solo-puzzle-modes`, reusing `.ranked-picker-option`) linking straight to `/puzzles/play|streak|storm|daily`.
-  `Solo.js` `syncSoloControls()` keeps the page pickers AND the in-game sidebar quick-reroll buttons
-  (`.solo-size-btn`/`.solo-density-btn`) in lockstep with the current selection (called on `showSoloView`
-  and at the top of `startSolo`, so picking Large/High on the page lights up the sidebar's Large/High too).
-  `exitSolo` returns to `/solo`. The old `/practice` and `/puzzles` paths **redirect** to `/solo`
-  (Router), and BOTH the home dashboard's **Solo** card (`.dash-row-solo`, replaced the old Custom row)
-  and its **Puzzles** row point at `/solo`. `/solo` is the lone `inGameRoutes`
-  entry (solo gameplay shows `#game_view` over it, keeping the URL at `/solo`).
-- **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · Puzzles ·
-  **Solo** (`.dash-row-solo`, green accent, free-play board preview keyed `solo` in
-  `DASH_MODE_BOARDS`). The right aside holds the daily-puzzle hero plus an **Active rooms** card
+  and the in-game sidebar `#solo_best`). `Solo.js` `syncSoloControls()` keeps the page pickers AND the
+  in-game sidebar quick-reroll buttons (`.solo-size-btn`/`.solo-density-btn`) in lockstep with the current
+  selection (called on `showSoloView` and at the top of `startSolo`, so picking Large/High on the page
+  lights up the sidebar's Large/High too). `exitSolo` returns to `/solo`. The old `/practice` path
+  **redirects** to `/solo`. `/solo` is the lone `inGameRoutes` entry (solo gameplay shows `#game_view`
+  over it, keeping the URL at `/solo`).
+- **Puzzles page** (`/puzzles`, `#puzzle_picker_view`, `showPuzzlePickerView`) — a **separate** page from
+  Solo: the Rated/Streak/Storm/Daily mode cards (`.solo-puzzle-modes`, reusing `.ranked-picker-option`)
+  linking straight to `/puzzles/play|streak|storm|daily`, with the player's puzzle rating in the header
+  (`#puzzle_picker_rating`). Also has no nav item — reached via the home dashboard's **Puzzles** row;
+  keeps **Play** highlighted.
+- **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · **Puzzles**
+  (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row; green accent, a
+  static **stopwatch** glyph `.dash-board-icon` instead of a board preview — there is intentionally no
+  `solo` key in `DASH_MODE_BOARDS`). The right aside holds the daily-puzzle hero plus an **Active rooms** card
   (`.dash-rooms`, `#home_room_list`) that replaced the old "Top players" leaderboard strip:
   `showLobbyView` emits `list_rooms` (not `get_leaderboard` — the standalone `/leaderboard` page emits
   its own), the `room_list` handler calls `renderHomeRooms`, which shows open rooms first (a **Join**

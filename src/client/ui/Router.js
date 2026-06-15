@@ -121,17 +121,24 @@ function showLearnView() {
 	renderLearn();
 }
 
-// Solo hub: free-play board drills (size + density, choose-then-start) plus the
-// puzzle-training mode cards (Rated / Streak / Storm / Daily). Replaces the old
-// Practice page and absorbs the standalone puzzle picker.
+// Solo: free-play board drills (size + density, choose-then-start). Puzzle training
+// is a separate page (showPuzzlePickerView). Both are reached through Play (the home
+// dashboard cards), so neither has its own nav item.
 function showSoloView() {
 	hideAllViews();
 	document.getElementById("solo_view").style.display = "";
-	// Solo is reached through Play (the home dashboard), not its own nav item — keep Play highlighted.
 	setSiteNavActive("home");
-	var ratingEl = document.getElementById("solo_puzzle_rating");
-	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
 	if (typeof renderSoloPage === "function") renderSoloPage();
+}
+
+// Puzzles page: the Rated / Streak / Storm / Daily mode cards. Reached from the
+// home dashboard's Puzzles row; keeps Play highlighted.
+function showPuzzlePickerView() {
+	hideAllViews();
+	document.getElementById("puzzle_picker_view").style.display = "";
+	setSiteNavActive("home");
+	var ratingEl = document.getElementById("puzzle_picker_rating");
+	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
 }
 
 function showCustomView() {
@@ -351,8 +358,9 @@ function applyRouteFromHash() {
 	if (hash === "/" || hash === "") return showLobbyView();
 	if (hash === "/learn") return showLearnView();
 	if (hash === "/solo") return showSoloView();
-	// Back-compat: the old Practice page and standalone puzzle picker both live in Solo now.
-	if (hash === "/practice" || hash === "/puzzles") { navigate("/solo"); return; }
+	if (hash === "/puzzles") return showPuzzlePickerView();
+	// Back-compat: the old Practice page is now Solo (free play).
+	if (hash === "/practice") { navigate("/solo"); return; }
 	if (hash === "/custom") return showCustomView();
 	if (hash === "/puzzles/play") return showPuzzlePlayView();
 	if (hash === "/puzzles/streak") return showPuzzleStreakView();

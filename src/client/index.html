@@ -117,7 +117,7 @@
 								</span>
 							</span>
 						</a>
-						<a class="dash-row dash-row-puzzles" href="/solo" data-style="puzzles" aria-label="Open Solo puzzles">
+						<a class="dash-row dash-row-puzzles" href="/puzzles" data-style="puzzles" aria-label="Open Puzzles">
 							<span class="dash-row-board" id="dash_board_puzzles" aria-hidden="true"></span>
 							<span class="dash-row-info">
 								<h4 class="dash-row-title">Puzzles</h4>
@@ -357,7 +357,7 @@
 
 		<section id="solo_view" class="view section-view" style="display:none">
 			<h1 class="section-page-title">Solo</h1>
-			<p class="section-page-sub">Practice on your own — no rating on the line. Drill boards, or train deduction puzzles.</p>
+			<p class="section-page-sub">Free play — generate a no-guess board at any size and density, and race your own best time. No rating on the line.</p>
 
 			<div class="section-card solo-freeplay">
 				<h2>Free play</h2>
@@ -388,12 +388,14 @@
 					<button id="solo_start" class="btn btn-primary solo-start-btn" type="button">Start board</button>
 				</div>
 			</div>
+			</section>
 
+			<section id="puzzle_picker_view" class="view section-view" style="display:none">
 			<div class="solo-puzzles-head">
-				<h2 class="section-title">Puzzles</h2>
+				<h1 class="section-page-title">Puzzles</h1>
 				<span class="solo-puzzles-rating">
 					<span class="solo-puzzles-rating-label">Rating</span>
-					<span class="solo-puzzles-rating-num" id="solo_puzzle_rating">—</span>
+					<span class="solo-puzzles-rating-num" id="puzzle_picker_rating">—</span>
 				</span>
 			</div>
 			<p class="section-page-sub solo-puzzles-sub">Hand-picked deduction positions served near your rating — one at a time.</p>
