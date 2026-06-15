@@ -2835,6 +2835,53 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	background: var(--bg);
 }
 
+/* ── Board skin: Tactical (phosphor CRT) ──────────────────────────────────────
+   Cell/number colours come from the canvas palette (BoardRender BOARD_SKINS); the
+   frame/chrome is here, keyed off body[data-board-skin]. The player's own board
+   becomes a dark "screen" set in a bezel, with an inset cyan glow + scanlines. */
+body[data-board-skin="tactical"] .player-board {
+	background: linear-gradient(145deg, #1a2230 0%, #0d1520 50%, #101c28 100%);
+	border-color: #1e3040;
+	box-shadow: 0 0 0 1px rgba(0, 232, 200, 0.08), 0 4px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+body[data-board-skin="tactical"] .board-scroll {
+	position: relative;
+	padding: 10px;
+	background: #030e12;
+	border-radius: 6px;
+	box-shadow: inset 0 0 50px rgba(0, 232, 200, 0.05), inset 0 0 0 1px rgba(0, 232, 200, 0.16), 0 0 26px rgba(0, 232, 200, 0.08);
+}
+/* Scanline overlay drawn over the board (under the board-wrap overlays at z-index 3+). */
+body[data-board-skin="tactical"] .board-scroll::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	border-radius: 6px;
+	z-index: 2;
+	background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0, 232, 200, 0.045) 3px, rgba(0, 232, 200, 0.045) 4px);
+}
+
+/* ── Board-skin picker (Profile) ──────────────────────────────────────────── */
+.skin-options { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem; }
+.skin-option {
+	display: flex; align-items: center; gap: 0.9rem; width: 100%;
+	padding: 0.7rem 0.85rem; border-radius: 11px; cursor: pointer; text-align: left;
+	background: var(--bg); border: 1px solid var(--border); color: var(--text);
+	font: inherit; transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.skin-option:hover { transform: translateY(-1px); border-color: var(--muted); }
+.skin-option.active { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); box-shadow: 0 0 0 1px var(--accent); }
+.skin-preview { display: flex; gap: 3px; flex: 0 0 auto; padding: 5px; border-radius: 6px; background: #030e12; }
+.skin-cell {
+	width: 20px; height: 20px; border-radius: 3px; border: 1px solid transparent;
+	display: flex; align-items: center; justify-content: center;
+	font-size: 12px; font-weight: 700; line-height: 1;
+}
+.skin-meta { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.skin-name { font-weight: 700; font-size: 0.95rem; }
+.skin-blurb { font-size: 0.8rem; color: var(--muted); }
+
 .player-controls {
 	display: flex;
 	gap: 0.75rem;

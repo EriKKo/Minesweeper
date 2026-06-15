@@ -532,6 +532,19 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (same design as `favicon.svg`); `logo-512.png` (repo root) is its rasterised 512×512
   PNG for upload as the OAuth consent-screen app logo.
 - `BoardRender.js` — canvas paint + palette + animation timings + DPR.
+- **Board skins** (the foundation for texture packs). The cell/number palette is no longer hardcoded:
+  `BOARD_SKINS` in `BoardRender.js` holds each skin's colours (mine, per-number, known/unknown cell,
+  flag, font, and a `glow` flag) and `applyBoardSkin(id)` reassigns the module-scoped palette vars the
+  draw helpers read live (so a swap repaints with no renderer changes) and sets `body[data-board-skin]`.
+  `drawNumber` adds a per-digit shadow when `NUMBER_GLOW` is on. Two skins ship: **classic** (default blue)
+  and **tactical** (phosphor-CRT: dark screen, teal cells, neon glowing monospace digits). The **frame /
+  chrome** half is CSS keyed off `body[data-board-skin="tactical"]` (`.player-board` bezel +
+  `.board-scroll` dark screen with inset cyan glow + a scanline `::after`). `setBoardSkin(id)` persists to
+  `localStorage["ms_board_skin"]`, applies, repaints the live board, and refreshes the picker; the stored
+  skin is applied at load. The picker is on the **Profile** page (`renderBoardSkins` → `#skins_card`, with
+  palette-built swatches). New skins = a `BOARD_SKINS` entry (+ optional CSS frame block); image-based
+  texture packs would extend the same hook. (Derived from a Figma "futuristic board" export — a
+  React/Tailwind project — translated into this canvas palette + CSS frame.)
 - `Animations.js` — the cellAnims queue + RAF loop + per-frame board paint.
 - `Input.js` — pointer/touch/keyboard handlers, local reveal/chord mirrors. Keyboard
   actions are resolved through `keybindings.actionFor()`. A chord that **detonates** clears every

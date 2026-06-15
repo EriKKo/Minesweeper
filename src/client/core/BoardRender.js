@@ -7,22 +7,63 @@
 // Loaded via a plain <script> tag before the main inline script. Everything
 // declared here becomes a global the main script can reach.
 
-// ---- palette ----------------------------------------------------------
-var COLOR_MINE = "#fca5a5";
+// ---- palette / board skins -------------------------------------------
+// The draw helpers below read these module-scoped vars live, so swapping a skin
+// is just reassigning them (applyBoardSkin) — no re-plumbing of the renderer.
+// Skins are the foundation for texture packs; the frame/chrome half lives in CSS
+// keyed off `body[data-board-skin]`.
+var COLOR_MINE, NUMBER_COLORS, COLOR_KNOWN_BG, COLOR_KNOWN_EDGE,
+	COLOR_UNKNOWN_TOP, COLOR_UNKNOWN_BOTTOM, COLOR_UNKNOWN_EDGE, COLOR_UNKNOWN_HILITE,
+	COLOR_FLAG_CLOTH, COLOR_FLAG_POLE, NUMBER_FONT, NUMBER_GLOW;
 
-var NUMBER_COLORS = {
-	1: "#60a5fa", 2: "#4ade80", 3: "#f87171", 4: "#c084fc",
-	5: "#fbbf24", 6: "#22d3ee", 7: "#f9a8d4", 8: "#e2e8f0"
+var BOARD_SKINS = {
+	classic: {
+		label: "Classic", blurb: "The default blue tiles.",
+		mine: "#fca5a5",
+		numbers: { 1: "#60a5fa", 2: "#4ade80", 3: "#f87171", 4: "#c084fc", 5: "#fbbf24", 6: "#22d3ee", 7: "#f9a8d4", 8: "#e2e8f0" },
+		knownBg: "#162033", knownEdge: "#0b1220",
+		unknownTop: "#4f93f7", unknownBottom: "#2563eb", unknownEdge: "#1e40af",
+		unknownHilite: "rgba(255,255,255,0.28)",
+		flagCloth: "#ef4444", flagPole: "#e2e8f0",
+		font: "Inter, system-ui, sans-serif", glow: false
+	},
+	tactical: {
+		label: "Tactical", blurb: "Phosphor-CRT display with glowing digits.",
+		mine: "#ff4d4d",
+		numbers: { 1: "#00e8c8", 2: "#39ff14", 3: "#ff4d4d", 4: "#c084fc", 5: "#fb923c", 6: "#22d3ee", 7: "#80fff4", 8: "#eeeef5" },
+		knownBg: "#020c0f", knownEdge: "#0a2a30",
+		unknownTop: "#0a3a42", unknownBottom: "#062830", unknownEdge: "#00614f",
+		unknownHilite: "rgba(0,232,200,0.20)",
+		flagCloth: "#ff4d4d", flagPole: "#80fff4",
+		font: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", glow: true
+	}
 };
-var COLOR_KNOWN_BG = "#162033";
-var COLOR_KNOWN_EDGE = "#0b1220";
-var COLOR_UNKNOWN_TOP = "#4f93f7";
-var COLOR_UNKNOWN_BOTTOM = "#2563eb";
-var COLOR_UNKNOWN_EDGE = "#1e40af";
-var COLOR_UNKNOWN_HILITE = "rgba(255,255,255,0.28)";
-var COLOR_FLAG_CLOTH = "#ef4444";
-var COLOR_FLAG_POLE = "#e2e8f0";
-var NUMBER_FONT = "Inter, system-ui, sans-serif";
+var BOARD_SKIN_LIST = ["classic", "tactical"];
+var currentBoardSkin = "classic";
+
+function applyBoardSkin(id) {
+	if (!BOARD_SKINS[id]) id = "classic";
+	var s = BOARD_SKINS[id];
+	COLOR_MINE = s.mine;
+	NUMBER_COLORS = s.numbers;
+	COLOR_KNOWN_BG = s.knownBg; COLOR_KNOWN_EDGE = s.knownEdge;
+	COLOR_UNKNOWN_TOP = s.unknownTop; COLOR_UNKNOWN_BOTTOM = s.unknownBottom; COLOR_UNKNOWN_EDGE = s.unknownEdge;
+	COLOR_UNKNOWN_HILITE = s.unknownHilite;
+	COLOR_FLAG_CLOTH = s.flagCloth; COLOR_FLAG_POLE = s.flagPole;
+	NUMBER_FONT = s.font; NUMBER_GLOW = s.glow;
+	currentBoardSkin = id;
+	if (document.body) document.body.setAttribute("data-board-skin", id);
+}
+
+// Persist + apply + repaint any board currently on screen + refresh the picker.
+function setBoardSkin(id) {
+	applyBoardSkin(id);
+	try { localStorage.setItem("ms_board_skin", currentBoardSkin); } catch (e) {}
+	if (typeof myState !== "undefined" && myState && typeof redrawOwnBoardWithFocus === "function") redrawOwnBoardWithFocus();
+	if (typeof renderBoardSkins === "function") renderBoardSkins();
+}
+
+applyBoardSkin((function () { try { return localStorage.getItem("ms_board_skin"); } catch (e) { return null; } })() || "classic");
 
 // Device pixel ratio — every canvas on the site renders at this multiple so
 // it's crisp on HiDPI displays. Used by sizeBoardCanvas/sizePlayerCanvas in
@@ -285,7 +326,10 @@ function drawNumber(ctx, n, w, h, t) {
 	var scale = 0.7 + 0.3 * easeOutBack(clamp01(t));
 	ctx.translate(w / 2, h / 2 + 1);
 	ctx.scale(scale, scale);
-	ctx.fillStyle = NUMBER_COLORS[n] || "#e2e8f0";
+	var col = NUMBER_COLORS[n] || "#e2e8f0";
+	ctx.fillStyle = col;
+	// Phosphor skins glow each digit in its own colour.
+	if (NUMBER_GLOW) { ctx.shadowColor = col; ctx.shadowBlur = Math.max(2, h * 0.4); }
 	ctx.font = "bold " + Math.floor(0.72 * h) + "px " + NUMBER_FONT;
 	ctx.textAlign = "center";
 	ctx.textBaseline = "middle";

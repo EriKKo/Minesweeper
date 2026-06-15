@@ -4,10 +4,65 @@
 // rating fields the server updates after each ranked match. The rank chips on
 // the home page (renderHomeRankChips) read the same data.
 
+// Board-skin picker (local, like keybindings). Each option shows a tiny swatch built
+// from the skin's palette; clicking applies it live via setBoardSkin (BoardRender.js).
+function renderBoardSkins() {
+	var card = document.getElementById("skins_card");
+	if (!card || typeof BOARD_SKINS === "undefined") return;
+	card.innerHTML = "";
+	var h = document.createElement("h2");
+	h.className = "controls-title";
+	h.textContent = "Board skin";
+	card.appendChild(h);
+	var sub = document.createElement("p");
+	sub.className = "section-stub-note";
+	sub.style.marginTop = "0";
+	sub.textContent = "Choose how your board looks. More texture packs coming.";
+	card.appendChild(sub);
+
+	var grid = document.createElement("div");
+	grid.className = "skin-options";
+	BOARD_SKIN_LIST.forEach(function(id) {
+		var s = BOARD_SKINS[id];
+		var btn = document.createElement("button");
+		btn.type = "button";
+		btn.className = "skin-option" + (id === currentBoardSkin ? " active" : "");
+		var prev = document.createElement("span");
+		prev.className = "skin-preview";
+		var unknown = document.createElement("span");
+		unknown.className = "skin-cell";
+		unknown.style.background = "linear-gradient(180deg," + s.unknownTop + "," + s.unknownBottom + ")";
+		unknown.style.borderColor = s.unknownEdge;
+		prev.appendChild(unknown);
+		[1, 2, 3].forEach(function(n) {
+			var c = document.createElement("span");
+			c.className = "skin-cell skin-cell-num";
+			c.style.background = s.knownBg;
+			c.style.borderColor = s.knownEdge;
+			c.style.color = s.numbers[n];
+			c.style.fontFamily = s.font;
+			if (s.glow) c.style.textShadow = "0 0 5px " + s.numbers[n];
+			c.textContent = n;
+			prev.appendChild(c);
+		});
+		btn.appendChild(prev);
+		var meta = document.createElement("span");
+		meta.className = "skin-meta";
+		var name = document.createElement("span"); name.className = "skin-name"; name.textContent = s.label;
+		var blurb = document.createElement("span"); blurb.className = "skin-blurb"; blurb.textContent = s.blurb;
+		meta.appendChild(name); meta.appendChild(blurb);
+		btn.appendChild(meta);
+		btn.addEventListener("click", function() { if (typeof setBoardSkin === "function") setBoardSkin(id); });
+		grid.appendChild(btn);
+	});
+	card.appendChild(grid);
+}
+
 // Profile renders from the account cache plus the most recent leaderboard snapshot.
 function renderProfile() {
-	// Keybindings are local (not tied to an account), so render the Controls section
+	// Board skin + keybindings are local (not tied to an account), so render them
 	// regardless of sign-in state.
+	if (typeof renderBoardSkins === "function") renderBoardSkins();
 	if (typeof renderKeybindings === "function") renderKeybindings();
 	var card = document.getElementById("profile_card");
 	if (!card) return;
