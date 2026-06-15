@@ -921,6 +921,13 @@ main {
 	color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
 	border-bottom-width: 2px; border-radius: 6px; padding: 0.12rem 0.42rem; white-space: nowrap;
 }
+.help-examples { display: flex; gap: 1rem; margin-top: 0.9rem; }
+.help-example { margin: 0; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; }
+.help-board { line-height: 0; }
+.help-board .learn-puzzle-title, .help-board .learn-status, .help-board .learn-controls { display: none; }
+.help-board .learn-board { line-height: 0; padding: 0; }
+.help-board .learn-board canvas { display: block; height: 84px !important; width: auto !important; border-radius: 5px; }
+.help-example-cap { font-size: 0.74rem; color: var(--muted); text-align: center; line-height: 1.35; }
 .help-foot { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--muted); }
 .help-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
 .help-foot a:hover { text-decoration: underline; }

@@ -1046,6 +1046,24 @@ scoreboardEl.addEventListener("click", function(e) {
 	var modal = document.getElementById("help_modal");
 	var trigger = document.getElementById("help_nav_link");
 	if (!modal || !trigger) return;
+	// Two small example boards illustrating the rules: the same layout shown first with just
+	// its number clues, then with the mines flagged. Rendered once (lazily on first open).
+	function renderHelpBoards() {
+		if (typeof buildLearnPuzzle !== "function") return;
+		var mines = [[0, 1], [1, 0], [1, 1]];
+		var key = {}; mines.forEach(function(m) { key[m[0] + "," + m[1]] = 1; });
+		var safe = [];
+		for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) if (!key[r + "," + c]) safe.push([r, c]);
+		function render(id, flagged) {
+			var slot = document.getElementById(id);
+			if (!slot || slot.firstChild) return; // render once
+			var el = buildLearnPuzzle({ title: "", rows: 4, cols: 4, mines: mines, revealed: safe, flagged: flagged }, false, function() {});
+			el.style.pointerEvents = "none";
+			slot.appendChild(el);
+		}
+		render("help_board_numbers", []);
+		render("help_board_flags", mines);
+	}
 	function openHelp() {
 		// Fill the control-key chips from the live (rebindable) keybindings.
 		if (typeof keybindings !== "undefined") {
@@ -1057,6 +1075,7 @@ scoreboardEl.addEventListener("click", function(e) {
 			set("help_key_flag", "flag");
 			set("help_key_next", "next");
 		}
+		renderHelpBoards();
 		modal.removeAttribute("hidden");
 	}
 	function closeHelp() { modal.setAttribute("hidden", ""); }
