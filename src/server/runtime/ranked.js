@@ -95,7 +95,7 @@ function rankedSearchMembers(viewerID, mode) {
 		var u = acc ? db.getUserById(acc.userId) : null;
 		members.push({
 			id: pid,
-			name: names[pid] || (u && u.name) || "Anonymous",
+			name: names[pid] || (u && db.displayNameOf(u)) || "Anonymous",
 			rating: u ? readUserRating(u, style) : 0,
 			provisional: u ? (u.played < PROVISIONAL_GAMES) : true,
 			isYou: pid === viewerID,

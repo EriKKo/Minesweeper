@@ -89,6 +89,29 @@ addColumnIfMissing("users", "is_guest", "INTEGER NOT NULL DEFAULT 0");
 // `provider` is the account's ORIGINAL/primary login (never changes once set). `last_provider` is the
 // one most recently signed in with — for accounts linked across providers, the topbar shows this.
 addColumnIfMissing("users", "last_provider", "TEXT");
+// `display_name` is the shown, user-editable name. On first real login it's seeded from the provider's
+// name; renames (set_name) touch ONLY display_name, so a later provider login never clobbers a chosen
+// name. The shown name is `display_name || name` (legacy `name` is the fallback / guest auto-name).
+addColumnIfMissing("users", "display_name", "TEXT");
+// Per-provider raw auth fields, stored verbatim in case we want them later. (Account RESOLUTION uses the
+// `user_identities` index; these are a convenience copy of each provider's id + name on the user row.)
+addColumnIfMissing("users", "google_auth_id", "TEXT");
+addColumnIfMissing("users", "google_auth_name", "TEXT");
+addColumnIfMissing("users", "discord_auth_id", "TEXT");
+addColumnIfMissing("users", "discord_auth_name", "TEXT");
+addColumnIfMissing("users", "github_auth_id", "TEXT");
+addColumnIfMissing("users", "github_auth_name", "TEXT");
+// Backfill existing REAL accounts: their current `name` is already their chosen/shown name, so adopt it
+// as display_name. Guests stay NULL so they keep showing their GuestNNNNN name and don't count as "set".
+try { db.exec("UPDATE users SET display_name = name WHERE is_guest = 0 AND display_name IS NULL"); }
+catch (e) { console.error("display_name backfill failed", e); }
+// Backfill the per-provider columns from each row's primary provider (linked providers fill on next login).
+["google", "discord", "github"].forEach(function(p) {
+	try { db.exec("UPDATE users SET " + p + "_auth_id = provider_id, " + p + "_auth_name = name WHERE provider = '" + p + "' AND " + p + "_auth_id IS NULL"); }
+	catch (e) { console.error("auth-field backfill failed for " + p, e); }
+});
+// `provider_name` was a single-column predecessor of the per-provider auth columns above — drop it.
+dropColumnIfExists("users", "provider_name");
 // Ranked is split into Sprint / Standard playstyles (and Tournament keeps
 // its own pool). Each playstyle carries its own Elo and provisional
 // counter so a player can be Bronze at Sprint and Gold at Standard.
@@ -251,6 +274,20 @@ db.exec(
 try { db.exec("ALTER TABLE patterns RENAME COLUMN action TO method"); } catch (e) {}
 addColumnIfMissing("starting_positions", "pattern_id", "INTEGER");
 
+// Dedicated user-row columns holding each auth provider's raw id + name (dev/guest have none).
+var AUTH_PROVIDER_COLUMNS = {
+	google:  { id: "google_auth_id",  name: "google_auth_name" },
+	discord: { id: "discord_auth_id", name: "discord_auth_name" },
+	github:  { id: "github_auth_id",  name: "github_auth_name" }
+};
+// Stash the provider's raw id + name on the user row (kept verbatim for later use; not the shown name).
+function setProviderAuthFields(userId, provider, providerId, providerName) {
+	var cols = AUTH_PROVIDER_COLUMNS[provider];
+	if (!cols) return;
+	db.prepare("UPDATE users SET " + cols.id + " = ?, " + cols.name + " = ? WHERE id = ?")
+		.run(String(providerId), providerName || null, userId);
+}
+
 // Record a provider login as a route into an account (idempotent on (provider, provider_id)).
 function linkIdentity(userId, provider, providerId, emailLower) {
 	db.prepare(
@@ -270,29 +307,34 @@ function findAccountForLogin(provider, providerId, emailLower) {
 	return null;
 }
 
-function upsertUser(provider, providerId, name, avatarUrl, email) {
+function upsertUser(provider, providerId, providerName, avatarUrl, email) {
 	providerId = String(providerId);
 	var emailLower = email ? String(email).toLowerCase() : null;
 	var existing = findAccountForLogin(provider, providerId, emailLower);
 	if (existing) {
 		// Make sure this provider is recorded as a way into the account (links a new login to an
-		// existing email on first use), then refresh the profile.
+		// existing email on first use), then refresh the provider-sourced fields. display_name is only
+		// SEEDED when missing — a chosen name is never overwritten by a later provider login.
 		linkIdentity(existing.id, provider, providerId, emailLower);
-		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
-			.run(name, avatarUrl || null, emailLower, provider, existing.id);
+		db.prepare("UPDATE users SET display_name = COALESCE(display_name, ?), " +
+			"avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
+			.run(providerName, avatarUrl || null, emailLower, provider, existing.id);
+		setProviderAuthFields(existing.id, provider, providerId, providerName);
 		var updated = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
 		applyAdminForEmail(updated);
 		return updated;
 	}
+	// New account: display_name starts as the provider name (legacy `name` mirrors it for back-compat).
 	// Ranked ratings start at 0 (Bronze I) — set explicitly so a pre-existing DB whose columns
 	// still carry the old DEFAULT 1000 doesn't seed new accounts at Silver III.
 	var info = db.prepare(
-		"INSERT INTO users (provider, provider_id, name, avatar_url, email, last_provider, created_at, " +
+		"INSERT INTO users (provider, provider_id, name, display_name, avatar_url, email, last_provider, created_at, " +
 		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
-	).run(provider, providerId, name, avatarUrl || null, emailLower, provider, Date.now());
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
+	).run(provider, providerId, providerName, providerName, avatarUrl || null, emailLower, provider, Date.now());
+	linkIdentity(info.lastInsertRowid, provider, providerId, emailLower);
+	setProviderAuthFields(info.lastInsertRowid, provider, providerId, providerName);
 	var created = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
-	linkIdentity(created.id, provider, providerId, emailLower);
 	applyAdminForEmail(created);
 	return created;
 }
@@ -314,13 +356,13 @@ function createGuest() {
 // EXISTS, we log into the existing account and discard the guest (its row + sessions are removed). If it's
 // new, we upgrade the guest row IN PLACE — same id, so its rating and stats carry over. Returns
 // { user, switched } where switched=true means we fell back to a pre-existing account.
-function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email) {
+function upgradeGuest(guestUserId, provider, providerId, providerName, avatarUrl, email) {
 	providerId = String(providerId);
 	var emailLower = email ? String(email).toLowerCase() : null;
 	var guest = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
 	if (!guest || !guest.is_guest) {
 		// Not actually a guest (e.g. a stale token) — treat as a normal login.
-		return { user: upsertUser(provider, providerId, name, avatarUrl, email), switched: false };
+		return { user: upsertUser(provider, providerId, providerName, avatarUrl, email), switched: false };
 	}
 	var existing = findAccountForLogin(provider, providerId, emailLower);
 	if (existing && existing.id !== guestUserId) {
@@ -328,22 +370,35 @@ function upgradeGuest(guestUserId, provider, providerId, name, avatarUrl, email)
 		db.prepare("DELETE FROM sessions WHERE user_id = ?").run(guestUserId);
 		db.prepare("DELETE FROM users WHERE id = ?").run(guestUserId);
 		linkIdentity(existing.id, provider, providerId, emailLower);
-		db.prepare("UPDATE users SET name = ?, avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
-			.run(name, avatarUrl || null, emailLower, provider, existing.id);
+		db.prepare("UPDATE users SET display_name = COALESCE(display_name, ?), " +
+			"avatar_url = ?, email = COALESCE(?, email), last_provider = ? WHERE id = ?")
+			.run(providerName, avatarUrl || null, emailLower, provider, existing.id);
+		setProviderAuthFields(existing.id, provider, providerId, providerName);
 		var ex = db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
 		applyAdminForEmail(ex);
 		return { user: ex, switched: true };
 	}
-	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, avatar_url = ?, email = ?, is_guest = 0, last_provider = ? WHERE id = ?")
-		.run(provider, providerId, name, avatarUrl || null, emailLower, provider, guestUserId);
+	// Upgrade in place: the guest becomes a real account. Seed display_name from the provider name ONLY
+	// if the guest hadn't chosen one — a guest's auto-name lives in `name`, not display_name, so it
+	// doesn't count as "set"; a guest who renamed (set_name → display_name) keeps that name.
+	db.prepare("UPDATE users SET provider = ?, provider_id = ?, name = ?, " +
+		"display_name = COALESCE(display_name, ?), avatar_url = ?, email = ?, is_guest = 0, last_provider = ? WHERE id = ?")
+		.run(provider, providerId, providerName, providerName, avatarUrl || null, emailLower, provider, guestUserId);
 	linkIdentity(guestUserId, provider, providerId, emailLower);
+	setProviderAuthFields(guestUserId, provider, providerId, providerName);
 	var upgraded = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
 	applyAdminForEmail(upgraded);
 	return { user: upgraded, switched: false };
 }
 
+// The shown name: the user-editable display_name if set, else the legacy / guest `name`.
+function displayNameOf(user) {
+	return user ? (user.display_name || user.name) : "";
+}
+
+// Renames set ONLY the display name (the per-provider *_auth_name columns keep the raw provider values).
 function setUserName(userId, name) {
-	db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
+	db.prepare("UPDATE users SET display_name = ? WHERE id = ?").run(name, userId);
 }
 
 // Drive-by guests pile up — every tokenless visit makes a guest row. Periodically delete guests that
@@ -480,7 +535,7 @@ function deleteSession(token) {
 function topPlayers(limit) {
 	// "Overall" rating is the player's best across modes (no single legacy column any more).
 	return db.prepare(
-		"SELECT name, MAX(rating_sprint, rating_standard, rating_tournament, rating_territory) AS rating, " +
+		"SELECT COALESCE(display_name, name) AS name, MAX(rating_sprint, rating_standard, rating_tournament, rating_territory) AS rating, " +
 		"wins, played FROM users WHERE is_guest = 0 ORDER BY rating DESC LIMIT ?"
 	).all(limit || 20);
 }
@@ -985,6 +1040,7 @@ module.exports = {
 	createGuest: createGuest,
 	upgradeGuest: upgradeGuest,
 	setUserName: setUserName,
+	displayNameOf: displayNameOf,
 	pruneStaleGuests: pruneStaleGuests,
 	createSession: createSession,
 	getUserByToken: getUserByToken,

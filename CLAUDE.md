@@ -209,7 +209,14 @@ else is grouped:
   identity** first, then (account-linking) **a real account with the same verified email** — in which case
   the new provider is linked to that account (`linkIdentity`) instead of making a duplicate; otherwise a
   new account is created. `users.last_provider` is bumped to the provider used on every login (while
-  `users.provider` stays the original), so the topbar logo reflects the **most recently used** login. So signing in with Google and later Discord under the same email lands on the
+  `users.provider` stays the original), so the topbar logo reflects the **most recently used** login.
+- **Names.** `users.display_name` is the shown, editable name (read via `db.displayNameOf` = `display_name
+  || name`); `set_name` writes only `display_name`. On first real login it's seeded from the provider's
+  name **only if unset** — a guest's auto-name lives in `name` (not display_name) so it doesn't count, and
+  a later provider login never clobbers a chosen name. Each provider's raw id+name are also kept verbatim
+  in dedicated columns (`google_auth_id`/`google_auth_name`, `discord_*`, `github_*`) via
+  `setProviderAuthFields`, in case they're wanted later. The `authenticated` payload's `name` is the
+  display name; `topPlayers` shows `COALESCE(display_name, name)`. So signing in with Google and later Discord under the same email lands on the
   same player, and either login works thereafter. Only **verified** emails link (Discord gates on
   `verified`, GitHub on primary+verified, Google on `email_verified`). Caveat: this links a *new* provider
   to an existing account — it does **not** merge two accounts both created separately before the identity
