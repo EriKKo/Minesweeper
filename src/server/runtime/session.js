@@ -27,8 +27,8 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 	var displayName = db.displayNameOf(user); // editable display_name, falling back to the legacy/guest name
 	var isFirst = !names[playerID];
 	names[playerID] = displayName;
-	// Guests with no chosen avatar default to the mine-teddy mascot (others fall back to the red flag).
-	var avatarColor = user.avatar_color || (user.is_guest ? "img:teddy" : null);
+	// Guests with no chosen avatar default to the anonymous silhouette (others fall back to the red flag).
+	var avatarColor = user.avatar_color || (user.is_guest ? "anon" : null);
 	avatars[playerID] = avatarColor;
 	countries[playerID] = user.country || null;
 	if (games[playerID]) {
@@ -113,8 +113,8 @@ function registerSocketHandlers(socket, playerID) {
 		var acc = accounts[playerID];
 		if (!acc) return;
 		var color = (data && typeof data.color === "string") ? data.color.trim() : "";
-		// A #rrggbb cloth colour, or an "img:<id>" preset image avatar (or "" to clear → default red).
-		if (color && !/^#[0-9a-f]{6}$/i.test(color) && !/^img:[a-z0-9_-]+$/i.test(color)) return;
+		// A #rrggbb cloth colour, the "anon" silhouette, or an "img:<id>" preset (or "" to clear → default red).
+		if (color && color !== "anon" && !/^#[0-9a-f]{6}$/i.test(color) && !/^img:[a-z0-9_-]+$/i.test(color)) return;
 		var value = color || null;
 		db.setAvatarColor(acc.userId, value);
 		avatars[playerID] = value;

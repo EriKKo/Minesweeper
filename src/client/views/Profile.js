@@ -226,7 +226,8 @@ function renderAppearance() {
 		b.addEventListener("click", function() { setAvatarColor(value); });
 		swatches.appendChild(b);
 	}
-	// Image avatar presets first, then the flag-colour pennants (the colour is the fallback when no country).
+	// Preset avatars (anonymous silhouette, then image presets), then the flag-colour pennants.
+	swatch("anon");
 	if (typeof AVATAR_IMAGES !== "undefined") Object.keys(AVATAR_IMAGES).forEach(function(id) { swatch("img:" + id); });
 	AVATAR_COLORS.forEach(function(col) { swatch(col); });
 	wrap.appendChild(swatches);
@@ -743,7 +744,7 @@ function renderDashIdentity() {
 		badgeEl.title = "Edit avatar";
 		badgeEl.onclick = function() { if (typeof openAvatarEditor === "function") openAvatarEditor(); };
 	}
-	if (lineEl) lineEl.innerHTML = "Overall <b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
+	if (lineEl) lineEl.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
 	if (statsEl) {
 		var played = account.played || 0, wins = account.wins || 0;
 		var wr = played ? Math.round(wins / played * 100) + "%" : "—";

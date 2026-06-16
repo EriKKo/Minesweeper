@@ -475,6 +475,18 @@ function buildAvatarCanvas(color, px, country) {
 		ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke();
 	}
 
+	// Anonymous avatar ("anon") — a generic head-and-shoulders silhouette (the default for guests).
+	if (color === "anon") {
+		tileBg();
+		ctx.save();
+		roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28); ctx.clip();
+		ctx.fillStyle = "#aab3d0";
+		ctx.beginPath(); ctx.arc(px * 0.5, px * 1.04, px * 0.37, 0, Math.PI * 2); ctx.fill(); // shoulders
+		ctx.beginPath(); ctx.arc(px * 0.5, px * 0.37, px * 0.17, 0, Math.PI * 2); ctx.fill(); // head
+		ctx.restore();
+		return c;
+	}
+
 	// Image avatar ("img:<id>") — render the preset image contained in the rounded tile, ignoring the flag.
 	var imgId = (typeof color === "string" && color.indexOf("img:") === 0) ? color.slice(4) : null;
 	if (imgId && AVATAR_IMAGES[imgId]) {

@@ -576,8 +576,9 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `setCountry`; `appState.avatars`/`countries` maps populated in `loginSocket`; `set_avatar`/`set_country`
   handlers (session.js, validated) persist + update the live game + rebroadcast; `gameForBroadcast` and the
   room-state players list carry `avatar`/`country`; `topPlayers` selects them; the `authenticated` payload
-  carries `avatarColor`/`country`; disconnect clears the maps. **Guests** with no chosen avatar default to
-  the mine-teddy (`loginSocket` substitutes `img:teddy` when `is_guest` and `avatar_color` is null —
+  carries `avatarColor`/`country`; disconnect clears the maps. Besides `#rrggbb` and `img:<id>`, the avatar
+  value `"anon"` renders a procedural head-and-shoulders **anonymous silhouette**. **Guests** with no chosen
+  avatar default to `"anon"` (`loginSocket` substitutes it when `is_guest` and `avatar_color` is null —
   display-only, not persisted). The home identity avatar is **click-to-edit**: clicking it opens
   `openAvatarEditor` (a `.cr-modal` reusing `renderAppearance` + a live preview); `setAvatarColor`/
   `setCountry` call `refreshAvatarDisplays` to repaint the profile header, home identity, and modal preview.
