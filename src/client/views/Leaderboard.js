@@ -52,7 +52,7 @@ function renderLeaderboard(players) {
 			li.appendChild(rank);
 
 			if (typeof buildAvatarChip === "function") {
-				var chip = buildAvatarChip(p.avatar_color || DEFAULT_AVATAR_COLOR, p.country || null, 24);
+				var chip = buildAvatarChip(p.avatar_color || DEFAULT_AVATAR_COLOR, p.country || null, 26);
 				chip.classList.add("lb-avatar");
 				li.appendChild(chip);
 			}

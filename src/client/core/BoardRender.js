@@ -452,9 +452,11 @@ function drawFlag(ctx, w, h, scale, clothColor) {
 }
 
 // --- Avatars -------------------------------------------------------------------------------------
-// The avatar is the in-game flag recoloured to the player's `avatar_color`, on a rounded tile. Rendered
-// to a canvas so it matches the board art exactly (no image assets). Country flags are separate <img>s.
-function buildAvatarCanvas(color, px) {
+// The avatar is the in-game flag on a pole. With a country, the "cloth" is the player's round country
+// flag (the /flags SVGs are circular icons), drawn large so it's recognisable; without one it falls back
+// to a coloured pennant in `avatar_color`. Rendered to a canvas so the pole/tile match the board art.
+// The country flag loads async — we paint a placeholder, then repaint when the image arrives.
+function buildAvatarCanvas(color, px, country) {
 	px = px || 28;
 	var dpr = window.devicePixelRatio || 1;
 	var c = document.createElement("canvas");
@@ -463,30 +465,63 @@ function buildAvatarCanvas(color, px) {
 	c.style.width = px + "px"; c.style.height = px + "px";
 	var ctx = c.getContext("2d");
 	ctx.scale(dpr, dpr);
-	setPaletteVars("classic"); // ensure the flag pole colour is defined (board draws reset this per-paint)
-	roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28);
-	ctx.fillStyle = "#1a2240"; ctx.fill();
-	ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke();
-	drawFlag(ctx, px, px, px >= 44 ? 1.15 : 1.0, color || DEFAULT_AVATAR_COLOR);
+
+	var poleX = px * 0.24, poleTop = px * 0.12, poleBot = px * 0.88;
+	var r = px * 0.30, cx = poleX + r, cy = poleTop + r * 0.98; // country-flag disc, hung at the pole top
+
+	function base() {
+		ctx.clearRect(0, 0, px, px);
+		roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28);
+		ctx.fillStyle = "#1a2240"; ctx.fill();
+		ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke();
+		ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = Math.max(1, px * 0.045); ctx.lineCap = "round";
+		ctx.beginPath(); ctx.moveTo(poleX, poleTop); ctx.lineTo(poleX, poleBot); ctx.stroke();           // pole
+		ctx.beginPath(); ctx.moveTo(poleX - px * 0.07, poleBot); ctx.lineTo(poleX + px * 0.07, poleBot); ctx.stroke(); // base
+	}
+	function drawCountry(img) {
+		base();
+		ctx.save();
+		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+		ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+		ctx.restore();
+		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+		ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = Math.max(1, px * 0.03); ctx.stroke();
+	}
+	function drawPennant() {
+		base();
+		var top = poleTop, h = px * 0.46, ww = px * 0.46;
+		ctx.beginPath();
+		ctx.moveTo(poleX, top);
+		ctx.lineTo(poleX + ww, top + h * 0.32);
+		ctx.lineTo(poleX, top + h * 0.60);
+		ctx.closePath();
+		ctx.fillStyle = color || DEFAULT_AVATAR_COLOR; ctx.fill();
+	}
+	function drawPlaceholderDisc() {
+		base();
+		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+		ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill();
+		ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1; ctx.stroke();
+	}
+
+	if (country && typeof countryFlagSrc === "function") {
+		drawPlaceholderDisc();
+		var im = new Image();
+		im.onload = function() { drawCountry(im); };
+		im.src = countryFlagSrc(country);
+	} else {
+		drawPennant();
+	}
 	return c;
 }
 
-// A reusable identity chip: the flag-avatar tile plus (optionally) the player's country flag. Used on
-// the profile, leaderboard, home card, match panels, and replays.
+// A reusable identity element: the flag avatar (country flag inside it, or coloured pennant). Used on the
+// profile, leaderboard, home card, match panels, and replays.
 function buildAvatarChip(color, country, px) {
 	var wrap = document.createElement("span");
 	wrap.className = "avatar-chip";
-	wrap.appendChild(buildAvatarCanvas(color, px || 28));
-	if (country && typeof countryFlagSrc === "function") {
-		var img = document.createElement("img");
-		img.className = "country-flag";
-		img.src = countryFlagSrc(country);
-		img.alt = country;
-		img.title = (typeof countryName === "function") ? countryName(country) : country;
-		img.loading = "lazy";
-		img.style.height = Math.round((px || 28) * 0.62) + "px"; // flag scales with the avatar
-		wrap.appendChild(img);
-	}
+	wrap.title = (country && typeof countryName === "function") ? countryName(country) : "";
+	wrap.appendChild(buildAvatarCanvas(color, px || 28, country));
 	return wrap;
 }
 

@@ -124,7 +124,7 @@ function renderProfile() {
 	var summary = document.createElement("div");
 	summary.className = "profile-summary";
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 56);
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 64);
 		chip.classList.add("profile-avatar");
 		summary.appendChild(chip);
 	}
@@ -202,19 +202,7 @@ function renderAppearance() {
 	var wrap = document.createElement("div");
 	wrap.className = "appearance";
 
-	var aLabel = document.createElement("div"); aLabel.className = "appearance-sub"; aLabel.textContent = "Avatar flag"; wrap.appendChild(aLabel);
-	var swatches = document.createElement("div"); swatches.className = "avatar-swatches";
-	var current = (account.avatarColor || DEFAULT_AVATAR_COLOR).toLowerCase();
-	AVATAR_COLORS.forEach(function(col) {
-		var b = document.createElement("button"); b.type = "button";
-		b.className = "avatar-swatch" + (col.toLowerCase() === current ? " active" : "");
-		b.dataset.color = col;
-		b.appendChild(buildAvatarCanvas(col, 40));
-		b.addEventListener("click", function() { setAvatarColor(col); });
-		swatches.appendChild(b);
-	});
-	wrap.appendChild(swatches);
-
+	// Country first — its flag becomes the avatar. The colour below is the fallback when no country is set.
 	var cLabel = document.createElement("div"); cLabel.className = "appearance-sub"; cLabel.textContent = "Country"; wrap.appendChild(cLabel);
 	var sel = document.createElement("select"); sel.className = "country-select";
 	var none = document.createElement("option"); none.value = ""; none.textContent = "— None —"; sel.appendChild(none);
@@ -226,13 +214,26 @@ function renderAppearance() {
 	});
 	sel.addEventListener("change", function() { setCountry(sel.value); });
 	wrap.appendChild(sel);
+
+	var aLabel = document.createElement("div"); aLabel.className = "appearance-sub"; aLabel.textContent = "Flag colour (used when no country is set)"; wrap.appendChild(aLabel);
+	var swatches = document.createElement("div"); swatches.className = "avatar-swatches";
+	var current = (account.avatarColor || DEFAULT_AVATAR_COLOR).toLowerCase();
+	AVATAR_COLORS.forEach(function(col) {
+		var b = document.createElement("button"); b.type = "button";
+		b.className = "avatar-swatch" + (col.toLowerCase() === current ? " active" : "");
+		b.dataset.color = col;
+		b.appendChild(buildAvatarCanvas(col, 44));
+		b.addEventListener("click", function() { setAvatarColor(col); });
+		swatches.appendChild(b);
+	});
+	wrap.appendChild(swatches);
 	return wrap;
 }
 
 function refreshProfileAvatar() {
 	var head = document.querySelector("#profile_card .profile-avatar");
 	if (head && typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 56);
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 64);
 		chip.classList.add("profile-avatar");
 		head.replaceWith(chip);
 	}
@@ -695,7 +696,7 @@ function renderDashIdentity() {
 	if (nameRow) {
 		var old = nameRow.querySelector(".dash-avatar"); if (old) old.remove();
 		if (typeof buildAvatarChip === "function") {
-			var ch = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 32);
+			var ch = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 36);
 			ch.classList.add("dash-avatar");
 			nameRow.insertBefore(ch, nameRow.firstChild);
 		}

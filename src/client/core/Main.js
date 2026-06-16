@@ -82,7 +82,7 @@ function setHudName(el, g) {
 		el._chipKey = key;
 		el.innerHTML = "";
 		if (typeof buildAvatarChip === "function") {
-			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR_COLOR, g.country || null, 18);
+			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR_COLOR, g.country || null, 22);
 			ch.classList.add("hud-avatar");
 			el.appendChild(ch);
 		}
@@ -99,7 +99,7 @@ function fillDuelId(el, p, isYou) {
 	el.innerHTML = "";
 	if (!p) return;
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 30);
+		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 34);
 		chip.classList.add("duel-id-avatar");
 		el.appendChild(chip);
 	}

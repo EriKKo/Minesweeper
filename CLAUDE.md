@@ -559,14 +559,17 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   non-admins keep classic).
   New skins = a `BOARD_SKINS` entry (+ optional CSS frame); image texture packs extend the same hook.
 - **Avatars + country** — account-level cosmetic identity, mirroring the skin pattern. The **avatar** is
-  the in-game flag recoloured to `avatar_color` (a `#rrggbb` cloth colour; null → default red), rendered
-  on canvas by `buildAvatarCanvas` (no image assets). The **country** is an ISO-3166 alpha-2 code; its
-  flag is an SVG under `/flags/<code>.svg` (copied from the trevelur project). Country **names are not
-  hardcoded** — `Intl.DisplayNames` resolves them at runtime in `core/Countries.js` (which also lists the
-  flag codes + `countryFlagSrc`); this both avoids a maintenance burden and sidesteps content-filter
-  false-positives on long disputed-territory name lists. `buildAvatarChip(color, country, px)` (BoardRender)
-  is the reusable avatar+flag element used on the **profile** (header + an Appearance picker: colour
-  swatches from `AVATAR_COLORS` + a country `<select>`), the **leaderboard** rows, the **home** dashboard
+  the in-game flag on a pole, rendered on canvas by `buildAvatarCanvas(color, px, country)`: with a country
+  set, the player's **round country flag** fills the cloth (the `/flags` SVGs are circular icons, so they're
+  drawn as a disc on the pole, loaded async with a placeholder); without one, it's a coloured pennant in
+  `avatar_color` (`#rrggbb`; null → default red). So the country flag *is* the avatar — there's no separate
+  flag badge. The **country** is an ISO-3166 alpha-2 code; its flag is an SVG under `/flags/<code>.svg`
+  (copied from the trevelur project). Country **names are not hardcoded** — `Intl.DisplayNames` resolves
+  them at runtime in `core/Countries.js` (which also lists the flag codes + `countryFlagSrc`); this both
+  avoids a maintenance burden and sidesteps content-filter false-positives on long disputed-territory name
+  lists. `buildAvatarChip(color, country, px)` (BoardRender) is the reusable element used on the **profile**
+  (header + an Appearance picker: a country `<select>` + colour swatches from `AVATAR_COLORS` as the
+  no-country fallback), the **leaderboard** rows, the **home** dashboard
   identity, the **in-game** HUD (duel identity panels + the `player_name0..5` board tags — `setHudName`
   caches the chip so it isn't rebuilt every `draw_board` frame), and **replays** (format **v3** stores
   per-player avatar+country). **Data flow:** `users.avatar_color`/`country` columns; `db.setAvatarColor`/
