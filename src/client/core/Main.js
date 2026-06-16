@@ -113,8 +113,8 @@ function setOppIdentity(i, p) {
 			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 42));
 		}
 	}
-	// `p.searching` = an empty seat still being matched: show the label as-is (no "· %") and no rating.
-	if (nameEl) nameEl.textContent = p.searching ? (p.name || "") : playerLabel(p.name || p.playerName || "Anonymous", p.progress || 0);
+	// Opponent cards show just the name — no live "· %" progress (the board itself shows their progress).
+	if (nameEl) nameEl.textContent = p.searching ? (p.name || "") : (p.name || p.playerName || "Anonymous");
 	if (p.searching) { if (tierEl) tierEl.textContent = ""; return; }
 	if (tierEl) {
 		var rating = (typeof p.rating === "number") ? p.rating : null, prov = p.provisional;
