@@ -98,12 +98,12 @@ function fillDuelId(el, p, isYou) {
 	if (!el) return;
 	el.innerHTML = "";
 	if (!p) return;
+	// Dota-style: a tall avatar portrait, then name on top + tier/rating beneath (no separate rank badge).
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 34);
+		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 44);
 		chip.classList.add("duel-id-avatar");
 		el.appendChild(chip);
 	}
-	if (typeof p.rating === "number" && typeof buildRankBadge === "function") el.appendChild(buildRankBadge(p.rating));
 	var info = document.createElement("div");
 	info.className = "duel-id-info";
 	var nm = document.createElement("div");

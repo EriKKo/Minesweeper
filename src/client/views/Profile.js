@@ -697,19 +697,15 @@ function renderDashIdentity() {
 		if (statsEl) statsEl.innerHTML = "";
 		return;
 	}
-	// Avatar + country flag at the start of the name row (cleared first so re-renders don't stack).
+	// Dota-style identity: a tall avatar portrait on the left, name on top, rank/tier on the line beneath.
 	var nameRow = nameEl.parentNode;
-	if (nameRow) {
-		var old = nameRow.querySelector(".dash-avatar"); if (old) old.remove();
-		if (typeof buildAvatarChip === "function") {
-			var ch = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 36);
-			ch.classList.add("dash-avatar");
-			nameRow.insertBefore(ch, nameRow.firstChild);
-		}
-	}
+	if (nameRow) { var stale = nameRow.querySelector(".dash-avatar"); if (stale) stale.remove(); } // drop the old inline avatar
 	var overall = overallRating(account);
 	var t = tierFor(overall, account.provisional);
-	if (badgeEl) { badgeEl.innerHTML = ""; badgeEl.appendChild(buildRankBadge(overall)); }
+	if (badgeEl) {
+		badgeEl.innerHTML = "";
+		if (typeof buildAvatarChip === "function") badgeEl.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 52));
+	}
 	if (lineEl) lineEl.innerHTML = "Overall <b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
 	if (statsEl) {
 		var played = account.played || 0, wins = account.wins || 0;
