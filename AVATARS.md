@@ -25,7 +25,7 @@ Optional: gate the **rare** ones behind Puzzle Ladder tiers or achievements so t
 ## 🪖 Tactical mascots (siblings of mine-teddy)
 | id | concept | status |
 |---|---|---|
-| `mine-teddy` | camo military teddy bear with a rifle + US-flag patch | wired |
+| `mine-teddy` | camo military teddy bear holding a flag — hand-authored **SVG** (`mine-teddy.svg`, ~2.7KB, recolourable via CSS vars). Original detailed PNG kept in repo but unused. | wired |
 | `recon-fox` | ghillie-hood sniper fox, one eye squinting down a scope | idea |
 | `eod-bulldog` | chunky bomb-squad blast suit, calmly snipping a wire | idea |
 | `night-cat` | black cat in a tactical vest with green night-vision goggles | idea |
