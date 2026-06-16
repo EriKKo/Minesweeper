@@ -661,7 +661,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   (de-emphasised to a small "difficulty" number); the Ladder is the rank and never drops. Shown on the picker
   card, the in-game rated panel (`renderPuzzlePlay`/`renderPuzzleRank` — tier + level bar + points-earned
   flash), and the profile Puzzles section; a tier-up reuses the achievement-toast UI. `puzzlePoints` rides
-  the `authenticated` payload + each `puzzle_result`.
+  the `authenticated` payload + each `puzzle_result`. **Admin reset:** the Admin landing has a "Reset puzzle
+  progress" button → `admin_reset_puzzles` (session.js, re-checks `is_admin` from the DB) →
+  `db.resetPuzzleProgress` (rating→800, points→0, peak cleared) → echoes `puzzles_reset` so the client
+  updates without a reload.
 - **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · **Puzzles**
   (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row; green accent,
   subtitle "Practice to improve your times"). Like the other mode rows it uses a generated **board

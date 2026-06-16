@@ -121,6 +121,30 @@ function renderAdminLanding() {
 		"Open Territory",
 		"/ranked/territory"
 	));
+	// Testing: reset my own puzzle progress (server re-checks admin). A button card, not a link.
+	var resetCard = document.createElement("div");
+	resetCard.className = "admin-card";
+	var rh = document.createElement("h2"); rh.className = "admin-card-title"; rh.textContent = "Reset puzzle progress";
+	resetCard.appendChild(rh);
+	var rp = document.createElement("p"); rp.className = "admin-card-sub";
+	rp.textContent = "Wipe your own puzzle rating back to 800 and Puzzle Ladder points to 0. Admin only.";
+	resetCard.appendChild(rp);
+	var rbtn = document.createElement("button"); rbtn.type = "button"; rbtn.className = "btn btn-secondary admin-card-action";
+	rbtn.textContent = "Reset my puzzle progress";
+	rbtn.addEventListener("click", function() {
+		function fire() {
+			if (typeof socket === "undefined") return;
+			socket.emit("admin_reset_puzzles");
+			rbtn.textContent = "✓ Reset"; rbtn.disabled = true;
+			setTimeout(function() { rbtn.textContent = "Reset my puzzle progress"; rbtn.disabled = false; }, 1600);
+		}
+		if (typeof showConfirm === "function") {
+			showConfirm("Reset your puzzle rating to 800 and Ladder points to 0?", { title: "Reset puzzle progress", okText: "Reset", cancelText: "Cancel", danger: true }).then(function(ok) { if (ok) fire(); });
+		} else { fire(); }
+	});
+	resetCard.appendChild(rbtn);
+	cards.appendChild(resetCard);
+
 	view.appendChild(cards);
 }
 

@@ -583,6 +583,18 @@ socket.on("puzzle_result", function(data) {
 	refreshAchievementProgress();
 });
 
+socket.on("puzzles_reset", function(data) {
+	if (account) {
+		account.puzzleRating = (data && typeof data.puzzleRating === "number") ? data.puzzleRating : 800;
+		account.puzzlePoints = (data && typeof data.puzzlePoints === "number") ? data.puzzlePoints : 0;
+		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
+	}
+	// Refresh whatever puzzle surface is on screen so the reset shows immediately.
+	var path = location.pathname;
+	if (path === "/profile" && typeof renderProfile === "function") renderProfile();
+	else if (path === "/puzzles" && typeof showPuzzlePickerView === "function") showPuzzlePickerView();
+});
+
 socket.on("puzzle_daily_status", function(data) {
 	// Two cases: arriving on the /puzzles/daily route, OR home-card prefetch.
 	if (account) {

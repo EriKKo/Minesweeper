@@ -134,6 +134,17 @@ function registerSocketHandlers(socket, playerID) {
 		if (games[playerID]) { games[playerID].country = value; updateDraw(roomMapping[playerID]); }
 	});
 
+	// Admin/testing: reset MY puzzle rating + Ladder points. Server-gated to admins (re-checked from the DB,
+	// not just the client claim). Echoes the fresh values so the client can update without a reload.
+	socket.on("admin_reset_puzzles", function() {
+		var acc = accounts[playerID];
+		if (!acc) return;
+		var u = db.getUserById(acc.userId);
+		if (!u || !u.is_admin) return;
+		db.resetPuzzleProgress(acc.userId);
+		socket.emit("puzzles_reset", { puzzleRating: 800, puzzlePoints: 0 });
+	});
+
 	// A solo/racing board cleared with no flag and/or no direct reveal (chord only) — challenge counters.
 	socket.on("record_clear", function(data) {
 		var acc = accounts[playerID];

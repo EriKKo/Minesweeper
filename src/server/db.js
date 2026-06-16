@@ -1234,6 +1234,13 @@ function addPuzzlePoints(userId, points) {
 	return row ? row.puzzle_points : 0;
 }
 
+// Admin/testing: wipe a user's puzzle progress back to a fresh account — rating to the 800 default,
+// Ladder points to 0, no current puzzle, and clear the peak-rating achievement metric.
+function resetPuzzleProgress(userId) {
+	db.prepare("UPDATE users SET puzzle_rating = 800, puzzle_points = 0, current_puzzle_id = NULL WHERE id = ?").run(userId);
+	try { db.prepare("UPDATE player_stats SET peak_puzzle_rating = 0 WHERE user_id = ?").run(userId); } catch (e) {}
+}
+
 function setCurrentPuzzle(userId, puzzleId) {
 	db.prepare("UPDATE users SET current_puzzle_id = ? WHERE id = ?").run(puzzleId, userId);
 }
@@ -1446,6 +1453,7 @@ module.exports = {
 	updatePuzzleRating: updatePuzzleRating,
 	updateUserPuzzleRating: updateUserPuzzleRating,
 	addPuzzlePoints: addPuzzlePoints,
+	resetPuzzleProgress: resetPuzzleProgress,
 	setCurrentPuzzle: setCurrentPuzzle,
 	eloUpdate: eloUpdate,
 	recordAttempt: recordAttempt,
