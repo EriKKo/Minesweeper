@@ -466,11 +466,12 @@ function buildAvatarCanvas(color, px, country) {
 	var ctx = c.getContext("2d");
 	ctx.scale(dpr, dpr);
 
-	var poleX = px * 0.26, poleTop = px * 0.12, poleBot = px * 0.88;
-	// Pennant triangle (the minesweeper flag): top + bottom on the pole, point to the right.
-	var Ax = poleX, Ay = poleTop;
-	var Bx = poleX + px * 0.52, By = poleTop + px * 0.20;
-	var Cx = poleX, Cy = poleTop + px * 0.40;
+	var poleX = px * 0.24, poleTop = px * 0.12, poleBot = px * 0.88;
+	// Pennant triangle (the minesweeper flag), offset right of the pole so more of the stick shows.
+	var clothLeft = poleX + px * 0.07;
+	var Ax = clothLeft, Ay = px * 0.12;
+	var Bx = clothLeft + px * 0.56, By = px * 0.35;
+	var Cx = clothLeft, Cy = px * 0.58;
 	// Centroid + max vertex distance: the country flag (a circular icon) is scaled to a square big enough
 	// that its disc covers the whole triangle, so no transparent corners show — the triangle just crops it.
 	var Gx = (Ax + Bx + Cx) / 3, Gy = (Ay + By + Cy) / 3;
