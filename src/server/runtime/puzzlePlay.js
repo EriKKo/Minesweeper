@@ -272,6 +272,10 @@ function finalizePuzzle(socket, playerID, solved) {
 		playerBefore: pp.playerBefore, playerAfter: playerAfter,
 		puzzleBefore: pp.puzzleBefore, puzzleAfter: puzzleAfter
 	});
+	// Puzzle Ladder: award monotonic points on a solve, scaled by how hard the puzzle was relative to
+	// the player (regular/hard/extra-hard). Hinted solves earn half; a miss earns none.
+	var pointsEarned = solved ? puzzlePointsFor(pp.puzzleBefore - pp.playerBefore, pp.hintUsed) : 0;
+	var puzzlePoints = pointsEarned > 0 ? db.addPuzzlePoints(pp.userId, pointsEarned) : (db.getUserById(pp.userId) || {}).puzzle_points || 0;
 	socket.emit("puzzle_result", {
 		puzzleId: pp.puzzleId,
 		solved: solved,
@@ -280,8 +284,17 @@ function finalizePuzzle(socket, playerID, solved) {
 		playerAfter: playerAfter,
 		playerDelta: playerAfter - pp.playerBefore,
 		puzzleBefore: pp.puzzleBefore,
-		puzzleAfter: puzzleAfter
+		puzzleAfter: puzzleAfter,
+		pointsEarned: pointsEarned,
+		puzzlePoints: puzzlePoints
 	});
+}
+
+// Points for a solved rated puzzle. Base scales with difficulty relative to the player (puzzle rating
+// minus player rating): regular 15, hard 20, extra-hard 25. Hinted solves earn half (rounded).
+function puzzlePointsFor(ratingDelta, hintUsed) {
+	var base = ratingDelta >= 150 ? 25 : ratingDelta >= 50 ? 20 : 15;
+	return hintUsed ? Math.round(base / 2) : base;
 }
 
 // The puzzle branch of the server's left/right click handlers delegates here.

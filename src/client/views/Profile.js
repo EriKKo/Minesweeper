@@ -174,6 +174,7 @@ function renderProfile() {
 	card.appendChild(profileSectionTitle("Puzzles"));
 	var pz = document.createElement("div");
 	pz.className = "profile-stats";
+	if (typeof puzzleLadderLabel === "function") pz.appendChild(profileStat("Ladder", puzzleLadderLabel(account.puzzlePoints || 0)));
 	pz.appendChild(profileStat("Rating", String(account.puzzleRating != null ? account.puzzleRating : 800)));
 	pz.appendChild(profileStat("Solved", (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)));
 	pz.appendChild(profileStat("Best streak", String(account.streakBest || 0)));
@@ -289,6 +290,16 @@ function setCountry(code) {
 	account.country = code || null;
 	if (typeof socket !== "undefined") socket.emit("set_country", { country: code });
 	refreshAvatarDisplays();
+}
+
+// Puzzle Ladder summary markup: tier name + level + a progress bar to the next level. Shared by the
+// puzzle picker, the profile, and the solve-result panel.
+function puzzleLadderHTML(points) {
+	if (typeof puzzleLadder !== "function") return "";
+	var l = puzzleLadder(points || 0);
+	return '<span class="pl-tier" style="color:' + l.tierColor + '">' + l.tierName + '</span>' +
+		'<span class="pl-level">' + (l.atMax ? "Max level" : "Lvl " + l.level + " · " + l.pointsIntoLevel + "/" + l.pointsPerLevel) + '</span>' +
+		'<span class="pl-bar"><span class="pl-bar-fill" style="width:' + l.levelPct + '%;background:' + l.tierColor + '"></span></span>';
 }
 
 function formatMemberSince(ms) {

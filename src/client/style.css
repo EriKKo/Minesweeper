@@ -517,6 +517,13 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .country-select { max-width: 22rem; padding: 0.5rem 0.7rem; border-radius: 9px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font: inherit; cursor: pointer; }
 .country-select:focus { outline: none; border-color: var(--accent); }
 .appearance-note { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+
+/* Puzzle Ladder progress (picker card + profile + result) */
+.puzzle-ladder-progress { display: block; margin-top: 0.6rem; }
+.pl-tier { font-weight: 800; font-size: 0.95rem; }
+.pl-level { color: var(--muted); font-size: 0.78rem; margin-left: 0.45rem; }
+.pl-bar { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.09); margin-top: 0.4rem; overflow: hidden; }
+.pl-bar-fill { display: block; height: 100%; border-radius: 3px; transition: width 0.45s var(--ease-out, ease); }
 /* Click-to-edit avatar (home identity) — pencil affordance on hover */
 .dash-avatar-edit { position: relative; cursor: pointer; transition: filter .12s; }
 .dash-avatar-edit:hover { filter: brightness(1.12); }

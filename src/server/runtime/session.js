@@ -51,6 +51,7 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		createdAt: user.created_at, // for "Member since" on the profile
 		provisional: user.played < PROVISIONAL_GAMES,
 		puzzleRating: user.puzzle_rating,
+		puzzlePoints: user.puzzle_points || 0,
 		puzzlesSolved: user.puzzles_solved,
 		puzzlesAttempted: user.puzzles_attempted,
 		streakBest: user.streak_best,

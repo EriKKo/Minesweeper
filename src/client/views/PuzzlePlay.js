@@ -63,7 +63,7 @@ function renderPuzzlePlay(mode) {
 	title.textContent = mode === "streak" ? "Streak"
 		: mode === "storm" ? "Storm"
 		: mode === "daily" ? "Daily puzzle"
-		: "Rated puzzles";
+		: "Puzzle Ladder";
 	view.appendChild(title);
 
 	if (!account) {
@@ -161,7 +161,7 @@ function togglePuzzleChrome(on, mode) {
 	} else {
 		if (ratedPanel) ratedPanel.style.display = "";
 		if (runPanel) runPanel.style.display = "none";
-		if (titleEl) titleEl.textContent = "Rated puzzles";
+		if (titleEl) titleEl.textContent = "Puzzle Ladder";
 	}
 }
 
@@ -269,59 +269,25 @@ function updatePuzzleHintButton() {
 // ~10 points per solve at parity, so a 250-point band fills in ~25 puzzles).
 // Ratings start at 800, the top of generated puzzle ratings is ~3000, so the
 // ladder spans roughly that range.
-var PUZZLE_TIERS = [
-	{ name: "Novice",      start: 0,    color: "#94a3b8" },
-	{ name: "Apprentice",  start: 800,  color: "#d08b5b" },
-	{ name: "Skilled",     start: 1100, color: "#cbd5e1" },
-	{ name: "Advanced",    start: 1400, color: "#fbbf24" },
-	{ name: "Expert",      start: 1700, color: "#5eead4" },
-	{ name: "Master",      start: 2000, color: "#60a5fa" },
-	{ name: "Grandmaster", start: 2400, color: "#c084fc" }
-];
-
-function puzzleTierFor(rating) {
-	for (var i = PUZZLE_TIERS.length - 1; i >= 0; i--) {
-		if (rating >= PUZZLE_TIERS[i].start) {
-			var next = PUZZLE_TIERS[i + 1] || null;
-			return {
-				name: PUZZLE_TIERS[i].name,
-				color: PUZZLE_TIERS[i].color,
-				start: PUZZLE_TIERS[i].start,
-				end: next ? next.start : null,
-				next: next
-			};
-		}
-	}
-	return { name: PUZZLE_TIERS[0].name, color: PUZZLE_TIERS[0].color, start: 0, end: PUZZLE_TIERS[1].start, next: PUZZLE_TIERS[1] };
-}
-
+// The rated panel shows the Puzzle Ladder: monotonic points → tier + level (Wood…Legend), driven by
+// `account.puzzlePoints` (PuzzleLadder.js). The puzzle RATING stays as a small "difficulty" number — it
+// only decides which puzzles you're served, it isn't your rank.
 function renderPuzzleRank(rating) {
 	var tierEl = document.getElementById("puzzle_rank_tier");
 	var ratingEl = document.getElementById("puzzle_rank_rating");
 	var fillEl = document.getElementById("puzzle_rank_fill");
 	var progEl = document.getElementById("puzzle_rank_progress");
 	var nextEl = document.getElementById("puzzle_rank_next");
-	if (!tierEl || rating == null) return;
-
-	var info = puzzleTierFor(rating);
-	tierEl.textContent = info.name;
-	tierEl.style.color = info.color;
-	ratingEl.textContent = String(rating);
-
-	if (info.end == null) {
-		// Top tier — bar is full, no "next" label.
-		fillEl.style.width = "100%";
-		fillEl.style.background = info.color;
-		progEl.textContent = "Maxed";
-		nextEl.textContent = "";
-	} else {
-		var bandWidth = info.end - info.start;
-		var within = Math.max(0, Math.min(bandWidth, rating - info.start));
-		fillEl.style.width = (within / bandWidth * 100) + "%";
-		fillEl.style.background = info.color;
-		progEl.textContent = within + " / " + bandWidth;
-		nextEl.textContent = "→ " + info.next.name;
-	}
+	if (!tierEl) return;
+	if (ratingEl && rating != null) ratingEl.textContent = String(rating);
+	if (typeof puzzleLadder !== "function") return;
+	var pts = (typeof account !== "undefined" && account && typeof account.puzzlePoints === "number") ? account.puzzlePoints : 0;
+	var l = puzzleLadder(pts);
+	tierEl.textContent = l.atMax ? (l.tierName + " · Max") : (l.tierName + " · Lvl " + l.level);
+	tierEl.style.color = l.tierColor;
+	if (fillEl) { fillEl.style.width = l.levelPct + "%"; fillEl.style.background = l.tierColor; }
+	if (l.atMax) { if (progEl) progEl.textContent = "Maxed"; if (nextEl) nextEl.textContent = ""; }
+	else { if (progEl) progEl.textContent = l.pointsIntoLevel + " / " + l.pointsPerLevel + " pts"; if (nextEl) nextEl.textContent = "→ Lvl " + (l.level + 1); }
 }
 
 var puzzleFlashTimer = null;
@@ -352,7 +318,8 @@ function flashPuzzleResult(result) {
 	void flash.offsetWidth;
 	flash.classList.add("playing");
 
-	flashPuzzleDelta(result.playerDelta);
+	// Float the Ladder points earned (the bar slides to its new level width to match).
+	if (result.pointsEarned > 0) flashPuzzleDelta(result.pointsEarned);
 
 	if (puzzleFlashTimer) clearTimeout(puzzleFlashTimer);
 	var holdMs = result.solved ? 1200 : 1600;
@@ -383,7 +350,7 @@ function showPuzzleOutcome(result) {
 	// player picks; the same hint-button slot keeps the actions in a
 	// stable location instead of dropping a modal over the board.
 	if (!result.solved) {
-		flashPuzzleDelta(result.playerDelta);
+		// No Ladder points lost on a miss — the "Mine hit" flash + fail actions are enough.
 		setRatedFailActions(true);
 		return;
 	}

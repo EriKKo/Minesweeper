@@ -647,10 +647,21 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   from the top of `performAction` (which fired for any click, including clicking an already-revealed cell
   to position the cursor — the bug this fixed).
 - **Puzzles page** (`/puzzles`, `#puzzle_picker_view`, `showPuzzlePickerView`) — a **separate** page from
-  Solo: the Rated/Streak/Storm/Daily mode cards (`.solo-puzzle-modes`, reusing `.ranked-picker-option`)
+  Solo: the **Puzzle Ladder**/Streak/Storm/Daily mode cards (`.solo-puzzle-modes`, reusing `.ranked-picker-option`)
   linking straight to `/puzzles/play|streak|storm|daily`, with the player's puzzle rating in the header
-  (`#puzzle_picker_rating`). Also has no nav item — reached via the home dashboard's **Puzzles** row;
-  keeps **Play** highlighted.
+  (`#puzzle_picker_rating`) and the Ladder tier/level on the first card (`#puzzle_ladder_progress`). Also has
+  no nav item — reached via the home dashboard's **Puzzles** row; keeps **Play** highlighted.
+- **Puzzle Ladder** (the renamed "Rated" mode) — a chess.com-style **monotonic points progression** layered
+  on the rated trainer. `users.puzzle_points` only ever goes **up** (awarded server-side in `finalizePuzzle`
+  on a rated *solve*, scaled by difficulty: `puzzlePointsFor(puzzleRating − playerRating)` → 15 regular /
+  20 hard / 25 extra-hard, halved for a hinted solve, 0 on a miss; `db.addPuzzlePoints`). Points drive a
+  **tier + level** via `core/PuzzleLadder.js` (`puzzleLadder(points)` / `puzzleLadderLabel`): 8 tiers
+  (Wood→Stone→Bronze→Silver→Crystal→Elite→Champion→Legend) × 20 levels × 50 pts/level — **all tunable in that
+  file**. The two-way **`puzzle_rating` is unchanged** and now *only* sets which puzzles you're served
+  (de-emphasised to a small "difficulty" number); the Ladder is the rank and never drops. Shown on the picker
+  card, the in-game rated panel (`renderPuzzlePlay`/`renderPuzzleRank` — tier + level bar + points-earned
+  flash), and the profile Puzzles section; a tier-up reuses the achievement-toast UI. `puzzlePoints` rides
+  the `authenticated` payload + each `puzzle_result`.
 - **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · **Puzzles**
   (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row; green accent,
   subtitle "Practice to improve your times"). Like the other mode rows it uses a generated **board

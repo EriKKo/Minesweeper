@@ -74,6 +74,9 @@ function addColumnIfMissing(table, column, definition) {
 	catch (e) { if (!/duplicate column/i.test(e.message)) throw e; }
 }
 addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 800");
+// Puzzle Ladder points — a monotonic progression currency (never decreases) that drives the puzzle
+// tier/level. Separate from puzzle_rating, which stays two-way and only sets puzzle difficulty.
+addColumnIfMissing("users", "puzzle_points", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "puzzles_solved", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "puzzles_attempted", "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing("users", "current_puzzle_id", "INTEGER");
@@ -1223,6 +1226,14 @@ function updateUserPuzzleRating(userId, newRating, solved) {
 	bumpPuzzleStats(userId, newRating); // keep peak puzzle rating + active day for achievements
 }
 
+// Add Puzzle Ladder points (never negative) and return the new total. Points only ever go up.
+function addPuzzlePoints(userId, points) {
+	points = Math.max(0, Math.round(points || 0));
+	if (points > 0) db.prepare("UPDATE users SET puzzle_points = puzzle_points + ? WHERE id = ?").run(points, userId);
+	var row = db.prepare("SELECT puzzle_points FROM users WHERE id = ?").get(userId);
+	return row ? row.puzzle_points : 0;
+}
+
 function setCurrentPuzzle(userId, puzzleId) {
 	db.prepare("UPDATE users SET current_puzzle_id = ? WHERE id = ?").run(puzzleId, userId);
 }
@@ -1434,6 +1445,7 @@ module.exports = {
 	getPuzzleById: getPuzzleById,
 	updatePuzzleRating: updatePuzzleRating,
 	updateUserPuzzleRating: updateUserPuzzleRating,
+	addPuzzlePoints: addPuzzlePoints,
 	setCurrentPuzzle: setCurrentPuzzle,
 	eloUpdate: eloUpdate,
 	recordAttempt: recordAttempt,

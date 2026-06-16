@@ -566,6 +566,15 @@ socket.on("puzzle_result", function(data) {
 			account.puzzleRating = data.playerAfter;
 			account.puzzlesAttempted = (account.puzzlesAttempted || 0) + 1;
 			if (data.solved) account.puzzlesSolved = (account.puzzlesSolved || 0) + 1;
+			// Puzzle Ladder points (monotonic). Celebrate a tier-up via the achievement-toast UI.
+			if (typeof data.puzzlePoints === "number") {
+				if (typeof puzzleLadder === "function" && typeof showAchievementToast === "function") {
+					var beforeTier = puzzleLadder(data.puzzlePoints - (data.pointsEarned || 0)).tierIndex;
+					var afterL = puzzleLadder(data.puzzlePoints);
+					if (afterL.tierIndex > beforeTier) showAchievementToast({ icon: "🪜", name: afterL.tierName + " tier reached", complete: true });
+				}
+				account.puzzlePoints = data.puzzlePoints;
+			}
 			if (typeof renderHomeRankChips === "function") renderHomeRankChips();
 		}
 	}

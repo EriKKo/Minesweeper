@@ -366,12 +366,13 @@
 			</div>
 			<p class="section-page-sub solo-puzzles-sub">Hand-picked deduction positions served near your rating — one at a time.</p>
 			<div class="ranked-picker-options solo-puzzle-modes">
-				<a class="ranked-picker-option" href="/puzzles/play" aria-label="Play rated puzzles">
+				<a class="ranked-picker-option" href="/puzzles/play" aria-label="Play the Puzzle Ladder">
 					<span class="ranked-picker-option-icon" aria-hidden="true">
 						<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4l2.5 2.5L20 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 					</span>
-					<span class="ranked-picker-option-title">Rated</span>
-					<span class="ranked-picker-option-sub">Climb the ladder — every solve moves your rating.</span>
+					<span class="ranked-picker-option-title">Puzzle Ladder</span>
+					<span class="ranked-picker-option-sub">Earn points on every solve and climb the tiers.</span>
+					<span id="puzzle_ladder_progress" class="puzzle-ladder-progress"></span>
 				</a>
 				<a class="ranked-picker-option" href="/puzzles/streak" aria-label="Play streak">
 					<span class="ranked-picker-option-icon" aria-hidden="true">
@@ -847,6 +848,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="/BoardLogic.js"></script>
 <script src="/core/Countries.js"></script>
+<script src="/core/PuzzleLadder.js"></script>
 <script src="/ui/Fullscreen.js"></script>
 <script src="/core/BoardRender.js"></script>
 <script src="/admin/AdminList.js"></script>
