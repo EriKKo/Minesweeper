@@ -712,10 +712,10 @@ main {
 
 .lb-row {
 	display: grid;
-	grid-template-columns: 1.75rem auto 1fr auto auto;
+	grid-template-columns: 1.75rem auto 1fr auto;
 	align-items: center;
-	gap: 0.6rem;
-	padding: 0.45rem 0.7rem;
+	gap: 0.7rem;
+	padding: 0.4rem 0.7rem;
 	border-radius: 8px;
 	background: rgba(255, 255, 255, 0.02);
 	border: 1px solid transparent;
@@ -723,9 +723,11 @@ main {
 
 .lb-row-me { background: rgba(99, 102, 241, 0.12); border-color: rgba(99, 102, 241, 0.3); }
 .lb-rank { color: var(--muted); font-size: 0.85rem; text-align: right; }
-.lb-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lb-tier { font-size: 0.8rem; font-weight: 700; }
-.lb-rating { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.5ch; text-align: right; }
+/* Stacked identity: name on top, rank/tier beneath (the avatar spans both lines). */
+.lb-id { display: flex; flex-direction: column; justify-content: center; gap: 0.05rem; min-width: 0; line-height: 1.2; }
+.lb-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-tier { font-size: 0.78rem; font-weight: 700; }
+.lb-rating { font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; min-width: 3.5ch; text-align: right; }
 
 .rating-chip-bump {
 	animation: rating-bump 0.6s ease-out;

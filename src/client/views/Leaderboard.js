@@ -52,21 +52,24 @@ function renderLeaderboard(players) {
 			li.appendChild(rank);
 
 			if (typeof buildAvatarChip === "function") {
-				var chip = buildAvatarChip(p.avatar_color || DEFAULT_AVATAR_COLOR, p.country || null, 26);
+				var chip = buildAvatarChip(p.avatar_color || DEFAULT_AVATAR_COLOR, p.country || null, 44);
 				chip.classList.add("lb-avatar");
 				li.appendChild(chip);
 			}
 
+			// Dota-style identity block: name on top, rank/tier beneath — lets the avatar be twice as tall.
+			var idCol = document.createElement("div");
+			idCol.className = "lb-id";
 			var name = document.createElement("span");
 			name.className = "lb-name";
 			name.textContent = p.name;
-			li.appendChild(name);
-
+			idCol.appendChild(name);
 			var tier = document.createElement("span");
 			tier.className = "lb-tier";
 			tier.textContent = t.name;
 			tier.style.color = t.color;
-			li.appendChild(tier);
+			idCol.appendChild(tier);
+			li.appendChild(idCol);
 
 			var rating = document.createElement("span");
 			rating.className = "lb-rating";
