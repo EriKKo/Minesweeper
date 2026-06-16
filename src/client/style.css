@@ -86,6 +86,12 @@ body {
 	line-height: 1.5;
 }
 
+/* While in a game (game / solo / puzzle), pin the page to the viewport so it never scrolls — e.g.
+   arrow keys after a round ends (when key handling has stopped) can't scroll content out of view.
+   Fixed + inset:0 takes the body out of flow so the root element has nothing to scroll; any content
+   that exceeds the viewport is clipped rather than scrollable. `in-game` is toggled by the router. */
+body.in-game { position: fixed; inset: 0; height: 100vh; overflow: hidden; }
+
 .topbar {
 	display: flex;
 	justify-content: space-between;

@@ -110,7 +110,7 @@ function setOppIdentity(i, p) {
 		var key = (p.id || "") + "|" + (p.avatar || "") + "|" + (p.country || "");
 		if (avEl._avKey !== key) {
 			avEl._avKey = key; avEl.innerHTML = "";
-			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 42));
+			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 32));
 		}
 	}
 	// Opponent cards show just the name — no live "· %" progress (the board itself shows their progress).
@@ -300,7 +300,20 @@ function sizeOpponentCanvases() {
 	if (multi) {
 		var od = document.querySelector(".game-view.multi .opponent_div");
 		var avail = od ? od.clientWidth - 24 : 0; // minus the card's horizontal padding
-		if (avail > 0) multiCell = Math.max(OPP_CELL, Math.min(26, Math.floor(avail / cols)));
+		var widthCell = avail > 0 ? Math.floor(avail / cols) : OPP_CELL;
+		// Also fit the column's HEIGHT: opponent cards stack in a 2-wide grid, so size the board cell so
+		// every row fits the viewport (the page is scroll-locked in-game — content mustn't overflow).
+		var heightCell = 99;
+		var grid = od ? od.parentElement : null;
+		if (grid) {
+			var nVis = 0; grid.querySelectorAll(".opponent_div").forEach(function(d) { if (d.offsetParent !== null) nVis++; });
+			var rowsOfCards = Math.max(1, Math.ceil(nVis / 2));
+			var availH = window.innerHeight - grid.getBoundingClientRect().top - 12;
+			var head = od.querySelector(".opp-head");
+			var overhead = (head ? head.offsetHeight : 42) + 8 /*head margin*/ + 26 /*card padding*/;
+			if (availH > 60) heightCell = Math.floor((availH / rowsOfCards - overhead) / rows);
+		}
+		multiCell = Math.max(8, Math.min(26, widthCell, heightCell));
 	}
 	for (var gi = 1; gi <= 5; gi++) {
 		var cv = document.getElementById("game" + gi);
