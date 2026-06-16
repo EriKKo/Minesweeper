@@ -585,7 +585,7 @@ socket.on("puzzle_result", function(data) {
 
 socket.on("puzzles_reset", function(data) {
 	if (account) {
-		account.puzzleRating = (data && typeof data.puzzleRating === "number") ? data.puzzleRating : 800;
+		account.puzzleRating = (data && typeof data.puzzleRating === "number") ? data.puzzleRating : 0;
 		account.puzzlePoints = (data && typeof data.puzzlePoints === "number") ? data.puzzlePoints : 0;
 		if (typeof renderHomeRankChips === "function") renderHomeRankChips();
 	}

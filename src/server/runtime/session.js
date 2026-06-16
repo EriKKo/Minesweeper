@@ -142,7 +142,7 @@ function registerSocketHandlers(socket, playerID) {
 		var u = db.getUserById(acc.userId);
 		if (!u || !u.is_admin) return;
 		db.resetPuzzleProgress(acc.userId);
-		socket.emit("puzzles_reset", { puzzleRating: 800, puzzlePoints: 0 });
+		socket.emit("puzzles_reset", { puzzleRating: 0, puzzlePoints: 0 });
 	});
 
 	// A solo/racing board cleared with no flag and/or no direct reveal (chord only) — challenge counters.

@@ -142,7 +142,7 @@ function showPuzzlePickerView() {
 	document.getElementById("puzzle_picker_view").style.display = "";
 	setSiteNavActive("home");
 	var ratingEl = document.getElementById("puzzle_picker_rating");
-	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 800) : "—";
+	if (ratingEl) ratingEl.textContent = account ? (account.puzzleRating != null ? account.puzzleRating : 0) : "—";
 	var prog = document.getElementById("puzzle_ladder_progress");
 	if (prog && typeof puzzleLadderHTML === "function") prog.innerHTML = account ? puzzleLadderHTML(account.puzzlePoints) : "";
 }

@@ -73,7 +73,7 @@ function addColumnIfMissing(table, column, definition) {
 	try { db.exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition); }
 	catch (e) { if (!/duplicate column/i.test(e.message)) throw e; }
 }
-addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 800");
+addColumnIfMissing("users", "puzzle_rating", "INTEGER NOT NULL DEFAULT 0");
 // Puzzle Ladder points — a monotonic progression currency (never decreases) that drives the puzzle
 // tier/level. Separate from puzzle_rating, which stays two-way and only sets puzzle difficulty.
 addColumnIfMissing("users", "puzzle_points", "INTEGER NOT NULL DEFAULT 0");
@@ -426,8 +426,8 @@ function upsertUser(provider, providerId, providerName, avatarUrl, email) {
 	// still carry the old DEFAULT 1000 doesn't seed new accounts at Silver III.
 	var info = db.prepare(
 		"INSERT INTO users (provider, provider_id, name, display_name, avatar_url, email, last_provider, created_at, " +
-		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)"
+		"rating_sprint, rating_standard, rating_tournament, rating_territory, puzzle_rating) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)"
 	).run(provider, providerId, providerName, providerName, avatarUrl || null, emailLower, provider, Date.now());
 	linkIdentity(info.lastInsertRowid, provider, providerId, emailLower);
 	setProviderAuthFields(info.lastInsertRowid, provider, providerId, providerName);
@@ -443,8 +443,8 @@ function createGuest() {
 	var providerId = crypto.randomBytes(12).toString("hex");
 	var info = db.prepare(
 		"INSERT INTO users (provider, provider_id, name, is_guest, created_at, " +
-		"rating_sprint, rating_standard, rating_tournament, rating_territory) " +
-		"VALUES ('guest', ?, ?, 1, ?, 0, 0, 0, 0)"
+		"rating_sprint, rating_standard, rating_tournament, rating_territory, puzzle_rating) " +
+		"VALUES ('guest', ?, ?, 1, ?, 0, 0, 0, 0, 0)"
 	).run(providerId, name, Date.now());
 	return db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
 }
@@ -1234,10 +1234,10 @@ function addPuzzlePoints(userId, points) {
 	return row ? row.puzzle_points : 0;
 }
 
-// Admin/testing: wipe a user's puzzle progress back to a fresh account — rating to the 800 default,
-// Ladder points to 0, no current puzzle, and clear the peak-rating achievement metric.
+// Admin/testing: wipe a user's puzzle progress back to a fresh account — rating to 0 (the new-player
+// baseline), Ladder points to 0, no current puzzle, and clear the peak-rating achievement metric.
 function resetPuzzleProgress(userId) {
-	db.prepare("UPDATE users SET puzzle_rating = 800, puzzle_points = 0, current_puzzle_id = NULL WHERE id = ?").run(userId);
+	db.prepare("UPDATE users SET puzzle_rating = 0, puzzle_points = 0, current_puzzle_id = NULL WHERE id = ?").run(userId);
 	try { db.prepare("UPDATE player_stats SET peak_puzzle_rating = 0 WHERE user_id = ?").run(userId); } catch (e) {}
 }
 

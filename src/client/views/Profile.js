@@ -175,7 +175,7 @@ function renderProfile() {
 	var pz = document.createElement("div");
 	pz.className = "profile-stats";
 	if (typeof puzzleLadderLabel === "function") pz.appendChild(profileStat("Ladder", puzzleLadderLabel(account.puzzlePoints || 0)));
-	pz.appendChild(profileStat("Rating", String(account.puzzleRating != null ? account.puzzleRating : 800)));
+	pz.appendChild(profileStat("Rating", String(account.puzzleRating != null ? account.puzzleRating : 0)));
 	pz.appendChild(profileStat("Solved", (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)));
 	pz.appendChild(profileStat("Best streak", String(account.streakBest || 0)));
 	pz.appendChild(profileStat("Best storm", String(account.stormBest || 0)));
