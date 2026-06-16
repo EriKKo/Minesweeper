@@ -82,7 +82,7 @@ function setHudName(el, g) {
 		el._chipKey = key;
 		el.innerHTML = "";
 		if (typeof buildAvatarChip === "function") {
-			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR, g.country || null, 22);
+			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR, g.country || null, 28);
 			ch.classList.add("hud-avatar");
 			el.appendChild(ch);
 		}
@@ -110,7 +110,7 @@ function setOppIdentity(i, p) {
 		var key = (p.id || "") + "|" + (p.avatar || "") + "|" + (p.country || "");
 		if (avEl._avKey !== key) {
 			avEl._avKey = key; avEl.innerHTML = "";
-			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 34));
+			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 42));
 		}
 	}
 	if (nameEl) nameEl.textContent = playerLabel(p.name || p.playerName || "Anonymous", p.progress || 0);
@@ -135,7 +135,7 @@ function fillDuelId(el, p, isYou) {
 	if (!p) return;
 	// Dota-style: a tall avatar portrait, then name on top + tier/rating beneath (no separate rank badge).
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 44);
+		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 52);
 		chip.classList.add("duel-id-avatar");
 		el.appendChild(chip);
 	}

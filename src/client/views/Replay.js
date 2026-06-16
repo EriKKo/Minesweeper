@@ -156,7 +156,7 @@
 		var pl = rep.players[p];
 		var wrap = document.createElement("div"); wrap.className = "replay-board";
 		var label = document.createElement("div"); label.className = "replay-board-label";
-		if (typeof buildAvatarChip === "function") label.appendChild(buildAvatarChip(pl.avatar || DEFAULT_AVATAR, pl.country || null, px >= 20 ? 32 : 22));
+		if (typeof buildAvatarChip === "function") label.appendChild(buildAvatarChip(pl.avatar || DEFAULT_AVATAR, pl.country || null, px >= 20 ? 40 : 28));
 		var nm = document.createElement("span"); nm.className = "replay-board-name"; nm.textContent = pl.name;
 		label.appendChild(nm);
 		if (pl.bot) { var bt = document.createElement("span"); bt.className = "replay-bot-tag"; bt.textContent = "BOT"; label.appendChild(bt); }

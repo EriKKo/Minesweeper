@@ -124,7 +124,7 @@ function renderProfile() {
 	var summary = document.createElement("div");
 	summary.className = "profile-summary";
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 64);
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 76);
 		chip.classList.add("profile-avatar");
 		summary.appendChild(chip);
 	}
@@ -222,7 +222,7 @@ function renderAppearance() {
 		var b = document.createElement("button"); b.type = "button";
 		b.className = "avatar-swatch" + (value.toLowerCase() === current ? " active" : "");
 		b.dataset.color = value;
-		b.appendChild(buildAvatarCanvas(value, 44));
+		b.appendChild(buildAvatarCanvas(value, 50));
 		b.addEventListener("click", function() { setAvatarColor(value); });
 		swatches.appendChild(b);
 	}
@@ -260,7 +260,7 @@ function openAvatarEditor() {
 	var body = modal.querySelector("#avatar_modal_body");
 	body.innerHTML = "";
 	var preview = document.createElement("div"); preview.className = "avatar-editor-preview";
-	if (typeof buildAvatarChip === "function") preview.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 80));
+	if (typeof buildAvatarChip === "function") preview.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 92));
 	body.appendChild(preview);
 	body.appendChild(renderAppearance());
 	modal.removeAttribute("hidden");
@@ -270,13 +270,13 @@ function openAvatarEditor() {
 function refreshAvatarDisplays() {
 	var head = document.querySelector("#profile_card .profile-avatar");
 	if (head && typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 64);
+		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 76);
 		chip.classList.add("profile-avatar");
 		head.replaceWith(chip);
 	}
 	if (typeof renderDashIdentity === "function") renderDashIdentity();
 	var prev = document.querySelector("#avatar_modal .avatar-editor-preview");
-	if (prev && typeof buildAvatarChip === "function") { prev.innerHTML = ""; prev.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 80)); }
+	if (prev && typeof buildAvatarChip === "function") { prev.innerHTML = ""; prev.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 92)); }
 }
 function setAvatarColor(col) {
 	account.avatarColor = col;
@@ -738,7 +738,7 @@ function renderDashIdentity() {
 	var t = tierFor(overall, account.provisional);
 	if (badgeEl) {
 		badgeEl.innerHTML = "";
-		if (typeof buildAvatarChip === "function") badgeEl.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 52));
+		if (typeof buildAvatarChip === "function") badgeEl.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 62));
 		// Click the home avatar to edit it.
 		badgeEl.classList.add("dash-avatar-edit");
 		badgeEl.title = "Edit avatar";

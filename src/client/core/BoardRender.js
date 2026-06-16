@@ -498,7 +498,7 @@ function buildAvatarCanvas(color, px, country) {
 			tileBg();
 			ctx.save();
 			roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28); ctx.clip();
-			var pad = px * 0.05;
+			var pad = px * 0.02; // minimal inset so image avatars (e.g. the teddy) fill the tile
 			var s = Math.min((px - pad * 2) / (aim.naturalWidth || 1), (px - pad * 2) / (aim.naturalHeight || 1));
 			var w = (aim.naturalWidth || px) * s, h = (aim.naturalHeight || px) * s;
 			ctx.drawImage(aim, (px - w) / 2, (px - h) / 2, w, h);
