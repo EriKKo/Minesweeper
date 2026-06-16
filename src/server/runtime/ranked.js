@@ -19,6 +19,7 @@ var gameUtil = require("./gameUtil");
 var rankedQueues = appState.rankedQueues, pendingBotsLists = appState.pendingBotsLists;
 var rankedFillTimers = appState.rankedFillTimers, rankedQueueMode = appState.rankedQueueMode;
 var accounts = appState.accounts, sockets = appState.sockets, names = appState.names;
+var avatars = appState.avatars, countries = appState.countries;
 var roomMapping = appState.roomMapping, games = appState.games, rooms = appState.rooms;
 
 // Ranked mode catalogue + timings (moved here from the server). Each playstyle carries its
@@ -98,6 +99,8 @@ function rankedSearchMembers(viewerID, mode) {
 			name: names[pid] || (u && db.displayNameOf(u)) || "Anonymous",
 			rating: u ? readUserRating(u, style) : 0,
 			provisional: u ? (u.played < PROVISIONAL_GAMES) : true,
+			avatar: avatars[pid] || null,
+			country: countries[pid] || null,
 			isYou: pid === viewerID,
 			isBot: false
 		});

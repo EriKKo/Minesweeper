@@ -113,7 +113,9 @@ function setOppIdentity(i, p) {
 			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 42));
 		}
 	}
-	if (nameEl) nameEl.textContent = playerLabel(p.name || p.playerName || "Anonymous", p.progress || 0);
+	// `p.searching` = an empty seat still being matched: show the label as-is (no "· %") and no rating.
+	if (nameEl) nameEl.textContent = p.searching ? (p.name || "") : playerLabel(p.name || p.playerName || "Anonymous", p.progress || 0);
+	if (p.searching) { if (tierEl) tierEl.textContent = ""; return; }
 	if (tierEl) {
 		var rating = (typeof p.rating === "number") ? p.rating : null, prov = p.provisional;
 		if (rating === null && typeof battleRoster === "function") {
@@ -1520,8 +1522,9 @@ function paintOpponentCovered() {
 				slot.classList.toggle("opponent-searching", searching && !p);
 			}
 			if (cv) drawBoardStatic(covered, cv, (p && p.skin) || "classic");
-			if (p) { setOppIdentity(i, p); }
-			else { setOppIdentity(i, null); if (nameEl) nameEl.textContent = "Searching…"; }
+			// A searching seat keeps the same layout (placeholder avatar + label) as a filled card, so the
+			// card doesn't resize when a player arrives.
+			setOppIdentity(i, p || { searching: true, name: "Searching…", avatar: "anon" });
 		} else if (slot) {
 			slot.style.display = "none";
 			slot.classList.remove("opponent-searching");
