@@ -82,7 +82,7 @@ function setHudName(el, g) {
 		el._chipKey = key;
 		el.innerHTML = "";
 		if (typeof buildAvatarChip === "function") {
-			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR_COLOR, g.country || null, 22);
+			var ch = buildAvatarChip(g.avatar || DEFAULT_AVATAR, g.country || null, 22);
 			ch.classList.add("hud-avatar");
 			el.appendChild(ch);
 		}
@@ -100,7 +100,7 @@ function fillDuelId(el, p, isYou) {
 	if (!p) return;
 	// Dota-style: a tall avatar portrait, then name on top + tier/rating beneath (no separate rank badge).
 	if (typeof buildAvatarChip === "function") {
-		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR_COLOR, p.country || null, 44);
+		var chip = buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 44);
 		chip.classList.add("duel-id-avatar");
 		el.appendChild(chip);
 	}

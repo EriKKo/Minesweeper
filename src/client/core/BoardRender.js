@@ -42,6 +42,8 @@ var BOARD_SKIN_LIST = ["classic", "tactical"];
 // Avatar cloth colours — the in-game flag recoloured. First entry is the default (classic red flag).
 var AVATAR_COLORS = ["#ef4444", "#f97316", "#fbbf24", "#22c55e", "#22d3ee", "#3b82f6", "#a78bfa", "#ec4899", "#e5e7eb", "#64748b"];
 var DEFAULT_AVATAR_COLOR = "#ef4444";
+// The default avatar shown anywhere a player hasn't chosen one — the anonymous silhouette.
+var DEFAULT_AVATAR = "anon";
 // Preset image avatars — an avatar value of "img:<id>" renders the image instead of a flag pennant.
 var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png" };
 // localBoardSkin = the skin the *local* user picked (their own board + UI previews).
