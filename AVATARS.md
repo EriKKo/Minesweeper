@@ -38,6 +38,7 @@ Optional: gate the **rare** ones behind Puzzle Ladder tiers or achievements so t
 | id | concept | status |
 |---|---|---|
 | `lil-mine` | the classic round black bomb with a stubby fuse + big friendly eyes (signature) | idea |
+| `mine` | the game's spiky **sea-mine**, drawn procedurally on canvas (avatar value `"mine"`, no art file) | wired |
 | `flag-buddy` | the in-game red pennant-on-a-pole with arms and a determined face | idea |
 | `tile-one` | a cheeky number "1" tile-creature | idea |
 | `tile-three` | a cool number "3" tile-creature | idea |

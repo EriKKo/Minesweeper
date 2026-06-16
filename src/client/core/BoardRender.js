@@ -39,8 +39,8 @@ var BOARD_SKINS = {
 	}
 };
 var BOARD_SKIN_LIST = ["classic", "tactical"];
-// Avatar cloth colours — the in-game flag recoloured. First entry is the default (classic red flag).
-var AVATAR_COLORS = ["#ef4444", "#f97316", "#fbbf24", "#22c55e", "#22d3ee", "#3b82f6", "#a78bfa", "#ec4899", "#e5e7eb", "#64748b"];
+// Avatar cloth colour — the in-game flag. Just the classic red flag now (the other colours were dropped).
+var AVATAR_COLORS = ["#ef4444"];
 var DEFAULT_AVATAR_COLOR = "#ef4444";
 // The default avatar shown anywhere a player hasn't chosen one — the anonymous silhouette.
 var DEFAULT_AVATAR = "anon";
@@ -485,6 +485,37 @@ function buildAvatarCanvas(color, px, country) {
 		ctx.fillStyle = "#aab3d0";
 		ctx.beginPath(); ctx.arc(px * 0.5, px * 1.04, px * 0.37, 0, Math.PI * 2); ctx.fill(); // shoulders
 		ctx.beginPath(); ctx.arc(px * 0.5, px * 0.37, px * 0.17, 0, Math.PI * 2); ctx.fill(); // head
+		ctx.restore();
+		return c;
+	}
+
+	// Mine avatar ("mine") — the game's iconic spiky sea-mine, centred on the tile.
+	if (color === "mine") {
+		tileBg();
+		ctx.save();
+		var mcx = px * 0.5, mcy = px * 0.5, mrad = px * 0.28;
+		// 8 spikes, set between the diagonals so they don't hide behind the shine
+		ctx.strokeStyle = "#475569";
+		ctx.lineWidth = Math.max(1.2, mrad * 0.34);
+		ctx.lineCap = "round";
+		for (var mi = 0; mi < 8; mi++) {
+			var ma = mi * Math.PI / 4 + Math.PI / 8;
+			ctx.beginPath();
+			ctx.moveTo(mcx + Math.cos(ma) * mrad * 0.85, mcy + Math.sin(ma) * mrad * 0.85);
+			ctx.lineTo(mcx + Math.cos(ma) * mrad * 1.52, mcy + Math.sin(ma) * mrad * 1.52);
+			ctx.stroke();
+		}
+		// body — a slight top-to-bottom gradient so it reads as a sphere
+		var mg = ctx.createLinearGradient(0, mcy - mrad, 0, mcy + mrad);
+		mg.addColorStop(0, "#33425e"); mg.addColorStop(1, "#0b1220");
+		ctx.beginPath(); ctx.arc(mcx, mcy, mrad, 0, Math.PI * 2);
+		ctx.fillStyle = mg; ctx.fill();
+		// rim light so the dark body separates from the dark tile
+		ctx.lineWidth = Math.max(1, px * 0.02);
+		ctx.strokeStyle = "rgba(148,163,184,0.45)"; ctx.stroke();
+		// specular shine
+		ctx.beginPath(); ctx.arc(mcx - mrad * 0.32, mcy - mrad * 0.34, mrad * 0.26, 0, Math.PI * 2);
+		ctx.fillStyle = "rgba(255,255,255,0.82)"; ctx.fill();
 		ctx.restore();
 		return c;
 	}

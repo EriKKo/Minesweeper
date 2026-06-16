@@ -226,8 +226,9 @@ function renderAppearance() {
 		b.addEventListener("click", function() { setAvatarColor(value); });
 		swatches.appendChild(b);
 	}
-	// Preset avatars (anonymous silhouette, then image presets), then the flag-colour pennants.
+	// Preset avatars (anonymous silhouette, the mine, then image presets), then the flag pennant.
 	swatch("anon");
+	swatch("mine");
 	if (typeof AVATAR_IMAGES !== "undefined") Object.keys(AVATAR_IMAGES).forEach(function(id) { swatch("img:" + id); });
 	AVATAR_COLORS.forEach(function(col) { swatch(col); });
 	wrap.appendChild(swatches);

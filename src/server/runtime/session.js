@@ -114,8 +114,8 @@ function registerSocketHandlers(socket, playerID) {
 		var acc = accounts[playerID];
 		if (!acc) return;
 		var color = (data && typeof data.color === "string") ? data.color.trim() : "";
-		// A #rrggbb cloth colour, the "anon" silhouette, or an "img:<id>" preset (or "" to clear → default red).
-		if (color && color !== "anon" && !/^#[0-9a-f]{6}$/i.test(color) && !/^img:[a-z0-9_-]+$/i.test(color)) return;
+		// A #rrggbb cloth colour, the "anon" silhouette, the "mine", or an "img:<id>" preset (or "" → default red).
+		if (color && color !== "anon" && color !== "mine" && !/^#[0-9a-f]{6}$/i.test(color) && !/^img:[a-z0-9_-]+$/i.test(color)) return;
 		var value = color || null;
 		db.setAvatarColor(acc.userId, value);
 		avatars[playerID] = value;

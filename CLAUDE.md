@@ -576,8 +576,10 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `setCountry`; `appState.avatars`/`countries` maps populated in `loginSocket`; `set_avatar`/`set_country`
   handlers (session.js, validated) persist + update the live game + rebroadcast; `gameForBroadcast` and the
   room-state players list carry `avatar`/`country`; `topPlayers` selects them; the `authenticated` payload
-  carries `avatarColor`/`country`; disconnect clears the maps. Besides `#rrggbb` and `img:<id>`, the avatar
-  value `"anon"` renders a procedural head-and-shoulders **anonymous silhouette**. **Guests** with no chosen
+  carries `avatarColor`/`country`; disconnect clears the maps. Besides `#rrggbb` and `img:<id>`, two procedural
+  avatar values are drawn on the canvas in `buildAvatarCanvas`: `"anon"` (a head-and-shoulders **anonymous
+  silhouette**) and `"mine"` (the game's iconic spiky **sea-mine** — shaded body + rim light + shine). The
+  flag-pennant colour palette (`AVATAR_COLORS`) is now just the single classic **red** flag. **Guests** with no chosen
   avatar default to `"anon"` (`loginSocket` substitutes it when `is_guest` and `avatar_color` is null —
   display-only, not persisted). The home identity avatar is **click-to-edit**: clicking it opens
   `openAvatarEditor` (a `.cr-modal` reusing `renderAppearance` + a live preview); `setAvatarColor`/
