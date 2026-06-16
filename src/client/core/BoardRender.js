@@ -468,7 +468,7 @@ function buildAvatarCanvas(color, px, country) {
 
 	var poleX = px * 0.24, poleTop = px * 0.12, poleBot = px * 0.88;
 	// Pennant triangle (the minesweeper flag), offset right of the pole so more of the stick shows.
-	var clothLeft = poleX + px * 0.07;
+	var clothLeft = poleX + px * 0.05;
 	var Ax = clothLeft, Ay = px * 0.12;
 	var Bx = clothLeft + px * 0.56, By = px * 0.35;
 	var Cx = clothLeft, Cy = px * 0.58;
