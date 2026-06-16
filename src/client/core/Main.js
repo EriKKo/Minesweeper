@@ -324,10 +324,6 @@ function sizeOpponentCanvases() {
 sizePlayerCanvas();
 sizeOpponentCanvases();
 
-var playerCanvasHeight = playerCanvas.height;
-var playerCanvasWidth = playerCanvas.width;
-var playerCanvasSquareWidth = playerCanvasWidth / cols;
-var playerCanvasSquareHeight = playerCanvasHeight / rows;
 
 // Touch input: set body.touch so the flag-mode toggle becomes visible, and
 // install tap/long-press handlers below. boardClicked is mouse-only — synthesized
@@ -539,10 +535,6 @@ function applyPuzzleBoard(data) {
 	cellAnims = {};
 	hideOverlay();
 	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	sizeOpponentCanvases();
 	hideAllViews();
 	gameView.style.display = "";
@@ -708,10 +700,6 @@ socket.on("solo_board", function(data) {
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
 	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	sizeOpponentCanvases();
 	updateSoloHud();
 	if (typeof updateSoloBest === "function") updateSoloBest();

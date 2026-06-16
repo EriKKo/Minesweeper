@@ -189,10 +189,6 @@ function applyBoardDims(newRows, newCols) {
 	cols = newCols;
 	sizePlayerCanvas();
 	sizeOpponentCanvases();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 }

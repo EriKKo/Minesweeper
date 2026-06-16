@@ -364,5 +364,7 @@ function isLeftClick(e) {
 	return (e.which ? (e.which == 1) : (e.button ? (e.button == 0) : false));
 }
 
-function getRow(y) { return Math.floor(y / playerCanvasSquareHeight); }
-function getCol(x) { return Math.floor(x / playerCanvasSquareWidth); }
+// Cell size derived live from the canvas (same source as the renderer/highlight) so hit-testing stays
+// correct after the canvas is resized, instead of a cached copy that can drift.
+function getRow(y) { return Math.floor(y / (playerCanvas.height / rows)); }
+function getCol(x) { return Math.floor(x / (playerCanvas.width / cols)); }

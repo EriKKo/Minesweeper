@@ -184,10 +184,6 @@ function updateMobileFindNextHint() {
 function onMobileLayoutChange() {
 	mobileLayout = !!(mobileMQL && mobileMQL.matches);
 	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 }
 if (mobileMQL) {
 	if (typeof mobileMQL.addEventListener === "function") mobileMQL.addEventListener("change", onMobileLayoutChange);
@@ -200,10 +196,6 @@ if (mobileMQL) {
 function refreshPlayerBoardSize() {
 	if (typeof myState === "undefined" || !myState) return; // only while a board is active
 	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	if (typeof redrawOwnBoardWithFocus === "function") redrawOwnBoardWithFocus();
 	// Duel: keep the opponent board matched to the (resized) player board and repaint it from
 	// the last frame, since resizing a canvas clears it and the opponent may not be moving.

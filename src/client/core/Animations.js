@@ -30,13 +30,16 @@ function drawFocusHighlight() {
 	if (!currentActionMode()) return;
 	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
 	var ctx = playerCanvas.getContext("2d");
-	var x = focusedC * playerCanvasSquareWidth;
-	var y = focusedR * playerCanvasSquareHeight;
-	var gap = Math.max(1, Math.round(Math.min(playerCanvasSquareWidth, playerCanvasSquareHeight) * 0.08));
+	// Derive the cell size live from the canvas (single source of truth, same as the board renderer) —
+	// a cached copy drifts out of sync when the canvas is resized (custom board sizes / layout switches).
+	var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
+	var x = focusedC * sw;
+	var y = focusedR * sh;
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	ctx.save();
 	ctx.strokeStyle = "#facc15";
 	ctx.lineWidth = 2;
-	roundRectPath(ctx, x + gap / 2, y + gap / 2, playerCanvasSquareWidth - gap, playerCanvasSquareHeight - gap, (Math.min(playerCanvasSquareWidth, playerCanvasSquareHeight) - gap) * 0.2);
+	roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
 	ctx.stroke();
 	ctx.restore();
 }

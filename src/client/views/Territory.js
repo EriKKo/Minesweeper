@@ -327,10 +327,6 @@ function territoryStart(data) {
 function sizeTerritoryBoard() {
 	if (!territoryActive || typeof sizePlayerCanvas !== "function") return;
 	sizePlayerCanvas();
-	playerCanvasWidth = playerCanvas.width;
-	playerCanvasHeight = playerCanvas.height;
-	playerCanvasSquareWidth = playerCanvasWidth / cols;
-	playerCanvasSquareHeight = playerCanvasHeight / rows;
 	if (typeof renderPlayerBoard === "function") renderPlayerBoard();
 }
 
