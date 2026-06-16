@@ -27,7 +27,9 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 	var displayName = db.displayNameOf(user); // editable display_name, falling back to the legacy/guest name
 	var isFirst = !names[playerID];
 	names[playerID] = displayName;
-	avatars[playerID] = user.avatar_color || null;
+	// Guests with no chosen avatar default to the mine-teddy mascot (others fall back to the red flag).
+	var avatarColor = user.avatar_color || (user.is_guest ? "img:teddy" : null);
+	avatars[playerID] = avatarColor;
 	countries[playerID] = user.country || null;
 	if (games[playerID]) {
 		games[playerID].playerName = displayName;
@@ -42,7 +44,7 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
 		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory,
 		avatarUrl: user.avatar_url,
-		avatarColor: user.avatar_color || null,
+		avatarColor: avatarColor,
 		country: user.country || null,
 		wins: user.wins,
 		played: user.played,

@@ -236,25 +236,58 @@ function renderAppearance() {
 	return wrap;
 }
 
-function refreshProfileAvatar() {
+// Avatar editor modal — reuses the Appearance picker; opened by clicking the home/profile avatar.
+function openAvatarEditor() {
+	if (!account) return;
+	var modal = document.getElementById("avatar_modal");
+	if (!modal) {
+		modal = document.createElement("div");
+		modal.id = "avatar_modal";
+		modal.className = "cr-modal";
+		modal.setAttribute("hidden", "");
+		modal.innerHTML =
+			'<div class="cr-backdrop" data-avatar-close></div>' +
+			'<div class="cr-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar_modal_title">' +
+				'<div class="cr-dialog-head"><h2 id="avatar_modal_title">Your avatar</h2>' +
+				'<button class="cr-close" type="button" data-avatar-close aria-label="Close">×</button></div>' +
+				'<div id="avatar_modal_body"></div>' +
+			'</div>';
+		document.body.appendChild(modal);
+		modal.addEventListener("click", function(e) { if (e.target.closest("[data-avatar-close]")) modal.setAttribute("hidden", ""); });
+		document.addEventListener("keydown", function(e) { if (e.key === "Escape" && !modal.hasAttribute("hidden")) modal.setAttribute("hidden", ""); });
+	}
+	var body = modal.querySelector("#avatar_modal_body");
+	body.innerHTML = "";
+	var preview = document.createElement("div"); preview.className = "avatar-editor-preview";
+	if (typeof buildAvatarChip === "function") preview.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 80));
+	body.appendChild(preview);
+	body.appendChild(renderAppearance());
+	modal.removeAttribute("hidden");
+}
+
+// Repaint every place the local user's avatar shows after a change (profile header + home identity).
+function refreshAvatarDisplays() {
 	var head = document.querySelector("#profile_card .profile-avatar");
 	if (head && typeof buildAvatarChip === "function") {
 		var chip = buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 64);
 		chip.classList.add("profile-avatar");
 		head.replaceWith(chip);
 	}
+	if (typeof renderDashIdentity === "function") renderDashIdentity();
+	var prev = document.querySelector("#avatar_modal .avatar-editor-preview");
+	if (prev && typeof buildAvatarChip === "function") { prev.innerHTML = ""; prev.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 80)); }
 }
 function setAvatarColor(col) {
 	account.avatarColor = col;
 	if (typeof socket !== "undefined") socket.emit("set_avatar", { color: col });
-	refreshProfileAvatar();
+	refreshAvatarDisplays();
 	var btns = document.querySelectorAll(".avatar-swatch");
 	for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", (btns[i].dataset.color || "").toLowerCase() === col.toLowerCase());
 }
 function setCountry(code) {
 	account.country = code || null;
 	if (typeof socket !== "undefined") socket.emit("set_country", { country: code });
-	refreshProfileAvatar();
+	refreshAvatarDisplays();
 }
 
 function formatMemberSince(ms) {
@@ -705,6 +738,10 @@ function renderDashIdentity() {
 	if (badgeEl) {
 		badgeEl.innerHTML = "";
 		if (typeof buildAvatarChip === "function") badgeEl.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR_COLOR, account.country || null, 52));
+		// Click the home avatar to edit it.
+		badgeEl.classList.add("dash-avatar-edit");
+		badgeEl.title = "Edit avatar";
+		badgeEl.onclick = function() { if (typeof openAvatarEditor === "function") openAvatarEditor(); };
 	}
 	if (lineEl) lineEl.innerHTML = "Overall <b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
 	if (statsEl) {

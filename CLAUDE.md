@@ -576,7 +576,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `setCountry`; `appState.avatars`/`countries` maps populated in `loginSocket`; `set_avatar`/`set_country`
   handlers (session.js, validated) persist + update the live game + rebroadcast; `gameForBroadcast` and the
   room-state players list carry `avatar`/`country`; `topPlayers` selects them; the `authenticated` payload
-  carries `avatarColor`/`country`; disconnect clears the maps.
+  carries `avatarColor`/`country`; disconnect clears the maps. **Guests** with no chosen avatar default to
+  the mine-teddy (`loginSocket` substitutes `img:teddy` when `is_guest` and `avatar_color` is null —
+  display-only, not persisted). The home identity avatar is **click-to-edit**: clicking it opens
+  `openAvatarEditor` (a `.cr-modal` reusing `renderAppearance` + a live preview); `setAvatarColor`/
+  `setCountry` call `refreshAvatarDisplays` to repaint the profile header, home identity, and modal preview.
   (Derived from a Figma "futuristic board" export, translated into this canvas palette + CSS frame.)
   **Home-page previews always show classic:** `buildLearnPuzzle` takes a `spec.skin` (→ `learnBoardView`
   → `BoardView.skin`); the dashboard mode previews (`renderModeBoardPreviews`) and the daily-puzzle hero
