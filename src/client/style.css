@@ -1447,9 +1447,8 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	flex: 1;
 	display: flex;
 	flex-direction: column;
-}
-.game-view.puzzle #puzzle_card .puzzle-hint-btn {
-	margin-top: auto;
+	justify-content: center;   /* center the (minimal) ladder content group rather than top-jam + big gap */
+	gap: 0.7rem;
 }
 @media (max-width: 900px) {
 	.game-view.puzzle .game-grid {
@@ -1495,15 +1494,18 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	padding: 0.2rem 0.55rem; border-radius: 999px;
 	border: 1px solid rgba(251, 146, 60, 0.45);
 }
-.puzzle-side-tier {
-	font-weight: 700; font-size: 0.95rem;
-	letter-spacing: 0.04em; text-transform: uppercase;
-	color: var(--muted);
-	margin-top: -0.3rem;
+/* Puzzle Ladder headline — the tier + level is the rank now (the rating is hidden), so it's the
+   prominent element; the points-earned flash floats beside it and the streak chip sits on the right. */
+.puzzle-ladder-headline { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.35rem; }
+.puzzle-ladder-tier-wrap { position: relative; display: inline-flex; align-items: baseline; min-width: 0; }
+.puzzle-ladder-tier {
+	font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.01em;
+	line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.puzzle-side-card .puzzle-rank-bar { margin-top: 0.1rem; }
+.puzzle-side-card .puzzle-rank-bar { margin-top: 0.85rem; height: 10px; }
+.puzzle-side-card .puzzle-rank-foot { margin-top: 0.5rem; font-size: 0.82rem; }
 .puzzle-hint-btn {
-	margin-top: auto;
+	margin-top: 0.4rem;
 	display: flex; align-items: center; justify-content: center; gap: 0.5rem;
 	padding: 0.8rem 1rem;
 	font-size: 1rem; font-weight: 700;
@@ -1517,7 +1519,7 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	opacity: 0.75;
 }
 .puzzle-fail-actions {
-	margin-top: auto;
+	margin-top: 0.4rem;
 	display: flex; flex-direction: column; gap: 0.5rem;
 }
 .puzzle-fail-actions .btn {

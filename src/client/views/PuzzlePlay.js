@@ -269,19 +269,15 @@ function updatePuzzleHintButton() {
 // ~10 points per solve at parity, so a 250-point band fills in ~25 puzzles).
 // Ratings start at 800, the top of generated puzzle ratings is ~3000, so the
 // ladder spans roughly that range.
-// The rated panel shows the Puzzle Ladder: monotonic points → tier + level (Wood…Legend), driven by
-// `account.puzzlePoints` (PuzzleLadder.js). The puzzle RATING stays as a small "difficulty" number — it
-// only decides which puzzles you're served, it isn't your rank.
+// The rated panel IS the Puzzle Ladder: monotonic points → tier + level (Wood…Legend), driven by
+// `account.puzzlePoints` (PuzzleLadder.js). The puzzle rating is hidden — it only sets which puzzles
+// you're served behind the scenes, it isn't your rank.
 function renderPuzzleRank(rating) {
 	var tierEl = document.getElementById("puzzle_rank_tier");
-	var ratingEl = document.getElementById("puzzle_rank_rating");
 	var fillEl = document.getElementById("puzzle_rank_fill");
 	var progEl = document.getElementById("puzzle_rank_progress");
 	var nextEl = document.getElementById("puzzle_rank_next");
 	if (!tierEl) return;
-	// The puzzle rating is hidden on the Ladder — it only sets difficulty behind the scenes. Keep the
-	// element (its sibling delta still flashes points earned) but don't show the number.
-	if (ratingEl) ratingEl.style.display = "none";
 	if (typeof puzzleLadder !== "function") return;
 	var pts = (typeof account !== "undefined" && account && typeof account.puzzlePoints === "number") ? account.puzzlePoints : 0;
 	var l = puzzleLadder(pts);
