@@ -657,14 +657,23 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   20 hard / 25 extra-hard, halved for a hinted solve, 0 on a miss; `db.addPuzzlePoints`). Points drive a
   **tier + level** via `core/PuzzleLadder.js` (`puzzleLadder(points)` / `puzzleLadderLabel`): 8 tiers
   (Wood→Stone→Bronze→Silver→Crystal→Elite→Champion→Legend) × 20 levels × 50 pts/level — **all tunable in that
-  file**. The two-way **`puzzle_rating` is unchanged** and now *only* sets which puzzles you're served
-  (de-emphasised to a small "difficulty" number); the Ladder is the rank and never drops. Shown on the picker
+  file**. The two-way **`puzzle_rating` is unchanged** and now *only* sets which puzzles you're served —
+  it's **hidden from the UI** (picker header, in-game panel, profile); the Ladder is the rank and never
+  drops. **New players start at puzzle_rating 0** (seeded in user creation; pool has plenty of sub-400
+  puzzles so the climb is gentle). Shown on the picker
   card, the in-game rated panel (`renderPuzzlePlay`/`renderPuzzleRank` — tier + level bar + points-earned
   flash), and the profile Puzzles section; a tier-up reuses the achievement-toast UI. `puzzlePoints` rides
   the `authenticated` payload + each `puzzle_result`. **Admin reset:** the Admin landing has a "Reset puzzle
   progress" button → `admin_reset_puzzles` (session.js, re-checks `is_admin` from the DB) →
-  `db.resetPuzzleProgress` (rating→800, points→0, peak cleared) → echoes `puzzles_reset` so the client
+  `db.resetPuzzleProgress` (rating→0, points→0, peak cleared) → echoes `puzzles_reset` so the client
   updates without a reload.
+- **In-game button groups** (keyboard): any container tagged `.kbd-btn-group` (the puzzle fail actions
+  `#puzzle_fail_actions`, the `.result-actions` rows in the series/tournament/result panels) is
+  keyboard-driven — `focusButtonGroup` (Main.js) focuses its primary button when shown (e.g. "Try again"
+  on a puzzle miss; `presentPanel` does it for overlay panels), the **arrow keys move focus between** the
+  group's buttons, and Enter/Space activates the focused one. The board key handler (Input.js) and the
+  MatchPanels Enter-to-primary fallback both bail when focus is inside a `.kbd-btn-group`, so they don't
+  double-fire or move the board.
 - **Home dashboard aside** (`Lobby.js`/`Profile.js`). The mode rows are Sprint · Standard · **Puzzles**
   (→ `/puzzles`) · **Solo** (`.dash-row-solo` → `/solo`, replaced the old Custom row; green accent,
   subtitle "Practice to improve your times"). Like the other mode rows it uses a generated **board

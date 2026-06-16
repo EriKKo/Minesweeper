@@ -279,7 +279,9 @@ function renderPuzzleRank(rating) {
 	var progEl = document.getElementById("puzzle_rank_progress");
 	var nextEl = document.getElementById("puzzle_rank_next");
 	if (!tierEl) return;
-	if (ratingEl && rating != null) ratingEl.textContent = String(rating);
+	// The puzzle rating is hidden on the Ladder — it only sets difficulty behind the scenes. Keep the
+	// element (its sibling delta still flashes points earned) but don't show the number.
+	if (ratingEl) ratingEl.style.display = "none";
 	if (typeof puzzleLadder !== "function") return;
 	var pts = (typeof account !== "undefined" && account && typeof account.puzzlePoints === "number") ? account.puzzlePoints : 0;
 	var l = puzzleLadder(pts);
@@ -365,6 +367,8 @@ function setRatedFailActions(failed) {
 	var actions = document.getElementById("puzzle_fail_actions");
 	if (hint) hint.style.display = failed ? "none" : "";
 	if (actions) actions.style.display = failed ? "" : "none";
+	// Focus "Try again" so Enter retries; arrows then switch to "Next puzzle".
+	if (failed && typeof focusButtonGroup === "function") focusButtonGroup(actions);
 }
 
 // Daily puzzle result panel — shown after the one allowed attempt, or

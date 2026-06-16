@@ -1068,6 +1068,30 @@ document.getElementById("puzzle_hint_btn").addEventListener("click", function() 
 	socket.emit("puzzle_hint");
 });
 
+// --- In-game button groups: focus the primary + arrow-key navigation -----------------------------
+// Any container tagged `.kbd-btn-group` (the puzzle fail actions, the result/series/tournament panels)
+// becomes keyboard-driven: its primary button is focused when shown, the arrow keys move focus between
+// its buttons, and Enter/Space activates the focused one (native button behaviour). The board key
+// handler (Input.js) ignores keys while focus is inside such a group, so arrows don't also move the board.
+function focusButtonGroup(container) {
+	if (!container) return;
+	var btn = container.querySelector(".btn-primary:not([disabled])") || container.querySelector("button:not([disabled])");
+	if (btn) try { btn.focus(); } catch (e) {}
+}
+document.addEventListener("keydown", function(e) {
+	var el = document.activeElement;
+	if (!el || el.tagName !== "BUTTON" || !el.closest) return;
+	var group = el.closest(".kbd-btn-group");
+	if (!group) return;
+	var dir = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+	if (!dir) return;
+	var btns = Array.prototype.filter.call(group.querySelectorAll("button"), function(b) { return b.offsetParent !== null && !b.disabled; });
+	var i = btns.indexOf(el);
+	if (i < 0 || btns.length < 2) return;
+	e.preventDefault();
+	btns[(i + dir + btns.length) % btns.length].focus();
+});
+
 document.getElementById("puzzle_retry_btn").addEventListener("click", function() {
 	if (!puzzleSession) return;
 	socket.emit("puzzle_retry", { puzzleId: puzzleSession.puzzleId });

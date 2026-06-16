@@ -318,6 +318,9 @@ document.addEventListener("keydown", function(e) {
 	if (!currentActionMode()) return;
 	var tag = (e.target && e.target.tagName) || "";
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+	// Don't move the board / reveal while a keyboard button-group (puzzle fail actions, result panels)
+	// has focus — its own arrow-nav + native Enter own the keys there.
+	if (e.target && e.target.closest && e.target.closest(".kbd-btn-group")) return;
 	if (e.ctrlKey || e.metaKey || e.altKey) return;
 	// Keys are user-rebindable (see Keybindings.js); map the event to an action.
 	var action = (typeof keybindings !== "undefined") ? keybindings.actionFor(e) : null;

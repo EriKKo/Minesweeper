@@ -35,7 +35,7 @@ function showTournamentEliminationPanel(data) {
 	panel.appendChild(foot);
 
 	var actions = document.createElement("div");
-	actions.className = "result-actions";
+	actions.className = "result-actions kbd-btn-group";
 
 	// Primary CTA = spectate. Most players want to watch the bracket play
 	// out, especially after an early elimination.
@@ -112,6 +112,8 @@ function presentPanel(panel, kind, autoHideMs) {
 	boardOverlay.className = "board-overlay board-overlay-panel" + (kind ? " board-overlay-" + kind : "");
 	boardOverlay.innerHTML = "";
 	boardOverlay.appendChild(panel);
+	// Focus the primary action so Enter works and the arrows can switch between the panel's buttons.
+	if (typeof focusButtonGroup === "function") focusButtonGroup(panel);
 	if (autoHideMs) {
 		setTimeout(function() {
 			if (boardOverlay.contains(panel)) hideOverlay();
@@ -162,6 +164,7 @@ document.addEventListener("keydown", function(e) {
 	if (!boardOverlay || boardOverlay.style.display === "none") return;
 	var tag = (e.target && e.target.tagName) || "";
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+	if (tag === "BUTTON") return; // a focused button handles Enter natively (avoids a double-activate)
 	var btn = boardOverlay.querySelector(".btn-primary");
 	if (!btn) return;
 	e.preventDefault();
@@ -310,7 +313,7 @@ function showRankedResult(data) {
 	panel.appendChild(progLabel);
 
 	var actions = document.createElement("div");
-	actions.className = "result-actions";
+	actions.className = "result-actions kbd-btn-group";
 	var again = document.createElement("button");
 	again.className = "btn btn-primary";
 	again.textContent = "Play another";
@@ -350,7 +353,7 @@ function showCasualResult(data) {
 	header.textContent = !data.winnerId ? "Draw" : (won ? "You win!" : (data.winnerName || "Opponent") + " wins");
 	panel.appendChild(header);
 	var actions = document.createElement("div");
-	actions.className = "result-actions";
+	actions.className = "result-actions kbd-btn-group";
 	var again = document.createElement("button");
 	again.className = "btn btn-primary";
 	again.textContent = "Rematch";
