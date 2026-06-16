@@ -559,11 +559,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   non-admins keep classic).
   New skins = a `BOARD_SKINS` entry (+ optional CSS frame); image texture packs extend the same hook.
 - **Avatars + country** — account-level cosmetic identity, mirroring the skin pattern. The **avatar** is
-  the in-game flag on a pole, rendered on canvas by `buildAvatarCanvas(color, px, country)`: with a country
-  set, the player's **round country flag** fills the cloth (the `/flags` SVGs are circular icons, so they're
-  drawn as a disc on the pole, loaded async with a placeholder); without one, it's a coloured pennant in
-  `avatar_color` (`#rrggbb`; null → default red). So the country flag *is* the avatar — there's no separate
-  flag badge. The **country** is an ISO-3166 alpha-2 code; its flag is an SVG under `/flags/<code>.svg`
+  the in-game flag on a pole — a **triangular pennant**. With a country set, the player's country flag fills
+  the pennant: the (circular) `/flags` SVG is scaled to a square big enough that its disc covers the whole
+  triangle, then clipped to the triangle (so corners/edges crop the flag — intentional), loaded async with a
+  placeholder. Without a country it's a coloured pennant in `avatar_color` (`#rrggbb`; null → default red).
+  So the country flag *is* the avatar — there's no separate flag badge. The **country** is an ISO-3166 alpha-2 code; its flag is an SVG under `/flags/<code>.svg`
   (copied from the trevelur project). Country **names are not hardcoded** — `Intl.DisplayNames` resolves
   them at runtime in `core/Countries.js` (which also lists the flag codes + `countryFlagSrc`); this both
   avoids a maintenance burden and sidesteps content-filter false-positives on long disputed-territory name

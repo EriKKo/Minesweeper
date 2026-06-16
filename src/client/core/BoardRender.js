@@ -466,9 +466,18 @@ function buildAvatarCanvas(color, px, country) {
 	var ctx = c.getContext("2d");
 	ctx.scale(dpr, dpr);
 
-	var poleX = px * 0.24, poleTop = px * 0.12, poleBot = px * 0.88;
-	var r = px * 0.30, cx = poleX + r, cy = poleTop + r * 0.98; // country-flag disc, hung at the pole top
+	var poleX = px * 0.26, poleTop = px * 0.12, poleBot = px * 0.88;
+	// Pennant triangle (the minesweeper flag): top + bottom on the pole, point to the right.
+	var Ax = poleX, Ay = poleTop;
+	var Bx = poleX + px * 0.52, By = poleTop + px * 0.20;
+	var Cx = poleX, Cy = poleTop + px * 0.40;
+	// Centroid + max vertex distance: the country flag (a circular icon) is scaled to a square big enough
+	// that its disc covers the whole triangle, so no transparent corners show — the triangle just crops it.
+	var Gx = (Ax + Bx + Cx) / 3, Gy = (Ay + By + Cy) / 3;
+	var Rmax = Math.max(Math.hypot(Ax - Gx, Ay - Gy), Math.hypot(Bx - Gx, By - Gy), Math.hypot(Cx - Gx, Cy - Gy));
+	var side = Rmax * 2 * 1.06;
 
+	function tri() { ctx.beginPath(); ctx.moveTo(Ax, Ay); ctx.lineTo(Bx, By); ctx.lineTo(Cx, Cy); ctx.closePath(); }
 	function base() {
 		ctx.clearRect(0, 0, px, px);
 		roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28);
@@ -480,32 +489,20 @@ function buildAvatarCanvas(color, px, country) {
 	}
 	function drawCountry(img) {
 		base();
-		ctx.save();
-		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
-		ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+		ctx.save(); tri(); ctx.clip();
+		ctx.drawImage(img, Gx - side / 2, Gy - side / 2, side, side); // flag scaled to cover the triangle (corners cropped)
 		ctx.restore();
-		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-		ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = Math.max(1, px * 0.03); ctx.stroke();
+		tri(); ctx.strokeStyle = "rgba(0,0,0,0.30)"; ctx.lineWidth = Math.max(1, px * 0.025); ctx.stroke();
 	}
-	function drawPennant() {
-		base();
-		var top = poleTop, h = px * 0.46, ww = px * 0.46;
-		ctx.beginPath();
-		ctx.moveTo(poleX, top);
-		ctx.lineTo(poleX + ww, top + h * 0.32);
-		ctx.lineTo(poleX, top + h * 0.60);
-		ctx.closePath();
-		ctx.fillStyle = color || DEFAULT_AVATAR_COLOR; ctx.fill();
-	}
-	function drawPlaceholderDisc() {
-		base();
-		ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+	function drawPennant() { base(); tri(); ctx.fillStyle = color || DEFAULT_AVATAR_COLOR; ctx.fill(); }
+	function drawPlaceholder() {
+		base(); tri();
 		ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill();
 		ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1; ctx.stroke();
 	}
 
 	if (country && typeof countryFlagSrc === "function") {
-		drawPlaceholderDisc();
+		drawPlaceholder();
 		var im = new Image();
 		im.onload = function() { drawCountry(im); };
 		im.src = countryFlagSrc(country);
