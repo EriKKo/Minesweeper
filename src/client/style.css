@@ -3394,9 +3394,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Opponent card name row (6-player battle layout): a flex row so the rank insignia and name sit
    centred on a shared line with a clean gap — no overlap, no cramping. The duel shows the full badge
    in its identity panel instead, so this row + insignia are hidden there. */
-.opp-head { display: flex; align-items: center; min-width: 0; }
+.opp-head { display: flex; align-items: center; min-width: 0; gap: 0.5rem; }
 .game-view.duo .opp-head { display: none; }
 .game-view.multi .opp-head { margin-bottom: 0.5rem; }
+/* Opponent identity, same shape as your panel: tall avatar + (name over tier·rating). */
+.opp-avatar { flex: 0 0 auto; display: inline-flex; line-height: 0; }
+.opp-id { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.2; }
+.opp-id .player-name { margin: 0; }
+.opp-tier { font-size: 0.72rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .opp-rank-badge { display: none; }
 /* Just the compact hexagon emblem; shown only when filled (in the multi layout). */
 .game-view.multi .opp-rank-badge:not(:empty) { display: flex; align-items: center; flex: 0 0 auto; margin-right: 0.55rem; }

@@ -92,6 +92,41 @@ function setHudName(el, g) {
 	el._textNode.textContent = playerLabel(g.playerName, g.progress);
 }
 
+// Render a 6-player opponent card's identity the SAME way as your own panel: a tall avatar portrait, the
+// name (with live %), and tier·rating beneath. The avatar is cached on its holder so it isn't rebuilt
+// every draw_board frame. `p` may be a roster entry (has rating) or a broadcast snapshot (rating looked
+// up from the roster by id). Pass null to clear the slot.
+function setOppIdentity(i, p) {
+	var avEl = document.getElementById("opp_avatar" + i);
+	var nameEl = document.getElementById("player_name" + i);
+	var tierEl = document.getElementById("opp_tier" + i);
+	if (!p) {
+		if (avEl) { avEl.innerHTML = ""; avEl._avKey = null; }
+		if (nameEl) nameEl.textContent = "";
+		if (tierEl) tierEl.textContent = "";
+		return;
+	}
+	if (avEl && typeof buildAvatarChip === "function") {
+		var key = (p.id || "") + "|" + (p.avatar || "") + "|" + (p.country || "");
+		if (avEl._avKey !== key) {
+			avEl._avKey = key; avEl.innerHTML = "";
+			avEl.appendChild(buildAvatarChip(p.avatar || DEFAULT_AVATAR, p.country || null, 34));
+		}
+	}
+	if (nameEl) nameEl.textContent = playerLabel(p.name || p.playerName || "Anonymous", p.progress || 0);
+	if (tierEl) {
+		var rating = (typeof p.rating === "number") ? p.rating : null, prov = p.provisional;
+		if (rating === null && typeof battleRoster === "function") {
+			var roster = battleRoster();
+			for (var k = 0; k < roster.length; k++) if (roster[k] && roster[k].id === p.id) { rating = roster[k].rating; prov = roster[k].provisional; break; }
+		}
+		if (typeof rating === "number" && typeof tierFor === "function") {
+			var t = tierFor(rating, prov);
+			tierEl.textContent = t.name + " · " + rating; tierEl.style.color = t.color;
+		} else { tierEl.textContent = ""; }
+	}
+}
+
 // --- 1v1 duel battle HUD: identity panels (rank badge + name + tier), per-board progress bars,
 // and the center tug-of-war bar + leader glow. ---
 function fillDuelId(el, p, isYou) {
@@ -1483,13 +1518,13 @@ function paintOpponentCovered() {
 				slot.dataset.pid = p ? (p.id || "") : "";
 				slot.classList.toggle("opponent-searching", searching && !p);
 			}
-			if (nameEl) nameEl.textContent = p ? playerLabel(p.name, 0) : "Searching…";
 			if (cv) drawBoardStatic(covered, cv, (p && p.skin) || "classic");
-			setOppRankBadge(slot, p && typeof p.rating === "number" ? p.rating : null);
+			if (p) { setOppIdentity(i, p); }
+			else { setOppIdentity(i, null); if (nameEl) nameEl.textContent = "Searching…"; }
 		} else if (slot) {
 			slot.style.display = "none";
 			slot.classList.remove("opponent-searching");
-			setOppRankBadge(slot, null);
+			setOppIdentity(i, null);
 		}
 	}
 }
@@ -1732,11 +1767,11 @@ function repaintSpectatorView(games) {
 		var slot = slots[i - 1];
 		var opp = i <= 2 ? opponents[i - 1] : null;
 		if (opp) {
-			setHudName(nameEl, opp);
+			setOppIdentity(i, opp);
 			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) { slot.style.display = ""; slot.dataset.pid = opp.id || ""; }
 		} else {
-			setHudName(nameEl, null);
+			setOppIdentity(i, null);
 			clearCanvas(canvasEl);
 			if (slot) { slot.style.display = "none"; delete slot.dataset.pid; }
 		}
@@ -1842,14 +1877,14 @@ socket.on("draw_board", function(data) {
 		var slot = slots[i - 1];
 		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
-			setHudName(nameEl, opp);
+			setOppIdentity(i, opp);
 			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";
 			}
 		} else {
-			setHudName(nameEl, null);
+			setOppIdentity(i, null);
 			clearCanvas(canvasEl);
 			if (slot) {
 				slot.style.display = "none";
