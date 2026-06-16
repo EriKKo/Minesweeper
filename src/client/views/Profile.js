@@ -215,18 +215,24 @@ function renderAppearance() {
 	sel.addEventListener("change", function() { setCountry(sel.value); });
 	wrap.appendChild(sel);
 
-	var aLabel = document.createElement("div"); aLabel.className = "appearance-sub"; aLabel.textContent = "Flag colour (used when no country is set)"; wrap.appendChild(aLabel);
+	var aLabel = document.createElement("div"); aLabel.className = "appearance-sub"; aLabel.textContent = "Avatar"; wrap.appendChild(aLabel);
 	var swatches = document.createElement("div"); swatches.className = "avatar-swatches";
 	var current = (account.avatarColor || DEFAULT_AVATAR_COLOR).toLowerCase();
-	AVATAR_COLORS.forEach(function(col) {
+	function swatch(value) {
 		var b = document.createElement("button"); b.type = "button";
-		b.className = "avatar-swatch" + (col.toLowerCase() === current ? " active" : "");
-		b.dataset.color = col;
-		b.appendChild(buildAvatarCanvas(col, 44));
-		b.addEventListener("click", function() { setAvatarColor(col); });
+		b.className = "avatar-swatch" + (value.toLowerCase() === current ? " active" : "");
+		b.dataset.color = value;
+		b.appendChild(buildAvatarCanvas(value, 44));
+		b.addEventListener("click", function() { setAvatarColor(value); });
 		swatches.appendChild(b);
-	});
+	}
+	// Image avatar presets first, then the flag-colour pennants (the colour is the fallback when no country).
+	if (typeof AVATAR_IMAGES !== "undefined") Object.keys(AVATAR_IMAGES).forEach(function(id) { swatch("img:" + id); });
+	AVATAR_COLORS.forEach(function(col) { swatch(col); });
 	wrap.appendChild(swatches);
+	var note = document.createElement("div"); note.className = "appearance-note";
+	note.textContent = "Flag colours are used when no country is set; an image avatar replaces the flag.";
+	wrap.appendChild(note);
 	return wrap;
 }
 

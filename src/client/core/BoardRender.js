@@ -42,6 +42,8 @@ var BOARD_SKIN_LIST = ["classic", "tactical"];
 // Avatar cloth colours — the in-game flag recoloured. First entry is the default (classic red flag).
 var AVATAR_COLORS = ["#ef4444", "#f97316", "#fbbf24", "#22c55e", "#22d3ee", "#3b82f6", "#a78bfa", "#ec4899", "#e5e7eb", "#64748b"];
 var DEFAULT_AVATAR_COLOR = "#ef4444";
+// Preset image avatars — an avatar value of "img:<id>" renders the image instead of a flag pennant.
+var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png" };
 // localBoardSkin = the skin the *local* user picked (their own board + UI previews).
 // Other players' boards render in THEIR skin (passed per-BoardView); bots/unknown fall
 // back to classic. Each BoardView.draw() loads its skin's palette into these vars for the
@@ -465,6 +467,32 @@ function buildAvatarCanvas(color, px, country) {
 	c.style.width = px + "px"; c.style.height = px + "px";
 	var ctx = c.getContext("2d");
 	ctx.scale(dpr, dpr);
+
+	function tileBg() {
+		ctx.clearRect(0, 0, px, px);
+		roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28);
+		ctx.fillStyle = "#1a2240"; ctx.fill();
+		ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke();
+	}
+
+	// Image avatar ("img:<id>") — render the preset image contained in the rounded tile, ignoring the flag.
+	var imgId = (typeof color === "string" && color.indexOf("img:") === 0) ? color.slice(4) : null;
+	if (imgId && AVATAR_IMAGES[imgId]) {
+		tileBg();
+		var aim = new Image();
+		aim.onload = function() {
+			tileBg();
+			ctx.save();
+			roundRectPath(ctx, 0.5, 0.5, px - 1, px - 1, px * 0.28); ctx.clip();
+			var pad = px * 0.05;
+			var s = Math.min((px - pad * 2) / (aim.naturalWidth || 1), (px - pad * 2) / (aim.naturalHeight || 1));
+			var w = (aim.naturalWidth || px) * s, h = (aim.naturalHeight || px) * s;
+			ctx.drawImage(aim, (px - w) / 2, (px - h) / 2, w, h);
+			ctx.restore();
+		};
+		aim.src = AVATAR_IMAGES[imgId];
+		return c;
+	}
 
 	var poleX = px * 0.24, poleTop = px * 0.12, poleBot = px * 0.88;
 	// Pennant triangle (the minesweeper flag), offset right of the pole so more of the stick shows.
