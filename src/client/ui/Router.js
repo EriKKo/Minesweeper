@@ -347,6 +347,10 @@ function applyRouteFromHash() {
 		exitGameFullscreen();
 		soloSession = null;
 		stopSoloTimer();
+		// Mirror the puzzle teardown: drop the solo chrome + mode class so they don't bleed into the
+		// next view that reuses the game-view (e.g. a custom lobby).
+		if (typeof toggleSoloChrome === "function") toggleSoloChrome(false);
+		if (gameView) gameView.classList.remove("solo");
 		hideOverlay();
 		myState = null;
 		prevPlayerState = null;

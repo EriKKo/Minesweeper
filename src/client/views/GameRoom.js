@@ -148,6 +148,12 @@ function renderLobbySlots(state) {
 }
 
 function renderRoomState(state) {
+	// A room is never solo/puzzle — if we arrived straight from one (those views share the game-view),
+	// clear their mode class + chrome so they don't bleed into the lobby. No-op once cleared.
+	if (typeof gameView !== "undefined" && gameView) {
+		if (gameView.classList.contains("solo")) { gameView.classList.remove("solo"); if (typeof toggleSoloChrome === "function") toggleSoloChrome(false); }
+		if (gameView.classList.contains("puzzle")) { gameView.classList.remove("puzzle"); if (typeof togglePuzzleChrome === "function") togglePuzzleChrome(false); }
+	}
 	var isOwner = state.owner === id;
 	populateSelect(gameCountSelect, state.gameCountOptions, function(n) { return String(n); });
 	populateSelect(roundSecondsSelect, state.roundSecondsOptions, formatRoundOption);
