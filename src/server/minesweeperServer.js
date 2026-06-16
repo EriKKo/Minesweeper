@@ -476,6 +476,10 @@ function startGame(room) {
 			games[pid].botDifficultyByCell = template.difficultyByCell || null;
 		}
 		games[pid].init(template);
+		// Custom-lobby gameplay modifiers (mutually exclusive). Only-flags also auto-chords on flag.
+		games[pid].noFlags = room.modifier === "noFlags";
+		games[pid].onlyFlags = room.modifier === "onlyFlags";
+		games[pid].autoChordOnFlag = room.modifier === "onlyFlags";
 		replay.attach(room, games[pid], pid);
 	}
 	// For tournament rounds, compute how many will be cut this round so the
@@ -501,6 +505,7 @@ function startGame(room) {
 			gameCount: room.gameCount,
 			roundSeconds: room.roundSeconds,
 			deathPenalty: room.deathPenalty,
+			modifier: room.modifier || null,
 			rows: room.rows,
 			cols: room.cols,
 			boardData: obf.data,
@@ -829,6 +834,7 @@ io.on("connection", function (socket) {
 			if (data.roundSeconds != null) room.setRoundSeconds(parseInt(data.roundSeconds, 10));
 			if (data.deathPenalty != null) room.setDeathPenalty(parseInt(data.deathPenalty, 10));
 			if (data.gameCount != null) room.setGameCount(parseInt(data.gameCount, 10));
+			if (data.modifier != null) room.setModifier(data.modifier || null);
 		}
 		rooms[id] = room;
 		addPlayerToRoom(socket, room);

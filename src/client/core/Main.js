@@ -1121,7 +1121,8 @@ scoreboardEl.addEventListener("click", function(e) {
 			mineDensity: densitySlider ? parseInt(densitySlider.value, 10) / 100 : 0.1,
 			roundSeconds: parseInt(selected("roundSeconds"), 10),
 			deathPenalty: parseInt(selected("deathPenalty"), 10),
-			gameCount: parseInt(selected("gameCount"), 10)
+			gameCount: parseInt(selected("gameCount"), 10),
+			modifier: selected("modifier") || null
 		});
 		closeModal();
 	});

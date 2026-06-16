@@ -37,6 +37,7 @@ function createRoom(id, ownerID, customMaxPlayers) {
 	room.deathPenalty = DEFAULT_DEATH_PENALTY;
 	room.mineDensity = DEFAULT_MINE_DENSITY;
 	room.boardSize = DEFAULT_BOARD_SIZE;
+	room.modifier = null; // custom-lobby gameplay modifier: null | "noFlags" | "onlyFlags"
 	room.rows = BOARD_SIZES[DEFAULT_BOARD_SIZE].rows;
 	room.cols = BOARD_SIZES[DEFAULT_BOARD_SIZE].cols;
 	room.gamesPlayed = 0;
@@ -57,6 +58,7 @@ function createRoom(id, ownerID, customMaxPlayers) {
 	room.setDeathPenalty = setDeathPenalty;
 	room.setMineDensity = setMineDensity;
 	room.setBoardSize = setBoardSize;
+	room.setModifier = setModifier;
 	room.startSeries = startSeries;
 	room.recordRoundResult = recordRoundResult;
 	room.resetScores = resetScores;
@@ -134,6 +136,13 @@ function createRoom(id, ownerID, customMaxPlayers) {
 		if (DEATH_PENALTY_OPTIONS.indexOf(seconds) === -1) return false;
 		if (room.phase !== "planning") return false;
 		room.deathPenalty = seconds;
+		return true;
+	}
+
+	function setModifier(mod) {
+		if (room.phase !== "planning") return false;
+		if (mod !== "noFlags" && mod !== "onlyFlags" && mod !== null) return false;
+		room.modifier = mod || null;
 		return true;
 	}
 

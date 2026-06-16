@@ -65,6 +65,7 @@ function buildRoomState(room) {
 		deathPenalty: room.deathPenalty,
 		mineDensity: room.mineDensity,
 		boardSize: room.boardSize,
+		modifier: room.modifier || null,
 		rows: room.rows,
 		cols: room.cols,
 		roundDeadline: roundDeadlines[room.id] || null,

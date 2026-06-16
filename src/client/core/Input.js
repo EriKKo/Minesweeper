@@ -100,6 +100,12 @@ function performAction(r, c, asFlag) {
 	// Solo is locked until the player hits Start and the countdown finishes.
 	if (mode === "solo" && soloSession && !soloSession.started) return;
 	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
+	// Custom-lobby modifiers: "noFlags" blocks flag/right-click; "onlyFlags" routes every click through
+	// the flag tool (left-click reveal is disabled server-side, flags auto-chord). Matches the engine.
+	if (mode === "multiplayer" && currentRoom && currentRoom.modifier) {
+		if (currentRoom.modifier === "noFlags" && asFlag) return;
+		if (currentRoom.modifier === "onlyFlags") asFlag = true;
+	}
 	focusedR = r;
 	focusedC = c;
 	if (mode === "territory") {

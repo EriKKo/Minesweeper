@@ -45,7 +45,9 @@ function createGame(mineCount, gameRows, gameCols) {
 	game.mineHit = null;
 	game.onMove = null; // optional (button, r, c) hook, fired on each APPLIED move — used for replay capture
 	game.playerName = "New player";
-	game.autoChordOnFlag = false; // powerup: flagging a cell chords its satisfied numbered neighbours
+	game.autoChordOnFlag = false; // powerup / "only flags" modifier: flagging chords its satisfied numbered neighbours
+	game.noFlags = false;   // custom modifier: flagging disabled
+	game.onlyFlags = false; // custom modifier: left-click disabled (flag-only play)
 
 	function isFrozen() {
 		return Date.now() < game.frozenUntil;
@@ -53,6 +55,7 @@ function createGame(mineCount, gameRows, gameCols) {
 
 	function handleLeftClick(r, c) {
 		if (!game.playing || isFrozen()) return;
+		if (game.onlyFlags) return; // "only flags" modifier: left-click (reveal/chord) is disabled
 		if (game.onMove) game.onMove(0, r, c);
 		if (state[r][c] == UNKNOWN) {
 			dfs(r, c);
@@ -66,6 +69,7 @@ function createGame(mineCount, gameRows, gameCols) {
 
 	function handleRightClick(r, c) {
 		if (!game.playing || isFrozen()) return;
+		if (game.noFlags) return; // "no flags" modifier: flagging is disabled
 		if (game.onMove) game.onMove(1, r, c);
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
