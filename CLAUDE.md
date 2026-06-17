@@ -606,7 +606,11 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `startSolo`, `renderPuzzlePlay`, territory create), never from a later socket/board
   callback; it's idempotent and fails silently if the browser blocks/doesn't support it.
   Exit is wired into every leave path (`leave_button`, `cancelRanked`, `exitSolo`,
-  `exitPuzzle`, territory teardown, and the Router's navigate-away teardown).
+  `exitPuzzle`, territory teardown, and the Router's navigate-away teardown). The **game header has a
+  fullscreen toggle** (`#fullscreen_btn`, icon-only, next to the progress text) so a player who pressed
+  Esc can re-enter — `toggleGameFullscreen` enters/exits off the live state (the click is the needed
+  gesture); its expand/compress icon swaps off `body.game-fullscreen`, and the button is hidden
+  (`body.no-fullscreen-support`) where the Fullscreen API is unavailable (iOS Safari).
   Fullscreen chrome (driven by `body.game-fullscreen`) hides the navbar + footer and, for the
   non-territory/non-puzzle modes, re-centers the play area (the windowed grid left-aligns the
   board in a `1fr` column + 320px sidebar, which jams it against the edge once `main`'s
@@ -840,8 +844,13 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   **Gameplay modifiers** (custom only, mutually exclusive — `room.modifier` ∈ `null | "noFlags" | "onlyFlags"`,
   `setModifier` in RoomCreator): **No flags** disables flagging (engine `handleRightClick` early-returns when
   `game.noFlags`); **Only flags** disables left-click reveal (`handleLeftClick` early-returns when
-  `game.onlyFlags`) and turns on `autoChordOnFlag` so placing a flag chords its satisfied numbered neighbours
-  (win is still a standard clear). `startGame` sets the per-game flags from `room.modifier`; it rides
+  `game.onlyFlags`) and turns on `autoChordOnFlag` so placing a flag chords its satisfied numbered
+  neighbours. The auto-chord **cascades** (`autoChordCascade` in GameCreator): after a flag, it sweeps the
+  board chording every satisfied number and repeats until a pass opens nothing new — because a chord can
+  reveal a further number that's itself already satisfied, so one correct flag chains across the board
+  (each productive pass lowers `squaresLeft`, so it terminates). Reveals are server-driven (the client
+  doesn't predict only-flags reveals) and arrive via `draw_board`. Win is still a standard clear.
+  `startGame` sets the per-game flags from `room.modifier`; it rides
   `start_game` + `room_state` (so `currentRoom.modifier`), and `Input.performAction` mirrors the rules
   client-side (`noFlags` drops right-clicks; `onlyFlags` forces every click through the flag tool). Bots play
   it as-is (they still flag), so they cope but aren't optimised for these modes. The room

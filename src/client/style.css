@@ -2413,11 +2413,32 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	margin-bottom: 1rem;
 }
 
+.game-header-right {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+}
+
 .game-progress {
 	display: flex;
 	align-items: center;
 	gap: 1.5rem;
 }
+
+/* Fullscreen toggle — icon-only ghost button; the icon swaps with the actual fullscreen state. */
+.fullscreen-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.4rem 0.55rem;
+	line-height: 0;
+}
+.fullscreen-btn .fs-icon { display: block; }
+.fullscreen-btn .fs-icon-compress { display: none; }
+body.game-fullscreen .fullscreen-btn .fs-icon-expand { display: none; }
+body.game-fullscreen .fullscreen-btn .fs-icon-compress { display: block; }
+/* Hide the toggle where the Fullscreen API isn't available (e.g. iOS Safari). */
+body.no-fullscreen-support .fullscreen-btn { display: none; }
 
 #game_progress_text {
 	color: var(--muted);

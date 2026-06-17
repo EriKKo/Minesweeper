@@ -34,6 +34,18 @@ function exitGameFullscreen() {
 	} catch (e) { /* ignore */ }
 }
 
+// Toggle for the in-game fullscreen button: re-enter if we've exited (e.g. pressed Esc), or exit if in.
+// The click is a user gesture, so requestFullscreen() is allowed here.
+function toggleGameFullscreen() {
+	if (isInFullscreen()) exitGameFullscreen();
+	else enterGameFullscreen();
+}
+
+function fullscreenSupported() {
+	var el = document.documentElement;
+	return !!(el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen);
+}
+
 // Keep a `game-fullscreen` body class in sync with the ACTUAL fullscreen state — driven by the browser
 // event, not our enter/exit helpers, so pressing Esc (the native exit) reverts the chrome too. The CSS
 // hangs the immersive layout (hidden navbar, visible "Exit game" button) off this class.
@@ -42,3 +54,10 @@ function syncFullscreenChrome() {
 }
 document.addEventListener("fullscreenchange", syncFullscreenChrome);
 document.addEventListener("webkitfullscreenchange", syncFullscreenChrome);
+
+// Wire the in-game fullscreen toggle button, and hide it where the API is unavailable.
+(function wireFullscreenButton() {
+	if (!fullscreenSupported()) document.body.classList.add("no-fullscreen-support");
+	var btn = document.getElementById("fullscreen_btn");
+	if (btn) btn.addEventListener("click", toggleGameFullscreen);
+})();

@@ -73,13 +73,7 @@ function createGame(mineCount, gameRows, gameCols) {
 		if (game.onMove) game.onMove(1, r, c);
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
-			if (game.autoChordOnFlag) {
-				var neighbours = getAdjacentSquares(r, c, KNOWN);
-				for (var i = 0; i < neighbours.length; i++) {
-					var nr = neighbours[i][0], nc = neighbours[i][1];
-					if (board[nr][nc] > 0) clearAdjacentIfEnoughFlags(nr, nc);
-				}
-			}
+			if (game.autoChordOnFlag) autoChordCascade();
 		} else if (state[r][c] == FLAGGED) {
 			state[r][c] = UNKNOWN;
 		} else if (state[r][c] == KNOWN) {
@@ -102,6 +96,26 @@ function createGame(mineCount, gameRows, gameCols) {
 		);
 		if (ctx.flagCount === board[r][c]) {
 			for (var i = 0; i < ctx.covered.length; i++) dfs(ctx.covered[i][0], ctx.covered[i][1]);
+		}
+	}
+
+	// "Only flags" auto-chord: placing a flag chords every satisfied number. Because a chord can
+	// reveal further numbers that are themselves already satisfied by existing flags, we keep
+	// sweeping until a full pass opens nothing new — so one correct flag cascade-chords across the
+	// board (each productive pass strictly lowers squaresLeft, so it always terminates).
+	function autoChordCascade() {
+		var changed = true;
+		while (changed && game.playing && !isFrozen()) {
+			changed = false;
+			for (var r = 0; r < rows; r++) {
+				for (var c = 0; c < cols; c++) {
+					if (state[r][c] === KNOWN && board[r][c] > 0) {
+						var before = squaresLeft;
+						clearAdjacentIfEnoughFlags(r, c);
+						if (squaresLeft !== before) changed = true;
+					}
+				}
+			}
 		}
 	}
 
