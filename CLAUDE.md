@@ -845,14 +845,17 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `setModifier` in RoomCreator): **No flags** disables flagging (engine `handleRightClick` early-returns when
   `game.noFlags`); **Only flags** disables left-click reveal (`handleLeftClick` early-returns when
   `game.onlyFlags`) and turns on `autoChordOnFlag` so placing a flag chords its satisfied numbered
-  neighbours. The auto-chord **cascades** (`autoChordCascade` in GameCreator): after a flag, it sweeps the
-  board chording every satisfied number and repeats until a pass opens nothing new — because a chord can
-  reveal a further number that's itself already satisfied, so one correct flag chains across the board
-  (each productive pass lowers `squaresLeft`, so it terminates). Reveals are server-driven (the client
-  doesn't predict only-flags reveals) and arrive via `draw_board`. Win is still a standard clear.
+  neighbours. The auto-chord **cascades** (`autoChordCascade` in GameCreator): after a flag is placed **or
+  removed**, it sweeps the board chording every satisfied number and repeats until a pass opens nothing new —
+  because a chord can reveal a further number that's itself already satisfied, so one correct flag chains
+  across the board (each productive pass lowers `squaresLeft`, so it terminates). Removing a flag re-runs it
+  too (an over-flagged number dropping back to its exact count becomes chordable). Reveals are server-driven
+  (the client doesn't predict only-flags reveals) and arrive via `draw_board`. Win is still a standard clear.
   `startGame` sets the per-game flags from `room.modifier`; it rides
   `start_game` + `room_state` (so `currentRoom.modifier`), and `Input.performAction` mirrors the rules
-  client-side (`noFlags` drops right-clicks; `onlyFlags` forces every click through the flag tool). Bots play
+  client-side: `noFlags` drops right-clicks; in `onlyFlags` a **left-click can't reveal** — on a covered or
+  flagged cell it's a no-op, on a revealed number it routes through the flag tool as a chord (the server
+  ignores `left_click` in this mode), while right-click places/removes flags. Bots play
   it as-is (they still flag), so they cope but aren't optimised for these modes. The room
   list (`roomRow` in Lobby.js) shows each room's full ruleset as `.room-chip`s (players X/Y — red when full,
   board dims, % mines, round time, series); `roomSummary` (roomState.js) now includes `boardSize`+`mineDensity`.

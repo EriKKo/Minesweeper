@@ -76,6 +76,8 @@ function createGame(mineCount, gameRows, gameCols) {
 			if (game.autoChordOnFlag) autoChordCascade();
 		} else if (state[r][c] == FLAGGED) {
 			state[r][c] = UNKNOWN;
+			// Removing a flag can drop an over-flagged number back to its exact count → now chordable.
+			if (game.autoChordOnFlag) autoChordCascade();
 		} else if (state[r][c] == KNOWN) {
 			clearAdjacentIfEnoughFlags(r, c);
 		}

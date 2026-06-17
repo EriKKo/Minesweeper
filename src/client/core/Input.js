@@ -100,11 +100,17 @@ function performAction(r, c, asFlag) {
 	// Solo is locked until the player hits Start and the countdown finishes.
 	if (mode === "solo" && soloSession && !soloSession.started) return;
 	if (mode === "puzzle" && typeof clearPuzzleHints === "function") clearPuzzleHints();
-	// Custom-lobby modifiers: "noFlags" blocks flag/right-click; "onlyFlags" routes every click through
-	// the flag tool (left-click reveal is disabled server-side, flags auto-chord). Matches the engine.
+	// Custom-lobby modifiers: "noFlags" blocks flag/right-click; "onlyFlags" lets only the flag tool act.
 	if (mode === "multiplayer" && currentRoom && currentRoom.modifier) {
 		if (currentRoom.modifier === "noFlags" && asFlag) return;
-		if (currentRoom.modifier === "onlyFlags") asFlag = true;
+		if (currentRoom.modifier === "onlyFlags" && !asFlag) {
+			// Flags-only: a left-click can't reveal — it only chords a revealed number (right-click places/
+			// removes flags, which auto-chord). A left-click on a covered or flagged cell is a no-op; on a
+			// revealed number it routes through the flag tool so the server (which ignores left_click in this
+			// mode) handles it as a chord.
+			if (!myState || myState[r][c] !== KNOWN) return;
+			asFlag = true;
+		}
 	}
 	focusedR = r;
 	focusedC = c;
