@@ -143,7 +143,7 @@ function serialize(rp, winnerIndex) {
 	for (var p = 0; p < rp.players.length; p++) {
 		var pl = rp.players[p];
 		w.str(pl.name);
-		w.u8(pl.isBot ? 1 : 0);
+		w.u8(0); // reserved (was a bot flag) — opponents being bots is hidden info, so it's never recorded
 		w.varint(pl.userId || 0);
 		w.str(pl.skin || ""); // v2: board skin id ("" → default)
 		w.str(pl.avatar || ""); // v3: avatar cloth colour ("" → default)
@@ -202,7 +202,7 @@ function finishMatch(room, seriesStandings) {
 			mineCount: rp.mineCount,
 			gameCount: rp.rounds.length,
 			winnerId: winnerIndex >= 0 ? (rp.players[winnerIndex].userId || null) : null,
-			players: rp.players.map(function(p) { return { name: p.name, bot: p.isBot, userId: p.userId, skin: p.skin || null, avatar: p.avatar || null, country: p.country || null }; }),
+			players: rp.players.map(function(p) { return { name: p.name, userId: p.userId, skin: p.skin || null, avatar: p.avatar || null, country: p.country || null }; }),
 			format: REPLAY_VERSION,
 			rawBytes: raw.length
 		};

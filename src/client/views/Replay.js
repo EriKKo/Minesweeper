@@ -39,7 +39,10 @@
 		var style = rd.str(), mode = rd.str();
 		var pc = rd.varint(), players = [];
 		for (var p = 0; p < pc; p++) {
-			var pl = { name: rd.str(), bot: !!rd.u8(), userId: rd.varint() || null };
+			var pl = { name: rd.str() };
+			rd.u8(); // bot flag byte — consumed for alignment but intentionally NOT surfaced (a player
+			         // can't tell which opponents were bots; that's hidden information)
+			pl.userId = rd.varint() || null;
 			pl.skin = version >= 2 ? (rd.str() || null) : null; // v2+ stores each player's board skin
 			if (version >= 3) { pl.avatar = rd.str() || null; pl.country = rd.str() || null; } // v3+ avatar + country
 			players.push(pl);
@@ -159,7 +162,6 @@
 		if (typeof buildAvatarChip === "function") label.appendChild(buildAvatarChip(pl.avatar || DEFAULT_AVATAR, pl.country || null, px >= 20 ? 40 : 28));
 		var nm = document.createElement("span"); nm.className = "replay-board-name"; nm.textContent = pl.name;
 		label.appendChild(nm);
-		if (pl.bot) { var bt = document.createElement("span"); bt.className = "replay-bot-tag"; bt.textContent = "BOT"; label.appendChild(bt); }
 		if (rep.winnerId && pl.userId === rep.winnerId) { var w = document.createElement("span"); w.className = "replay-win-tag"; w.textContent = "🏆"; label.appendChild(w); }
 		wrap.appendChild(label);
 		var canvas = buildCellCanvas(rep.cols, rep.rows, px, "replay-canvas");

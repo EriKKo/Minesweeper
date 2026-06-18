@@ -177,7 +177,8 @@ function registerSocketHandlers(socket, playerID) {
 		try { raw = zlib.gunzipSync(row.data); } catch (e) { socket.emit("replay_data", { id: id, error: "corrupt" }); return; }
 		socket.emit("replay_data", {
 			id: id, createdAt: row.created_at, style: row.style, mode: row.mode,
-			winnerId: row.winner_id, players: row.players ? JSON.parse(row.players) : [],
+			// Strip any legacy `bot` field — whether an opponent was a bot is hidden information.
+			winnerId: row.winner_id, players: row.players ? JSON.parse(row.players).map(function(p) { delete p.bot; return p; }) : [],
 			data: raw // Buffer → socket.io sends as binary; arrives as ArrayBuffer on the client
 		});
 	});

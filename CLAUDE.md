@@ -771,10 +771,13 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   `varint(dt_ms) + varint(cell<<1 | button)` (~2-3 B; button is 1 bit, 0=left/1=right — reveal-vs-chord
   is decided by board state on replay). Each round stores **two** bitmasks — `mines` (bomb layout) and
   `known` (the no-guess opening `init` reveals before any click; needed so playback's board doesn't start
-  fully covered). The per-player header carries name / bot flag / userId / **board-skin id** (so playback
-  renders each board in the skin its player had at match time). Format is versioned (`REPLAY_VERSION`,
-  currently **2**; v2 added the skin — readers version-gate it so v1 replays still decode, defaulting to
-  classic). A whole 1v1 sprint is ~300-350 B raw, gzipped to a BLOB. Capture rides three seams in
+  fully covered). The per-player header carries name / userId / **board-skin id** (so playback
+  renders each board in the skin its player had at match time) plus a reserved byte where a **bot flag**
+  used to live — **whether an opponent was a bot is hidden information**, so it's no longer recorded
+  (the byte is written `0`), not shipped in the replay metadata (stripped in `get_replay`, including for
+  legacy rows), and never surfaced by `Replay.js`. Format is versioned (`REPLAY_VERSION`,
+  currently **3**; v2 added the skin, v3 the avatar+country — readers version-gate so older replays still
+  decode, defaulting to classic). A whole 1v1 sprint is ~300-350 B raw, gzipped to a BLOB. Capture rides three seams in
   `minesweeperServer.js`: `startSeries`→`replay.startMatch` (arms `room.replay` for ranked non-territory
   rooms), `startGame`→`replay.startRound` (snapshots the two bitmasks) + `replay.attach` (wires
   `game.onMove` per player), and `endSeries`→`replay.finishMatch` (serialize + gzip + persist, then clear).
@@ -897,6 +900,11 @@ Ranked data persists in SQLite at `ranked.db` (gitignored), or `RANKED_DB` if se
 fly.io app `erik-minesweeper` at msbattle.net. `fly deploy`. The Dockerfile uses
 `node:24-alpine`; a fly volume `minesweeper_data` is mounted at `/data` and
 `RANKED_DB=/data/ranked.db` keeps ratings across restarts.
+
+The current single-process monolith is deliberate (built to move fast). The **long-term target**
+(splitting a stateless control plane from a fleet of authoritative per-match game servers, SQLite →
+Postgres, etc.) and the phased migration onto it live in **`ARCHITECTURE_PLAN.md`** — read that before
+any re-platforming or service-split work.
 
 ## Conventions
 
