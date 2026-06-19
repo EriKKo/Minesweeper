@@ -124,7 +124,8 @@ function setOppIdentity(i, p) {
 		}
 		if (typeof rating === "number" && typeof tierFor === "function") {
 			var t = tierFor(rating, prov);
-			tierEl.textContent = t.name + " · " + rating; tierEl.style.color = t.color;
+			// In-game we show only the rank tier, never the exact rating (hidden info — incl. your own).
+			tierEl.textContent = t.name; tierEl.style.color = t.color;
 		} else { tierEl.textContent = ""; }
 	}
 }
@@ -152,7 +153,8 @@ function fillDuelId(el, p, isYou) {
 		var rt = document.createElement("div");
 		rt.className = "duel-id-rating";
 		rt.style.color = t.color;
-		rt.textContent = t.name + "  ·  " + p.rating;
+		// In-game we show only the rank tier, never the exact rating (hidden info — incl. your own).
+		rt.textContent = t.name;
 		info.appendChild(rt);
 	}
 	el.appendChild(info);
@@ -1278,10 +1280,10 @@ document.getElementById("leave_button").addEventListener("click", function() {
 	if (currentRoom && currentRoom.phase === "playing") {
 		showConfirm("Leaving now counts as a loss.", {
 			title: "Leave game?", okText: "Leave", cancelText: "Stay", danger: true
-		}).then(function(ok) { if (ok) leaveRoom(); });
+		}).then(function(ok) { if (ok) leaveRoom(true); });
 		return;
 	}
-	leaveRoom();
+	leaveRoom(true);
 });
 
 readyButton.addEventListener("click", function() {
@@ -1421,7 +1423,7 @@ function cancelBattleSearch() {
 	currentRankedMode = null;
 	endBattleSearch();
 	exitGameFullscreen();
-	teardownRoomUI();
+	teardownRoomUI(true);
 }
 
 socket.on("ranked_searching", function(data) {
@@ -1457,7 +1459,10 @@ socket.on("admin_rating_set", function(data) {
 // Local teardown of the in-game UI: drop room state, clear danger, reset territory, and
 // re-route to the current URL (which hides #game_view). Used both when WE leave (leaveRoom —
 // applied immediately) and when the server confirms it (left_room).
-function teardownRoomUI() {
+// toHome: route to the home screen after teardown (the "Exit game" button). Otherwise re-apply the
+// current URL — used by navigate-away (clicking a nav link mid-game), where the URL is already the
+// target and we must honour it, not force home.
+function teardownRoomUI(toHome) {
 	if (typeof territoryReset === "function") territoryReset();
 	if (typeof clearPlaceBadges === "function") clearPlaceBadges();
 	if (typeof music !== "undefined") music.pause(); // stop the music only when truly leaving the game
@@ -1467,16 +1472,16 @@ function teardownRoomUI() {
 	elimPanelDismissed = false;
 	roundStartTime = 0;
 	setDanger(false);
-	applyRouteFromHash();
+	if (toHome) navigate("/"); else applyRouteFromHash();
 }
 
 // Leave the current room. Tears the UI down IMMEDIATELY rather than waiting for the server's
 // left_room echo — so the game view never lingers if that echo is slow/dropped or the route
 // fails to switch. The echo still arrives and applies any ranked Elo delta.
-function leaveRoom() {
+function leaveRoom(toHome) {
 	exitGameFullscreen();
 	socket.emit("leave_room");
-	teardownRoomUI();
+	teardownRoomUI(toHome);
 }
 
 socket.on("left_room", function(data) {

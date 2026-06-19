@@ -494,7 +494,9 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   The opponent board (`game1`) is sized to match the player board (`sizeOpponentCanvases()`) instead
   of the small sidebar thumbnail; the scoreboard/series side-cards are hidden. Each board has an
   **identity panel** (rank badge + name + tier via `buildDuelIdentity`/`fillDuelId`, reusing
-  `buildRankBadge`/`tierFor`) and a **progress bar**; the center `#duel_center` holds a VS badge over
+  `buildRankBadge`/`tierFor`) and a **progress bar**. **In-game shows only the rank tier, never the
+  exact rating — including your own** (`fillDuelId`/`setOppIdentity` render `tierFor(...).name` with no
+  number; the exact rating is hidden info during a match). The center `#duel_center` holds a VS badge over
   a vertical **tug-of-war bar** (your colour rises from the bottom by your share of combined
   progress), and the **leading** board glows in its side colour — all updated per frame by
   `updateDuelHud()` in `draw_board`. Driven by a `duo` class on `#game_view` (CSS `.game-view.duo`,
@@ -618,10 +620,13 @@ transparently — the `<script src>` paths carry the subfolder, e.g. `/core/Main
   NB the "leaving counts as a loss" prompt (in `leave_button` and the Router navigate-away path)
   uses the app's own `showConfirm` modal, **not** `window.confirm()` — browsers suppress native
   dialogs while fullscreen (they return false silently, so the button looked dead in-game).
-  Leaving goes through `leaveRoom()` (Main.js), which emits `leave_room` and then **tears the game
-  UI down immediately client-side** (`teardownRoomUI`: clear room state + re-route, which hides
+  Leaving goes through `leaveRoom(toHome)` (Main.js), which emits `leave_room` and then **tears the game
+  UI down immediately client-side** (`teardownRoomUI(toHome)`: clear room state + route, which hides
   `#game_view`) rather than waiting for the server's `left_room` echo — so the game never lingers
-  if that echo is slow/dropped. The echo still arrives and applies any ranked Elo delta.
+  if that echo is slow/dropped. The echo still arrives and applies any ranked Elo delta. **The "Exit
+  game" button (and search-cancel) pass `toHome=true` → always returns to the home screen** (`navigate("/")`);
+  the **navigate-away path** (clicking a nav link mid-game, via the Router) calls `leaveRoom()` with no
+  flag so `teardownRoomUI` re-applies the already-changed target URL instead of forcing home.
 - `MobileLayout.js`, `Sound.js`, `Overlay.js`, `RoundTimer.js`,
   `DangerWarning.js`, `BoardDecoder.js`, `Router.js`, `Auth.js`,
   `Ranking.js`, `Leaderboard.js`, `Profile.js`, `Lobby.js`,

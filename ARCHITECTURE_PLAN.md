@@ -165,6 +165,8 @@ small team until matchmaking volume genuinely demands a real fleet orchestrator.
   (game handlers/GameCreator/bots/territory/roomState/replay-capture). Extract the game logic
   (`BoardLogic`/`GameCreator`/`CSPSolver`/generators) into a **shared package** both tiers import.
   Define the **main↔game contract** (§8) and the **lifecycle/draining behaviour** (§7) up front.
+  **Broken into concrete tickets in [`PHASE0_TICKETS.md`](./PHASE0_TICKETS.md)** — all doable today
+  with zero infra/behaviour change.
 - **Phase 1 — Split out game servers; SQLite stays.** Move the live multiplayer runtime (game
   handlers, GameCreator, bots, territory + world-tick, replay capture) into a separate **game**
   service. **Main stays a single instance** and remains the sole SQLite owner + in-memory
