@@ -35,6 +35,21 @@ function matchIdFor(room) { return BOOT + ":room:" + room.id; }
 // it's stashed on the room (room.matchConfig) at startSeries. The captured `rating` is the same value
 // the end-of-match Elo reads (a player can't change rating mid-match), so it's the future input to
 // computeRankedElo — letting the rating math run without re-reading the DB.
+// The full set of AI knobs needed to rebuild a bot on a game server (P1-3): without these the game
+// server couldn't recreate the same opponent from the config.
+function botConfigOf(pid) {
+	return {
+		speedMs: appState.botSpeedMs[pid],
+		difficultyMs: appState.botDifficultyMs[pid],
+		distanceMult: appState.botDistanceMult[pid],
+		maxDifficulty: appState.botMaxDifficulty[pid],
+		mistakeRate: appState.botMistake[pid],
+		chordRate: appState.botChord[pid],
+		rating: appState.botRating[pid],
+		difficulty: appState.botDifficulty[pid] || null
+	};
+}
+
 function buildMatchConfig(room) {
 	var style = room.rankedStyle || null;
 	var roster = (room.players || []).map(function(pid) {
@@ -55,18 +70,25 @@ function buildMatchConfig(room) {
 			skin: appState.skins[pid] || null,
 			isBot: bot,
 			userId: userId,
-			rating: rating, // rating-before, per match style
-			played: played
+			rating: rating,                        // rating-before, per match style
+			played: played,
+			botConfig: bot ? botConfigOf(pid) : null // AI knobs so a game server can rebuild this bot (P1-3)
 		};
 	});
 	return {
+		// A complete reconstruction spec (P1-3): everything a game server needs to rebuild + run this
+		// match without touching main's state — match identity, rules, board dims, and the full roster.
 		matchId: matchIdFor(room),
+		roomId: room.id,
+		size: room.maxPlayers || (room.players ? room.players.length : 0),
 		ranked: !!room.ranked,
 		mode: room.rankedMode || null,
+		gameMode: room.gameMode || "race",
 		style: style,
 		rules: {
 			rows: room.rows, cols: room.cols, mineDensity: room.mineDensity,
-			roundSeconds: room.roundSeconds, gameCount: room.gameCount, modifier: room.modifier || null
+			roundSeconds: room.roundSeconds, deathPenalty: room.deathPenalty,
+			gameCount: room.gameCount, modifier: room.modifier || null
 		},
 		roster: roster
 	};

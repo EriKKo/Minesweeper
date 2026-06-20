@@ -20,25 +20,31 @@ before(() => {
 });
 
 const room = {
-	id: 7, ranked: true, rankedMode: "sprint_duo", rankedStyle: "sprint",
-	rows: 15, cols: 20, mineDensity: 0.1, roundSeconds: 120, gameCount: 5, modifier: null,
+	id: 7, maxPlayers: 2, ranked: true, rankedMode: "sprint_duo", rankedStyle: "sprint", gameMode: "race",
+	rows: 15, cols: 20, mineDensity: 0.1, roundSeconds: 120, deathPenalty: 0, gameCount: 5, modifier: null,
 	players: ["b1", "b2"]
 };
 
-test("config carries the match identity, rules, and a self-contained roster", () => {
+test("config is a complete reconstruction spec: identity, rules, board dims, roster", () => {
 	const cfg = results.buildMatchConfig(room);
 	assert.match(cfg.matchId, /:room:7$/);
+	assert.strictEqual(cfg.roomId, 7);
+	assert.strictEqual(cfg.size, 2);
 	assert.strictEqual(cfg.ranked, true);
 	assert.strictEqual(cfg.mode, "sprint_duo");
+	assert.strictEqual(cfg.gameMode, "race");
 	assert.strictEqual(cfg.style, "sprint");
 	assert.deepStrictEqual(cfg.rules, {
-		rows: 15, cols: 20, mineDensity: 0.1, roundSeconds: 120, gameCount: 5, modifier: null
+		rows: 15, cols: 20, mineDensity: 0.1, roundSeconds: 120, deathPenalty: 0, gameCount: 5, modifier: null
 	});
 	assert.strictEqual(cfg.roster.length, 2);
-	assert.deepStrictEqual(cfg.roster[0], {
-		pid: "b1", playerKey: "bot:b1", name: "BotOne", avatar: "#ef4444", country: null, skin: null,
-		isBot: true, userId: null, rating: 1234, played: 0
-	});
+	const b1 = cfg.roster[0];
+	assert.strictEqual(b1.pid, "b1");
+	assert.strictEqual(b1.playerKey, "bot:b1");
+	assert.strictEqual(b1.name, "BotOne");
+	assert.strictEqual(b1.isBot, true);
+	assert.strictEqual(b1.rating, 1234);
+	assert.ok(b1.botConfig && b1.botConfig.rating === 1234, "bot entry carries its AI config for rebuild");
 	assert.strictEqual(cfg.roster[1].rating, 1500);
 });
 

@@ -39,9 +39,12 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   **P1-5**, where the extracted game process builds its state fresh from the config keyed by playerKey —
   a contained change there, vs. a high-risk churn of the whole socket-keyed monolith now for no
   in-process benefit. P1-2 establishes the identity the token (P1-6) carries.
-- **P1-3 — Allocate builds the match from the config.** Move room/game/bot construction behind
-  `gameService.allocate(matchConfig)` so allocate is "hand a config → get a running match", not "pre-build
-  then start". Report flows back as a `ResultReport` message through the contract (retry-ready).
+- **P1-3 — MatchConfig is a complete reconstruction spec.** ✅ Enrich `buildMatchConfig` so a game
+  server can rebuild + run the match with no access to main's state: match identity, `roomId`, `size`,
+  rules (board dims, density, round time, death penalty, series, modifier), and a roster where each bot
+  carries its full AI config. The config-driven *construction function* (`buildMatchFromConfig`) is
+  wired + integration-tested in **P1-5**, on the game server that consumes it — rather than landing as
+  unwired code now.
 
 ### Transport + processes (needs a real runtime env to validate; staged)
 - **P1-4 — Client transport abstraction.** Wrap the client's single `socket` so lobby-ops vs match-ops
