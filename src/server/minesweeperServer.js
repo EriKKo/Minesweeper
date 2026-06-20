@@ -26,6 +26,7 @@ var http = require("http")
   , session = require("./runtime/session")
   , replay = require("./runtime/replay")
   , results = require("./runtime/results")
+  , lifecycle = require("./runtime/lifecycle")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -1077,4 +1078,6 @@ app.listen(PORT, "0.0.0.0", function() {
 	puzzleApi.ensurePoolTopUp();
 	reapGuests();
 	setInterval(reapGuests, 24 * 60 * 60 * 1000);
+	// Drain on SIGTERM (deploy / `npm run stop`): finish active matches, then exit. See runtime/lifecycle.js.
+	lifecycle.installShutdownHandler();
 });

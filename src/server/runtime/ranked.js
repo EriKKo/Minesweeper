@@ -14,6 +14,7 @@ var botPlayer = require("../engine/BotPlayer");
 var roomCreator = require("../engine/RoomCreator");
 var territory = require("./territory");
 var gameUtil = require("./gameUtil");
+var lifecycle = require("./lifecycle");
 
 // Shared queue state (same objects the server holds).
 var rankedQueues = appState.rankedQueues, pendingBotsLists = appState.pendingBotsLists;
@@ -204,6 +205,9 @@ function dequeueRanked(playerID) {
 }
 
 function formRankedMatch(mode) {
+	// While draining (shutting down), don't start new matches — queued players stay queued and get
+	// matched by the next instance after this one exits (P0-7 / ARCHITECTURE_PLAN.md §7).
+	if (lifecycle.isDraining()) return;
 	clearRankedFill(mode);
 	var matchSize = modeSize(mode);
 	var queuedBots = pendingBotsLists[mode];
