@@ -813,6 +813,10 @@ function attachGameClient(socket, playerID) {
 	entry.room.addPlayer(playerID);
 	entry.room.playerReady(playerID);
 	entry.attached[payload.playerKey] = playerID;
+	// Remember which seat (userId / rating-before) this game-socket holds, so the result report can carry
+	// it back to main for Elo-from-report (main has no account for this socket id).
+	if (!entry.room.seatByPid) entry.room.seatByPid = {};
+	entry.room.seatByPid[playerID] = seat;
 	socket.join("room:" + entry.room.id);
 	socket.emit("connected", { id: playerID, oauth: oauth.providerFlags() });
 	socket.emit("joined_room", { roomId: entry.room.id, ranked: !!entry.room.ranked, mode: entry.room.rankedMode || null });
@@ -842,12 +846,18 @@ function abortPendingMatch(matchId) {
 }
 
 // Game → main: post the finished match's result (wire-safe; the live room/config aren't serializable).
+// Each human standing is enriched with its userId + rating-before so main can apply Elo from the report.
 function reportResultToMain(report) {
 	if (!role.MAIN_URL) return;
+	var seatByPid = (report.room && report.room.seatByPid) || {};
+	var standings = (report.standings || []).map(function(s) {
+		var seat = seatByPid[s.id];
+		return seat ? Object.assign({}, s, { userId: seat.userId, ratingBefore: seat.rating, played: seat.played }) : s;
+	});
 	var wire = {
 		matchId: report.matchId, ranked: report.ranked, mode: report.mode, style: report.style,
-		standings: report.standings,
-		winnerId: (report.standings && report.standings[0]) ? report.standings[0].id : null
+		standings: standings,
+		winnerId: standings[0] ? standings[0].id : null
 	};
 	fetch(role.MAIN_URL + "/internal/report", {
 		method: "POST",

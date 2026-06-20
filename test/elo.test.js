@@ -7,10 +7,11 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 
-let elo;
+let elo, db;
 before(() => {
 	process.env.RANKED_DB = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ms-elo-")), "test.db");
 	elo = require("../src/server/runtime/elo");
+	db = require("../src/server/db");
 	elo.init({ RANKED_BOT_RATING: 1000, PROVISIONAL_GAMES: 5 });
 });
 
@@ -55,6 +56,25 @@ test("a rating can't fall below 0 (Bronze I floor)", () => {
 	];
 	elo.computeRankedElo(parts, "sprint");
 	assert.ok(parts[1].newRating >= 0, "floored at 0");
+});
+
+test("applyRankedEloFromReport persists by userId from a network report (P1-5)", () => {
+	// A report from a game server carries userId + rating-before per standing (no accounts cache).
+	const standings = [
+		{ id: "game-sock-A", rank: 1, name: "Winner", userId: 4242, ratingBefore: 1000, played: 10 },
+		{ id: "game-sock-B", rank: 2, name: "Loser", userId: 4343, ratingBefore: 1000, played: 10 }
+	];
+	elo.applyRankedEloFromReport(standings, "sprint");
+	const winnerRating = db.getUserById(4242) ? db.getUserById(4242).rating_sprint : null;
+	// The user rows didn't pre-exist, so updateRating is a no-op UPDATE; the durable proof is the
+	// match_history rows recorded by userId.
+	const hist = db.getMatchHistory(4242, 10);
+	assert.ok(hist.length >= 1, "winner's match recorded by userId");
+	assert.strictEqual(hist[0].style, "sprint");
+	assert.strictEqual(hist[0].won, 1, "rank-1 recorded as a win");
+	assert.ok(hist[0].rating_after > hist[0].rating_before, "winner gained rating");
+	const loserHist = db.getMatchHistory(4343, 10);
+	assert.ok(loserHist[0].rating_after < loserHist[0].rating_before, "loser lost rating");
 });
 
 test("pure & deterministic: same input → same output, no side effects", () => {

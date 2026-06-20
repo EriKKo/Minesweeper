@@ -210,11 +210,41 @@ function applyRankedElo(standings, style) {
 	}
 }
 
+// Apply Elo from a result report that arrived OVER THE NETWORK (from a game server). Unlike
+// applyRankedElo, it can't read the in-memory accounts cache (those sockets live on the game server),
+// so each standing carries its own userId + rating-before + played, captured at match start. The pure
+// computeRankedElo does the math; we persist by userId. (P1-5 Elo-from-report.)
+function applyRankedEloFromReport(standings, style) {
+	if (!standings || standings.length < 2) return;
+	var parts = standings.map(function(s) {
+		return {
+			rank: s.rank,
+			rating: (typeof s.ratingBefore === "number") ? s.ratingBefore : RANKED_BOT_RATING,
+			progress: s.progress,
+			bot: !s.userId,
+			userId: s.userId || null,
+			played: s.played || 0
+		};
+	});
+	computeRankedElo(parts, style);
+	for (var i = 0; i < parts.length; i++) {
+		var p = parts[i];
+		if (!p.userId) continue;
+		db.updateRating(p.userId, p.newRating, p.rank === 1, style);
+		db.recordMatch({
+			userId: p.userId, style: style, ratingBefore: p.rating, ratingAfter: p.newRating,
+			placement: p.rank, players: parts.length, won: p.rank === 1,
+			opponent: (parts.length === 2 && standings[1 - i]) ? standings[1 - i].name : null
+		});
+	}
+}
+
 module.exports = {
 	init: init,
 	readUserRating: readUserRating,
 	applyEloForPlayer: applyEloForPlayer,
 	tournamentEloParts: tournamentEloParts,
 	computeRankedElo: computeRankedElo,
-	applyRankedElo: applyRankedElo
+	applyRankedElo: applyRankedElo,
+	applyRankedEloFromReport: applyRankedEloFromReport
 };

@@ -123,7 +123,12 @@ function persistResult(report) {
 		// Apply this match's results at most once (P0-5). A retried/duplicate report short-circuits here
 		// so Elo + replay are never double-applied. Non-ranked matches persist nothing, so they skip the guard.
 		if (!db.markMatchPersisted(report.matchId)) return { applied: false };
-		if (report.mode !== "tournament") elo.applyRankedElo(report.standings, report.style);
+		if (report.mode !== "tournament") {
+			// In-process the report carries the live room → read ratings from the accounts cache; a report
+			// from a game server over the network carries userId + rating-before per standing instead.
+			if (report.room) elo.applyRankedElo(report.standings, report.style);
+			else elo.applyRankedEloFromReport(report.standings, report.style);
+		}
 	}
 	// In-process the report carries the live room (its replay accumulator); a report arriving over the
 	// internal API from a game server won't (replay shipping is a later step), so guard it.

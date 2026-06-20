@@ -16,6 +16,9 @@ var territory = require("./territory");
 var gameUtil = require("./gameUtil");
 var lifecycle = require("./lifecycle");
 var gameService = require("./gameService");
+var role = require("./role");
+var matchToken = require("./matchToken");
+var identity = require("./identity");
 
 // Shared queue state (same objects the server holds).
 var rankedQueues = appState.rankedQueues, pendingBotsLists = appState.pendingBotsLists;
@@ -252,6 +255,15 @@ function formRankedMatch(mode) {
 		return;
 	}
 
+	// Main role (split): don't build the match locally — allocate it to a game server and hand each
+	// client a join token + the game server's address (P1-5/P1-6). The match runs there; results come
+	// back via /internal/report.
+	if (role.ROLE === "main") {
+		allocateMatchToGameServer(mode, modeDef, matchSize, humans, botSpecs);
+		if (rankedQueues[mode].length > 0) { broadcastRankedQueue(mode); scheduleBotArrival(mode); }
+		return;
+	}
+
 	// Build the live match from the spec (P1-3) — the same config-driven construction the game server
 	// runs when main hands it a match in the split.
 	var id = newRoomId();
@@ -296,6 +308,59 @@ function formRankedMatch(mode) {
 		broadcastRankedQueue(mode);
 		scheduleBotArrival(mode);
 	}
+}
+
+// Main role: build the allocation spec, POST it to a game server, and on success hand each human a join
+// token + the game server's address so their client connects there for the match (P1-5/P1-6).
+function allocateMatchToGameServer(mode, modeDef, matchSize, humans, botSpecs) {
+	var gameUrl = role.GAME_SERVERS[0];
+	if (!gameUrl) { // no game server configured — don't strand players, re-queue them
+		humans.forEach(function(pid) { if (appState.sockets[pid] && appState.accounts[pid]) enqueueRanked(pid, mode); });
+		return;
+	}
+	var style = modeDef.style;
+	var matchId = "m:" + Date.now() + ":" + newRoomId();
+	var humanRoster = humans.map(function(pid) {
+		var acc = appState.accounts[pid];
+		var u = acc ? db.getUserById(acc.userId) : null;
+		return {
+			playerKey: identity.playerKeyFor(pid),
+			name: appState.names[pid] || "Anonymous",
+			avatar: appState.avatars[pid] || null,
+			country: appState.countries[pid] || null,
+			skin: appState.skins[pid] || null,
+			userId: acc ? acc.userId : null,
+			rating: u ? readUserRating(u, style) : 1000,
+			played: u ? u.played : 0
+		};
+	});
+	var spec = {
+		matchId: matchId, roomId: newRoomId(), size: matchSize,
+		ranked: true, mode: mode, style: style, gameMode: modeDef.gameMode || "race", boardSize: modeDef.boardSize,
+		rules: {
+			mineDensity: modeDef.mineDensity,
+			roundSeconds: (typeof modeDef.roundSeconds === "number") ? modeDef.roundSeconds : RANKED_RULES.roundSeconds,
+			deathPenalty: RANKED_RULES.deathPenalty, gameCount: RANKED_RULES.gameCount, modifier: null
+		},
+		tournament: (mode === "tournament") ? { schedule: modeDef.schedule } : null,
+		humanRoster: humanRoster,
+		bots: botSpecs
+	};
+	fetch(gameUrl + "/internal/allocate", {
+		method: "POST", headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET }, body: JSON.stringify(spec)
+	}).then(function(r) { if (!r.ok) throw new Error("allocate " + r.status); return r.json(); })
+		.then(function() {
+			humans.forEach(function(pid) {
+				var acc = appState.accounts[pid];
+				var token = matchToken.issueMatchToken({ matchId: matchId, playerKey: identity.playerKeyFor(pid), userId: acc ? acc.userId : null });
+				var sock = appState.sockets[pid];
+				if (sock) sock.emit("match_handoff", { gameUrl: gameUrl, token: token, matchId: matchId, mode: mode, ranked: true });
+			});
+		})
+		.catch(function(e) {
+			console.error("allocate to game server failed", e);
+			humans.forEach(function(pid) { if (appState.sockets[pid] && appState.accounts[pid]) enqueueRanked(pid, mode); });
+		});
 }
 
 module.exports = {
