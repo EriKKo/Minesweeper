@@ -25,8 +25,9 @@ var replay = require("./replay");
 // dedupes). In the real split this is replaced by the allocation-time matchId carried in the MatchConfig (P0-2).
 var BOOT = Date.now();
 
-// A stable matchId for a room (boot-stamped; see BOOT above).
-function matchIdFor(room) { return BOOT + ":room:" + room.id; }
+// A stable matchId for a room. Prefers the id main assigned at allocation (carried in the spec and
+// stamped onto the room by buildMatchFromConfig), falling back to a boot-stamped local id.
+function matchIdFor(room) { return room.allocatedMatchId || (BOOT + ":room:" + room.id); }
 
 // Build the self-contained MatchConfig at match start (PHASE0_TICKETS.md P0-2). It captures everything
 // the match needs so a game server would need no DB read: the rules, and a roster with each player's

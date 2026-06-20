@@ -177,6 +177,31 @@ gameService.init({
 	addBotToRoom: botMgr.addBotToRoom,
 	territoryDims: territory.dims
 });
+
+// Game-server role (P1-5): build + run matches handed over the internal API, and report outcomes back
+// to main instead of persisting locally. (ROLE=both/main keep the in-process persistResult handler.)
+if (role.ROLE === "game") {
+	internalApi.setAllocateHandler(function(spec) {
+		var room = gameService.buildMatchFromConfig(spec);
+		for (var i = 0; i < room.players.length; i++) room.playerReady(room.players[i]);
+		startSeries(room); // run the match; endSeries → gameService.reportResult → POST to main (below)
+		return { matchId: spec.matchId };
+	});
+	gameService.setResultHandler(function(report) {
+		if (!role.MAIN_URL) return;
+		// Wire-safe report: the live room/config aren't serializable; main re-derives what it needs.
+		var wire = {
+			matchId: report.matchId, ranked: report.ranked, mode: report.mode, style: report.style,
+			standings: report.standings,
+			winnerId: (report.standings && report.standings[0]) ? report.standings[0].id : null
+		};
+		fetch(role.MAIN_URL + "/internal/report", {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET },
+			body: JSON.stringify(wire)
+		}).catch(function(e) { console.error("report to main failed", e); });
+	});
+}
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = appState.rankedQueues;
 var pendingBotsLists = appState.pendingBotsLists;

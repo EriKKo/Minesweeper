@@ -33,6 +33,9 @@ function init(deps) {
 // lets the same builder serve both the in-process monolith and a game server where humans attach later.
 function buildMatchFromConfig(spec) {
 	var room = _createRoom(spec.roomId, spec.ownerPid, spec.size);
+	// Preserve the matchId main assigned (in the spec) so the result reported back correlates to the
+	// allocation. results.matchIdFor prefers this over the locally-derived id.
+	if (spec.matchId) room.allocatedMatchId = spec.matchId;
 	room.ranked = !!spec.ranked;
 	room.rankedMode = spec.mode || null;
 	room.rankedStyle = spec.style || null;

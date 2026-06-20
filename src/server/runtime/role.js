@@ -16,11 +16,15 @@ var INTERNAL_SECRET = process.env.INTERNAL_SECRET || "dev-internal-secret";
 // Comma-separated base URLs of the game servers main can allocate to (split only).
 var GAME_SERVERS = (process.env.GAME_SERVERS || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
 
+// Where a game server posts its result reports back to (the control plane).
+var MAIN_URL = process.env.MAIN_URL || "";
+
 module.exports = {
 	ROLE: ROLE,
 	isMain: function() { return ROLE === "main" || ROLE === "both"; },
 	isGame: function() { return ROLE === "game" || ROLE === "both"; },
 	isSplit: function() { return ROLE === "main" || ROLE === "game"; },
 	INTERNAL_SECRET: INTERNAL_SECRET,
-	GAME_SERVERS: GAME_SERVERS
+	GAME_SERVERS: GAME_SERVERS,
+	MAIN_URL: MAIN_URL
 };
