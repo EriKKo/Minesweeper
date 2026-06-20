@@ -15,6 +15,7 @@ var roomCreator = require("../engine/RoomCreator");
 var territory = require("./territory");
 var gameUtil = require("./gameUtil");
 var lifecycle = require("./lifecycle");
+var gameService = require("./gameService");
 
 // Shared queue state (same objects the server holds).
 var rankedQueues = appState.rankedQueues, pendingBotsLists = appState.pendingBotsLists;
@@ -221,52 +222,17 @@ function formRankedMatch(mode) {
 	}
 	if (humans.length === 0) return;
 
-	var id = newRoomId();
 	var modeDef = RANKED_MODES[mode];
-	var room = roomCreator.createRoom(id, humans[0], matchSize);
-	room.ranked = true;
-	room.rankedMode = mode;
-	room.rankedStyle = modeDef.style; // sprint / standard / tournament
-	room.roundSeconds = RANKED_RULES.roundSeconds;
-	room.deathPenalty = RANKED_RULES.deathPenalty;
-	room.mineDensity = modeDef.mineDensity;
-	room.setBoardSize(modeDef.boardSize);
-	if (typeof modeDef.roundSeconds === "number") room.roundSeconds = modeDef.roundSeconds; // honor an explicit 0 (territory has no clock)
-	if (modeDef.gameMode === "territory") {
-		room.gameMode = "territory";
-		var td = territory.dims(modeDef.size); room.rows = td.rows; room.cols = td.cols;
-	}
-	if (mode === "tournament") {
-		room.tournamentSchedule = modeDef.schedule.slice();
-		room.tournamentParticipants = [];   // populated after players join
-		room.tournamentEliminated = {};      // pid -> { round, place }
-		room.gameCount = modeDef.schedule.length;
-	} else {
-		room.gameCount = RANKED_RULES.gameCount;
-	}
-	rooms[id] = room;
 
-	for (var i = 0; i < humans.length; i++) {
-		var hid = humans[i];
-		var socket = sockets[hid];
-		games[hid] = createPlayerGame(hid, room.rows, room.cols);
-		roomMapping[hid] = room;
-		room.addPlayer(hid);
-		socket.leave("lobby");
-		socket.join("room:" + room.id);
-		socket.emit("joined_room", { roomId: room.id, ranked: true, mode: mode });
+	// Decide the bots that fill the remaining seats: those already shown during the search first, then a
+	// top-up tuned to the lobby's average human rating. Computed BEFORE construction so the match is built
+	// from a single spec (P1-3) — the same spec a game server would receive in the split.
+	var seats = matchSize - humans.length;
+	var botSpecs = [];
+	for (var b = 0; b < queuedBots.length && botSpecs.length < seats && botSpecs.length < MAX_BOTS_PER_ROOM; b++) {
+		botSpecs.push({ config: queuedBots[b].config, name: queuedBots[b].name });
 	}
-
-	// Use the bot identities already shown to the player during the search so the
-	// opponents who appear in the lobby slot list are the same who join the match.
-	for (var b = 0; b < queuedBots.length && room.players.length < matchSize; b++) {
-		if (botCount(room) >= MAX_BOTS_PER_ROOM) break;
-		addBotToRoom(room, queuedBots[b].config, queuedBots[b].name);
-	}
-	// If queued bots weren't enough (e.g. a player joined late and the queue size
-	// jumped without enough bot timers firing), top up with fresh bots tuned to
-	// the lobby's average human rating.
-	if (!modeDef.noBots && room.players.length < matchSize) {
+	if (!modeDef.noBots && botSpecs.length < seats) {
 		var sumElo = 0, eloCount = 0;
 		for (var h = 0; h < humans.length; h++) {
 			var acc = accounts[humans[h]];
@@ -274,22 +240,44 @@ function formRankedMatch(mode) {
 			if (u) { sumElo += readUserRating(u, modeDef.style); eloCount++; }
 		}
 		var targetElo = eloCount ? Math.round(sumElo / eloCount) : 1000;
-		while (room.players.length < matchSize && botCount(room) < MAX_BOTS_PER_ROOM) {
-			if (!addBotToRoom(room, botPlayer.pickBotFromPool(targetElo))) break;
+		while (botSpecs.length < seats && botSpecs.length < MAX_BOTS_PER_ROOM) {
+			botSpecs.push({ config: botPlayer.pickBotFromPool(targetElo), name: null });
 		}
 	}
 
-	// Human-only mode that couldn't reach full size (rare race): re-queue the lone player
-	// and tear the room down rather than start a game that can't run.
-	if (modeDef.noBots && room.players.length < matchSize) {
-		var leftover = room.players.slice();
-		leftover.forEach(function(pid) {
-			delete roomMapping[pid]; delete games[pid];
-			if (sockets[pid]) sockets[pid].leave("room:" + room.id);
-		});
-		delete rooms[room.id];
-		leftover.forEach(function(pid) { if (sockets[pid] && accounts[pid]) enqueueRanked(pid, mode); });
+	// Human-only mode that couldn't reach full size (rare race): re-queue the lone player and abort
+	// before building anything.
+	if (modeDef.noBots && (humans.length + botSpecs.length) < matchSize) {
+		humans.forEach(function(pid) { if (sockets[pid] && accounts[pid]) enqueueRanked(pid, mode); });
 		return;
+	}
+
+	// Build the live match from the spec (P1-3) — the same config-driven construction the game server
+	// runs when main hands it a match in the split.
+	var id = newRoomId();
+	var room = gameService.buildMatchFromConfig({
+		roomId: id, ownerPid: humans[0], size: matchSize,
+		ranked: true, mode: mode, style: modeDef.style, gameMode: modeDef.gameMode || "race",
+		boardSize: modeDef.boardSize,
+		rules: {
+			mineDensity: modeDef.mineDensity,
+			roundSeconds: (typeof modeDef.roundSeconds === "number") ? modeDef.roundSeconds : RANKED_RULES.roundSeconds,
+			deathPenalty: RANKED_RULES.deathPenalty,
+			gameCount: RANKED_RULES.gameCount,
+			modifier: null
+		},
+		tournament: (mode === "tournament") ? { schedule: modeDef.schedule } : null,
+		humans: humans,
+		bots: botSpecs,
+		maxBots: MAX_BOTS_PER_ROOM
+	});
+
+	// Attach each human's socket to the room (transport binding — separate from building the match state).
+	for (var i = 0; i < humans.length; i++) {
+		var socket = sockets[humans[i]];
+		socket.leave("lobby");
+		socket.join("room:" + room.id);
+		socket.emit("joined_room", { roomId: room.id, ranked: true, mode: mode });
 	}
 
 	for (var j = 0; j < room.players.length; j++) room.playerReady(room.players[j]);

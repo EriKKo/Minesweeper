@@ -163,8 +163,16 @@ ranked.init({
 	broadcastRoomState: roomState.broadcastRoomState,
 	startSeries: gameService.allocate // matchmaking starts a match through the game-service boundary (P1-1)
 });
-// Wire the game-service boundary: allocate runs a match (startSeries), reportResult persists the outcome.
-gameService.init({ startMatch: startSeries, onResult: results.persistResult });
+// Wire the game-service boundary: allocate runs a match (startSeries), reportResult persists the outcome,
+// and the construction deps let it rebuild a match from a spec (P1-3/P1-5).
+gameService.init({
+	startMatch: startSeries,
+	onResult: results.persistResult,
+	createRoom: roomCreator.createRoom,
+	createPlayerGame: createPlayerGame,
+	addBotToRoom: botMgr.addBotToRoom,
+	territoryDims: territory.dims
+});
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = appState.rankedQueues;
 var pendingBotsLists = appState.pendingBotsLists;

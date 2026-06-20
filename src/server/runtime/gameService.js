@@ -7,13 +7,63 @@
 // In P1-5 the in-process transport is swapped for a real internal API (main allocates over the wire;
 // the game process reports back) WITHOUT changing any caller: they keep calling allocate / reportResult.
 
+var appState = require("./appState");
+var gameUtil = require("./gameUtil");
+
 var startMatch = null;    // injected: the core's startSeries(room) — "run this match"
 var resultHandler = null; // injected/registered: results.persistResult(report) — "persist this outcome"
+// Construction deps (P1-3/P1-5) — injected so this module can rebuild a match from a spec without
+// importing the server. On the future game server these are local; here they're the monolith's.
+var _createRoom = null, _createPlayerGame = null, _addBotToRoom = null, _territoryDims = null;
 
 function init(deps) {
 	deps = deps || {};
 	if (deps.startMatch) startMatch = deps.startMatch;
 	if (deps.onResult) resultHandler = deps.onResult;
+	if (deps.createRoom) _createRoom = deps.createRoom;
+	if (deps.createPlayerGame) _createPlayerGame = deps.createPlayerGame;
+	if (deps.addBotToRoom) _addBotToRoom = deps.addBotToRoom;
+	if (deps.territoryDims) _territoryDims = deps.territoryDims;
+}
+
+// Build the live match (room + games + bots) from an allocation spec — the config-driven construction
+// the game server runs when main hands it a match (P1-3/P1-5). Humans are seated by pid (their games
+// created now); bots are created from their stored AI configs. Socket attachment (join/emit) is the
+// caller's concern — building the match state is separate from binding a transport to it, which is what
+// lets the same builder serve both the in-process monolith and a game server where humans attach later.
+function buildMatchFromConfig(spec) {
+	var room = _createRoom(spec.roomId, spec.ownerPid, spec.size);
+	room.ranked = !!spec.ranked;
+	room.rankedMode = spec.mode || null;
+	room.rankedStyle = spec.style || null;
+	room.mineDensity = spec.rules.mineDensity;
+	if (spec.boardSize) room.setBoardSize(spec.boardSize);
+	room.deathPenalty = spec.rules.deathPenalty;
+	room.gameCount = spec.rules.gameCount;
+	if (typeof spec.rules.roundSeconds === "number") room.roundSeconds = spec.rules.roundSeconds;
+	if (spec.rules.modifier && room.setModifier) room.setModifier(spec.rules.modifier);
+	if (spec.gameMode === "territory") {
+		room.gameMode = "territory";
+		var td = _territoryDims(spec.size);
+		room.rows = td.rows; room.cols = td.cols;
+	}
+	if (spec.tournament) {
+		room.tournamentSchedule = spec.tournament.schedule.slice();
+		room.tournamentParticipants = [];
+		room.tournamentEliminated = {};
+		room.gameCount = spec.tournament.schedule.length;
+	}
+	appState.rooms[spec.roomId] = room;
+	(spec.humans || []).forEach(function(pid) {
+		appState.games[pid] = _createPlayerGame(pid, room.rows, room.cols);
+		appState.roomMapping[pid] = room;
+		room.addPlayer(pid);
+	});
+	(spec.bots || []).forEach(function(b) {
+		if (gameUtil.botCount(room) >= (spec.maxBots || Infinity)) return;
+		_addBotToRoom(room, b.config, b.name);
+	});
+	return room;
 }
 
 function setResultHandler(fn) { resultHandler = fn; }
@@ -36,5 +86,6 @@ module.exports = {
 	init: init,
 	setResultHandler: setResultHandler,
 	allocate: allocate,
+	buildMatchFromConfig: buildMatchFromConfig,
 	reportResult: reportResult
 };
