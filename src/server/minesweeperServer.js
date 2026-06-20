@@ -553,6 +553,9 @@ function startGame(room) {
 
 function startSeries(room) {
 	room.startSeries();
+	// Capture the self-contained MatchConfig at match start (P0-2): rules + roster + rating-before.
+	// In the split this is what main hands the game server; today it's stashed for the result report.
+	room.matchConfig = results.buildMatchConfig(room);
 	replay.startMatch(room);
 	roomState.broadcastRoomState(room);
 	roomState.broadcastRoomList();

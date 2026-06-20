@@ -13,6 +13,8 @@
 // path (runtime/territory.js) and will be routed through here in a later phase.
 
 var db = require("../db");
+var appState = require("./appState");
+var gameUtil = require("./gameUtil");
 var elo = require("./elo");
 var replay = require("./replay");
 
@@ -22,20 +24,67 @@ var replay = require("./replay");
 // dedupes). In the real split this is replaced by the allocation-time matchId carried in the MatchConfig (P0-2).
 var BOOT = Date.now();
 
+// A stable matchId for a room (boot-stamped; see BOOT above).
+function matchIdFor(room) { return BOOT + ":room:" + room.id; }
+
+// Build the self-contained MatchConfig at match start (PHASE0_TICKETS.md P0-2). It captures everything
+// the match needs so a game server would need no DB read: the rules, and a roster with each player's
+// identity (name/avatar/country/skin), bot flag, userId, and **rating-before + games-played captured
+// now**. In the target architecture main builds this and hands it to the allocated game server; today
+// it's stashed on the room (room.matchConfig) at startSeries. The captured `rating` is the same value
+// the end-of-match Elo reads (a player can't change rating mid-match), so it's the future input to
+// computeRankedElo — letting the rating math run without re-reading the DB.
+function buildMatchConfig(room) {
+	var style = room.rankedStyle || null;
+	var roster = (room.players || []).map(function(pid) {
+		var bot = gameUtil.isBot(pid);
+		var acc = appState.accounts[pid];
+		var rating = bot ? (appState.botRating[pid] || null) : null;
+		var userId = null, played = 0;
+		if (!bot && acc) {
+			var u = db.getUserById(acc.userId);
+			if (u) { rating = elo.readUserRating(u, style); userId = acc.userId; played = u.played; }
+		}
+		return {
+			pid: pid,
+			name: appState.names[pid] || "Anonymous",
+			avatar: appState.avatars[pid] || null,
+			country: appState.countries[pid] || null,
+			skin: appState.skins[pid] || null,
+			isBot: bot,
+			userId: userId,
+			rating: rating, // rating-before, per match style
+			played: played
+		};
+	});
+	return {
+		matchId: matchIdFor(room),
+		ranked: !!room.ranked,
+		mode: room.rankedMode || null,
+		style: style,
+		rules: {
+			rows: room.rows, cols: room.cols, mineDensity: room.mineDensity,
+			roundSeconds: room.roundSeconds, gameCount: room.gameCount, modifier: room.modifier || null
+		},
+		roster: roster
+	};
+}
+
 // Build the report a finished match hands to persistence. `standings` is the series standings, already
 // mutated with placement + cumulative score + per-series progress. `room` is carried by reference for the
 // in-process replay capture (room.replay holds the input log); in the split this becomes a serialized
 // roster + a prebuilt replay blob shipped in the report.
 function buildResultReport(room, seriesStandings) {
+	var config = room.matchConfig || null;
 	return {
-		// Stable per ranked match (ranked rooms are single-match, so room.id identifies the match), and
-		// unique across restarts via the boot stamp. The idempotency key for P0-5. Casual rematches reuse
-		// a room id but don't persist, so collisions there are moot.
-		matchId: BOOT + ":room:" + room.id,
+		// Stable per ranked match and unique across restarts (boot stamp). The idempotency key for P0-5.
+		// Tied to the MatchConfig's id when one was captured, so start + end agree on the match identity.
+		matchId: (config && config.matchId) || matchIdFor(room),
 		ranked: !!room.ranked,
 		mode: room.rankedMode || null,
 		style: room.rankedStyle || null,
 		standings: seriesStandings,
+		config: config, // self-contained roster + rating-before captured at start (P0-2)
 		room: room
 	};
 }
@@ -55,6 +104,7 @@ function persistResult(report) {
 }
 
 module.exports = {
+	buildMatchConfig: buildMatchConfig,
 	buildResultReport: buildResultReport,
 	persistResult: persistResult
 };
