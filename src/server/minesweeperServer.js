@@ -28,6 +28,8 @@ var http = require("http")
   , results = require("./runtime/results")
   , lifecycle = require("./runtime/lifecycle")
   , gameService = require("./runtime/gameService")
+  , role = require("./runtime/role")
+  , internalApi = require("./runtime/internalApi")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -79,6 +81,8 @@ territory.init({
 // then static client assets (each module early-returns if it owns the path).
 function handler (req, res) {
 	var url = new URL(req.url, oauth.OAUTH_BASE);
+	// Internal main↔game API (split roles only) — secret-guarded, never part of the monolith surface.
+	if (role.isSplit() && internalApi.handleInternalRoute(req, res, url)) return;
 	if (oauth.handleAuthRoute(req, res, url)) return;
 	if (puzzleApi.handleApiRoute(req, res, url)) return;
 	staticServer.serve(res, url.pathname);

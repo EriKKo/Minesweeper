@@ -24,7 +24,7 @@ async function startServer(opts) {
 	}
 	var child = spawn("node", ["src/server/minesweeperServer.js"], {
 		cwd: ROOT,
-		env: Object.assign({}, process.env, { PORT: String(port), RANKED_DB: dbPath, DEV_AUTH: "1" }),
+		env: Object.assign({}, process.env, { PORT: String(port), RANKED_DB: dbPath, DEV_AUTH: "1" }, opts.env || {}),
 		stdio: "ignore"
 	});
 	var base = "http://localhost:" + port;

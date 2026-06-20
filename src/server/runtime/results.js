@@ -117,14 +117,17 @@ function buildResultReport(room, seriesStandings) {
 // captured replay (a no-op when nothing was recorded). The one call the match-end path makes into
 // persistence.
 function persistResult(report) {
-	if (!report) return;
+	if (!report) return { applied: false };
 	if (report.ranked) {
 		// Apply this match's results at most once (P0-5). A retried/duplicate report short-circuits here
 		// so Elo + replay are never double-applied. Non-ranked matches persist nothing, so they skip the guard.
-		if (!db.markMatchPersisted(report.matchId)) return;
+		if (!db.markMatchPersisted(report.matchId)) return { applied: false };
 		if (report.mode !== "tournament") elo.applyRankedElo(report.standings, report.style);
 	}
-	replay.finishMatch(report.room, report.standings);
+	// In-process the report carries the live room (its replay accumulator); a report arriving over the
+	// internal API from a game server won't (replay shipping is a later step), so guard it.
+	if (report.room) replay.finishMatch(report.room, report.standings);
+	return { applied: true };
 }
 
 module.exports = {
