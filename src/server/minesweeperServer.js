@@ -25,6 +25,7 @@ var http = require("http")
   , roomState = require("./runtime/roomState")
   , session = require("./runtime/session")
   , replay = require("./runtime/replay")
+  , results = require("./runtime/results")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -381,10 +382,10 @@ function endSeries(room) {
 		room.seriesWinner = seriesStandings[0] ? seriesStandings[0].id : null;
 	} else {
 		seriesStandings = standings.buildSeriesStandings(room);
-		if (room.ranked) elo.applyRankedElo(seriesStandings, room.rankedStyle);
 	}
-	// Persist the captured replay (no-op unless this was a ranked match being recorded).
-	replay.finishMatch(room, seriesStandings);
+	// Single persistence seam: ranked racing Elo (tournament rated incrementally elsewhere) + the
+	// captured replay (no-op unless this was a ranked match being recorded). See runtime/results.js.
+	results.persistResult(results.buildResultReport(room, seriesStandings));
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
