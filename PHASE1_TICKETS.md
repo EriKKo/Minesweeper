@@ -64,8 +64,15 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   route through `activeGameSocket()`. Game role sets CORS so the cross-origin connection is allowed.
   **Verified live in a real browser** against a main(1401)+game(1402) pair: matchmake → handoff → direct
   game-server connection → ranked 1v1 played on the game server, zero console errors. Dormant in the monolith.
-- **P1-7 — Reconnection + draining across the boundary.** A dropped player re-resolves the same game
-  server via main; game servers drain (P0-7) as a fleet — new games to new instances, old finish + exit.
+- **P1-7 — Draining-aware allocation + reconnection.** ✅ **Draining (deploy-critical) done:** a game
+  server refuses new matches while draining (`/internal/allocate` → 503) and reports `draining` in
+  `/internal/health`; main tries each `GAME_SERVERS` entry in turn and falls through past a draining or
+  down one (`test/failover.test.js`), so a fleet rollover never strands a match. Combined with P0-7
+  (drain active matches, then exit), the game tier deploys with no interruption. **Reconnection
+  (deferred):** full live-match reconnect (a dropped player re-binding to the same game server, re-keying
+  live state from the old socket to the new) is a follow-up — it's general network-blip robustness, NOT
+  required for no-downtime deploys (a draining server keeps its active connections alive until matches
+  finish, so a deploy never drops an in-game player).
 - **P1-8 — Deploy as two fly apps.** `main` (single Machine, SQLite volume) + `game` (Machines-API fleet,
   per-match/region). Static assets via CDN. See ARCHITECTURE_PLAN.md §5/§7.
 

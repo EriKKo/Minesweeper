@@ -28,7 +28,7 @@ function handleInternalRoute(req, res, url) {
 	if ((req.headers["x-internal-secret"] || "") !== role.INTERNAL_SECRET) { send(res, 403, { error: "forbidden" }); return true; }
 
 	if (url.pathname === "/internal/health") {
-		send(res, 200, { ok: true, role: role.ROLE, activeMatches: lifecycle.activeMatchCount() });
+		send(res, 200, { ok: true, role: role.ROLE, draining: lifecycle.isDraining(), activeMatches: lifecycle.activeMatchCount() });
 		return true;
 	}
 
@@ -45,6 +45,9 @@ function handleInternalRoute(req, res, url) {
 	// main → game: build + run a match from an allocation spec.
 	if (url.pathname === "/internal/allocate" && req.method === "POST") {
 		if (!allocateHandler) { send(res, 503, { error: "no_allocate_handler" }); return true; }
+		// Refuse new matches while draining (deploy in progress) — main routes them to another game
+		// server. Active matches on this instance keep running until they finish (P0-7).
+		if (lifecycle.isDraining()) { send(res, 503, { error: "draining" }); return true; }
 		readJson(req, function(err, spec) {
 			if (err) { send(res, 400, { error: "bad_json" }); return; }
 			try { var info = allocateHandler(spec) || {}; send(res, 200, { ok: true, matchId: info.matchId || (spec && spec.matchId) || null }); }
