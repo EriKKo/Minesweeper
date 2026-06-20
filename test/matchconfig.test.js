@@ -36,7 +36,7 @@ test("config carries the match identity, rules, and a self-contained roster", ()
 	});
 	assert.strictEqual(cfg.roster.length, 2);
 	assert.deepStrictEqual(cfg.roster[0], {
-		pid: "b1", name: "BotOne", avatar: "#ef4444", country: null, skin: null,
+		pid: "b1", playerKey: "bot:b1", name: "BotOne", avatar: "#ef4444", country: null, skin: null,
 		isBot: true, userId: null, rating: 1234, played: 0
 	});
 	assert.strictEqual(cfg.roster[1].rating, 1500);

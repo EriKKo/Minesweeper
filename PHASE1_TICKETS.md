@@ -32,9 +32,13 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   runs a match (in-process → calls the core's `startSeries`), `reportResult(report)` hands results to a
   registered handler (→ `persistResult`). Route the 3 `startSeries` call sites + the `endSeries` persist
   through it. Behaviour-identical. *(this ticket)*
-- **P1-2 — Stable `playerKey` decoupled from socket.id.** Add a stable identity per seated player
-  (carried in `MatchConfig.roster[].playerKey`); make the live-game collections addressable by it, with
-  socket.id as just the current transport binding. Foundational for two connections.
+- **P1-2 — Stable `playerKey` in the contract.** ✅ Add a transport-independent identity
+  (`runtime/identity.js` `playerKeyFor`) carried in `MatchConfig.roster[].playerKey` — users/guests key
+  off their account, bots off their id, so a player is identifiable across both sockets. **Refined scope:**
+  the *runtime rekey* (live-game collections addressed by playerKey instead of socket.id) is deferred to
+  **P1-5**, where the extracted game process builds its state fresh from the config keyed by playerKey —
+  a contained change there, vs. a high-risk churn of the whole socket-keyed monolith now for no
+  in-process benefit. P1-2 establishes the identity the token (P1-6) carries.
 - **P1-3 — Allocate builds the match from the config.** Move room/game/bot construction behind
   `gameService.allocate(matchConfig)` so allocate is "hand a config → get a running match", not "pre-build
   then start". Report flows back as a `ResultReport` message through the contract (retry-ready).

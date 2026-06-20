@@ -15,6 +15,7 @@
 var db = require("../db");
 var appState = require("./appState");
 var gameUtil = require("./gameUtil");
+var identity = require("./identity");
 var elo = require("./elo");
 var replay = require("./replay");
 
@@ -46,7 +47,8 @@ function buildMatchConfig(room) {
 			if (u) { rating = elo.readUserRating(u, style); userId = acc.userId; played = u.played; }
 		}
 		return {
-			pid: pid,
+			pid: pid,                              // current transport handle (socket.id) — local to this process
+			playerKey: identity.playerKeyFor(pid), // stable identity across connections (P1-2); what the token carries
 			name: appState.names[pid] || "Anonymous",
 			avatar: appState.avatars[pid] || null,
 			country: appState.countries[pid] || null,
