@@ -1,8 +1,10 @@
 // Phase 0 boundary guard (PHASE0_TICKETS.md P0-1 / P0-9).
 //
-// Keeps the game-core seam from rotting: nothing under engine/ or common/ may import the runtime,
-// the database, or socket.io. (P0-9 will extend this with the "match-running modules must persist
-// only through persistResult" rule once that seam exists.)
+// Keeps the future main/game-server seam from rotting:
+//   1. nothing under engine/ or common/ may import the runtime, the database, or socket.io; and
+//   2. the game-plane runtime modules (the ones tagged [game] in appState.js, which move to the game
+//      server) must not touch the DB directly — they get match data via the MatchConfig and report
+//      outcomes through persistResult, never by reaching into db.
 
 const { test } = require("node:test");
 const assert = require("node:assert");
@@ -52,4 +54,24 @@ test("game core (engine/ + common/) never imports runtime, db, or socket.io", ()
 		}
 	}
 	assert.deepStrictEqual(violations, [], "game-core boundary violations:\n" + violations.join("\n"));
+});
+
+// The game-plane runtime modules must not import the DB. They run the live match on the (future) game
+// server, which has no DB access — match data arrives via the MatchConfig and results leave via
+// persistResult. If one of these starts importing db, that's a leak across the split boundary.
+const GAME_PLANE_MODULES = ["territory", "bots", "roomState", "gameUtil"].map(
+	n => path.join(ROOT, "src/server/runtime", n + ".js")
+);
+
+test("game-plane runtime modules never import the database", () => {
+	const violations = [];
+	for (const file of GAME_PLANE_MODULES) {
+		const src = fs.readFileSync(file, "utf8");
+		for (const target of requireTargets(src)) {
+			if (/(^|\/)db(\.js)?$/.test(target)) {
+				violations.push(`${path.relative(ROOT, file)} imports db (require("${target}"))`);
+			}
+		}
+	}
+	assert.deepStrictEqual(violations, [], "game-plane → db boundary violations:\n" + violations.join("\n"));
 });
