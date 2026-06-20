@@ -130,26 +130,19 @@ function tournamentEloParts(room, focusedPid, focusedRank) {
 	});
 }
 
-// Pairwise Elo over the round's standings. Each pair of players is a mini-match;
-// a player's delta is K * mean(score - expected) across opponents (so a round's
-// swing stays ~K regardless of lobby size). Bots use a fixed rating and aren't
-// persisted. Mutates human standings entries with ratingDelta/rating/provisional.
-function applyRankedElo(standings, style) {
-	var parts = standings.map(function(s) {
-		var bot = isBot(s.id);
-		var acc = accounts[s.id];
-		var rating = bot ? (botRating[s.id] || RANKED_BOT_RATING) : RANKED_BOT_RATING, userId = null, played = 0;
-		if (!bot && acc) {
-			var u = db.getUserById(acc.userId);
-			if (u) { rating = readUserRating(u, style); userId = acc.userId; played = u.played; }
-		}
-		return { rank: s.rank, rating: rating, progress: s.progress, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
-	});
+// PURE pairwise-Elo math (P0-4): given the match `parts` — one per player, each
+// { rank, rating, progress, bot, userId, played } — fill in { delta, newRating, provisional } for
+// every persisted human and return the same array. Each pair of players is a mini-match; a player's
+// delta is K * mean(score - expected) across opponents (so a round's swing stays ~K regardless of
+// lobby size). No db, no appState, no sockets — `ratings before` and `played` are inputs, so this is
+// unit-testable in isolation and is the computation the future game-server→main boundary would run.
+// (Depends only on the injected PROVISIONAL_GAMES and the pure kFactor/marginFactor helpers.)
+function computeRankedElo(parts, style) {
 	var n = parts.length;
-	if (n < 2) return;
 	for (var i = 0; i < n; i++) {
 		var p = parts[i];
-		if (p.bot || !p.userId) continue;
+		p.delta = null; p.newRating = null; p.provisional = false;
+		if (n < 2 || p.bot || !p.userId) continue;
 		var sum = 0;
 		for (var j = 0; j < n; j++) {
 			if (i === j) continue;
@@ -166,6 +159,30 @@ function applyRankedElo(standings, style) {
 		p.delta = Math.round(delta);
 		p.newRating = Math.max(0, p.rating + p.delta); // Bronze I floors at 0
 		p.provisional = (p.played + 1) < PROVISIONAL_GAMES;
+	}
+	return parts;
+}
+
+// Apply pairwise Elo over a round's standings: gather each player's rating-before/played (db + the
+// in-memory caches), run the pure computeRankedElo, then persist (updateRating + recordMatch) and sync
+// the cache + mutate the human standings entries with ratingDelta/rating/provisional for the client.
+function applyRankedElo(standings, style) {
+	var parts = standings.map(function(s) {
+		var bot = isBot(s.id);
+		var acc = accounts[s.id];
+		var rating = bot ? (botRating[s.id] || RANKED_BOT_RATING) : RANKED_BOT_RATING, userId = null, played = 0;
+		if (!bot && acc) {
+			var u = db.getUserById(acc.userId);
+			if (u) { rating = readUserRating(u, style); userId = acc.userId; played = u.played; }
+		}
+		return { rank: s.rank, rating: rating, progress: s.progress, bot: bot, userId: userId, played: played, delta: null, newRating: null, provisional: false };
+	});
+	var n = parts.length;
+	if (n < 2) return;
+	computeRankedElo(parts, style); // pure math — fills delta/newRating/provisional
+	for (var i = 0; i < n; i++) {
+		var p = parts[i];
+		if (p.bot || !p.userId) continue;
 		db.updateRating(p.userId, p.newRating, p.rank === 1, style);
 		// Record the match for the profile rating graph + recent-games list. In 1v1 the opponent
 		// is the other standing; bigger lobbies have no single opponent label.
@@ -198,5 +215,6 @@ module.exports = {
 	readUserRating: readUserRating,
 	applyEloForPlayer: applyEloForPlayer,
 	tournamentEloParts: tournamentEloParts,
+	computeRankedElo: computeRankedElo,
 	applyRankedElo: applyRankedElo
 };
