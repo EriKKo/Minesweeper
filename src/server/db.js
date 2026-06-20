@@ -229,6 +229,16 @@ db.exec(
 	");" +
 	"CREATE INDEX IF NOT EXISTS idx_replay_player ON match_replay_players(user_id, replay_id);"
 );
+// Idempotency ledger for match-result persistence (PHASE0_TICKETS.md P0-5): one row per match whose
+// results have been applied, so a retried/duplicated result report can't double-apply Elo/history/replay.
+// Survives restarts (it's a table, not in-memory) — which is what makes the future game-server→main
+// reportResult boundary safe to retry.
+db.exec(
+	"CREATE TABLE IF NOT EXISTS processed_matches (" +
+	"  match_id TEXT PRIMARY KEY," +
+	"  created_at INTEGER NOT NULL" +
+	");"
+);
 // Link each match_history row to its stored replay (set after the replay is saved at series end).
 // Null for matches with no replay (pre-feature history, or matches with no recorded moves).
 addColumnIfMissing("match_history", "replay_id", "INTEGER");
@@ -706,6 +716,18 @@ function recordMatch(m) {
 		).run(m.userId, m.style, m.ratingBefore, m.ratingAfter, m.placement, m.players, m.won ? 1 : 0, m.opponent || null, Date.now());
 	} catch (e) { console.error("recordMatch failed", e); }
 	bumpMatchStats(m);
+}
+// Idempotency guard for match-result persistence (P0-5). Returns true the FIRST time a matchId is seen
+// (the caller should then apply Elo/replay), false if it was already persisted — so a retried/duplicate
+// result report can't double-apply. Fails OPEN (returns true) on a missing id or DB error: better to risk
+// a rare duplicate than to silently drop a real result.
+function markMatchPersisted(matchId) {
+	if (!matchId) return true;
+	try {
+		var info = db.prepare("INSERT OR IGNORE INTO processed_matches (match_id, created_at) VALUES (?, ?)")
+			.run(String(matchId), Date.now());
+		return info.changes > 0; // 1 = newly inserted (first time); 0 = already present
+	} catch (e) { console.error("markMatchPersisted failed", e); return true; }
 }
 // Puzzle solve/attempt: keep the peak puzzle rating + an active day. (Called from updateUserPuzzleRating.)
 function bumpPuzzleStats(userId, newRating) {
@@ -1432,6 +1454,7 @@ module.exports = {
 	setAvatarColor: setAvatarColor,
 	setCountry: setCountry,
 	recordMatch: recordMatch,
+	markMatchPersisted: markMatchPersisted,
 	recordClear: recordClear,
 	getMatchHistory: getMatchHistory,
 	getRatingHistory: getRatingHistory,
