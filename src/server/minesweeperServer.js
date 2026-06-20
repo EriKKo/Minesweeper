@@ -27,6 +27,7 @@ var http = require("http")
   , replay = require("./runtime/replay")
   , results = require("./runtime/results")
   , lifecycle = require("./runtime/lifecycle")
+  , gameService = require("./runtime/gameService")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -160,8 +161,10 @@ ranked.init({
 	createPlayerGame: createPlayerGame,
 	addBotToRoom: botMgr.addBotToRoom,
 	broadcastRoomState: roomState.broadcastRoomState,
-	startSeries: startSeries
+	startSeries: gameService.allocate // matchmaking starts a match through the game-service boundary (P1-1)
 });
+// Wire the game-service boundary: allocate runs a match (startSeries), reportResult persists the outcome.
+gameService.init({ startMatch: startSeries, onResult: results.persistResult });
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = appState.rankedQueues;
 var pendingBotsLists = appState.pendingBotsLists;
@@ -386,7 +389,7 @@ function endSeries(room) {
 	}
 	// Single persistence seam: ranked racing Elo (tournament rated incrementally elsewhere) + the
 	// captured replay (no-op unless this was a ranked match being recorded). See runtime/results.js.
-	results.persistResult(results.buildResultReport(room, seriesStandings));
+	gameService.reportResult(results.buildResultReport(room, seriesStandings));
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
@@ -965,7 +968,7 @@ io.on("connection", function (socket) {
 		roomState.broadcastRoomList();
 		// If the owner had already readied before adding the bot, start now.
 		if (room.players.length > 1 && room.allReady() && humanCount(room) > 0) {
-			startSeries(room);
+			gameService.allocate(room); // start the match through the game-service boundary (P1-1)
 		}
 	});
 
@@ -986,7 +989,7 @@ io.on("connection", function (socket) {
 		room.playerReady(playerID);
 		roomState.broadcastRoomState(room);
 		if (room.players.length > 1 && room.allReady()) {
-			startSeries(room);
+			gameService.allocate(room); // start the match through the game-service boundary (P1-1)
 		}
 	});
 
