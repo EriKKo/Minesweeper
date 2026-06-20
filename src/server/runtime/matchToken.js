@@ -21,6 +21,7 @@ function issueMatchToken(claims, ttlMs) {
 	claims = claims || {};
 	var payload = {
 		matchId: claims.matchId != null ? claims.matchId : null,
+		playerKey: claims.playerKey != null ? claims.playerKey : null, // the seat this socket binds to (P1-2/P1-6)
 		userId: claims.userId != null ? claims.userId : null,
 		addr: claims.gameServerAddr || null,
 		exp: Date.now() + (ttlMs || DEFAULT_TTL_MS)

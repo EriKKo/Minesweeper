@@ -30,6 +30,7 @@ var http = require("http")
   , gameService = require("./runtime/gameService")
   , role = require("./runtime/role")
   , internalApi = require("./runtime/internalApi")
+  , matchToken = require("./runtime/matchToken")
   , gameUtil = require("./runtime/gameUtil");
 
 var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameForBroadcast, isBot = gameUtil.isBot,
@@ -181,26 +182,10 @@ gameService.init({
 // Game-server role (P1-5): build + run matches handed over the internal API, and report outcomes back
 // to main instead of persisting locally. (ROLE=both/main keep the in-process persistResult handler.)
 if (role.ROLE === "game") {
-	internalApi.setAllocateHandler(function(spec) {
-		var room = gameService.buildMatchFromConfig(spec);
-		for (var i = 0; i < room.players.length; i++) room.playerReady(room.players[i]);
-		startSeries(room); // run the match; endSeries → gameService.reportResult → POST to main (below)
-		return { matchId: spec.matchId };
-	});
-	gameService.setResultHandler(function(report) {
-		if (!role.MAIN_URL) return;
-		// Wire-safe report: the live room/config aren't serializable; main re-derives what it needs.
-		var wire = {
-			matchId: report.matchId, ranked: report.ranked, mode: report.mode, style: report.style,
-			standings: report.standings,
-			winnerId: (report.standings && report.standings[0]) ? report.standings[0].id : null
-		};
-		fetch(role.MAIN_URL + "/internal/report", {
-			method: "POST",
-			headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET },
-			body: JSON.stringify(wire)
-		}).catch(function(e) { console.error("report to main failed", e); });
-	});
+	// Game server: build + run matches handed over the internal API, and report outcomes back to main
+	// (gameAllocate / reportResultToMain are defined below — hoisted function declarations).
+	internalApi.setAllocateHandler(gameAllocate);
+	gameService.setResultHandler(reportResultToMain);
 }
 // Per-mode queue state: humans searching, pre-generated bots, and the trickle timer.
 var rankedQueues = appState.rankedQueues;
@@ -753,23 +738,144 @@ function isSocketAdmin(playerID) {
 
 
 
-io.on("connection", function (socket) {
-	var playerID = socket.id;
-	// Contain handler errors: a thrown exception in ANY socket event handler (the core ones
-	// below + the feature modules' registerSocketHandlers) is logged and dropped, instead of
-	// propagating up to uncaughtException and taking the whole server — every connected
-	// player — down. Patched before any handler is registered so it covers them all.
+// Contain handler errors: a thrown exception in ANY socket event handler is logged and dropped instead
+// of propagating to uncaughtException and taking the whole server down. Applied before any handler is
+// registered so it covers them all (both roles).
+function installSocketErrorWrapper(socket) {
 	var rawOn = socket.on.bind(socket);
 	socket.on = function(event, handler) {
 		return rawOn(event, function() {
-			try {
-				return handler.apply(this, arguments);
-			} catch (e) {
-				console.error("socket '" + event + "' handler error:", e);
-			}
+			try { return handler.apply(this, arguments); }
+			catch (e) { console.error("socket '" + event + "' handler error:", e); }
 		});
 	};
+}
+
+// The in-game reveal/flag handlers — identical in the monolith and on a game server, so shared.
+function registerGameplayHandlers(socket, playerID) {
+	socket.on("right_click", function (data) {
+		if (puzzleMode.handleRightClick(playerID, data)) return; // single-player puzzle in progress
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing") return;
+		if (room.gameMode === "territory") return; // no flags in territory v1
+		var game = games[playerID];
+		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		game.handleRightClick(data.r, data.c);
+		updateDraw(room);
+	});
+	socket.on("left_click", function(data) {
+		if (puzzleMode.handleLeftClick(playerID, data)) return; // single-player puzzle in progress
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing") return;
+		if (room.gameMode === "territory") { territory.handleReveal(playerID, data); return; }
+		var game = games[playerID];
+		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		game.handleLeftClick(data.r, data.c);
+		updateDraw(room);
+	});
+}
+
+// ---- Game-server role (P1-5/P1-6) ----
+// Matches are handed over /internal/allocate. Bots are seated immediately; human seats are RESERVED and
+// filled as their clients connect with a join token. The series starts once every expected human is
+// present (bot-only → starts at once). On end, the result is posted back to main.
+var ATTACH_TIMEOUT_MS = 30000;
+var gamePending = {}; // matchId -> { room, expected:Set(playerKey), attached:{playerKey:pid}, roster:{playerKey:entry}, started, timer }
+
+function gameAllocate(spec) {
+	var room = gameService.buildMatchFromConfig(Object.assign({}, spec, { humans: [] })); // bots only; humans attach later
+	var roster = {}, expected = [];
+	(spec.humanRoster || []).forEach(function(e) { roster[e.playerKey] = e; expected.push(e.playerKey); });
+	var entry = gamePending[spec.matchId] = { room: room, expected: new Set(expected), attached: {}, roster: roster, started: false, timer: null };
+	if (expected.length) entry.timer = setTimeout(function() { if (!entry.started) abortPendingMatch(spec.matchId); }, ATTACH_TIMEOUT_MS);
+	maybeStartPendingMatch(spec.matchId);
+	return { matchId: spec.matchId };
+}
+
+// Bind a connecting game-socket to its reserved seat via the join token. Returns false (caller drops the
+// socket) if the token is bad, the match is unknown, or the seat is taken.
+function attachGameClient(socket, playerID) {
+	var token = socket.handshake && socket.handshake.auth && socket.handshake.auth.token;
+	var payload = matchToken.verifyMatchToken(token);
+	if (!payload) return false;
+	var entry = gamePending[payload.matchId];
+	if (!entry) return false;
+	var seat = entry.roster[payload.playerKey];
+	if (!seat || entry.attached[payload.playerKey]) return false;
+	// Bind identity + account to this game-socket, create its game, seat it in the room.
+	names[playerID] = seat.name || "Anonymous";
+	if (seat.avatar) avatars[playerID] = seat.avatar;
+	if (seat.country) countries[playerID] = seat.country;
+	if (seat.skin) skins[playerID] = seat.skin;
+	if (seat.userId != null) accounts[playerID] = { userId: seat.userId };
+	games[playerID] = createPlayerGame(playerID, entry.room.rows, entry.room.cols);
+	roomMapping[playerID] = entry.room;
+	entry.room.addPlayer(playerID);
+	entry.room.playerReady(playerID);
+	entry.attached[payload.playerKey] = playerID;
+	socket.join("room:" + entry.room.id);
+	socket.emit("connected", { id: playerID, oauth: oauth.providerFlags() });
+	socket.emit("joined_room", { roomId: entry.room.id, ranked: !!entry.room.ranked, mode: entry.room.rankedMode || null });
+	maybeStartPendingMatch(payload.matchId);
+	return true;
+}
+
+function maybeStartPendingMatch(matchId) {
+	var entry = gamePending[matchId];
+	if (!entry || entry.started) return;
+	if (Object.keys(entry.attached).length < entry.expected.size) return; // wait for all humans
+	entry.started = true;
+	if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
+	delete gamePending[matchId]; // no longer pending — it's live now
+	startSeries(entry.room);
+}
+
+function abortPendingMatch(matchId) {
+	var entry = gamePending[matchId];
+	if (!entry) return;
+	delete gamePending[matchId];
+	var room = entry.room;
+	if (room && rooms[room.id]) {
+		(room.players || []).slice().forEach(function(pid) { delete roomMapping[pid]; delete games[pid]; });
+		delete rooms[room.id];
+	}
+}
+
+// Game → main: post the finished match's result (wire-safe; the live room/config aren't serializable).
+function reportResultToMain(report) {
+	if (!role.MAIN_URL) return;
+	var wire = {
+		matchId: report.matchId, ranked: report.ranked, mode: report.mode, style: report.style,
+		standings: report.standings,
+		winnerId: (report.standings && report.standings[0]) ? report.standings[0].id : null
+	};
+	fetch(role.MAIN_URL + "/internal/report", {
+		method: "POST",
+		headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET },
+		body: JSON.stringify(wire)
+	}).catch(function(e) { console.error("report to main failed", e); });
+}
+
+io.on("connection", function (socket) {
+	var playerID = socket.id;
+	installSocketErrorWrapper(socket);
 	sockets[playerID] = socket;
+
+	// Game-server role: this socket is a match player. Bind it to its seat via the join token, register
+	// only the in-game handlers, and skip all the lobby/auth machinery (that lives on main).
+	if (role.ROLE === "game") {
+		if (!attachGameClient(socket, playerID)) { delete sockets[playerID]; socket.disconnect(true); return; }
+		registerGameplayHandlers(socket, playerID);
+		territory.registerSocketHandlers(socket, playerID);
+		socket.on("leave_room", function() { if (roomMapping[playerID]) removePlayerFromRoom(playerID); });
+		socket.on("disconnect", function() {
+			if (roomMapping[playerID]) removePlayerFromRoom(playerID);
+			delete sockets[playerID]; delete names[playerID]; delete skins[playerID];
+			delete avatars[playerID]; delete countries[playerID]; delete accounts[playerID];
+		});
+		return;
+	}
+
 	socket.join("lobby");
 	socket.emit("connected", { id: playerID, oauth: oauth.providerFlags() });
 
@@ -1030,27 +1136,7 @@ io.on("connection", function (socket) {
 		}
 	});
 
-	socket.on("right_click", function (data) {
-		if (puzzleMode.handleRightClick(playerID, data)) return; // single-player puzzle in progress
-		var room = roomMapping[playerID];
-		if (!room || room.phase !== "playing") return;
-		if (room.gameMode === "territory") return; // no flags in territory v1
-		var game = games[playerID];
-		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
-		game.handleRightClick(data.r, data.c);
-		updateDraw(room);
-	});
-
-	socket.on("left_click", function(data) {
-		if (puzzleMode.handleLeftClick(playerID, data)) return; // single-player puzzle in progress
-		var room = roomMapping[playerID];
-		if (!room || room.phase !== "playing") return;
-		if (room.gameMode === "territory") { territory.handleReveal(playerID, data); return; }
-		var game = games[playerID];
-		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
-		game.handleLeftClick(data.r, data.c);
-		updateDraw(room);
-	});
+	registerGameplayHandlers(socket, playerID); // left_click / right_click (shared with the game role)
 
 	// Single-player puzzle (rated / streak / storm / daily) + territory socket handlers.
 	puzzleMode.registerSocketHandlers(socket, playerID);
