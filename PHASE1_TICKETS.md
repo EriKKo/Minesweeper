@@ -47,8 +47,8 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   unwired code now.
 
 ### Transport + processes
-- **P1-4 — Client transport abstraction.** Wrap the client's single `socket` so lobby-ops vs match-ops
-  are distinguishable; no behaviour change yet (prep for two connections). *(in progress)*
+- **P1-4 — Client transport abstraction.** ✅ Realized by `activeGameSocket()` (Main.js): in-match emits
+  route to the per-match connection, lobby/auth stay on the main socket. Dormant in the monolith.
 - **P1-5 — Game-service process + internal API.** ✅ **Done (server side).** `ROLE` (both/main/game;
   default = monolith, untouched) + `runtime/internalApi.js` (secret-guarded `/internal/health|report|
   allocate`). The `game` role builds a match from the spec, runs it, and posts a wire-safe `ResultReport`
@@ -59,9 +59,11 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   process** tests: `split` (bot match round-trip), `humanattach` (token attach + play + report),
   `endtoend` (client → main → game handoff loop), `elo`/`internalapi` (deterministic Elo-from-report +
   idempotent persist). The match-handler extraction (shared `registerGameplayHandlers`) is done.
-- **P1-6 — Client dual-connection.** Browser keeps its main socket for lobby/matchmaking and opens a
-  **direct** socket to the allocated game server for the match (addr + signed `matchToken` from allocate).
-  Wire P0-8's token here. The big client change.
+- **P1-6 — Client dual-connection.** ✅ On `match_handoff` the client opens a direct socket to the game
+  server (auth: join token) and bridges its events into the existing handlers via `onAny`; in-match emits
+  route through `activeGameSocket()`. Game role sets CORS so the cross-origin connection is allowed.
+  **Verified live in a real browser** against a main(1401)+game(1402) pair: matchmake → handoff → direct
+  game-server connection → ranked 1v1 played on the game server, zero console errors. Dormant in the monolith.
 - **P1-7 — Reconnection + draining across the boundary.** A dropped player re-resolves the same game
   server via main; game servers drain (P0-7) as a fleet — new games to new instances, old finish + exit.
 - **P1-8 — Deploy as two fly apps.** `main` (single Machine, SQLite volume) + `game` (Machines-API fleet,
