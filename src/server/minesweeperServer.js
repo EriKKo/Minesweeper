@@ -66,7 +66,10 @@ process.on("unhandledRejection", function(reason) {
 });
 
 var app = http.createServer(handler);
-var io = require("socket.io")(app);
+// A game server accepts cross-origin socket connections (the browser is on main's origin but connects
+// directly to the game server for the match); the join token — not CORS — is what gates access. main/both
+// are same-origin, so no CORS needed there.
+var io = require("socket.io")(app, role.ROLE === "game" ? { cors: { origin: true, methods: ["GET", "POST"] } } : {});
 appState.io = io; // share the socket.io server with the handler modules
 // Wire the territory module with the core helpers it needs (breaks the circular require).
 territory.init({
