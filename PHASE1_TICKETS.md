@@ -46,12 +46,18 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   wired + integration-tested in **P1-5**, on the game server that consumes it — rather than landing as
   unwired code now.
 
-### Transport + processes (needs a real runtime env to validate; staged)
+### Transport + processes
 - **P1-4 — Client transport abstraction.** Wrap the client's single `socket` so lobby-ops vs match-ops
-  are distinguishable; no behaviour change yet (prep for two connections).
-- **P1-5 — Game-service process + internal API.** Stand up a separate game entry point; swap the
-  in-process transport for a local HTTP/socket internal API behind the same `gameService` contract.
-  main allocates over the wire; the game process runs matches and reports back (idempotent + retried).
+  are distinguishable; no behaviour change yet (prep for two connections). *(in progress)*
+- **P1-5 — Game-service process + internal API.** �️ **Core proven.** `ROLE` (both/main/game; default
+  = monolith, untouched) + `runtime/internalApi.js` (secret-guarded `/internal/health|report|allocate`).
+  A `game` role builds a match from the allocation spec (`buildMatchFromConfig`), runs it, and posts a
+  wire-safe `ResultReport` back to main's `/internal/report` (idempotent). `test/split.test.js` spawns a
+  real game process + stand-in main and proves a (bot-only) match runs in a separate process and reports
+  back — the no-downtime mechanism. **Remaining (human matches):** main-role allocate→`match_handoff`;
+  game-role token-attach (client connects to the game server, bound to its seat by `playerKey`); and
+  Elo-from-report-by-`userId` (network reports identify players by userId/rating-before, not socket id).
+  These are coupled with P1-6 and need the match-handler extraction.
 - **P1-6 — Client dual-connection.** Browser keeps its main socket for lobby/matchmaking and opens a
   **direct** socket to the allocated game server for the match (addr + signed `matchToken` from allocate).
   Wire P0-8's token here. The big client change.
