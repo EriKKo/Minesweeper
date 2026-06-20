@@ -49,15 +49,16 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
 ### Transport + processes
 - **P1-4 — Client transport abstraction.** Wrap the client's single `socket` so lobby-ops vs match-ops
   are distinguishable; no behaviour change yet (prep for two connections). *(in progress)*
-- **P1-5 — Game-service process + internal API.** �️ **Core proven.** `ROLE` (both/main/game; default
-  = monolith, untouched) + `runtime/internalApi.js` (secret-guarded `/internal/health|report|allocate`).
-  A `game` role builds a match from the allocation spec (`buildMatchFromConfig`), runs it, and posts a
-  wire-safe `ResultReport` back to main's `/internal/report` (idempotent). `test/split.test.js` spawns a
-  real game process + stand-in main and proves a (bot-only) match runs in a separate process and reports
-  back — the no-downtime mechanism. **Remaining (human matches):** main-role allocate→`match_handoff`;
-  game-role token-attach (client connects to the game server, bound to its seat by `playerKey`); and
-  Elo-from-report-by-`userId` (network reports identify players by userId/rating-before, not socket id).
-  These are coupled with P1-6 and need the match-handler extraction.
+- **P1-5 — Game-service process + internal API.** ✅ **Done (server side).** `ROLE` (both/main/game;
+  default = monolith, untouched) + `runtime/internalApi.js` (secret-guarded `/internal/health|report|
+  allocate`). The `game` role builds a match from the spec, runs it, and posts a wire-safe `ResultReport`
+  to main's `/internal/report` (idempotent). Humans attach to the game server with a join token
+  (`attachGameClient`, bound to their seat by `playerKey`). The `main` role hands a formed match to a
+  game server (`allocateMatchToGameServer`) and emits `match_handoff {gameUrl, token}`. Elo is applied
+  from the report by `userId`/rating-before (`elo.applyRankedEloFromReport`). Proven across **real two-
+  process** tests: `split` (bot match round-trip), `humanattach` (token attach + play + report),
+  `endtoend` (client → main → game handoff loop), `elo`/`internalapi` (deterministic Elo-from-report +
+  idempotent persist). The match-handler extraction (shared `registerGameplayHandlers`) is done.
 - **P1-6 — Client dual-connection.** Browser keeps its main socket for lobby/matchmaking and opens a
   **direct** socket to the allocated game server for the match (addr + signed `matchToken` from allocate).
   Wire P0-8's token here. The big client change.
