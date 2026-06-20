@@ -1,0 +1,41 @@
+# Push-to-deploy in SPLIT mode (P1-8). On every push to master this deploys BOTH apps:
+# the game fleet first (so main has somewhere to allocate matches), then the control plane.
+#
+# REPLACES fly.io's built-in GitHub auto-deploy (which only deploys the single root fly.toml = monolith).
+# After adding this, DISCONNECT that integration in the fly dashboard so the two don't fight over the app.
+#
+# Prerequisites (one-time, done on your side — see DEPLOY_SPLIT.md):
+#   1. fly apps create msbattle-game
+#   2. fly secrets set -a erik-minesweeper INTERNAL_SECRET=<x> MATCH_TOKEN_SECRET=<y>
+#      fly secrets set -a msbattle-game    INTERNAL_SECRET=<x> MATCH_TOKEN_SECRET=<y>   # same values
+#   3. fly tokens create deploy   → add as the FLY_API_TOKEN secret in GitHub
+#      (repo → Settings → Secrets and variables → Actions → New repository secret)
+
+name: Deploy (split)
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: fly-deploy           # never run two deploys at once
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy game + main
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Game fleet first — main allocates matches to it, so it must be up-to-date before main flips over.
+      - name: Deploy game fleet
+        run: flyctl deploy --config fly.game.toml --remote-only
+
+      # Control plane (reuses erik-minesweeper). A brief blip here does NOT interrupt live games — those
+      # run on the game fleet.
+      - name: Deploy control plane (main)
+        run: flyctl deploy --config fly.main.toml --remote-only

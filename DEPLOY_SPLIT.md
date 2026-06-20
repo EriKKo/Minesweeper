@@ -12,28 +12,37 @@ The split is **opt-in**: deploy `fly.main.toml` + `fly.game.toml` to run split, 
 - A match runs entirely on a **game** server, not on main. **Deploying `main` never touches a live game** (lobby/matchmaking blips for a few seconds; the match keeps running on its game server, and clients' match sockets stay connected to it).
 - **Deploying the game tier drains**: each game server, on `SIGTERM`, finishes its active matches and refuses new ones (`/internal/allocate` → 503), so main routes new matches to other servers. Done as a fleet rollover (below), no in-game player is cut.
 
+## App layout
+- **main = the existing `erik-minesweeper` app**, redeployed in the `main` role (`fly.main.toml`). It keeps
+  its volume / ratings DB / `msbattle.net` domain / OAuth — nothing to migrate.
+- **game = a new `msbattle-game` app** (`fly.game.toml`), stateless.
+
 ## One-time setup
 ```sh
-fly apps create msbattle-main
 fly apps create msbattle-game
-fly volumes create minesweeper_data -a msbattle-main -r arn -n 1   # SQLite lives here
 
 # Shared secrets — INTERNAL_SECRET guards the main↔game API; MATCH_TOKEN_SECRET signs join tokens.
-# Both MUST be identical across the two apps. Use long random values.
+# Both MUST be identical across the two apps. (erik-minesweeper already has the OAuth secrets.)
 SEC=$(openssl rand -hex 32); TOK=$(openssl rand -hex 32)
-fly secrets set -a msbattle-main INTERNAL_SECRET=$SEC MATCH_TOKEN_SECRET=$TOK \
-    google_auth_client_id=... google_auth_client_secret=... discord_auth_client_id=... discord_auth_client_secret=...
-fly secrets set -a msbattle-game INTERNAL_SECRET=$SEC MATCH_TOKEN_SECRET=$TOK
+fly secrets set -a erik-minesweeper INTERNAL_SECRET=$SEC MATCH_TOKEN_SECRET=$TOK
+fly secrets set -a msbattle-game     INTERNAL_SECRET=$SEC MATCH_TOKEN_SECRET=$TOK
+
+# Push-to-deploy: create a deploy token and add it to GitHub as the FLY_API_TOKEN repo secret
+# (repo → Settings → Secrets and variables → Actions → New repository secret).
+fly tokens create deploy
 ```
+Then **disconnect fly.io's built-in GitHub auto-deploy** in the fly dashboard (it deploys the monolith
+`fly.toml` to erik-minesweeper and would fight the workflow below). `GAME_SERVERS` in `fly.main.toml` is
+the game fleet's **public** URL (handed to the browser in `match_handoff`, so it must be client-reachable);
+`MAIN_URL` in `fly.game.toml` uses fly's **private** network (`erik-minesweeper.internal`) for reports.
 
 ## Deploy
+Push to `master` → `.github/workflows/fly-deploy.yml` deploys the game fleet, then the control plane.
+Or manually, in the same order:
 ```sh
 fly deploy -c fly.game.toml    # game fleet first, so main has somewhere to allocate
-fly deploy -c fly.main.toml    # then the control plane
+fly deploy -c fly.main.toml    # then the control plane (erik-minesweeper)
 ```
-Point your domain (msbattle.net) at **msbattle-main**. `GAME_SERVERS` in `fly.main.toml` is the game
-fleet's **public** URL (the browser is handed it in `match_handoff`, so it must be client-reachable);
-`MAIN_URL` in `fly.game.toml` uses fly's **private** network (`msbattle-main.internal`) for result reports.
 
 ## Routing model (read this before scaling the game fleet)
 - The browser loads the client from **main**, matchmakes there, then opens a **second socket directly to

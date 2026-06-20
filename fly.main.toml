@@ -4,12 +4,13 @@
 # Single instance (it's the sole SQLite owner + in-memory coordinator), so it stays always-on. A deploy
 # here is a brief blip that does NOT interrupt live games — those run on the game servers.
 #
-# Set the shared secrets once (NOT in this file):
-#   fly secrets set -a msbattle-main INTERNAL_SECRET=<long-random> MATCH_TOKEN_SECRET=<long-random> \
-#       google_auth_client_id=... google_auth_client_secret=... discord_auth_client_id=... discord_auth_client_secret=...
+# Reuses the existing erik-minesweeper app (keeps its volume / ratings DB / msbattle.net domain / OAuth),
+# now running in the main role. Set the shared split secrets once (NOT in this file); the OAuth secrets
+# are already set on this app:
+#   fly secrets set -a erik-minesweeper INTERNAL_SECRET=<long-random> MATCH_TOKEN_SECRET=<long-random>
 # Both secrets MUST match the game app's.
 
-app = "msbattle-main"
+app = "erik-minesweeper"
 primary_region = "arn"
 
 [build]

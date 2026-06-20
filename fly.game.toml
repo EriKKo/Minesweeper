@@ -22,7 +22,7 @@ primary_region = "arn"
   ROLE = "game"
   # Where to post result reports (main's internal URL). Use the fly private network so reports don't
   # round-trip the public internet: <main-app>.internal resolves on fly's 6PN.
-  MAIN_URL = "http://msbattle-main.internal:8080"
+  MAIN_URL = "http://erik-minesweeper.internal:8080"
 
 [http_service]
   internal_port = 8080
