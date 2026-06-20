@@ -41,7 +41,16 @@ else is grouped:
   `TerritoryGame`, `TerritoryGenerator`, `BotBench`, `TerritoryBench`). The files `scripts/` import.
 - **`src/server/runtime/`** — the http + socket runtime: shared state + the socket-handler modules
   (`appState`, `gameUtil`, `ranked`, `elo`, `bots`, `puzzlePlay`, `botDemo`, `standings`,
-  `roomState`, `session`, `territory`, `staticServer`, `oauth`, `puzzleApi`).
+  `roomState`, `session`, `territory`, `staticServer`, `oauth`, `puzzleApi`, plus the Phase 0 split
+  seams `results`, `lifecycle`, `matchToken`). **Phase 0 boundary prep** (see `PHASE0_TICKETS.md`,
+  `ARCHITECTURE_PLAN.md`): `engine/`+`common/` are the pure game-core (barrel `engine/index.js`; never
+  import runtime/db/socket — guarded by `test/boundary.test.js`); `runtime/results.js` is the single
+  match-end persistence seam — `buildMatchConfig` (self-contained roster + rating-before captured at
+  `startSeries`), `buildResultReport`, and an **idempotent** `persistResult` (keyed by a boot-stamped
+  `matchId` via `db.markMatchPersisted` / the `processed_matches` table); `elo.computeRankedElo` is the
+  pure pairwise-Elo math; `runtime/lifecycle.js` drains on SIGTERM (finish active matches, then exit;
+  `formRankedMatch` refuses new matches while draining); `runtime/matchToken.js` is the HMAC join-token
+  primitive (not yet wired — Phase 1). `appState` fields are tagged `[control]`/`[game]`/`[main-sp]`.
 
 (File bullets below use bare names; resolve them under `engine/` or `runtime/` per the lists above.)
 - `minesweeperServer.js` — HTTP + socket.io entry (at `src/server/` root): rooms, series, ranked

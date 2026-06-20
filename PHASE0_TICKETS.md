@@ -11,6 +11,26 @@
 process" is a deployment change, not a rewrite — the data crossing the boundary already flows through
 explicit functions, and a lint/test guards the boundary from regressing.
 
+## Status — ✅ COMPLETE
+All nine tickets landed (full suite 41/41 green). New modules: `runtime/results.js` (MatchConfig +
+ResultReport + idempotent `persistResult`), `runtime/lifecycle.js` (draining), `runtime/matchToken.js`
+(join-token primitive), `engine/index.js` (game-core barrel); new tests: `boundary`, `idempotency`,
+`elo`, `matchconfig`, `lifecycle`, `matchtoken`. P0-8's token primitive is built + tested but **not
+wired into a join path** — there's no client→game-server handshake to attach it to until Phase 1, so
+that wiring is deliberately deferred.
+
+| Ticket | Status |
+|---|---|
+| P0-1 game-core boundary + barrel | ✅ |
+| P0-2 MatchConfig | ✅ |
+| P0-3 persistResult seam | ✅ |
+| P0-4 pure computeRankedElo | ✅ |
+| P0-5 idempotent persistence | ✅ |
+| P0-6 appState boundary tags | ✅ |
+| P0-7 lifecycle / draining | ✅ |
+| P0-8 match-join token | ✅ primitive built; wiring → Phase 1 |
+| P0-9 boundary guard test | ✅ |
+
 ---
 
 ## P0-1 — Carve out the shared game-logic library
