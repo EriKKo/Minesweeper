@@ -1,0 +1,40 @@
+# Split deploy — CONTROL PLANE ("main"). Deploy with: fly deploy -c fly.main.toml
+#
+# Owns SQLite (the volume) + matchmaking/lobby/auth/puzzles, and allocates matches to the game fleet.
+# Single instance (it's the sole SQLite owner + in-memory coordinator), so it stays always-on. A deploy
+# here is a brief blip that does NOT interrupt live games — those run on the game servers.
+#
+# Set the shared secrets once (NOT in this file):
+#   fly secrets set -a msbattle-main INTERNAL_SECRET=<long-random> MATCH_TOKEN_SECRET=<long-random> \
+#       google_auth_client_id=... google_auth_client_secret=... discord_auth_client_id=... discord_auth_client_secret=...
+# Both secrets MUST match the game app's.
+
+app = "msbattle-main"
+primary_region = "arn"
+
+[build]
+
+[env]
+  PORT = "8080"
+  ROLE = "main"
+  OAUTH_REDIRECT_BASE = "https://msbattle.net"
+  RANKED_DB = "/data/ranked.db"
+  # Public URL(s) of the game fleet — used BOTH to allocate matches and as the address handed to the
+  # browser in match_handoff, so it must be reachable from clients. Comma-separated for several servers.
+  GAME_SERVERS = "https://msbattle-game.fly.dev"
+
+[mounts]
+  source = "minesweeper_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"      # main holds in-memory coordination state — keep it up
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

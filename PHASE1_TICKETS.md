@@ -73,8 +73,14 @@ in the MatchConfig so the game runtime keys off identity, not the transport sock
   live state from the old socket to the new) is a follow-up — it's general network-blip robustness, NOT
   required for no-downtime deploys (a draining server keeps its active connections alive until matches
   finish, so a deploy never drops an in-game player).
-- **P1-8 — Deploy as two fly apps.** `main` (single Machine, SQLite volume) + `game` (Machines-API fleet,
-  per-match/region). Static assets via CDN. See ARCHITECTURE_PLAN.md §5/§7.
+- **P1-8 — Deploy as two fly apps.** ✅ **Configs + guide written** (`fly.main.toml`, `fly.game.toml`,
+  `DEPLOY_SPLIT.md`): `main` (single Machine, SQLite volume, `ROLE=main`) + `game` (stateless,
+  `ROLE=game`, `kill_timeout` for drain), shared `INTERNAL_SECRET`/`MATCH_TOKEN_SECRET`, `GAME_SERVERS`
+  (public, client-reachable) / `MAIN_URL` (fly private net). The actual `fly deploy` needs the account.
+  **Documented as not-yet-wired:** per-machine public addressing for an autoscaled multi-machine game
+  fleet (single game machine works today; per-match placement across a fleet is Phase 2), and the
+  Machines-API fleet rollover for draining matches longer than `kill_timeout`. Rollback = deploy the
+  monolith `fly.toml` (`ROLE=both`).
 
 ## Out of scope (Phase 2+)
 Per-match allocation/multi-region (Phase 2), Postgres (Phase 3), Redis + multi-replica main (Phase 4).

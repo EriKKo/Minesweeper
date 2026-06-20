@@ -920,6 +920,22 @@ The current single-process monolith is deliberate (built to move fast). The **lo
 Postgres, etc.) and the phased migration onto it live in **`ARCHITECTURE_PLAN.md`** — read that before
 any re-platforming or service-split work.
 
+**Phase 1 split (built, opt-in via `ROLE`).** The same binary runs as `both` (default — today's
+monolith, unchanged), `main` (control plane: lobby/auth/matchmaking/puzzles, owns SQLite, allocates
+matches), or `game` (runs live matches handed to it; clients connect directly with a join token). Key
+modules: `runtime/role.js` (ROLE + secrets + `GAME_SERVERS`/`MAIN_URL`), `runtime/internalApi.js`
+(secret-guarded `/internal/health|report|allocate`), `runtime/gameService.js` (`buildMatchFromConfig` +
+allocate/report boundary), `runtime/matchToken.js` (HMAC join token carrying `matchId`+`playerKey`),
+`runtime/identity.js` (`playerKeyFor`). Flow: main forms a match → `allocateMatchToGameServer` POSTs the
+spec to a game server (falling through draining/down ones) → emits `match_handoff {gameUrl, token}` →
+client opens a 2nd socket to the game server (`activeGameSocket()` in Main.js, events bridged via
+`onAny`) → game runs it → posts a `ResultReport` to main's `/internal/report` → `persistResult` applies
+Elo from the report by `userId` (`elo.applyRankedEloFromReport`), idempotently. Deploy configs +
+runbook: `fly.main.toml` / `fly.game.toml` / `DEPLOY_SPLIT.md`. Proven by `test/{split,humanattach,
+endtoend,failover,internalapi,elo}.test.js` (real two-process integration) and verified live in a
+browser. **Not yet wired:** full live-match reconnection, per-machine addressing for an autoscaled
+multi-game-machine fleet, and Postgres/Redis (Phases 2–4). Tickets: `PHASE0_TICKETS.md` / `PHASE1_TICKETS.md`.
+
 ## Conventions
 
 - Boards are always no-guess solvable; one shared layout per round with the centre

@@ -1,0 +1,41 @@
+# Split deploy — GAME SERVER ("game" fleet). Deploy with: fly deploy -c fly.game.toml
+#
+# Runs live matches handed to it by main over /internal/allocate; clients connect directly with a join
+# token. STATELESS (no volume — match state is in memory and ephemeral; durable data lives on main).
+# Browsers connect cross-origin, so the game role enables CORS in code (the token gates access, not CORS).
+#
+# Shared secrets (must match the main app):
+#   fly secrets set -a msbattle-game INTERNAL_SECRET=<same as main> MATCH_TOKEN_SECRET=<same as main>
+#
+# DRAINING ON DEPLOY: the process drains on SIGTERM (finish active matches, then exit — see
+# runtime/lifecycle.js), and refuses new matches while draining so main routes them elsewhere. kill_timeout
+# gives the drain time; for matches longer than it, do a *fleet rollover* (start new machines, let old ones
+# drain to empty, then destroy them) via the Machines API rather than a rolling replace — see DEPLOY_SPLIT.md.
+
+app = "msbattle-game"
+primary_region = "arn"
+
+[build]
+
+[env]
+  PORT = "8080"
+  ROLE = "game"
+  # Where to post result reports (main's internal URL). Use the fly private network so reports don't
+  # round-trip the public internet: <main-app>.internal resolves on fly's 6PN.
+  MAIN_URL = "http://msbattle-main.internal:8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"      # never stop a machine out from under a live match
+  auto_start_machines = false
+  min_machines_running = 1
+
+# Give the SIGTERM drain time to let active matches finish before fly force-kills (default is ~5s).
+# A best-of-5 can still outlast this — see the fleet-rollover note above for matches that need longer.
+kill_timeout = "300s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
