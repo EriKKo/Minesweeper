@@ -469,6 +469,35 @@ var inRoom = false;
 
 var socket = io({ transports: ["websocket"] });
 
+// --- Split deployment: per-match game-server connection (P1-6) ---
+// In the split, a ranked match runs on a separate game server. On `match_handoff` the client opens a
+// second socket to that server and plays the match over it; lobby/auth/matchmaking stay on the main
+// socket. activeGameSocket() is the connection in-match emits use. In the monolith (ROLE=both)
+// `match_handoff` never fires, so matchSocket stays null and everything uses the single socket — no
+// behaviour change.
+var matchSocket = null;
+function activeGameSocket() { return matchSocket || socket; }
+function teardownMatchSocket() {
+	if (matchSocket) { try { matchSocket.close(); } catch (e) {} matchSocket = null; }
+}
+socket.on("match_handoff", function(d) {
+	if (!d || !d.gameUrl || !d.token) return;
+	teardownMatchSocket();
+	var gs = io(d.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: d.token } });
+	matchSocket = gs;
+	// Bridge: deliver every event the game server sends into the SAME handlers registered on the main
+	// socket, so all the live-game client code is reused unchanged — it doesn't care which connection a
+	// frame arrived on. (connected/authenticated are lobby-only and never come from the game socket.)
+	gs.onAny(function(event) {
+		if (event === "connected" || event === "authenticated") return;
+		var args = Array.prototype.slice.call(arguments, 1);
+		var handlers = socket.listeners(event);
+		for (var i = 0; i < handlers.length; i++) {
+			try { handlers[i].apply(socket, args); } catch (e) { console.error("match event '" + event + "' handler error:", e); }
+		}
+	});
+});
+
 socket.on("solo_rejected", function(data) {
 	showLobbyMessage((data && data.reason) || "Couldn't start solo board.");
 	exitSolo();
@@ -1472,6 +1501,7 @@ function teardownRoomUI(toHome) {
 	elimPanelDismissed = false;
 	roundStartTime = 0;
 	setDanger(false);
+	teardownMatchSocket(); // close any per-match game-server connection (split); no-op in the monolith
 	if (toHome) navigate("/"); else applyRouteFromHash();
 }
 
@@ -1480,7 +1510,7 @@ function teardownRoomUI(toHome) {
 // fails to switch. The echo still arrives and applies any ranked Elo delta.
 function leaveRoom(toHome) {
 	exitGameFullscreen();
-	socket.emit("leave_room");
+	activeGameSocket().emit("leave_room"); // tell the game server (split) or main (monolith) we're leaving
 	teardownRoomUI(toHome);
 }
 

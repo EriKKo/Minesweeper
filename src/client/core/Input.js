@@ -127,14 +127,14 @@ function performAction(r, c, asFlag) {
 			return;
 		}
 		if (!asFlag && typeof territoryIsMyStructure === "function" && territoryIsMyStructure(r, c)) {
-			socket.emit("territory_fire", { r: r, c: c }); // fire this fort's beam at the nearest enemy
+			activeGameSocket().emit("territory_fire", { r: r, c: c }); // fire this fort's beam at the nearest enemy
 		} else if (myState && myState[r][c] === KNOWN) {
 			territoryChord(r, c);
 		} else if (asFlag) {
 			if (typeof territoryToggleFlag === "function") territoryToggleFlag(r, c);
 		} else if (!(myState && myState[r][c] === FLAGGED)) {
 			if (typeof territoryLocalReveal === "function") territoryLocalReveal(r, c); // optimistic predict
-			socket.emit("left_click", { r: r, c: c, id: id });
+			activeGameSocket().emit("left_click", { r: r, c: c, id: id });
 		}
 		redrawOwnBoardWithFocus();
 		return;
@@ -176,12 +176,12 @@ function performAction(r, c, asFlag) {
 		if (mode === "puzzle" && typeof notePuzzleReveal === "function") notePuzzleReveal(result);
 	}
 	if (mode === "multiplayer" || mode === "puzzle") {
-		socket.emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });
+		activeGameSocket().emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });
 		// A chord that detonated cleared its incorrect flags locally — tell the server to drop those
 		// flags too (right_click toggles each off) so its per-player board stays in sync.
 		if (actionResult && actionResult.clearedFlags) {
 			for (var cf = 0; cf < actionResult.clearedFlags.length; cf++) {
-				socket.emit("right_click", { r: actionResult.clearedFlags[cf][0], c: actionResult.clearedFlags[cf][1], id: id });
+				activeGameSocket().emit("right_click", { r: actionResult.clearedFlags[cf][0], c: actionResult.clearedFlags[cf][1], id: id });
 			}
 		}
 	}
@@ -216,7 +216,7 @@ function territoryChord(r, c) {
 	for (var i = 0; i < ctx.covered.length; i++) {
 		var nr = ctx.covered[i][0], nc = ctx.covered[i][1];
 		if (typeof territoryLocalReveal === "function") territoryLocalReveal(nr, nc); // predict the safe neighbours
-		socket.emit("left_click", { r: nr, c: nc, id: id });
+		activeGameSocket().emit("left_click", { r: nr, c: nc, id: id });
 	}
 }
 

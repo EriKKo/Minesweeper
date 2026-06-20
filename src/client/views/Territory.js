@@ -274,7 +274,7 @@ function territoryLaunchBomb(r, c) {
 	if (!territoryAiming) return;
 	territoryAiming = false;
 	territoryUpdateBombBtn();
-	if (typeof socket !== "undefined") socket.emit("territory_bomb", { r: r, c: c });
+	if (typeof socket !== "undefined") activeGameSocket().emit("territory_bomb", { r: r, c: c });
 }
 
 function territoryStart(data) {
@@ -504,7 +504,7 @@ function territoryResult(data) {
 
 function leaveTerritory() {
 	territoryReset();
-	if (typeof socket !== "undefined") socket.emit("leave_room");
+	if (typeof activeGameSocket === "function") activeGameSocket().emit("leave_room");
 }
 
 // "View board": dismiss the result overlay so the player can look over the finished board, leaving a
