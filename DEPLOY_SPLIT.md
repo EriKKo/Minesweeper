@@ -49,7 +49,11 @@ fly deploy -c fly.main.toml    # then the control plane (erik-minesweeper)
   the game server** at the URL from `match_handoff`. Game servers enable CORS in code so this cross-origin
   socket is allowed; the signed join token is the real gate.
 - **Single game machine (start here):** `https://msbattle-game.fly.dev` resolves to the one machine —
-  everything just works. This is the recommended starting configuration.
+  everything just works. **This is enforced**: the deploy workflow runs `fly scale count 1` after deploying
+  the game app, because fly creates 2 machines by default and there's no count field in `fly.toml` for
+  Machines apps. With >1 machine the public hostname load-balances and a client's match socket can hit a
+  different machine than the one main allocated to → the attach fails and matchmaking hangs at N/size.
+  **Do not `fly scale count` the game app past 1** until per-machine routing (below) is wired.
 - **Multiple game machines (scaling — NOT yet wired):** `msbattle-game.fly.dev` load-balances across
   machines, but a given match lives on **one specific** machine, so the client must reach *that* machine.
   That needs per-machine public addressing (fly-replay / a machine-pinned hostname) and main allocating to

@@ -35,6 +35,14 @@ jobs:
       - name: Deploy game fleet
         run: flyctl deploy --config fly.game.toml --remote-only
 
+      # Pin the game fleet to EXACTLY ONE machine. fly has no machine-count field in fly.toml for
+      # Machines apps (min_machines_running is only the auto-stop floor), and it creates 2 by default —
+      # but with >1 game machine the public hostname load-balances, so a client's match socket can land
+      # on a different machine than the one main allocated the match to, and the attach fails. Until
+      # per-machine routing is wired (Phase 2 in DEPLOY_SPLIT.md), keep it at 1.
+      - name: Pin game fleet to a single machine
+        run: flyctl scale count 1 --config fly.game.toml --yes
+
       # Control plane (reuses erik-minesweeper). A brief blip here does NOT interrupt live games — those
       # run on the game fleet.
       - name: Deploy control plane (main)

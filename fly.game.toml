@@ -24,6 +24,11 @@ primary_region = "arn"
   # round-trip the public internet: <main-app>.internal resolves on fly's 6PN.
   MAIN_URL = "http://erik-minesweeper.internal:8080"
 
+# EXACTLY ONE machine for now. fly.toml has no machine-count field for Machines apps — `min_machines_running`
+# is only the auto-stop floor, and fly creates 2 by default. With >1 game machine the public hostname
+# load-balances, so a client's match socket can land on a different machine than main allocated the match
+# to, breaking the attach. The deploy workflow enforces `fly scale count 1`; do NOT scale this past 1 until
+# per-machine routing is wired (Phase 2 — see DEPLOY_SPLIT.md). To pin manually: fly scale count 1 -a msbattle-game
 [http_service]
   internal_port = 8080
   force_https = true
