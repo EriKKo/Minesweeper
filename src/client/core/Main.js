@@ -476,15 +476,24 @@ var socket = io({ transports: ["websocket"] });
 // `match_handoff` never fires, so matchSocket stays null and everything uses the single socket — no
 // behaviour change.
 var matchSocket = null;
+var mainPlayerId = null; // the lobby/main socket's player id, restored when the match connection ends
 function activeGameSocket() { return matchSocket || socket; }
 function teardownMatchSocket() {
 	if (matchSocket) { try { matchSocket.close(); } catch (e) {} matchSocket = null; }
+	// Back to the main connection's identity for lobby/leaderboard/etc.
+	if (mainPlayerId != null) id = mainPlayerId;
 }
 socket.on("match_handoff", function(d) {
 	if (!d || !d.gameUrl || !d.token) return;
 	teardownMatchSocket();
+	if (mainPlayerId == null) mainPlayerId = id;
 	var gs = io(d.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: d.token } });
 	matchSocket = gs;
+	// On the game server this client's player id is the GAME socket's id (the server keys the match by
+	// socket.id). Adopt it for the match so all in-game id comparisons — which board is mine, winnerId,
+	// standings — line up; otherwise the client would always read its own result as a loss. Restored to
+	// the main id on teardown.
+	gs.on("connect", function() { id = gs.id; });
 	// Bridge: deliver every event the game server sends into the SAME handlers registered on the main
 	// socket, so all the live-game client code is reused unchanged — it doesn't care which connection a
 	// frame arrived on. (connected/authenticated are lobby-only and never come from the game socket.)

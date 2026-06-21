@@ -1211,7 +1211,11 @@ function reapGuests() {
 	} catch (e) { console.error("[guests] prune failed", e); }
 }
 
-app.listen(PORT, "0.0.0.0", function() {
+// Listen on all interfaces incl. IPv6 (host omitted → Node binds `::` dual-stack). This is required for
+// the split: fly's private `.internal` networking is IPv6, so a game server reporting to
+// erik-minesweeper.internal:PORT must reach an IPv6 listener (binding "0.0.0.0" is IPv4-only and the
+// public proxy still works, but app-to-app 6PN connections get ECONNREFUSED).
+app.listen(PORT, function() {
 	console.log("listening on " + PORT);
 	backfillOverlapClassification();
 	puzzleApi.ensurePoolTopUp();
