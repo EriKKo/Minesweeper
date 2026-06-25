@@ -4017,6 +4017,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
+		/* Explicit width so the fullscreen rule's align-items:start can't collapse this to 0 */
+		width: 100%;
 	}
 	body.in-game .player-board {
 		flex: 1;
@@ -4035,6 +4037,30 @@ body.touch .find-next-arrow { display: inline-flex; }
 		flex: 1;
 		min-height: 0;
 		max-height: none !important;
+		/* Extra inner space so the canvas can scroll above the fixed bars */
+		padding-bottom: 64px;
+	}
+	.game-view.solo .board-scroll {
+		padding-bottom: 114px; /* action bar (64) + strip (50) */
+	}
+
+	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen */
+	body.in-game .mobile-action-bar {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 50;
+		background: var(--bg);
+		padding-bottom: env(safe-area-inset-bottom, 0);
+	}
+	body.in-game .mobile-solo-strip {
+		position: fixed;
+		bottom: 64px; /* sits above the action bar */
+		left: 0;
+		right: 0;
+		z-index: 50;
+		background: var(--bg);
 	}
 
 	/* Show solo strip in solo mode */
