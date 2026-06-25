@@ -15,5 +15,8 @@
   },
   "dependencies": {
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
   }
 }
