@@ -3984,14 +3984,58 @@ body.touch .find-next-arrow { display: inline-flex; }
 	}
 	#game0 { max-width: none !important; width: auto; }
 
-	/* In-game layout: hide topbar + sidebar, compact header, maximize board */
+	/* In-game layout: flex chain so the board fills exactly the space between
+	   the compact header and the action buttons — no fragile calc() needed. */
 	body.in-game .topbar { display: none; }
-	body.in-game main { padding: 0; }
-	body.in-game .game-header { padding: 0.4rem 1rem; margin-bottom: 0; }
 	body.in-game .game-side { display: none; }
 	body.in-game #player_name0 { display: none; }
-	body.in-game .board-scroll { max-height: calc(100dvh - 120px); }
-	body.in-game .game-view.solo .board-scroll { max-height: calc(100dvh - 158px); }
+	body.in-game #duel_id_you { display: none; }
+	body.in-game #duel_bar_you { display: none; }
+	body.in-game .player-controls { padding: 0; }
+	body.in-game .game-header { padding: 0.4rem 1rem; margin-bottom: 0; flex-shrink: 0; }
+	body.in-game main {
+		height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		padding: 0;
+	}
+	body.in-game #game_view {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	body.in-game .game-grid {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: stretch; /* override base align-items:start so game-left fills full width */
+	}
+	body.in-game .game-left {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	body.in-game .player-board {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		padding-bottom: 0;
+	}
+	body.in-game .board-wrap {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	body.in-game .board-scroll {
+		flex: 1;
+		min-height: 0;
+		max-height: none !important;
+	}
 
 	/* Show solo strip in solo mode */
 	.game-view.solo .mobile-solo-strip { display: flex; }
