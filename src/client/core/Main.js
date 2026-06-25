@@ -625,6 +625,7 @@ function applyPuzzleBoard(data) {
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	mobileAutoSelect();
+	if (mobileLayout) redrawOwnBoardWithFocus();
 }
 
 socket.on("puzzle_result", function(data) {
@@ -806,6 +807,7 @@ socket.on("solo_board", function(data) {
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	mobileAutoSelect();
+	if (mobileLayout) redrawOwnBoardWithFocus();
 	// Gate the board behind a Start button + countdown (board input stays locked until then).
 	if (typeof showSoloStart === "function") showSoloStart();
 });
