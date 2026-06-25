@@ -609,7 +609,6 @@ function applyPuzzleBoard(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
-	mobileAutoSelect();
 	lastFinished = {};
 	cellAnims = {};
 	hideOverlay();
@@ -625,6 +624,7 @@ function applyPuzzleBoard(data) {
 	updatePuzzleHud();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+	mobileAutoSelect();
 }
 
 socket.on("puzzle_result", function(data) {
@@ -785,7 +785,6 @@ socket.on("solo_board", function(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
-	mobileAutoSelect();
 	lastFinished = {};
 	cellAnims = {};
 	resetClearChallenge(); // new solo board → reset the no-flag / chord-only tracking
@@ -806,6 +805,7 @@ socket.on("solo_board", function(data) {
 	if (typeof updateSoloBest === "function") updateSoloBest();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
+	mobileAutoSelect();
 	// Gate the board behind a Start button + countdown (board input stays locked until then).
 	if (typeof showSoloStart === "function") showSoloStart();
 });
