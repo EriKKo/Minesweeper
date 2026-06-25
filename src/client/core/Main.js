@@ -1322,10 +1322,9 @@ document.getElementById("solo_restart").addEventListener("click", function() {
 	var btns = document.querySelectorAll(".solo-size-btn");
 	for (var i = 0; i < btns.length; i++) {
 		btns[i].addEventListener("click", function(e) {
-			var size = e.currentTarget.getAttribute("data-size");
-			soloSelectedSize = size;
-			for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j] === e.currentTarget);
-			startSolo(size);
+			soloSelectedSize = e.currentTarget.getAttribute("data-size");
+			syncSoloControls();
+			startSolo(soloSelectedSize);
 		});
 	}
 })();
@@ -1335,9 +1334,25 @@ document.getElementById("solo_restart").addEventListener("click", function() {
 	for (var i = 0; i < btns.length; i++) {
 		btns[i].addEventListener("click", function(e) {
 			soloSelectedDensity = parseFloat(e.currentTarget.getAttribute("data-density"));
-			for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j] === e.currentTarget);
+			syncSoloControls();
 			startSolo(soloSelectedSize);
 		});
+	}
+})();
+
+(function wireMobileSoloDialog() {
+	var openBtn = document.getElementById("mobile_solo_settings_btn");
+	var dialog = document.getElementById("mobile_solo_dialog");
+	var closeBtn = document.getElementById("mobile_solo_dialog_close");
+	if (!openBtn || !dialog) return;
+	openBtn.addEventListener("click", function() { dialog.showModal(); });
+	if (closeBtn) closeBtn.addEventListener("click", function() { dialog.close(); });
+	dialog.addEventListener("click", function(e) { if (e.target === dialog) dialog.close(); });
+	var newBoardBtn = dialog.querySelector(".mobile-solo-new-board");
+	if (newBoardBtn) newBoardBtn.addEventListener("click", function() { startSolo(soloSelectedSize); dialog.close(); });
+	var dialogBtns = dialog.querySelectorAll(".solo-size-btn, .solo-density-btn");
+	for (var i = 0; i < dialogBtns.length; i++) {
+		dialogBtns[i].addEventListener("click", function() { dialog.close(); });
 	}
 })();
 

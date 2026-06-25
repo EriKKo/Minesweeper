@@ -3202,6 +3202,80 @@ body[data-board-skin="tactical"] .board-scroll::after {
 .game-view.duo .mobile-action-bar,
 .game-view.multi .mobile-action-bar { display: none !important; }
 
+/* Mobile solo strip (timer + mine count + ⚙ settings button) */
+.mobile-solo-strip {
+	display: none;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.35rem 1rem 0.5rem;
+}
+.mobile-solo-hud {
+	font-size: 0.9rem;
+	color: var(--muted);
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.mobile-solo-settings-btn {
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--text);
+	border-radius: 8px;
+	width: 36px;
+	height: 36px;
+	font-size: 1.1rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	touch-action: manipulation;
+}
+.mobile-solo-settings-btn:active { opacity: 0.7; }
+
+/* Mobile solo settings dialog (bottom sheet) */
+.mobile-solo-dialog {
+	position: fixed;
+	inset: auto 0 0 0;
+	border: none;
+	border-top: 1px solid var(--border);
+	border-radius: 1rem 1rem 0 0;
+	padding: 0;
+	width: 100%;
+	max-width: 100%;
+	margin: 0;
+	background: var(--surface);
+	color: var(--text);
+}
+.mobile-solo-dialog::backdrop { background: rgba(0,0,0,0.45); }
+.mobile-solo-dialog-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 1rem 1rem 0.75rem;
+	border-bottom: 1px solid var(--border);
+}
+.mobile-solo-dialog-title { font-weight: 600; font-size: 1rem; }
+.mobile-solo-dialog-close {
+	background: none;
+	border: none;
+	color: var(--muted);
+	font-size: 1.2rem;
+	cursor: pointer;
+	padding: 0.25rem 0.5rem;
+	touch-action: manipulation;
+}
+.mobile-solo-inner {
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+.mobile-picker-group {
+	display: flex;
+	gap: 0.5rem;
+}
+.mobile-picker-group .btn { flex: 1; }
+
 /* Flag-mode toggle — only rendered for touch input (set via body.touch).
    The mode flips what a single tap on the board does; long-press always flags. */
 .flag-mode-button {
@@ -3909,6 +3983,18 @@ body.touch .find-next-arrow { display: inline-flex; }
 		background: var(--bg);
 	}
 	#game0 { max-width: none !important; width: auto; }
+
+	/* In-game layout: hide topbar + sidebar, compact header, maximize board */
+	body.in-game .topbar { display: none; }
+	body.in-game main { padding: 0; }
+	body.in-game .game-header { padding: 0.4rem 1rem; margin-bottom: 0; }
+	body.in-game .game-side { display: none; }
+	body.in-game #player_name0 { display: none; }
+	body.in-game .board-scroll { max-height: calc(100dvh - 120px); }
+	body.in-game .game-view.solo .board-scroll { max-height: calc(100dvh - 158px); }
+
+	/* Show solo strip in solo mode */
+	.game-view.solo .mobile-solo-strip { display: flex; }
 }
 
 @media (max-width: 640px) {

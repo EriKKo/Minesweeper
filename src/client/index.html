@@ -583,6 +583,33 @@
 							<button id="mobile_reveal_btn" class="mobile-action-btn mobile-action-reveal" type="button" aria-label="Reveal selected cell">Reveal</button>
 							<button id="mobile_next_btn" class="mobile-nav-btn" type="button" aria-label="Next frontier cell">&#8250;</button>
 						</div>
+						<div class="mobile-solo-strip" id="mobile_solo_strip">
+							<span class="mobile-solo-hud">
+								<span id="mobile_solo_timer">0:00</span>
+								<span class="mobile-solo-sep">·</span>
+								<span id="mobile_solo_mines"></span>
+							</span>
+							<button type="button" class="mobile-solo-settings-btn" id="mobile_solo_settings_btn" aria-label="Board settings">⚙</button>
+						</div>
+						<dialog id="mobile_solo_dialog" class="mobile-solo-dialog">
+							<div class="mobile-solo-dialog-header">
+								<span class="mobile-solo-dialog-title">Board settings</span>
+								<button type="button" id="mobile_solo_dialog_close" class="mobile-solo-dialog-close">✕</button>
+							</div>
+							<div class="mobile-solo-inner">
+								<div class="solo-size-picker mobile-picker-group">
+									<button class="btn btn-secondary solo-size-btn" data-size="small" type="button">Small</button>
+									<button class="btn btn-secondary solo-size-btn active" data-size="medium" type="button">Medium</button>
+									<button class="btn btn-secondary solo-size-btn" data-size="large" type="button">Large</button>
+								</div>
+								<div class="solo-density-picker mobile-picker-group">
+									<button class="btn btn-secondary solo-density-btn active" data-density="0.1" type="button">Low</button>
+									<button class="btn btn-secondary solo-density-btn" data-density="0.15" type="button">Med</button>
+									<button class="btn btn-secondary solo-density-btn" data-density="0.2" type="button">High</button>
+								</div>
+								<button class="btn btn-primary mobile-solo-new-board" type="button" style="width:100%;margin-top:0.25rem">New board</button>
+							</div>
+						</dialog>
 					</div>
 				</div>
 				<div id="duel_center" class="duel-center" aria-hidden="true">

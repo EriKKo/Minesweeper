@@ -167,21 +167,23 @@ function formatSoloTime(ms) {
 
 function updateSoloHud() {
 	if (!soloSession) return;
+	var elapsed = soloSession.startTime
+		? (soloSession.finishTime || Date.now()) - soloSession.startTime
+		: 0;
+	var timeStr = formatSoloTime(elapsed);
+	var flagged = 0;
+	if (myState) for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+		if (myState[r][c] === FLAGGED) flagged++;
+	}
+	var minesStr = flagged + " / " + soloSession.totalMines;
 	var timerEl = document.getElementById("solo_timer");
 	var minesEl = document.getElementById("solo_mines");
-	if (timerEl) {
-		var elapsed = soloSession.startTime
-			? (soloSession.finishTime || Date.now()) - soloSession.startTime
-			: 0;
-		timerEl.textContent = formatSoloTime(elapsed);
-	}
-	if (minesEl) {
-		var flagged = 0;
-		if (myState) for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
-			if (myState[r][c] === FLAGGED) flagged++;
-		}
-		minesEl.textContent = flagged + " / " + soloSession.totalMines;
-	}
+	if (timerEl) timerEl.textContent = timeStr;
+	if (minesEl) minesEl.textContent = minesStr;
+	var mobileTimer = document.getElementById("mobile_solo_timer");
+	var mobileMines = document.getElementById("mobile_solo_mines");
+	if (mobileTimer) mobileTimer.textContent = timeStr;
+	if (mobileMines) mobileMines.textContent = minesStr + " mines";
 }
 
 function showSoloOutcome(won) {
