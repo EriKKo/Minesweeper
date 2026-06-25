@@ -85,11 +85,6 @@ function scrollToCell(r, c, smooth) {
 }
 function isFrontierCell(r, c) {
 	if (myState[r][c] !== UNKNOWN) return false;
-	// Treat unflagged mines as "marked dangerous" — players skip flagging them at
-	// speed, but they still aren't candidates to explore toward. Uses the real
-	// board (a deliberate cheat for the hint UI only — clicks still go via the
-	// server, which doesn't know what the player has mentally deduced).
-	if (boardCell(r, c) === MINE) return false;
 	for (var dr = -1; dr <= 1; dr++) {
 		for (var dc = -1; dc <= 1; dc++) {
 			if (dr === 0 && dc === 0) continue;
@@ -201,7 +196,22 @@ function getSortedFrontierCells() {
 			}
 		}
 	}
-	return cells; // already reading order (row-major iteration)
+	if (cells.length <= 1) return cells;
+	// Sort by angle from the centroid of revealed cells so ‹/› traces the
+	// frontier boundary in a circular sweep rather than jumping back and forth
+	// across rows in reading order.
+	var sumR = 0, sumC = 0, n = 0;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (myState[r][c] === KNOWN) { sumR += r; sumC += c; n++; }
+		}
+	}
+	var cR = n > 0 ? sumR / n : rows / 2;
+	var cC = n > 0 ? sumC / n : cols / 2;
+	cells.sort(function(a, b) {
+		return Math.atan2(a.r - cR, a.c - cC) - Math.atan2(b.r - cR, b.c - cC);
+	});
+	return cells;
 }
 
 // Move the keyboard focus cursor to the nearest frontier cell. Called when a
@@ -222,8 +232,8 @@ function mobileAutoSelect() {
 	scrollToCell(focusedR, focusedC, false);
 }
 
-// Step the cursor to the prev (dir=-1) or next (dir=+1) frontier cell in
-// reading order, wrapping around. Used by the ‹ / › nav buttons.
+// Step the cursor to the prev (dir=-1) or next (dir=+1) frontier cell along
+// the circular boundary sweep, wrapping around. Used by the ‹ / › nav buttons.
 function mobileNavigate(dir) {
 	if (!mobileLayout || !touchInput) return;
 	var cells = getSortedFrontierCells();
@@ -234,10 +244,11 @@ function mobileNavigate(dir) {
 		if (cells[i].r === focusedR && cells[i].c === focusedC) { cur = i; break; }
 	}
 	if (cur === -1) {
-		// Cursor isn't on a frontier cell — find the nearest one by linear index.
-		var curLin = focusedR * cols + focusedC, best = Infinity;
+		// Cursor isn't on a frontier cell — find the nearest by pixel distance.
+		var best = Infinity;
 		for (var i = 0; i < cells.length; i++) {
-			var d = Math.abs(cells[i].r * cols + cells[i].c - curLin);
+			var dr = cells[i].r - focusedR, dc = cells[i].c - focusedC;
+			var d = dr * dr + dc * dc;
 			if (d < best) { best = d; cur = i; }
 		}
 	}
