@@ -181,6 +181,75 @@ function updateMobileFindNextHint() {
 	arrowGlyph.style.transform = "rotate(" + theta + "rad)";
 	findNextArrow.classList.add("visible");
 }
+// --- Mobile cursor / frontier navigation ---
+
+// All frontier cells (UNKNOWN and adjacent to at least one KNOWN cell), in
+// reading order (top-left → bottom-right). Falls back to all UNKNOWN cells
+// when no frontier exists (e.g. very start of game before any reveals).
+function getSortedFrontierCells() {
+	var cells = [];
+	if (!myState) return cells;
+	for (var r = 0; r < rows; r++) {
+		for (var c = 0; c < cols; c++) {
+			if (isFrontierCell(r, c)) cells.push({ r: r, c: c });
+		}
+	}
+	if (!cells.length) {
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (myState[r][c] === UNKNOWN) cells.push({ r: r, c: c });
+			}
+		}
+	}
+	return cells; // already reading order (row-major iteration)
+}
+
+// Move the keyboard focus cursor to the nearest frontier cell. Called when a
+// game board loads and after each reveal/flag action so the cursor always sits
+// on a useful cell. No-ops when not on mobile or when cursor is already on an
+// unknown cell (so navigating to a specific cell and acting stays stable).
+function mobileAutoSelect() {
+	if (!mobileLayout || !touchInput) return;
+	if (!myState || !currentActionMode()) return;
+	// Keep the cursor where it is if it's still on an unrevealed cell.
+	if (focusVisible && focusedR >= 0 && focusedR < rows && focusedC >= 0 && focusedC < cols
+			&& myState[focusedR][focusedC] === UNKNOWN) return;
+	var target = findNearestFrontierCell();
+	if (!target) return;
+	focusedR = target.r;
+	focusedC = target.c;
+	focusVisible = true;
+	scrollToCell(focusedR, focusedC, false);
+}
+
+// Step the cursor to the prev (dir=-1) or next (dir=+1) frontier cell in
+// reading order, wrapping around. Used by the ‹ / › nav buttons.
+function mobileNavigate(dir) {
+	if (!mobileLayout || !touchInput) return;
+	var cells = getSortedFrontierCells();
+	if (!cells.length) return;
+	// Find where the cursor currently sits in the sorted list.
+	var cur = -1;
+	for (var i = 0; i < cells.length; i++) {
+		if (cells[i].r === focusedR && cells[i].c === focusedC) { cur = i; break; }
+	}
+	if (cur === -1) {
+		// Cursor isn't on a frontier cell — find the nearest one by linear index.
+		var curLin = focusedR * cols + focusedC, best = Infinity;
+		for (var i = 0; i < cells.length; i++) {
+			var d = Math.abs(cells[i].r * cols + cells[i].c - curLin);
+			if (d < best) { best = d; cur = i; }
+		}
+	}
+	var next = (cur + dir + cells.length) % cells.length;
+	focusedR = cells[next].r;
+	focusedC = cells[next].c;
+	focusVisible = true;
+	scrollToCell(focusedR, focusedC, true);
+	redrawOwnBoardWithFocus();
+	if (navigator.vibrate) navigator.vibrate(8);
+}
+
 function onMobileLayoutChange() {
 	mobileLayout = !!(mobileMQL && mobileMQL.matches);
 	sizePlayerCanvas();

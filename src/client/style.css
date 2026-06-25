@@ -3137,6 +3137,71 @@ body[data-board-skin="tactical"] .board-scroll::after {
 }
 
 
+/* Mobile action bar: Prev / Flag / Reveal / Next — replaces the flag-mode
+   toggle on small touch screens. Hidden by default; shown via the media query
+   below when body.touch and viewport is mobile-sized. */
+.mobile-action-bar {
+	display: none;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.55rem 1rem 0.2rem;
+}
+.mobile-nav-btn {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 52px;
+	height: 52px;
+	font-size: 1.8rem;
+	font-weight: 700;
+	line-height: 1;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--text);
+	border-radius: 10px;
+	cursor: pointer;
+	user-select: none;
+	touch-action: manipulation;
+	transition: background 100ms ease, transform 80ms ease;
+}
+.mobile-nav-btn:active { transform: scale(0.92); background: var(--surface); }
+.mobile-action-btn {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	height: 52px;
+	font: inherit;
+	font-weight: 700;
+	font-size: 1rem;
+	border-radius: 10px;
+	cursor: pointer;
+	user-select: none;
+	touch-action: manipulation;
+	transition: background 100ms ease, transform 80ms ease;
+}
+.mobile-action-btn:active { transform: scale(0.96); }
+.mobile-action-flag {
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--text);
+}
+.mobile-action-flag:active { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.6); }
+.mobile-action-reveal {
+	background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+	border: 1px solid transparent;
+	color: #fff;
+	box-shadow: var(--tile-hi), var(--tile-shadow);
+}
+.mobile-action-reveal:active { box-shadow: var(--tile-hi), 0 1px 0 rgba(0,0,0,0.35); }
+/* Hide the entire bar in game states where it doesn't apply */
+.game-view.lobby .mobile-action-bar,
+.game-view.territory .mobile-action-bar,
+.game-view.duo .mobile-action-bar,
+.game-view.multi .mobile-action-bar { display: none !important; }
+
 /* Flag-mode toggle — only rendered for touch input (set via body.touch).
    The mode flips what a single tap on the board does; long-press always flags. */
 .flag-mode-button {
@@ -3809,6 +3874,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.opponents { display: none; }
 	.player-controls { flex-wrap: wrap; }
 	.flag-mode-button { padding: 0.7rem 1rem; }
+	/* On mobile touch screens, show the action bar and retire the flag-mode toggle */
+	body.touch .mobile-action-bar { display: flex; }
+	body.touch .flag-mode-button { display: none; }
 
 	/* Full-bleed: pull the player board out of `main`'s padding so the playing
 	   surface meets the screen edges. Inner content (name, controls) gets its

@@ -350,6 +350,28 @@ flagModeButton.addEventListener("click", function() {
 	if (navigator.vibrate) navigator.vibrate(8);
 });
 
+// Mobile action bar: Prev / Flag / Reveal / Next
+var mobilePrevBtn = document.getElementById("mobile_prev_btn");
+var mobileNextBtn = document.getElementById("mobile_next_btn");
+var mobileFlagBtn = document.getElementById("mobile_flag_btn");
+var mobileRevealBtn = document.getElementById("mobile_reveal_btn");
+
+if (mobilePrevBtn) mobilePrevBtn.addEventListener("click", function() { mobileNavigate(-1); });
+if (mobileNextBtn) mobileNextBtn.addEventListener("click", function() { mobileNavigate(1); });
+if (mobileFlagBtn) mobileFlagBtn.addEventListener("click", function() {
+	if (!currentActionMode()) return;
+	performAction(focusedR, focusedC, true);
+	if (navigator.vibrate) navigator.vibrate(10);
+	mobileNavigate(1);
+});
+if (mobileRevealBtn) mobileRevealBtn.addEventListener("click", function() {
+	if (!currentActionMode()) return;
+	performAction(focusedR, focusedC, false);
+	if (navigator.vibrate) navigator.vibrate(10);
+	mobileAutoSelect();
+	redrawOwnBoardWithFocus();
+});
+
 playerCanvas.onclick = function(event) {
 	if (Date.now() - lastTouchAt < 500) return;
 	boardClicked(event);
@@ -393,6 +415,8 @@ playerCanvas.addEventListener("touchstart", function(e) {
 	longPressTimer = setTimeout(function() {
 		longPressTimer = null;
 		if (touchMoved) return;
+		// On mobile layout the action bar handles flag — long-press is disabled there.
+		if (mobileLayout) return;
 		longPressFired = true;
 		pressedCell = null;
 		emitBoardActionAt(touchStartX, touchStartY, true);
@@ -421,7 +445,21 @@ playerCanvas.addEventListener("touchend", function(e) {
 		return;
 	}
 	e.preventDefault();
-	emitBoardActionAt(touchStartX, touchStartY, flagMode);
+	if (mobileLayout) {
+		// Mobile cursor mode: tap moves the cursor to the tapped cell; the action
+		// bar buttons (Reveal / Flag) decide what to do with it.
+		var cell = cellFromClient(touchStartX, touchStartY);
+		if (cell && currentActionMode()) {
+			focusedR = cell.r;
+			focusedC = cell.c;
+			focusVisible = true;
+			scrollToCell(focusedR, focusedC, false);
+			redrawOwnBoardWithFocus();
+			if (navigator.vibrate) navigator.vibrate(4);
+		}
+	} else {
+		emitBoardActionAt(touchStartX, touchStartY, flagMode);
+	}
 }, { passive: false });
 
 playerCanvas.addEventListener("touchcancel", function() {
@@ -571,6 +609,7 @@ function applyPuzzleBoard(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
+	mobileAutoSelect();
 	lastFinished = {};
 	cellAnims = {};
 	hideOverlay();
@@ -746,6 +785,7 @@ socket.on("solo_board", function(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
+	mobileAutoSelect();
 	lastFinished = {};
 	cellAnims = {};
 	resetClearChallenge(); // new solo board → reset the no-flag / chord-only tracking
@@ -1664,6 +1704,7 @@ socket.on("start_game", function(data) {
 	focusedR = Math.floor(rows / 2);
 	focusedC = Math.floor(cols / 2);
 	focusVisible = false;
+	mobileAutoSelect();
 	// Clear myState too — not just prev (which resetBoardAnimations handles).
 	// The draw_board handler merges optimistic state into incoming server
 	// state to survive stale broadcasts (bot tick races); if we leave the
@@ -1925,6 +1966,7 @@ socket.on("draw_board", function(data) {
 		prevPlayerState = cloneState(me.state);
 		renderPlayerBoard();
 		updateMobileFindNextHint();
+		mobileAutoSelect();
 		// Racing clear → report the no-flag / chord-only challenge (once per board).
 		if (me.finished && me.totalSafe > 0 && (me.safeCount || 0) >= me.totalSafe) reportClear();
 	}
