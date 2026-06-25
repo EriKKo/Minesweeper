@@ -3945,6 +3945,17 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Mobile: hide the unreadable mini opponent boards;
    the scoreboard already shows each opponent's tier and status. */
 @media (max-width: 700px) {
+	/* Nav: scroll horizontally instead of wrapping to a second row */
+	.site-nav {
+		overflow-x: auto;
+		flex-wrap: nowrap;
+		justify-content: flex-start;
+		scrollbar-width: none;
+		-webkit-overflow-scrolling: touch;
+	}
+	.site-nav::-webkit-scrollbar { display: none; }
+	.site-nav-link { white-space: nowrap; flex-shrink: 0; }
+
 	.opponents { display: none; }
 	.player-controls { flex-wrap: wrap; }
 	.flag-mode-button { padding: 0.7rem 1rem; }
