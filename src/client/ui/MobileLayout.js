@@ -273,23 +273,11 @@ function getSortedFrontierCells() {
 	return cells;
 }
 
-// Move the keyboard focus cursor to the nearest frontier cell. Called when a
-// game board loads and after each reveal/flag action so the cursor always sits
-// on a useful cell. No-ops when not on mobile or when cursor is already on an
-// unknown cell (so navigating to a specific cell and acting stays stable).
-function mobileAutoSelect() {
-	if (!mobileLayout || !touchInput) return;
-	if (!myState || !currentActionMode()) return;
-	// Keep the cursor where it is if it's still on an unrevealed cell.
-	if (focusVisible && focusedR >= 0 && focusedR < rows && focusedC >= 0 && focusedC < cols
-			&& myState[focusedR][focusedC] === UNKNOWN) return;
-	var target = findNearestFrontierCell();
-	if (!target) return;
-	focusedR = target.r;
-	focusedC = target.c;
-	focusVisible = true;
-	scrollToCell(focusedR, focusedC, false);
-}
+// On mobile we play by tapping cells directly and panning the board by hand — there's no focus
+// cursor and the board never auto-pans to follow one. So this is a no-op on mobile (it used to move a
+// keyboard-style cursor to the nearest frontier cell and scroll it into view after every action, which
+// made the board jump around). Kept as a stub so its call sites stay valid.
+function mobileAutoSelect() {}
 
 // Step the cursor to the prev (dir=-1) or next (dir=+1) frontier cell along
 // the circular boundary sweep, wrapping around. Used by the ‹ / › nav buttons.

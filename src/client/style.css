@@ -4107,14 +4107,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 		flex: 1;
 		min-height: 0;
 		max-height: none !important;
-		/* Extra inner space so the canvas can scroll above the fixed action bar (~84px tall) */
-		padding-bottom: 84px;
+		/* Extra inner space so the canvas can scroll above the fixed action bar (~108px tall) */
+		padding-bottom: 108px;
 	}
 	.game-view.solo .board-scroll {
-		padding-bottom: 134px; /* action bar (84) + solo strip (50) */
+		padding-bottom: 158px; /* action bar (108) + solo strip (50) */
 	}
 
-	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen */
+	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen. The button is
+	   lifted well clear of the very bottom (extra bottom padding) so mobile browser chrome / the home
+	   gesture area doesn't cover it; the bar's background still extends to the screen edge below it. */
 	body.in-game .mobile-action-bar {
 		position: fixed;
 		bottom: 0;
@@ -4122,16 +4124,19 @@ body.touch .find-next-arrow { display: inline-flex; }
 		right: 0;
 		z-index: 50;
 		background: var(--bg);
-		padding-bottom: env(safe-area-inset-bottom, 0);
+		padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.75rem);
 	}
 	body.in-game .mobile-solo-strip {
 		position: fixed;
-		bottom: 84px; /* sits above the action bar */
+		bottom: 108px; /* sits above the action bar */
 		left: 0;
 		right: 0;
 		z-index: 50;
 		background: var(--bg);
 	}
+
+	/* We don't enter fullscreen on mobile (see enterGameFullscreen) — hide the toggle. */
+	#fullscreen_btn { display: none !important; }
 
 	/* Show solo strip in solo mode */
 	.game-view.solo .mobile-solo-strip { display: flex; }
