@@ -3982,8 +3982,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.menu-account-text strong { font-size: 1.05rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.menu-account-tier { font-size: 0.85rem; color: var(--muted); }
 	.menu-account-btn { width: 100%; justify-content: center; gap: 0.45rem; padding: 0.75rem; font-size: 1rem; border-radius: 11px; }
-	/* Sign in is the card's call to action — accent fill, with a "go" arrow to read as a forward step. */
-	.site-nav #menu_signin::after { content: "→"; font-size: 1.1em; line-height: 1; }
 	/* Sign out is secondary — lift it off the card surface so it still reads as a button. */
 	.menu-account .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
 
