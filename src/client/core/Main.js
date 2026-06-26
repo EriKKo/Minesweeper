@@ -334,43 +334,35 @@ var touchInput = ("ontouchstart" in window) || (window.matchMedia && window.matc
 if (touchInput) document.body.classList.add("touch");
 
 var lastTouchAt = 0;
+// One shared reveal/flag mode for ALL reveal-based modes (solo, puzzle, racing). A board tap acts per
+// flagMode; the desktop pill (#flag_mode_button) and the mobile mode button (#mobile_mode_btn) are two
+// views of the same state, both flipped via toggleFlagMode — no per-mode control code.
 var flagMode = false;
 var flagModeButton = document.getElementById("flag_mode_button");
 var flagModeLabel = flagModeButton.querySelector(".flag-mode-label");
+var mobileModeButton = document.getElementById("mobile_mode_btn");
+var mobileModeLabel = mobileModeButton ? mobileModeButton.querySelector(".mobile-mode-label") : null;
+var mobileModeIcon = mobileModeButton ? mobileModeButton.querySelector(".mobile-mode-icon") : null;
 
 function updateFlagModeButton() {
 	flagModeButton.setAttribute("aria-pressed", flagMode ? "true" : "false");
 	flagModeLabel.textContent = flagMode ? "Flag mode" : "Tap to flag";
+	if (mobileModeButton) {
+		mobileModeButton.setAttribute("aria-pressed", flagMode ? "true" : "false");
+		mobileModeButton.classList.toggle("flag-active", flagMode);
+		if (mobileModeLabel) mobileModeLabel.textContent = flagMode ? "Flag" : "Reveal";
+		if (mobileModeIcon) mobileModeIcon.textContent = flagMode ? "🚩" : "⛏️";
+	}
 }
-updateFlagModeButton();
-
-flagModeButton.addEventListener("click", function() {
+function toggleFlagMode() {
 	flagMode = !flagMode;
 	updateFlagModeButton();
 	if (navigator.vibrate) navigator.vibrate(8);
-});
+}
+updateFlagModeButton();
 
-// Mobile action bar: Prev / Flag / Reveal / Next
-var mobilePrevBtn = document.getElementById("mobile_prev_btn");
-var mobileNextBtn = document.getElementById("mobile_next_btn");
-var mobileFlagBtn = document.getElementById("mobile_flag_btn");
-var mobileRevealBtn = document.getElementById("mobile_reveal_btn");
-
-if (mobilePrevBtn) mobilePrevBtn.addEventListener("click", function() { mobileNavigate(-1); });
-if (mobileNextBtn) mobileNextBtn.addEventListener("click", function() { mobileNavigate(1); });
-if (mobileFlagBtn) mobileFlagBtn.addEventListener("click", function() {
-	if (!currentActionMode()) return;
-	performAction(focusedR, focusedC, true);
-	if (navigator.vibrate) navigator.vibrate(10);
-	mobileNavigate(1);
-});
-if (mobileRevealBtn) mobileRevealBtn.addEventListener("click", function() {
-	if (!currentActionMode()) return;
-	performAction(focusedR, focusedC, false);
-	if (navigator.vibrate) navigator.vibrate(10);
-	mobileAutoSelect();
-	redrawOwnBoardWithFocus();
-});
+flagModeButton.addEventListener("click", toggleFlagMode);
+if (mobileModeButton) mobileModeButton.addEventListener("click", toggleFlagMode);
 
 playerCanvas.onclick = function(event) {
 	if (Date.now() - lastTouchAt < 500) return;
@@ -415,8 +407,8 @@ playerCanvas.addEventListener("touchstart", function(e) {
 	longPressTimer = setTimeout(function() {
 		longPressTimer = null;
 		if (touchMoved) return;
-		// On mobile layout the action bar handles flag — long-press is disabled there.
-		if (mobileLayout) return;
+		// Long-press flags regardless of the current mode — a quick shortcut on top of the mode toggle.
+		// (Only fires on a stationary press; a pan sets touchMoved and cancels it.)
 		longPressFired = true;
 		pressedCell = null;
 		emitBoardActionAt(touchStartX, touchStartY, true);
@@ -445,21 +437,8 @@ playerCanvas.addEventListener("touchend", function(e) {
 		return;
 	}
 	e.preventDefault();
-	if (mobileLayout) {
-		// Mobile cursor mode: tap moves the cursor to the tapped cell; the action
-		// bar buttons (Reveal / Flag) decide what to do with it.
-		var cell = cellFromClient(touchStartX, touchStartY);
-		if (cell && currentActionMode()) {
-			focusedR = cell.r;
-			focusedC = cell.c;
-			focusVisible = true;
-			scrollToCell(focusedR, focusedC, false);
-			redrawOwnBoardWithFocus();
-			if (navigator.vibrate) navigator.vibrate(4);
-		}
-	} else {
-		emitBoardActionAt(touchStartX, touchStartY, flagMode);
-	}
+	// Tap acts directly on the tapped cell, per the shared reveal/flag mode — same on mobile and desktop.
+	emitBoardActionAt(touchStartX, touchStartY, flagMode);
 }, { passive: false });
 
 playerCanvas.addEventListener("touchcancel", function() {

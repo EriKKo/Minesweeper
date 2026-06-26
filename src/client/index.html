@@ -18,6 +18,7 @@
 			<img class="logo-tile" src="/favicon.svg" alt="" width="32" height="32">
 			<span class="logo-name">MSBattle</span>
 		</a>
+		<button id="nav_burger" class="nav-burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site_nav">☰</button>
 		<nav id="site_nav" class="site-nav" aria-label="Main navigation">
 			<a href="/" class="site-nav-link" data-route="home">Play</a>
 			<a href="/learn" class="site-nav-link" data-route="learn">Learn</a>
@@ -578,10 +579,11 @@
 							<span id="ready_status" class="ready-status"></span>
 						</div>
 						<div class="mobile-action-bar" id="mobile_action_bar">
-							<button id="mobile_prev_btn" class="mobile-nav-btn" type="button" aria-label="Previous frontier cell">&#8249;</button>
-							<button id="mobile_flag_btn" class="mobile-action-btn mobile-action-flag" type="button" aria-label="Flag selected cell">🚩 Flag</button>
-							<button id="mobile_reveal_btn" class="mobile-action-btn mobile-action-reveal" type="button" aria-label="Reveal selected cell">Reveal</button>
-							<button id="mobile_next_btn" class="mobile-nav-btn" type="button" aria-label="Next frontier cell">&#8250;</button>
+							<button id="mobile_mode_btn" class="mobile-mode-btn" type="button" aria-pressed="false" aria-label="Toggle flag mode">
+								<span class="mobile-mode-icon" aria-hidden="true">⛏️</span>
+								<span class="mobile-mode-label">Reveal</span>
+								<span class="mobile-mode-hint">tap to switch</span>
+							</button>
 						</div>
 						<div class="mobile-solo-strip" id="mobile_solo_strip">
 							<span class="mobile-solo-hud">

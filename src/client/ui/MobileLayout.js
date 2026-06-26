@@ -103,13 +103,18 @@ function sizePlayerCanvas() {
 	}
 }
 
-// Snap the board scroll offset to whole-cell steps so no cell is ever clipped at an edge.
+// Once a pan settles, glide the board to the nearest whole-cell offset so no cell is left clipped at an
+// edge — animated (not an instant jump) so it doesn't feel like the board snaps around under your finger.
 function snapBoardScroll() {
 	if (!mobileLayout || !boardScroll || !(mobileCellPx > 0)) return;
 	var sx = Math.round(boardScroll.scrollLeft / mobileCellPx) * mobileCellPx;
 	var sy = Math.round(boardScroll.scrollTop / mobileCellPx) * mobileCellPx;
-	if (Math.abs(sx - boardScroll.scrollLeft) > 0.5) boardScroll.scrollLeft = sx;
-	if (Math.abs(sy - boardScroll.scrollTop) > 0.5) boardScroll.scrollTop = sy;
+	if (Math.abs(sx - boardScroll.scrollLeft) < 0.5 && Math.abs(sy - boardScroll.scrollTop) < 0.5) return; // already aligned
+	if (typeof boardScroll.scrollTo === "function") {
+		try { boardScroll.scrollTo({ left: sx, top: sy, behavior: "smooth" }); return; } catch (e) {}
+	}
+	boardScroll.scrollLeft = sx;
+	boardScroll.scrollTop = sy;
 }
 function scrollToCell(r, c, smooth) {
 	if (!boardScroll) return;
@@ -129,11 +134,13 @@ var scrollSnapWired = false;
 function wireScrollSnap() {
 	if (scrollSnapWired || !boardScroll) return;
 	scrollSnapWired = true;
+	// Snap only once scrolling has fully stopped (including momentum), so we never fight an in-progress
+	// fling. scrollend fires exactly then; for browsers without it, debounce 'scroll' long enough that
+	// momentum has settled. (No touchend snap — the finger lifts while momentum is still running.)
 	var t = null;
-	function deferredSnap() { if (t) clearTimeout(t); t = setTimeout(snapBoardScroll, 90); }
+	function deferredSnap() { if (t) clearTimeout(t); t = setTimeout(snapBoardScroll, 140); }
 	if ("onscrollend" in boardScroll) boardScroll.addEventListener("scrollend", snapBoardScroll);
 	else boardScroll.addEventListener("scroll", deferredSnap, { passive: true });
-	boardScroll.addEventListener("touchend", deferredSnap, { passive: true });
 }
 function isFrontierCell(r, c) {
 	if (myState[r][c] !== UNKNOWN) return false;

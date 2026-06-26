@@ -419,8 +419,43 @@ function navigate(to) {
 	if (!to) to = "/";
 	if (to[0] !== "/") to = "/" + to;
 	if (to !== location.pathname + location.search) history.pushState(null, "", to);
+	closeNavMenu();
 	applyRouteFromHash();
 }
+
+// Mobile burger menu. The nav collapses into a dropdown toggled by #nav_burger; it closes on
+// navigation (via navigate() above), on a tap outside, and on Escape.
+function closeNavMenu() {
+	var bar = document.querySelector(".topbar");
+	var burger = document.getElementById("nav_burger");
+	if (bar) bar.classList.remove("nav-open");
+	if (burger) { burger.setAttribute("aria-expanded", "false"); burger.textContent = "☰"; }
+}
+function wireNavBurger() {
+	var bar = document.querySelector(".topbar");
+	var burger = document.getElementById("nav_burger");
+	var nav = document.getElementById("site_nav");
+	if (!bar || !burger || !nav) return;
+	burger.addEventListener("click", function(e) {
+		e.stopPropagation();
+		var open = bar.classList.toggle("nav-open");
+		burger.setAttribute("aria-expanded", open ? "true" : "false");
+		burger.textContent = open ? "✕" : "☰";
+	});
+	// The Help item isn't an <a>, so navigate() won't fire for it — close on any nav tap.
+	nav.addEventListener("click", function() { closeNavMenu(); });
+	// Tap outside the open menu closes it.
+	document.addEventListener("click", function(e) {
+		if (!bar.classList.contains("nav-open")) return;
+		if (nav.contains(e.target) || burger.contains(e.target)) return;
+		closeNavMenu();
+	});
+	document.addEventListener("keydown", function(e) {
+		if (e.key === "Escape") closeNavMenu();
+	});
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireNavBurger);
+else wireNavBurger();
 window.addEventListener("popstate", applyRouteFromHash);
 document.addEventListener("click", function(e) {
 	if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
