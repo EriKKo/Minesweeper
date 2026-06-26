@@ -3142,24 +3142,24 @@ body[data-board-skin="tactical"] .board-scroll::after {
    below when body.touch and viewport is mobile-sized. */
 .mobile-action-bar {
 	display: none;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.55rem 1rem 0.2rem;
+	align-items: stretch;
+	gap: 0.6rem;
+	padding: 0.6rem 0.85rem calc(0.6rem + env(safe-area-inset-bottom, 0));
 }
 .mobile-nav-btn {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 52px;
-	height: 52px;
-	font-size: 1.8rem;
+	width: 64px;
+	height: 64px;
+	font-size: 2.1rem;
 	font-weight: 700;
 	line-height: 1;
 	background: var(--surface-2);
 	border: 1px solid var(--border);
 	color: var(--text);
-	border-radius: 10px;
+	border-radius: 14px;
 	cursor: pointer;
 	user-select: none;
 	touch-action: manipulation;
@@ -3171,12 +3171,13 @@ body[data-board-skin="tactical"] .board-scroll::after {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 0.35rem;
-	height: 52px;
+	gap: 0.4rem;
+	height: 64px;
 	font: inherit;
 	font-weight: 700;
-	font-size: 1rem;
-	border-radius: 10px;
+	font-size: 1.2rem;
+	letter-spacing: 0.01em;
+	border-radius: 14px;
 	cursor: pointer;
 	user-select: none;
 	touch-action: manipulation;
@@ -4002,6 +4003,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	body.in-game #player_name0 { display: none; }
 	body.in-game #duel_id_you { display: none; }
 	body.in-game #duel_bar_you { display: none; }
+	/* The side-by-side VS column (opponent board + tug-of-war) has no place in the stacked mobile
+	   layout — it was floating detached at the bottom. Hide it on mobile. */
+	body.in-game #duel_center { display: none; }
 	body.in-game .player-controls { padding: 0; }
 	body.in-game .game-header { padding: 0.4rem 1rem; margin-bottom: 0; flex-shrink: 0; }
 	body.in-game main {
@@ -4048,11 +4052,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 		flex: 1;
 		min-height: 0;
 		max-height: none !important;
-		/* Extra inner space so the canvas can scroll above the fixed bars */
-		padding-bottom: 64px;
+		/* Extra inner space so the canvas can scroll above the fixed action bar (~84px tall) */
+		padding-bottom: 84px;
 	}
 	.game-view.solo .board-scroll {
-		padding-bottom: 114px; /* action bar (64) + strip (50) */
+		padding-bottom: 134px; /* action bar (84) + solo strip (50) */
 	}
 
 	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen */
@@ -4067,7 +4071,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	}
 	body.in-game .mobile-solo-strip {
 		position: fixed;
-		bottom: 64px; /* sits above the action bar */
+		bottom: 84px; /* sits above the action bar */
 		left: 0;
 		right: 0;
 		z-index: 50;
