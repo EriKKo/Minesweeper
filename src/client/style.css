@@ -3946,6 +3946,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	/* Nav: collapse into a burger menu. The burger sits next to the logo; the nav
 	   becomes a dropdown panel anchored below the topbar, shown only when open. */
 	.nav-burger { display: inline-flex; }
+	/* Single-row header: logo + burger stay packed at the left, the controls group goes hard right. */
+	.nav-burger { margin-right: auto; }
+	.topbar-right { gap: 0.6rem; }
 	.site-nav {
 		position: absolute;
 		top: 100%;
@@ -4099,7 +4102,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 
 @media (max-width: 640px) {
-	.topbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.85rem 1rem; }
+	.topbar { padding: 0.85rem 1rem; }
 	.topbar h1 { font-size: 1rem; }
 	.user-badge { font-size: 0.85rem; gap: 0.4rem; }
 	main { padding: 1rem; }
