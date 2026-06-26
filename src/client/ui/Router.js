@@ -431,11 +431,33 @@ function closeNavMenu() {
 	if (bar) bar.classList.remove("nav-open");
 	if (burger) { burger.setAttribute("aria-expanded", "false"); burger.textContent = "☰"; }
 }
+// The account badge lives in the topbar on desktop but belongs in the dropdown on mobile (variable
+// width — a signed-in name + Sign-out would crowd the bar). Relocate it by viewport; IDs are preserved
+// so Auth.js's identity wiring keeps working after the move.
+var navMenuMedia = window.matchMedia ? window.matchMedia("(max-width: 700px)") : null;
+function layoutHeaderForViewport() {
+	var nav = document.getElementById("site_nav");
+	var right = document.querySelector(".topbar-right");
+	var badge = document.getElementById("user_badge");
+	if (!nav || !right || !badge) return;
+	var mobile = navMenuMedia ? navMenuMedia.matches : false;
+	if (mobile) {
+		if (badge.parentElement !== nav) nav.insertBefore(badge, nav.firstChild); // account on top of the menu
+	} else {
+		if (badge.parentElement !== right) right.appendChild(badge); // back to its place after the audio control
+	}
+}
+
 function wireNavBurger() {
 	var bar = document.querySelector(".topbar");
 	var burger = document.getElementById("nav_burger");
 	var nav = document.getElementById("site_nav");
 	if (!bar || !burger || !nav) return;
+	layoutHeaderForViewport();
+	if (navMenuMedia) {
+		if (navMenuMedia.addEventListener) navMenuMedia.addEventListener("change", layoutHeaderForViewport);
+		else if (navMenuMedia.addListener) navMenuMedia.addListener(layoutHeaderForViewport); // older Safari
+	}
 	burger.addEventListener("click", function(e) {
 		e.stopPropagation();
 		var open = bar.classList.toggle("nav-open");

@@ -3945,10 +3945,26 @@ body.touch .find-next-arrow { display: inline-flex; }
 @media (max-width: 700px) {
 	/* Nav: collapse into a burger menu. The burger sits next to the logo; the nav
 	   becomes a dropdown panel anchored below the topbar, shown only when open. */
-	.nav-burger { display: inline-flex; }
-	/* Single-row header: logo + burger stay packed at the left, the controls group goes hard right. */
-	.nav-burger { margin-right: auto; }
-	.topbar-right { gap: 0.6rem; }
+	/* Single-row header: logo far-left, then the audio toggle and the burger hard-right (burger last).
+	   The account badge is relocated into the menu in JS, so the bar only ever holds logo + 🔊 + ☰. */
+	.logo { margin-right: auto; }
+	.topbar-right { order: 2; gap: 0.5rem; }
+	.nav-burger { display: inline-flex; order: 3; margin-left: 0.4rem; }
+
+	/* The account badge, relocated into the open menu, sits above the links as a full-width block. */
+	.site-nav .user-badge {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.5rem;
+		padding: 0.35rem 0.35rem 0.6rem;
+		margin-bottom: 0.35rem;
+		border-bottom: 1px solid var(--border);
+	}
+	.site-nav .user-identity { padding: 0.35rem 0.5rem; font-size: 1.05rem; font-weight: 700; }
+	.site-nav .user-badge .btn { width: 100%; justify-content: center; padding: 0.7rem 0.85rem; }
+	/* The ghost Sign-out is transparent by default — give it a surface so it reads as a button in the menu. */
+	.site-nav .user-badge .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
+
 	.site-nav {
 		position: absolute;
 		top: 100%;
