@@ -38,6 +38,7 @@ function createGame(mineCount, gameRows, gameCols) {
 	game.finishedAt = 0;
 	game.handleLeftClick = handleLeftClick;
 	game.handleRightClick = handleRightClick;
+	game.revealSafeCell = revealSafeCell;
 	game.init = init;
 	game.revealedSafeCount = revealedSafeCount;
 	game.totalSafeSquares = rows * cols - numMines;
@@ -84,6 +85,23 @@ function createGame(mineCount, gameRows, gameCols) {
 		if (squaresLeft <= numMines) {
 			game.win();
 		}
+	}
+
+	// Reconciliation: force-reveal a safe cell the client cleared locally but we never applied (a reveal
+	// that was dropped in transit / never delivered). Used by the resync_reveal safety net so a board the
+	// player actually cleared can't score as a loss just because the server's copy fell behind. Never
+	// fabricates a mine hit (skips mines) and clears a stale flag that might be blocking the reveal.
+	// Returns true if it revealed anything. Mirrors handleLeftClick's win check.
+	function revealSafeCell(r, c) {
+		if (!game.playing || isFrozen()) return false;
+		if (r < 0 || c < 0 || r >= rows || c >= cols) return false;
+		if (board[r][c] === MINE) return false;          // never force a mine reveal
+		if (state[r][c] === FLAGGED) state[r][c] = UNKNOWN; // a stale flag shouldn't block a confirmed-safe reveal
+		if (state[r][c] !== UNKNOWN) return false;        // already revealed
+		var before = squaresLeft;
+		dfs(r, c);
+		if (squaresLeft <= numMines) game.win();
+		return squaresLeft !== before;
 	}
 
 	function revealedSafeCount() {

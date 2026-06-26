@@ -796,6 +796,27 @@ function registerGameplayHandlers(socket, playerID) {
 		game.handleLeftClick(data.r, data.c);
 		updateDraw(room);
 	});
+	// Reconciliation safety net: the client sends the safe cells it has cleared locally when it believes
+	// the board is done but we haven't registered a win. Force-reveal any we're missing (a reveal that was
+	// dropped in transit) so the round the player actually cleared registers the win instead of timing out
+	// and scoring as a loss. Capped + cheap (skips already-revealed cells). See client emit in Main.js.
+	socket.on("resync_reveal", function(data) {
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing" || room.gameMode === "territory") return;
+		var game = games[playerID];
+		if (!game || !game.playing) return;
+		var cells = (data && data.cells) || [];
+		if (!Array.isArray(cells) || cells.length > 4000) return;
+		var revealed = 0;
+		for (var i = 0; i < cells.length; i++) {
+			var cell = cells[i];
+			if (cell && game.revealSafeCell(cell[0], cell[1])) revealed++;
+		}
+		if (revealed) {
+			console.log("[round] resync_reveal pid=" + playerID + " healed=" + revealed + " now=" + game.revealedSafeCount() + "/" + game.totalSafeSquares);
+			updateDraw(room);
+		}
+	});
 }
 
 // ---- Game-server role (P1-5/P1-6) ----
@@ -897,11 +918,21 @@ io.on("connection", function (socket) {
 	// Game-server role: this socket is a match player. Bind it to its seat via the join token, register
 	// only the in-game handlers, and skip all the lobby/auth machinery (that lives on main).
 	if (role.ROLE === "game") {
-		if (!attachGameClient(socket, playerID)) { delete sockets[playerID]; socket.disconnect(true); return; }
+		// TEMP [conn] diagnostics: a rejected attach with a VALID token but no pending entry is a mid-match
+		// reconnect (the pending entry is deleted once the match starts) — that strands the client's moves
+		// and is the leading suspect for "cleared the board but it said Defeat". Remove once confirmed.
+		var _tok = socket.handshake && socket.handshake.auth && socket.handshake.auth.token;
+		var _p = matchToken.verifyMatchToken(_tok);
+		if (!attachGameClient(socket, playerID)) {
+			console.log("[conn] game attach REJECTED pid=" + playerID + " validToken=" + (!!_p) + " matchId=" + (_p && _p.matchId) + " pendingExists=" + (!!(_p && gamePending[_p.matchId])) + " (valid token + no pending = mid-match reconnect)");
+			delete sockets[playerID]; socket.disconnect(true); return;
+		}
+		console.log("[conn] game attach OK pid=" + playerID + " matchId=" + (_p && _p.matchId) + " playerKey=" + (_p && _p.playerKey));
 		registerGameplayHandlers(socket, playerID);
 		territory.registerSocketHandlers(socket, playerID);
 		socket.on("leave_room", function() { if (roomMapping[playerID]) removePlayerFromRoom(playerID); });
-		socket.on("disconnect", function() {
+		socket.on("disconnect", function(reason) {
+			console.log("[conn] game disconnect pid=" + playerID + " reason=" + reason + " inRoom=" + (!!roomMapping[playerID]));
 			if (roomMapping[playerID]) removePlayerFromRoom(playerID);
 			delete sockets[playerID]; delete names[playerID]; delete skins[playerID];
 			delete avatars[playerID]; delete countries[playerID]; delete accounts[playerID];

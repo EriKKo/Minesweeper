@@ -891,6 +891,28 @@ var botListEl = document.getElementById("bot_list");
 var frozenUntil = 0;
 var freezeTickHandle = null;
 var roundDeadline = null;
+var lastResyncAt = 0; // throttles the clear-reconciliation resync (see draw_board handler)
+var myTotalSafe = 0;  // safe-cell count for my board this round (from draw_board) — target for a local clear
+
+// When we've locally revealed every safe cell, proactively tell the server the full set we cleared, in
+// case a reveal was dropped in transit (the server would otherwise sit one short, time out, and score the
+// round we cleared as a loss). revealSafeCell on the server force-applies any it's missing and skips the
+// rest, so re-sending the whole board is cheap + idempotent. Throttled. Complements the draw_board-driven
+// resync, which can't fire if our last action was the dropped one and nobody else is acting.
+function claimLocalClearResync() {
+	if (!currentRoom || !myState || myTotalSafe <= 0) return;
+	var revealed = [];
+	for (var rr = 0; rr < rows; rr++) {
+		for (var cc = 0; cc < cols; cc++) {
+			if (myState[rr][cc] === KNOWN && boardCell(rr, cc) !== MINE) revealed.push([rr, cc]);
+		}
+	}
+	if (revealed.length < myTotalSafe) return; // not actually cleared yet
+	var now = Date.now();
+	if (now - lastResyncAt < 1200) return;
+	lastResyncAt = now;
+	activeGameSocket().emit("resync_reveal", { cells: revealed, id: id });
+}
 var roundTickHandle = null;
 var roundResultShown = false;
 
@@ -1800,7 +1822,14 @@ socket.on("game_result", function(data) {
 });
 
 socket.on("mine_hit", function(data) {
-	frozenUntil = data.frozenUntil;
+	// Freeze for the penalty DURATION on our own clock (measured from when we learn of the hit), NOT the
+	// server's absolute `frozenUntil` timestamp. Storing the server's wall-clock and comparing it against
+	// our Date.now() is wrong under clock skew: if our clock ran ahead we unfroze early and kept tapping,
+	// and the server (still frozen) silently DROPPED those reveals — stranding its board behind ours, so a
+	// board we cleared locally never registered a win and scored as a loss. Re-measuring here also lands
+	// just AFTER the server began its freeze, so our window ends a touch later — we never act inside it.
+	var sec = (data && data.penaltySeconds) || (currentRoom && currentRoom.deathPenalty) || 0;
+	frozenUntil = Date.now() + sec * 1000;
 	startFreezeTick();
 });
 
@@ -1939,9 +1968,20 @@ socket.on("draw_board", function(data) {
 	}
 	if (me) {
 		setHudName(document.getElementById("player_name0"), me);
+		if (me.totalSafe > 0) myTotalSafe = me.totalSafe;
+		// Cells we've revealed (locally, optimistically) as safe but the server's authoritative state for
+		// us still shows covered — i.e. reveals it hasn't applied. Collected so we can re-send them if it
+		// turns out we've cleared the board but the server fell behind (see resync below).
+		var serverMissing = [];
+		var localSafeRevealed = 0;
 		if (myState) {
 			for (var rr = 0; rr < rows; rr++) {
 				for (var cc = 0; cc < cols; cc++) {
+					var locallySafe = myState[rr][cc] === KNOWN && boardCell(rr, cc) !== MINE;
+					if (locallySafe) {
+						localSafeRevealed++;
+						if (me.state[rr][cc] !== KNOWN) serverMissing.push([rr, cc]);
+					}
 					// Reveal is monotonic — the server can never un-reveal a cell,
 					// so keep any locally-revealed cell revealed.
 					if (myState[rr][cc] === KNOWN && me.state[rr][cc] !== KNOWN) {
@@ -1963,6 +2003,18 @@ socket.on("draw_board", function(data) {
 		renderPlayerBoard();
 		updateMobileFindNextHint();
 		mobileAutoSelect();
+		// Self-heal a dropped reveal: if we've locally cleared every safe cell but the server hasn't marked
+		// us finished AND its board for us is still missing some of our reveals, re-send those reveals so it
+		// catches up and registers the win. Without this, a single reveal lost in transit silently strands
+		// the server behind — the round we actually cleared times out and scores as a loss ("cleared the
+		// board but it said Defeat"). Throttled so a brief in-flight lag doesn't spam.
+		if (me.totalSafe > 0 && localSafeRevealed >= me.totalSafe && !me.finished && serverMissing.length) {
+			var now = Date.now();
+			if (now - lastResyncAt > 1200) {
+				lastResyncAt = now;
+				activeGameSocket().emit("resync_reveal", { cells: serverMissing, id: id });
+			}
+		}
 		// Racing clear → report the no-flag / chord-only challenge (once per board).
 		if (me.finished && me.totalSafe > 0 && (me.safeCount || 0) >= me.totalSafe) reportClear();
 	}
