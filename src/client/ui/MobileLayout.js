@@ -48,6 +48,26 @@ function fitDesktopCellPx() {
 	return Math.max(DESKTOP_CELL_MIN, Math.min(maxCell, cell));
 }
 
+// Mobile cell size for racing/solo/territory: the largest whole-pixel cell that lets a finger-friendly
+// number of columns (~MOBILE_PLAYER_CELL wide) fill the board viewport exactly. A board narrower than
+// that fits entirely (no panning); a wider board keeps big cells and pans. Returns an integer so cells
+// render crisp, and so the viewport can be sized to a whole number of them (no half-cut cells).
+var mobileCellPx = 0; // last mobile cell size, used to snap panning to whole-cell steps
+// Available board width = the (full-bleed) parent of the scroll viewport. We measure the PARENT, not
+// boardScroll itself, because sizePlayerCanvas shrinks boardScroll to a whole-cell width — reading its
+// own (already-shrunk) width would drift smaller on every re-run.
+function mobileAvailW() {
+	var p = boardScroll && boardScroll.parentNode;
+	var w = (p && p.clientWidth) || (boardScroll && boardScroll.clientWidth) || window.innerWidth;
+	return w > 0 ? w : window.innerWidth;
+}
+function fitMobileCellPx() {
+	var availW = mobileAvailW();
+	var fitCols = Math.max(1, Math.floor(availW / MOBILE_PLAYER_CELL));
+	var visibleCols = Math.min(cols, fitCols);            // never claim more columns than the board has
+	return Math.max(1, Math.floor(availW / visibleCols)); // fill the width with whole columns
+}
+
 function sizePlayerCanvas() {
 	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession;
 	var cellPx;
@@ -56,7 +76,7 @@ function sizePlayerCanvas() {
 		var cap = mobileLayout ? PUZZLE_CELL_MAX_MOBILE : PUZZLE_CELL_MAX;
 		cellPx = Math.min(cap, Math.floor(target / Math.max(rows, cols)));
 	} else {
-		cellPx = mobileLayout ? MOBILE_PLAYER_CELL : fitDesktopCellPx();
+		cellPx = mobileLayout ? fitMobileCellPx() : fitDesktopCellPx();
 	}
 	var pw = Math.round(cols * cellPx * DPR), ph = Math.round(rows * cellPx * DPR);
 	// Same guard as sizeBoardCanvas: don't clear the player board by re-assigning the same size.
@@ -64,24 +84,56 @@ function sizePlayerCanvas() {
 	if (playerCanvas.height !== ph) playerCanvas.height = ph;
 	playerCanvas.style.width = (cols * cellPx) + "px";
 	if (mobileLayout) {
+		mobileCellPx = cellPx;
+		wireScrollSnap();
 		playerCanvas.style.height = (rows * cellPx) + "px";
 		playerCanvas.style.maxWidth = "none";
+		// Constrain the scroll viewport to a whole number of cells (centered), so its edges always land
+		// on cell boundaries — combined with whole-step panning (snapBoardScroll), no cell is ever
+		// rendered half-visible. Puzzles keep their fixed centered box.
+		if (boardScroll && !inPuzzle) {
+			var visW = Math.min(cols, Math.floor(mobileAvailW() / cellPx)) * cellPx;
+			boardScroll.style.width = visW + "px";
+			boardScroll.style.marginLeft = "auto";
+			boardScroll.style.marginRight = "auto";
+		}
 	} else {
 		playerCanvas.style.height = "auto";
 		playerCanvas.style.maxWidth = "100%";
 	}
 }
+
+// Snap the board scroll offset to whole-cell steps so no cell is ever clipped at an edge.
+function snapBoardScroll() {
+	if (!mobileLayout || !boardScroll || !(mobileCellPx > 0)) return;
+	var sx = Math.round(boardScroll.scrollLeft / mobileCellPx) * mobileCellPx;
+	var sy = Math.round(boardScroll.scrollTop / mobileCellPx) * mobileCellPx;
+	if (Math.abs(sx - boardScroll.scrollLeft) > 0.5) boardScroll.scrollLeft = sx;
+	if (Math.abs(sy - boardScroll.scrollTop) > 0.5) boardScroll.scrollTop = sy;
+}
 function scrollToCell(r, c, smooth) {
 	if (!boardScroll) return;
 	var rect = playerCanvas.getBoundingClientRect();
 	var cellW = rect.width / cols, cellH = rect.height / rows;
-	var targetX = (c + 0.5) * cellW - boardScroll.clientWidth / 2;
-	var targetY = (r + 0.5) * cellH - boardScroll.clientHeight / 2;
+	// Centre the cell, then snap the offset to a whole-cell step so edges land on cell boundaries.
+	var targetX = Math.round(((c + 0.5) * cellW - boardScroll.clientWidth / 2) / cellW) * cellW;
+	var targetY = Math.round(((r + 0.5) * cellH - boardScroll.clientHeight / 2) / cellH) * cellH;
 	if (smooth && typeof boardScroll.scrollTo === "function") {
 		try { boardScroll.scrollTo({ left: targetX, top: targetY, behavior: "smooth" }); return; } catch (e) {}
 	}
 	boardScroll.scrollLeft = targetX;
 	boardScroll.scrollTop = targetY;
+}
+// Snap manual (finger) panning to whole-cell steps once the gesture settles.
+var scrollSnapWired = false;
+function wireScrollSnap() {
+	if (scrollSnapWired || !boardScroll) return;
+	scrollSnapWired = true;
+	var t = null;
+	function deferredSnap() { if (t) clearTimeout(t); t = setTimeout(snapBoardScroll, 90); }
+	if ("onscrollend" in boardScroll) boardScroll.addEventListener("scrollend", snapBoardScroll);
+	else boardScroll.addEventListener("scroll", deferredSnap, { passive: true });
+	boardScroll.addEventListener("touchend", deferredSnap, { passive: true });
 }
 function isFrontierCell(r, c) {
 	if (myState[r][c] !== UNKNOWN) return false;
