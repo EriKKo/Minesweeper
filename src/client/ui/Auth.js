@@ -89,10 +89,19 @@ function applyUserIdentity(data) {
 // The mobile burger menu's account card: avatar + name + tier (same building blocks as the home
 // dashboard / profile), with the sign-in (guest) or sign-out (account) action beneath. Driven off the
 // same identity data as the topbar badge so the two never disagree.
+var menuAccountId = document.getElementById("menu_account_id");
 var menuAccountAvatar = document.getElementById("menu_account_avatar");
 var menuAccountName = document.getElementById("menu_account_name");
 var menuAccountTier = document.getElementById("menu_account_tier");
 function renderMenuAccount(isGuest) {
+	// A guest has no real identity to show — just the Sign in action. Only signed-in accounts get the
+	// avatar + name + tier row.
+	if (menuAccountId) menuAccountId.style.display = isGuest ? "none" : "";
+	if (isGuest) {
+		if (menuSigninButton) menuSigninButton.style.display = "";
+		if (menuSignoutButton) menuSignoutButton.style.display = "none";
+		return;
+	}
 	if (menuAccountName) menuAccountName.textContent = (account && account.name) || myName || "Player";
 	if (menuAccountAvatar) {
 		menuAccountAvatar.innerHTML = "";
@@ -108,8 +117,8 @@ function renderMenuAccount(isGuest) {
 	} else if (menuAccountTier) {
 		menuAccountTier.textContent = "";
 	}
-	if (menuSigninButton) menuSigninButton.style.display = isGuest ? "" : "none";
-	if (menuSignoutButton) menuSignoutButton.style.display = isGuest ? "none" : "";
+	if (menuSigninButton) menuSigninButton.style.display = "none";
+	if (menuSignoutButton) menuSignoutButton.style.display = "";
 }
 
 // Home dashboard: the pen turns the name into an inline text field (no page change). Enter / blur
