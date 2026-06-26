@@ -101,6 +101,10 @@ body.in-game { overflow: hidden; }
 	border-bottom: 1px solid var(--border);
 	background: rgba(11, 16, 32, 0.6);
 	backdrop-filter: blur(6px);
+	/* backdrop-filter makes the topbar its own stacking context; lift it above page content so the
+	   mobile nav dropdown (an absolutely-positioned child) paints over the dashboard, not under it. */
+	position: relative;
+	z-index: 100;
 }
 
 .logo {
@@ -3941,7 +3945,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 @media (max-width: 700px) {
 	/* Nav: collapse into a burger menu. The burger sits next to the logo; the nav
 	   becomes a dropdown panel anchored below the topbar, shown only when open. */
-	.topbar { position: relative; }
 	.nav-burger { display: inline-flex; }
 	.site-nav {
 		position: absolute;
@@ -3954,9 +3957,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 		align-items: stretch;
 		gap: 0.15rem;
 		padding: 0.5rem;
-		background: rgba(11, 16, 32, 0.98);
+		background: var(--bg);
 		border-bottom: 1px solid var(--border);
-		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
 		/* Hidden by default; toggled open by the burger (.nav-open on the topbar). */
 		display: none;
 	}
@@ -3966,6 +3969,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 		padding: 0.7rem 0.85rem;
 		font-size: 1rem;
 		border-radius: 10px;
+		text-align: left; /* the Help item is a <button> (defaults centred) — keep it flush-left like the links */
+		width: 100%;
 	}
 
 	.opponents { display: none; }
