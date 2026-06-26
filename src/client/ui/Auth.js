@@ -29,6 +29,8 @@ var userProviderLogo = document.getElementById("user_provider_logo");
 var userBadgeName = document.getElementById("user_badge_name");
 var signOutButton = document.getElementById("sign_out_button");
 var signinButton = document.getElementById("signin_button");
+var menuSigninButton = document.getElementById("menu_signin");
+var menuSignoutButton = document.getElementById("menu_signout");
 
 // When we're a guest, carry the guest session token into the OAuth flow so the callback upgrades that
 // guest in place (keeping its rating/stats) instead of minting a brand-new account.
@@ -81,6 +83,33 @@ function applyUserIdentity(data) {
 	signinButton.style.display = isGuest ? "" : "none";
 	signOutButton.style.display = isGuest ? "none" : "";
 	if (userBadge) userBadge.style.display = "";
+	renderMenuAccount(isGuest);
+}
+
+// The mobile burger menu's account card: avatar + name + tier (same building blocks as the home
+// dashboard / profile), with the sign-in (guest) or sign-out (account) action beneath. Driven off the
+// same identity data as the topbar badge so the two never disagree.
+var menuAccountAvatar = document.getElementById("menu_account_avatar");
+var menuAccountName = document.getElementById("menu_account_name");
+var menuAccountTier = document.getElementById("menu_account_tier");
+function renderMenuAccount(isGuest) {
+	if (menuAccountName) menuAccountName.textContent = (account && account.name) || myName || "Player";
+	if (menuAccountAvatar) {
+		menuAccountAvatar.innerHTML = "";
+		if (typeof buildAvatarChip === "function") {
+			var color = (account && account.avatarColor) || (typeof DEFAULT_AVATAR !== "undefined" ? DEFAULT_AVATAR : null);
+			menuAccountAvatar.appendChild(buildAvatarChip(color, (account && account.country) || null, 44));
+		}
+	}
+	if (menuAccountTier && account && typeof overallRating === "function" && typeof tierFor === "function") {
+		var overall = overallRating(account);
+		var t = tierFor(overall, account.provisional);
+		menuAccountTier.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
+	} else if (menuAccountTier) {
+		menuAccountTier.textContent = "";
+	}
+	if (menuSigninButton) menuSigninButton.style.display = isGuest ? "" : "none";
+	if (menuSignoutButton) menuSignoutButton.style.display = isGuest ? "none" : "";
 }
 
 // Home dashboard: the pen turns the name into an inline text field (no page change). Enter / blur
@@ -133,12 +162,11 @@ devSigninButton.addEventListener("click", function() {
 });
 
 // Guests tap "Sign in" to open the sign-in / rename card.
-signinButton.addEventListener("click", function() {
+function doSignIn() {
 	if (inRoom) socket.emit("leave_room");
 	showNameView();
-});
-
-signOutButton.addEventListener("click", function() {
+}
+function doSignOut() {
 	socket.emit("sign_out");
 	localStorage.removeItem("ms_session");
 	account = null;
@@ -146,7 +174,12 @@ signOutButton.addEventListener("click", function() {
 	myName = "";
 	userBadge.style.display = "none";
 	socket.emit("guest_session"); // drop back to a fresh guest rather than a login wall
-});
+}
+signinButton.addEventListener("click", doSignIn);
+signOutButton.addEventListener("click", doSignOut);
+// The mobile menu's account card uses the same actions.
+if (menuSigninButton) menuSigninButton.addEventListener("click", doSignIn);
+if (menuSignoutButton) menuSignoutButton.addEventListener("click", doSignOut);
 
 // Socket handler bodies — inline registers the events and calls these.
 function applyConnected(data) {

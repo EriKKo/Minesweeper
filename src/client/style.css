@@ -167,6 +167,9 @@ body.in-game { overflow: hidden; }
 /* The Help nav item is a <button> (opens a modal, not a route) — strip native button chrome. */
 button.site-nav-link { background: none; border: 0; font-family: inherit; cursor: pointer; }
 
+/* The in-menu account card only exists in the mobile burger menu; desktop uses the topbar badge. */
+.menu-account { display: none; }
+
 /* Burger toggle — desktop hides it (the nav is laid out inline); mobile shows it (see media query). */
 .nav-burger {
 	display: none;
@@ -3951,33 +3954,38 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.topbar-right { order: 2; gap: 0.5rem; }
 	.nav-burger { display: inline-flex; order: 3; margin-left: 0.4rem; }
 
-	/* The account badge, relocated into the open menu, sits at the foot below the links. */
-	.site-nav .user-badge {
+	/* Identity lives in the menu on mobile (the topbar badge is hidden here). */
+	.topbar-right .user-badge { display: none !important; }
+
+	/* Account card at the foot of the menu: avatar + name (tap → profile) over the sign-in/out action.
+	   A soft surface card separates it from the links — no hard divider rule. */
+	.site-nav .menu-account {
+		display: flex;
 		flex-direction: column;
-		align-items: stretch;
-		gap: 0.5rem;
-		padding: 0.7rem 0.35rem 0.35rem;
-		margin-top: 0.4rem;
-		border-top: 1px solid var(--border);
+		gap: 0.7rem;
+		margin-top: 0.6rem;
+		padding: 0.7rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 14px;
 	}
-	.site-nav .user-identity {
-		padding: 0.5rem;
-		font-size: 1.05rem;
-		font-weight: 700;
-		gap: 0.5rem;
+	.menu-account-id {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		text-decoration: none;
+		color: var(--text);
+		min-width: 0;
 	}
-	.site-nav .user-badge .btn {
-		width: 100%;
-		justify-content: center;
-		gap: 0.5rem;
-		padding: 0.8rem 0.85rem;
-		font-size: 1rem;
-		border-radius: 12px;
-	}
-	/* Sign in is the section's call to action — accent fill, with a "go" arrow to read as a forward step. */
-	.site-nav #signin_button::after { content: "→"; font-size: 1.1em; line-height: 1; }
-	/* The ghost Sign-out is transparent by default — give it a surface so it reads as a button in the menu. */
-	.site-nav .user-badge .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
+	.menu-account-avatar { flex: none; display: inline-flex; }
+	.menu-account-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+	.menu-account-text strong { font-size: 1.05rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.menu-account-tier { font-size: 0.85rem; color: var(--muted); }
+	.menu-account-btn { width: 100%; justify-content: center; gap: 0.45rem; padding: 0.75rem; font-size: 1rem; border-radius: 11px; }
+	/* Sign in is the card's call to action — accent fill, with a "go" arrow to read as a forward step. */
+	.site-nav #menu_signin::after { content: "→"; font-size: 1.1em; line-height: 1; }
+	/* Sign out is secondary — lift it off the card surface so it still reads as a button. */
+	.menu-account .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
 
 	.site-nav {
 		position: absolute;

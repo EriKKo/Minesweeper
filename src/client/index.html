@@ -27,6 +27,19 @@
 			<a href="/settings" class="site-nav-link" data-route="settings">Settings</a>
 			<button type="button" id="help_nav_link" class="site-nav-link">Help</button>
 			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
+			<!-- Account card — only shown inside the mobile burger menu (hidden on desktop, where the
+			     topbar badge handles identity). Populated by renderMenuAccount() in Auth.js. -->
+			<div id="menu_account" class="menu-account">
+				<a href="/profile" class="menu-account-id" id="menu_account_id">
+					<span class="menu-account-avatar" id="menu_account_avatar"></span>
+					<span class="menu-account-text">
+						<strong id="menu_account_name"></strong>
+						<span class="menu-account-tier" id="menu_account_tier"></span>
+					</span>
+				</a>
+				<button type="button" id="menu_signin" class="btn btn-primary menu-account-btn" style="display:none">Sign in</button>
+				<button type="button" id="menu_signout" class="btn btn-ghost menu-account-btn" style="display:none">Sign out</button>
+			</div>
 		</nav>
 		<div class="topbar-right">
 			<div class="audio-control">
