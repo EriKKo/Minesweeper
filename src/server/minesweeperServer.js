@@ -371,18 +371,32 @@ function endIndividualGame(room, reason) {
 
 function handleRoundTimeUp(room) {
 	delete roundTimers[room.id];
+	console.log("[round] handleRoundTimeUp room=" + room.id + " phase=" + room.phase);
+	// Diagnostic: at a timeout, dump each board's revealed/total so we can tell whether a board that
+	// "looked cleared" to the player was actually cleared on the server (revealed===total but no win =
+	// win-detection bug) or still short (final clicks not reaching/applying = transport/desync).
+	for (var i = 0; i < room.players.length; i++) {
+		var pid = room.players[i], g = games[pid];
+		if (g) console.log("[round] timeout-state pid=" + pid + " isBot=" + isBot(pid) + " revealed=" + g.revealedSafeCount() + "/" + g.totalSafeSquares + " finished=" + g.finished + " frozenUntil=" + (g.frozenUntil > Date.now()));
+	}
 	if (room.phase !== "playing") return;
 	endIndividualGame(room, "timeout");
 }
 
 function reduceRoundDeadline(room, targetSeconds) {
 	var newDeadline = Date.now() + targetSeconds * 1000;
-	if (roundDeadlines[room.id] && roundDeadlines[room.id] <= newDeadline) return;
+	if (roundDeadlines[room.id] && roundDeadlines[room.id] <= newDeadline) {
+		console.log("[round] reduceRoundDeadline noop room=" + room.id + " (already <= " + targetSeconds + "s)");
+		return;
+	}
+	console.log("[round] reduceRoundDeadline room=" + room.id + " → " + targetSeconds + "s");
 	roundDeadlines[room.id] = newDeadline;
 	if (roundTimers[room.id]) clearTimeout(roundTimers[room.id]);
 	roundTimers[room.id] = setTimeout(function() {
 		handleRoundTimeUp(room);
 	}, targetSeconds * 1000);
+	// Tell clients the round will end sooner so the displayed timer drops too (not just the server's).
+	roomState.broadcastRoomState(room);
 }
 
 
@@ -453,7 +467,9 @@ function gameWin(playerID) {
 
 	// First finish in this round? Pull the remaining time down so the round closes soon after the
 	// winner — the 6-player battle gets a snappy 3s sprint; other modes keep the longer 10s tail.
-	if (countFinishedPlayers(room) === 1) {
+	var finishedNow = countFinishedPlayers(room);
+	console.log("[round] gameWin pid=" + playerID + " isBot=" + isBot(playerID) + " finished=" + finishedNow + " active=" + countActivePlayers(room) + " players=" + room.players.length);
+	if (finishedNow === 1) {
 		var n = room.players.length;
 		var multiRace = (room.gameMode || "race") === "race" && room.rankedMode !== "tournament" && n >= 3 && n <= 6;
 		reduceRoundDeadline(room, multiRace ? 3 : 10);
@@ -562,12 +578,16 @@ function startGame(room) {
 		}
 	}
 	setTimeout(function() {
-		if (!rooms[room.id] || room.phase !== "playing") return;
+		if (!rooms[room.id] || room.phase !== "playing") {
+			console.log("[round] round-start callback bailed room=" + room.id + " exists=" + !!rooms[room.id] + " phase=" + (room.phase));
+			return;
+		}
 		roundStarts[room.id] = Date.now();
 		for (var i = 0; i < room.players.length; i++) {
 			var pid = room.players[i];
 			if (games[pid]) games[pid].playing = true;
 		}
+		console.log("[round] round started room=" + room.id + " players=" + room.players.length + " roundSeconds=" + room.roundSeconds);
 		if (room.roundSeconds > 0) {
 			roundDeadlines[room.id] = Date.now() + room.roundSeconds * 1000;
 			roundTimers[room.id] = setTimeout(function() {
