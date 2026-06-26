@@ -442,7 +442,7 @@ function layoutHeaderForViewport() {
 	if (!nav || !right || !badge) return;
 	var mobile = navMenuMedia ? navMenuMedia.matches : false;
 	if (mobile) {
-		if (badge.parentElement !== nav) nav.insertBefore(badge, nav.firstChild); // account on top of the menu
+		if (badge.parentElement !== nav) nav.appendChild(badge); // account at the foot of the menu, below the links
 	} else {
 		if (badge.parentElement !== right) right.appendChild(badge); // back to its place after the audio control
 	}

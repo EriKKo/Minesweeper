@@ -3951,17 +3951,31 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.topbar-right { order: 2; gap: 0.5rem; }
 	.nav-burger { display: inline-flex; order: 3; margin-left: 0.4rem; }
 
-	/* The account badge, relocated into the open menu, sits above the links as a full-width block. */
+	/* The account badge, relocated into the open menu, sits at the foot below the links. */
 	.site-nav .user-badge {
 		flex-direction: column;
 		align-items: stretch;
 		gap: 0.5rem;
-		padding: 0.35rem 0.35rem 0.6rem;
-		margin-bottom: 0.35rem;
-		border-bottom: 1px solid var(--border);
+		padding: 0.7rem 0.35rem 0.35rem;
+		margin-top: 0.4rem;
+		border-top: 1px solid var(--border);
 	}
-	.site-nav .user-identity { padding: 0.35rem 0.5rem; font-size: 1.05rem; font-weight: 700; }
-	.site-nav .user-badge .btn { width: 100%; justify-content: center; padding: 0.7rem 0.85rem; }
+	.site-nav .user-identity {
+		padding: 0.5rem;
+		font-size: 1.05rem;
+		font-weight: 700;
+		gap: 0.5rem;
+	}
+	.site-nav .user-badge .btn {
+		width: 100%;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.8rem 0.85rem;
+		font-size: 1rem;
+		border-radius: 12px;
+	}
+	/* Sign in is the section's call to action — accent fill, with a "go" arrow to read as a forward step. */
+	.site-nav #signin_button::after { content: "→"; font-size: 1.1em; line-height: 1; }
 	/* The ghost Sign-out is transparent by default — give it a surface so it reads as a button in the menu. */
 	.site-nav .user-badge .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
 
