@@ -56,7 +56,7 @@ Verify it reads at 28px (avatars never render bigger in-game) before wiring it i
 | `mine-teddy` | camo military teddy bear holding a rifle — the original art, downscaled to **320×320 PNG** (~73KB, was 1024² / 1.4MB; avatars never render above ~184px so it's lossless in practice). | wired |
 | `recon-fox` | ghillie-hood sniper fox, one eye squinting down a scope | wired |
 | `eod-bulldog` | chunky bomb-squad blast suit, calmly snipping a wire | wired |
-| `night-cat` | black cat in a tactical vest with green night-vision goggles | idea |
+| `night-cat` | black cat in a tactical vest with green night-vision goggles | wired |
 | `para-penguin` | penguin in goggles with open parachute straps + tiny boots | idea |
 | `commando-croc` | crocodile with face paint, bandana, (cartoon) knife in teeth | idea |
 | `sgt-hamster` | hamster in an oversized helmet, whistle, cheeks full of "supplies" | idea |
