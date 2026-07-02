@@ -45,7 +45,7 @@ var DEFAULT_AVATAR_COLOR = "#ef4444";
 // The default avatar shown anywhere a player hasn't chosen one — the anonymous silhouette.
 var DEFAULT_AVATAR = "anon";
 // Preset image avatars — an avatar value of "img:<id>" renders the image instead of a flag pennant.
-var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png" };
+var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png", "recon-fox": "/avatars/recon-fox.png" };
 // localBoardSkin = the skin the *local* user picked (their own board + UI previews).
 // Other players' boards render in THEIR skin (passed per-BoardView); bots/unknown fall
 // back to classic. Each BoardView.draw() loads its skin's palette into these vars for the
