@@ -17,6 +17,34 @@ Keep them cohesive so they feel like a collectible set:
 
 Optional: gate the **rare** ones behind Puzzle Ladder tiers or achievements so they double as rewards.
 
+## Generating art (local ComfyUI)
+
+Set up at `~/workspace/ComfyUI` (Intel Mac, CPU-only — the newest PyPI torch wheel for x86_64 macOS is
+`2.2.2`, so ComfyUI is checked out at a pre-`comfy_kitchen` commit with `numpy<2` pinned for ABI
+compatibility). Checkpoints in `models/checkpoints/`: `toonyou_beta6.safetensors` (SD1.5, cartoon,
+reliable for animal/anthro features but drifts painterly if you add "furry"/"kemono" tags) and
+`counterfeitV30_v30.safetensors` (SD1.5, much cleaner flat-vector linework matching the house style, but
+needs the animal-feature tags pushed harder — plain breed names alone tend to render human/anime faces).
+
+**Best recipe found so far — img2img from mine-teddy** (run through ComfyUI's `/prompt` API, not the UI):
+composite `mine-teddy.png` onto a solid white background first (its transparent pixels are stored as
+black, and ComfyUI's `LoadImage` drops alpha rather than compositing, so skipping this makes the output
+background go black), `VAEEncode` it, then `KSampler` at `denoise: 0.6` (not full noise) so the pose/
+chibi-proportions/composition carry over from teddy while the prompt swaps in the new subject. Prompt
+shape: lead with `(chibi:1.3), (super deformed:1.2), huge head small body, short stubby arms and legs`,
+then the subject with feature tags at ~1.2–1.4 weight (e.g. `(wrinkled bulldog snout:1.4), (black
+nose:1.3)` — plain unweighted breed words are not enough), then
+`bold dark outline, flat cel shading, simple flat solid white background, simple shapes, clean lineart,
+minimal detail, full body shot, complete character within frame, not cropped, centered with margin`.
+Negative: `worst quality, low quality, painterly, realistic fur texture, textured background, cropped,
+portrait, adult proportions, human face` (avoid "no X" phrasing — negatives work as anti-conditioning on
+the words themselves, not natural-language instructions). ~3–9 min per image on CPU depending on denoise.
+
+After generating: `~/workspace/ComfyUI/make_avatar.py <src.png> <dst.png> <size>` flood-fills the white
+background to transparent (from the corners, so it doesn't eat white used inside the character), crops to
+the character's bounding box, pads ~6%, and downscales — `320` matches `mine-teddy.png`'s convention.
+Verify it reads at 28px (avatars never render bigger in-game) before wiring it in via "How to add one" above.
+
 ## Status legend
 `idea` = concept only · `art` = image generated · `wired` = added to `AVATAR_IMAGES`
 
@@ -27,7 +55,7 @@ Optional: gate the **rare** ones behind Puzzle Ladder tiers or achievements so t
 |---|---|---|
 | `mine-teddy` | camo military teddy bear holding a rifle — the original art, downscaled to **320×320 PNG** (~73KB, was 1024² / 1.4MB; avatars never render above ~184px so it's lossless in practice). | wired |
 | `recon-fox` | ghillie-hood sniper fox, one eye squinting down a scope | wired |
-| `eod-bulldog` | chunky bomb-squad blast suit, calmly snipping a wire | idea |
+| `eod-bulldog` | chunky bomb-squad blast suit, calmly snipping a wire | wired |
 | `night-cat` | black cat in a tactical vest with green night-vision goggles | idea |
 | `para-penguin` | penguin in goggles with open parachute straps + tiny boots | idea |
 | `commando-croc` | crocodile with face paint, bandana, (cartoon) knife in teeth | idea |
