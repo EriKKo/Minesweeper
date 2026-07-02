@@ -253,11 +253,31 @@ function showResultModal(data) {
 	showCasualResult(data);
 }
 
-// Ranked result: your rating change and progress toward the next tier — not a standings list.
-// Rank badge, rating count-up + delta, a fill bar toward the next sub-tier, and Play another / Leave.
+// Display label for a racing ranked mode key — shown under the outcome heading. Keep in
+// sync with RANKED_MODES' `label` field on the server (runtime/ranked.js); territory and
+// tournament have their own result UIs and never reach this panel.
+var RANKED_RESULT_MODE_LABELS = {
+	sprint_duo: "1v1 Sprint", sprint_six: "6-Player Sprint",
+	standard_duo: "1v1 Standard", standard_six: "6-Player Standard"
+};
+
+function rrDeltaClass(delta) {
+	return delta > 0 ? "gain" : delta < 0 ? "loss" : "flat";
+}
+function rrDeltaText(delta) {
+	return (delta > 0 ? "+" : delta < 0 ? "−" : "±") + Math.abs(delta);
+}
+
+// Ranked result: your rating change is the hero (rank badge, before/after rating, tier
+// progress), with the match context — the opponent in 1v1, full standings in a 6-player
+// lobby — below it. Rank badge, rating count-up, a fill bar toward the next sub-tier, and
+// Play another / Leave.
 function showRankedResult(data) {
-	var won = data.winnerId === id;
-	var mine = (data.standings || []).find(function(s) { return s.id === id; }) || {};
+	var standings = data.standings || [];
+	var mine = standings.find(function(s) { return s.id === id; }) || {};
+	var isDuo = standings.length === 2;
+	var won = isDuo ? data.winnerId === id : mine.rank === 1;
+
 	// The card shows THIS mode's rating. Capture the old per-style value before updateRatingFromStandings
 	// overwrites it below, so the number can count up from old → new.
 	var styleField = styleFieldFromMode(data.mode || (typeof currentRankedMode !== "undefined" ? currentRankedMode : null));
@@ -268,34 +288,67 @@ function showRankedResult(data) {
 	var panel = document.createElement("div");
 	panel.className = "result-panel ranked-result " + (won ? "ranked-result-win" : "ranked-result-lose");
 
-	var heading = document.createElement("div");
-	heading.className = "ranked-result-heading";
-	heading.textContent = won ? "Victory" : "Defeat";
-	panel.appendChild(heading);
-
+	// ── hero: rank badge + outcome ──
+	var hero = document.createElement("div");
+	hero.className = "ranked-result-hero";
 	var badge = buildRankBadge(newRating);
 	badge.classList.add("ranked-result-badge");
-	panel.appendChild(badge);
+	hero.appendChild(badge);
+	var heroText = document.createElement("div");
+	heroText.className = "ranked-result-hero-text";
+	var heading = document.createElement("div");
+	heading.className = "ranked-result-heading";
+	heading.textContent = isDuo ? (won ? "Victory" : "Defeat") : (ordinal(mine.rank || 1) + " Place");
+	heroText.appendChild(heading);
+	var sub = document.createElement("div");
+	sub.className = "ranked-result-sub";
+	sub.textContent = RANKED_RESULT_MODE_LABELS[data.mode] || "Ranked match";
+	heroText.appendChild(sub);
+	hero.appendChild(heroText);
+	panel.appendChild(hero);
 
-	var tier = tierFor(newRating, mine.provisional);
-	var ratingLine = document.createElement("div");
-	ratingLine.className = "ranked-result-rating";
-	var tierName = document.createElement("span");
-	tierName.className = "ranked-result-tier";
-	tierName.style.color = tier.color;
-	tierName.textContent = tier.name;
-	ratingLine.appendChild(tierName);
-	var num = document.createElement("span");
-	num.className = "ranked-result-num";
-	num.textContent = String(oldRating != null ? oldRating : newRating);
-	ratingLine.appendChild(num);
+	// ── rating card: before → delta → after, plus tier progress ──
+	var ratingCard = document.createElement("div");
+	ratingCard.className = "ranked-result-ratingcard";
+
+	var cols = document.createElement("div");
+	cols.className = "ranked-result-cols";
+
+	var beforeCol = document.createElement("div");
+	beforeCol.className = "ranked-result-col";
+	var beforeLabel = document.createElement("div");
+	beforeLabel.className = "ranked-result-collabel";
+	beforeLabel.textContent = "Before";
+	beforeCol.appendChild(beforeLabel);
+	var beforeNum = document.createElement("div");
+	beforeNum.className = "ranked-result-colnum old";
+	beforeNum.textContent = String(oldRating != null ? oldRating : newRating);
+	beforeCol.appendChild(beforeNum);
+	cols.appendChild(beforeCol);
+
+	var deltaCol = document.createElement("div");
+	deltaCol.className = "ranked-result-col center";
 	if (typeof mine.ratingDelta === "number") {
-		var d = document.createElement("span");
-		d.className = "ranked-result-delta " + (mine.ratingDelta > 0 ? "gain" : mine.ratingDelta < 0 ? "loss" : "flat");
-		d.textContent = (mine.ratingDelta > 0 ? "▲ +" : mine.ratingDelta < 0 ? "▼ " : "± ") + Math.abs(mine.ratingDelta);
-		ratingLine.appendChild(d);
+		var deltaNum = document.createElement("div");
+		deltaNum.className = "ranked-result-colnum " + rrDeltaClass(mine.ratingDelta);
+		deltaNum.textContent = rrDeltaText(mine.ratingDelta);
+		deltaCol.appendChild(deltaNum);
 	}
-	panel.appendChild(ratingLine);
+	cols.appendChild(deltaCol);
+
+	var afterCol = document.createElement("div");
+	afterCol.className = "ranked-result-col right";
+	var afterLabel = document.createElement("div");
+	afterLabel.className = "ranked-result-collabel";
+	afterLabel.textContent = "After";
+	afterCol.appendChild(afterLabel);
+	var num = document.createElement("div");
+	num.className = "ranked-result-colnum";
+	num.textContent = String(newRating);
+	afterCol.appendChild(num);
+	cols.appendChild(afterCol);
+
+	ratingCard.appendChild(cols);
 
 	// Progress toward the next sub-tier.
 	var oldProg = tierProgress(oldRating != null ? oldRating : newRating);
@@ -306,12 +359,76 @@ function showRankedResult(data) {
 	fill.className = "ranked-result-progress-fill";
 	fill.style.width = Math.round(oldProg.fill * 100) + "%";
 	track.appendChild(fill);
-	panel.appendChild(track);
-	var progLabel = document.createElement("div");
+	ratingCard.appendChild(track);
+	var progLabels = document.createElement("div");
+	progLabels.className = "ranked-result-progress-labels";
+	var tier = tierFor(newRating, mine.provisional);
+	var tierName = document.createElement("span");
+	tierName.className = "ranked-result-progress-tier";
+	tierName.style.color = tier.color;
+	tierName.textContent = tier.name;
+	progLabels.appendChild(tierName);
+	var progLabel = document.createElement("span");
 	progLabel.className = "ranked-result-progress-label";
 	progLabel.textContent = newProg.atMax ? "Top tier reached" : (newProg.pointsToNext + " to " + newProg.nextName);
-	panel.appendChild(progLabel);
+	progLabels.appendChild(progLabel);
+	ratingCard.appendChild(progLabels);
 
+	panel.appendChild(ratingCard);
+
+	// ── context: opponent (1v1) or full standings (6-player) ──
+	var divider = document.createElement("div");
+	divider.className = "ranked-result-divider";
+	panel.appendChild(divider);
+
+	var context = document.createElement("div");
+	context.className = "ranked-result-context";
+
+	if (isDuo) {
+		var opp = standings.find(function(s) { return s.id !== id; });
+		var eyebrow = document.createElement("div");
+		eyebrow.className = "ranked-result-eyebrow";
+		eyebrow.textContent = "Opponent";
+		context.appendChild(eyebrow);
+		if (opp) {
+			var oppLine = document.createElement("div");
+			oppLine.className = "ranked-result-opp-line";
+			var oppName = document.createElement("span");
+			oppName.className = "ranked-result-opp-name";
+			oppName.textContent = opp.name;
+			oppLine.appendChild(oppName);
+			if (typeof opp.rating === "number") {
+				var oppTier = tierFor(opp.rating, opp.provisional);
+				var oppTierEl = document.createElement("span");
+				oppTierEl.className = "ranked-result-opp-tier";
+				oppTierEl.innerHTML = '<span class="ranked-result-tier-dot" style="background:' + oppTier.color + '"></span>'
+					+ '<span style="color:' + oppTier.color + '">' + oppTier.name + '</span>';
+				oppLine.appendChild(oppTierEl);
+			}
+			context.appendChild(oppLine);
+
+			var times = document.createElement("div");
+			times.className = "ranked-result-times";
+			times.appendChild(rrTimeChip("Your time", mine, true));
+			times.appendChild(rrTimeChip("Their time", opp, false));
+			context.appendChild(times);
+		}
+	} else {
+		var eyebrow2 = document.createElement("div");
+		eyebrow2.className = "ranked-result-eyebrow";
+		eyebrow2.textContent = "All players";
+		context.appendChild(eyebrow2);
+		var list = document.createElement("div");
+		list.className = "ranked-result-standings";
+		standings.forEach(function(s) {
+			list.appendChild(rrStandingsRow(s));
+		});
+		context.appendChild(list);
+	}
+
+	panel.appendChild(context);
+
+	// ── actions ──
 	var actions = document.createElement("div");
 	actions.className = "result-actions kbd-btn-group";
 	var again = document.createElement("button");
@@ -341,6 +458,56 @@ function showRankedResult(data) {
 	}, 400);
 	playResultMoment(won, data.ranked, oldRating, newRating);
 	try { again.focus(); } catch (e) {}
+}
+
+// One "Your time" / "Their time" chip in the 1v1 context row.
+function rrTimeChip(label, entry, mine) {
+	var chip = document.createElement("div");
+	chip.className = "ranked-result-time-chip";
+	var l = document.createElement("div");
+	l.className = "ranked-result-time-label";
+	l.textContent = label;
+	chip.appendChild(l);
+	var v = document.createElement("div");
+	var finished = entry.finished && typeof entry.finishMs === "number";
+	v.className = "ranked-result-time-val " + (finished ? (mine ? "you" : "opp") : "dnf");
+	v.textContent = finished ? formatClearTime(entry.finishMs) : "DNF";
+	chip.appendChild(v);
+	return chip;
+}
+
+// One row of the 6-player standings list.
+function rrStandingsRow(s) {
+	var row = document.createElement("div");
+	row.className = "ranked-result-row" + (s.id === id ? " me" : "");
+
+	var rank = document.createElement("div");
+	rank.className = "ranked-result-rank" + (s.rank === 1 ? " g1" : s.rank === 2 ? " g2" : s.rank === 3 ? " g3" : "");
+	rank.textContent = String(s.rank);
+	row.appendChild(rank);
+
+	var name = document.createElement("div");
+	name.className = "ranked-result-row-name";
+	name.textContent = s.name;
+	row.appendChild(name);
+
+	var time = document.createElement("div");
+	var finished = s.finished && typeof s.finishMs === "number";
+	time.className = "ranked-result-row-time" + (finished ? "" : " dnf");
+	time.textContent = finished ? formatClearTime(s.finishMs) : "DNF";
+	row.appendChild(time);
+
+	var delta = document.createElement("div");
+	if (typeof s.ratingDelta === "number") {
+		delta.className = "ranked-result-row-delta " + rrDeltaClass(s.ratingDelta);
+		delta.textContent = rrDeltaText(s.ratingDelta);
+	} else {
+		delta.className = "ranked-result-row-delta flat";
+		delta.textContent = "—";
+	}
+	row.appendChild(delta);
+
+	return row;
 }
 
 // Casual (custom room) — no rating. Minimal outcome card with Rematch (back to the room) / Leave.

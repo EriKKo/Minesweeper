@@ -2649,35 +2649,47 @@ body.no-fullscreen-support .fullscreen-btn { display: none; }
 	100% { transform: scale(1); opacity: 1; }
 }
 
-/* Ranked result modal — rating change + progress toward the next tier (no standings list).
-   Roomier than the other result panels: scope the wider card to this panel via :has(). */
-.board-overlay-panel:has(.ranked-result) { width: min(94vw, 600px); padding: 2.5rem 2.6rem 2.2rem; }
-.ranked-result { align-items: center; text-align: center; gap: 1.15rem; }
+/* Ranked result modal — your rating change is the hero; opponent/standings context sits
+   below it (Sketch D "Focus" layout). Roomier + left-aligned: scope via :has(). */
+.board-overlay-panel:has(.ranked-result) { width: min(94vw, 560px); padding: 2rem 2.1rem 2rem; align-items: flex-start; }
+.ranked-result { gap: 1.35rem; text-align: left; }
+
+/* delta colours, shared by the rating-card delta and the standings-row deltas */
+.gain.ranked-result-colnum, .gain.ranked-result-row-delta { color: var(--energy-win); }
+.loss.ranked-result-colnum, .loss.ranked-result-row-delta { color: var(--danger); }
+.flat.ranked-result-colnum, .flat.ranked-result-row-delta { color: var(--muted); }
+
+/* hero: rank badge + outcome heading */
+.ranked-result-hero { display: flex; align-items: center; gap: 1.1rem; }
+.ranked-result-badge { font-size: 13px; flex: 0 0 auto; }
+.ranked-result-hero-text { flex: 1; min-width: 0; }
 .ranked-result-heading {
 	font-family: var(--font-display);
-	font-size: 1.75rem; font-weight: 800; letter-spacing: 0.01em;
+	font-size: 1.85rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1;
 }
 .ranked-result-win .ranked-result-heading { color: var(--energy-gold); text-shadow: 0 0 24px rgba(252, 211, 51, 0.45); }
 .ranked-result-lose .ranked-result-heading { color: var(--muted); }
-.ranked-result-badge { font-size: 22px; margin: 0.5rem 0 0.3rem; }
-.ranked-result-rating {
-	display: flex; align-items: baseline; justify-content: center; gap: 0.7rem;
-	font-family: var(--font-display);
+.ranked-result-sub { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+
+/* rating card: before / delta / after + tier progress */
+.ranked-result-ratingcard {
+	background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+	padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: 0.65rem;
 }
-.ranked-result-tier { font-size: 1.1rem; font-weight: 700; }
-.ranked-result-num { font-size: 2.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.ranked-result-delta { font-size: 1.1rem; font-weight: 700; }
-.ranked-result-delta.gain { color: var(--energy-win); }
-.ranked-result-delta.loss { color: var(--danger); }
-.ranked-result-delta.flat { color: var(--muted); }
+.ranked-result-cols { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 0.5rem; }
+.ranked-result-col { display: flex; flex-direction: column; gap: 0.1rem; }
+.ranked-result-col.center { align-items: center; padding-bottom: 0.2rem; }
+.ranked-result-col.right { align-items: flex-end; }
+.ranked-result-collabel { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+.ranked-result-colnum {
+	font-family: var(--font-display); font-weight: 800; line-height: 1;
+	font-size: 2rem; font-variant-numeric: tabular-nums;
+}
+.ranked-result-colnum.old { font-size: 1.15rem; color: var(--muted); font-weight: 700; }
+.ranked-result-col.center .ranked-result-colnum { font-size: 1.4rem; }
 .ranked-result-progress {
-	position: relative;
-	width: min(360px, 90%);
-	height: 0.8rem;
-	border-radius: 999px;
-	background: rgba(255, 255, 255, 0.08);
-	overflow: hidden;
-	margin-top: 0.2rem;
+	position: relative; height: 0.5rem; border-radius: 999px;
+	background: rgba(255, 255, 255, 0.08); overflow: hidden;
 }
 .ranked-result-progress-fill {
 	position: absolute; inset: 0 auto 0 0; width: 0;
@@ -2685,7 +2697,46 @@ body.no-fullscreen-support .fullscreen-btn { display: none; }
 	background: linear-gradient(90deg, var(--accent), var(--accent-hover));
 	transition: width 0.9s var(--ease-out);
 }
-.ranked-result-progress-label { font-size: 0.8rem; color: var(--muted); }
+.ranked-result-win .ranked-result-progress-fill { background: linear-gradient(90deg, var(--energy-win), #86efac); }
+.ranked-result-progress-labels { display: flex; justify-content: space-between; align-items: baseline; }
+.ranked-result-progress-tier { font-size: 0.78rem; font-weight: 700; }
+.ranked-result-progress-label { font-size: 0.78rem; color: var(--muted); }
+
+/* divider + match context (opponent line or full standings) */
+.ranked-result-divider { height: 1px; background: var(--border); align-self: stretch; }
+.ranked-result-context { display: flex; flex-direction: column; gap: 0.6rem; align-self: stretch; }
+.ranked-result-eyebrow { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; }
+
+.ranked-result-opp-line { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.ranked-result-opp-name { font-size: 0.98rem; font-weight: 700; }
+.ranked-result-opp-tier { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 700; }
+.ranked-result-tier-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+.ranked-result-times { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.ranked-result-time-chip { display: flex; flex-direction: column; gap: 0.15rem; }
+.ranked-result-time-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+.ranked-result-time-val { font-family: var(--font-display); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ranked-result-time-val.you { color: var(--energy-win); }
+.ranked-result-time-val.opp { color: var(--muted); }
+.ranked-result-time-val.dnf { color: var(--danger); }
+
+.ranked-result-standings { display: flex; flex-direction: column; gap: 2px; }
+.ranked-result-row {
+	display: grid; grid-template-columns: 1.4rem 1fr auto auto; align-items: center; gap: 0.5rem;
+	font-size: 0.85rem; padding: 0.35rem 0.45rem; border-radius: 6px;
+}
+.ranked-result-row.me { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 700; }
+.ranked-result-rank { font-weight: 800; color: var(--muted); text-align: center; font-size: 0.78rem; }
+.ranked-result-rank.g1 { color: var(--energy-gold); }
+.ranked-result-rank.g2 { color: #cbd5e1; }
+.ranked-result-rank.g3 { color: #d08b5b; }
+.ranked-result-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranked-result-row-time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+.ranked-result-row-time.dnf { color: var(--danger); }
+.ranked-result-row-delta { font-weight: 700; font-size: 0.8rem; font-variant-numeric: tabular-nums; text-align: right; min-width: 2.8rem; }
+
+/* actions: primary CTA grows, matching the sketch's wide "Play another" button */
+.ranked-result .result-actions { justify-content: stretch; align-self: stretch; }
+.ranked-result .result-actions .btn-primary { flex: 1; }
 
 /* Rank-up: the new badge flares in its tier glow when the tier changed. */
 .rank-swap.changed .rank-badge-new { box-shadow: 0 0 0 2px var(--energy-gold), 0 0 22px -2px rgba(252, 211, 51, 0.7); }

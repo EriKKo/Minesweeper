@@ -93,10 +93,27 @@ function buildSeriesStandings(room) {
 	var N = room.players.length;
 	var rounds = room.progressRounds || 0;
 	var sums = room.progressSum || {};
+	// endSeries() calls this synchronously right after the deciding round ends, before any
+	// next-round reset — so games[pid]/roundStarts[room.id] still hold that round's finish
+	// time. Only the deciding round's time is available (not a whole-series total).
+	var roundStart = roundStarts[room.id] || 0;
+	var style = room.rankedStyle;
 	var entries = room.players.map(function(pid) {
+		var g = games[pid];
+		var finished = g ? !!g.finished : false;
+		var finishedAt = g ? (g.finishedAt || 0) : 0;
+		var bot = isBot(pid);
+		// Result-card display rating: bots read their measured pool rating (never gain/lose Elo);
+		// humans get this pre-match rating overwritten with the post-match one by applyRankedElo below.
+		var rating = bot ? (botRating[pid] || RANKED_BOT_RATING) : accountRating(accounts[pid], style);
+		var provisional = bot ? false : (accounts[pid] ? accounts[pid].played < PROVISIONAL_GAMES : false);
 		// Average per-round progress across the series — the margin-of-victory signal at series end.
 		return { id: pid, name: names[pid] || "Anonymous", score: room.scores[pid] || 0,
-			progress: rounds > 0 ? (sums[pid] || 0) / rounds : 0 };
+			progress: rounds > 0 ? (sums[pid] || 0) / rounds : 0,
+			finished: finished,
+			finishMs: (finished && roundStart && finishedAt) ? (finishedAt - roundStart) : null,
+			rating: rating,
+			provisional: provisional };
 	});
 	for (var i = 0; i < entries.length; i++) {
 		var strictlyHigher = 0;
