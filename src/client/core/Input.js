@@ -184,6 +184,9 @@ function performAction(r, c, asFlag) {
 				activeGameSocket().emit("right_click", { r: actionResult.clearedFlags[cf][0], c: actionResult.clearedFlags[cf][1], id: id });
 			}
 		}
+		// If that reveal just completed our board, claim the clear explicitly so a reveal dropped in
+		// transit can't leave the server one short (which would time the round out as a loss).
+		if (mode === "multiplayer" && actionResult && actionResult.anyChange && typeof claimLocalClearResync === "function") claimLocalClearResync();
 	}
 	if (mode === "solo") updateSoloHud();
 	else if (mode === "puzzle") updatePuzzleHud();

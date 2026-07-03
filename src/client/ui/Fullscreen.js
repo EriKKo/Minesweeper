@@ -11,8 +11,16 @@ function isInFullscreen() {
 	return !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
 
+// On phones the browser already gives the game (near-)full use of the screen, and forcing the
+// Fullscreen API there is disruptive (locks orientation prompts, hides the address bar abruptly,
+// fails outright on iOS Safari). Skip it on mobile-sized viewports and just play in the page.
+function isMobileViewport() {
+	return !!(window.matchMedia && window.matchMedia("(max-width: 700px)").matches);
+}
+
 function enterGameFullscreen() {
 	try {
+		if (isMobileViewport()) return; // skip fullscreen on mobile — play windowed
 		if (isInFullscreen()) return; // already fullscreen — nothing to do
 		var el = document.documentElement;
 		var req = el.requestFullscreen || el.webkitRequestFullscreen

@@ -101,6 +101,10 @@ body.in-game { overflow: hidden; }
 	border-bottom: 1px solid var(--border);
 	background: rgba(11, 16, 32, 0.6);
 	backdrop-filter: blur(6px);
+	/* backdrop-filter makes the topbar its own stacking context; lift it above page content so the
+	   mobile nav dropdown (an absolutely-positioned child) paints over the dashboard, not under it. */
+	position: relative;
+	z-index: 100;
 }
 
 .logo {
@@ -162,6 +166,26 @@ body.in-game { overflow: hidden; }
 .site-nav-link.active { color: #fff; background: rgba(99, 102, 241, 0.22); }
 /* The Help nav item is a <button> (opens a modal, not a route) — strip native button chrome. */
 button.site-nav-link { background: none; border: 0; font-family: inherit; cursor: pointer; }
+
+/* The in-menu account card only exists in the mobile burger menu; desktop uses the topbar badge. */
+.menu-account { display: none; }
+
+/* Burger toggle — desktop hides it (the nav is laid out inline); mobile shows it (see media query). */
+.nav-burger {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	font-size: 1.5rem;
+	line-height: 1;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--text);
+	border-radius: 10px;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
 
 @media (max-width: 800px) {
 	.site-nav { flex-wrap: wrap; justify-content: flex-start; gap: 0.1rem; }
@@ -3193,65 +3217,42 @@ body[data-board-skin="tactical"] .board-scroll::after {
    below when body.touch and viewport is mobile-sized. */
 .mobile-action-bar {
 	display: none;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.55rem 1rem 0.2rem;
+	align-items: stretch;
+	padding: 0.6rem 0.85rem calc(0.6rem + env(safe-area-inset-bottom, 0));
 }
-.mobile-nav-btn {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 52px;
-	height: 52px;
-	font-size: 1.8rem;
-	font-weight: 700;
-	line-height: 1;
-	background: var(--surface-2);
-	border: 1px solid var(--border);
-	color: var(--text);
-	border-radius: 10px;
-	cursor: pointer;
-	user-select: none;
-	touch-action: manipulation;
-	transition: background 100ms ease, transform 80ms ease;
-}
-.mobile-nav-btn:active { transform: scale(0.92); background: var(--surface); }
-.mobile-action-btn {
+/* Single full-width mode toggle: tap the board to Reveal (default) or Flag; tap this to switch.
+   Its colour reflects the active mode so it's obvious what a board tap will do — accent for Reveal,
+   red for Flag. */
+.mobile-mode-btn {
 	flex: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 0.35rem;
-	height: 52px;
+	gap: 0.5rem;
+	height: 64px;
 	font: inherit;
 	font-weight: 700;
-	font-size: 1rem;
-	border-radius: 10px;
+	font-size: 1.25rem;
+	letter-spacing: 0.01em;
+	border-radius: 14px;
 	cursor: pointer;
 	user-select: none;
 	touch-action: manipulation;
-	transition: background 100ms ease, transform 80ms ease;
-}
-.mobile-action-btn:active { transform: scale(0.96); }
-.mobile-action-flag {
-	background: var(--surface-2);
-	border: 1px solid var(--border);
-	color: var(--text);
-}
-.mobile-action-flag:active { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.6); }
-.mobile-action-reveal {
 	background: linear-gradient(180deg, var(--accent-hover), var(--accent));
 	border: 1px solid transparent;
 	color: #fff;
 	box-shadow: var(--tile-hi), var(--tile-shadow);
+	transition: background 120ms ease, transform 80ms ease;
 }
-.mobile-action-reveal:active { box-shadow: var(--tile-hi), 0 1px 0 rgba(0,0,0,0.35); }
-/* Hide the entire bar in game states where it doesn't apply */
+.mobile-mode-btn:active { transform: scale(0.97); box-shadow: var(--tile-hi), 0 1px 0 rgba(0,0,0,0.35); }
+.mobile-mode-btn.flag-active { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.mobile-mode-icon { font-size: 1.4rem; line-height: 1; }
+.mobile-mode-hint { font-size: 0.8rem; font-weight: 600; opacity: 0.78; }
+/* The action bar drives reveal/flag for ALL reveal-based modes — solo, puzzle, and racing (1v1/6P)
+   share the exact same buttons + performAction() path. Hidden only where it doesn't apply: the lobby
+   (no live board) and territory (a different claim/fire interaction). */
 .game-view.lobby .mobile-action-bar,
-.game-view.territory .mobile-action-bar,
-.game-view.duo .mobile-action-bar,
-.game-view.multi .mobile-action-bar { display: none !important; }
+.game-view.territory .mobile-action-bar { display: none !important; }
 
 /* Mobile solo strip (timer + mine count + ⚙ settings button) */
 .mobile-solo-strip {
@@ -3996,16 +3997,71 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Mobile: hide the unreadable mini opponent boards;
    the scoreboard already shows each opponent's tier and status. */
 @media (max-width: 700px) {
-	/* Nav: scroll horizontally instead of wrapping to a second row */
-	.site-nav {
-		overflow-x: auto;
-		flex-wrap: nowrap;
-		justify-content: flex-start;
-		scrollbar-width: none;
-		-webkit-overflow-scrolling: touch;
+	/* Nav: collapse into a burger menu. The burger sits next to the logo; the nav
+	   becomes a dropdown panel anchored below the topbar, shown only when open. */
+	/* Single-row header: logo far-left, then the audio toggle and the burger hard-right (burger last).
+	   The account badge is relocated into the menu in JS, so the bar only ever holds logo + 🔊 + ☰. */
+	.logo { margin-right: auto; }
+	.topbar-right { order: 2; gap: 0.5rem; }
+	.nav-burger { display: inline-flex; order: 3; margin-left: 0.4rem; }
+
+	/* Identity lives in the menu on mobile (the topbar badge is hidden here). */
+	.topbar-right .user-badge { display: none !important; }
+
+	/* Account card at the foot of the menu: avatar + name (tap → profile) over the sign-in/out action.
+	   A soft surface card separates it from the links — no hard divider rule. */
+	.site-nav .menu-account {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+		margin-top: 0.6rem;
+		padding: 0.7rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 14px;
 	}
-	.site-nav::-webkit-scrollbar { display: none; }
-	.site-nav-link { white-space: nowrap; flex-shrink: 0; }
+	.menu-account-id {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		text-decoration: none;
+		color: var(--text);
+		min-width: 0;
+	}
+	.menu-account-avatar { flex: none; display: inline-flex; }
+	.menu-account-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+	.menu-account-text strong { font-size: 1.05rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.menu-account-tier { font-size: 0.85rem; color: var(--muted); }
+	.menu-account-btn { width: 100%; justify-content: center; gap: 0.45rem; padding: 0.75rem; font-size: 1rem; border-radius: 11px; }
+	/* Sign out is secondary — lift it off the card surface so it still reads as a button. */
+	.menu-account .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); }
+
+	.site-nav {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		z-index: 60;
+		flex-direction: column;
+		flex: none;
+		align-items: stretch;
+		gap: 0.15rem;
+		padding: 0.5rem;
+		background: var(--bg);
+		border-bottom: 1px solid var(--border);
+		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+		/* Hidden by default; toggled open by the burger (.nav-open on the topbar). */
+		display: none;
+	}
+	.topbar.nav-open .site-nav { display: flex; }
+	.site-nav-link {
+		white-space: nowrap;
+		padding: 0.7rem 0.85rem;
+		font-size: 1rem;
+		border-radius: 10px;
+		text-align: left; /* the Help item is a <button> (defaults centred) — keep it flush-left like the links */
+		width: 100%;
+	}
 
 	.opponents { display: none; }
 	.player-controls { flex-wrap: wrap; }
@@ -4053,6 +4109,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 	body.in-game #player_name0 { display: none; }
 	body.in-game #duel_id_you { display: none; }
 	body.in-game #duel_bar_you { display: none; }
+	/* The side-by-side VS column (opponent board + tug-of-war) has no place in the stacked mobile
+	   layout — it was floating detached at the bottom. Hide it on mobile. */
+	body.in-game #duel_center { display: none; }
 	body.in-game .player-controls { padding: 0; }
 	body.in-game .game-header { padding: 0.4rem 1rem; margin-bottom: 0; flex-shrink: 0; }
 	body.in-game main {
@@ -4099,14 +4158,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 		flex: 1;
 		min-height: 0;
 		max-height: none !important;
-		/* Extra inner space so the canvas can scroll above the fixed bars */
-		padding-bottom: 64px;
+		/* Extra inner space so the canvas can scroll above the fixed action bar (~108px tall) */
+		padding-bottom: 108px;
 	}
 	.game-view.solo .board-scroll {
-		padding-bottom: 114px; /* action bar (64) + strip (50) */
+		padding-bottom: 158px; /* action bar (108) + solo strip (50) */
 	}
 
-	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen */
+	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen. The button is
+	   lifted well clear of the very bottom (extra bottom padding) so mobile browser chrome / the home
+	   gesture area doesn't cover it; the bar's background still extends to the screen edge below it. */
 	body.in-game .mobile-action-bar {
 		position: fixed;
 		bottom: 0;
@@ -4114,23 +4175,26 @@ body.touch .find-next-arrow { display: inline-flex; }
 		right: 0;
 		z-index: 50;
 		background: var(--bg);
-		padding-bottom: env(safe-area-inset-bottom, 0);
+		padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.75rem);
 	}
 	body.in-game .mobile-solo-strip {
 		position: fixed;
-		bottom: 64px; /* sits above the action bar */
+		bottom: 108px; /* sits above the action bar */
 		left: 0;
 		right: 0;
 		z-index: 50;
 		background: var(--bg);
 	}
 
+	/* We don't enter fullscreen on mobile (see enterGameFullscreen) — hide the toggle. */
+	#fullscreen_btn { display: none !important; }
+
 	/* Show solo strip in solo mode */
 	.game-view.solo .mobile-solo-strip { display: flex; }
 }
 
 @media (max-width: 640px) {
-	.topbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.85rem 1rem; }
+	.topbar { padding: 0.85rem 1rem; }
 	.topbar h1 { font-size: 1rem; }
 	.user-badge { font-size: 0.85rem; gap: 0.4rem; }
 	main { padding: 1rem; }
