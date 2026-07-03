@@ -45,7 +45,7 @@ var DEFAULT_AVATAR_COLOR = "#ef4444";
 // The default avatar shown anywhere a player hasn't chosen one — the anonymous silhouette.
 var DEFAULT_AVATAR = "anon";
 // Preset image avatars — an avatar value of "img:<id>" renders the image instead of a flag pennant.
-var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png", "recon-fox": "/avatars/recon-fox.png", "eod-bulldog": "/avatars/eod-bulldog.png", "night-cat": "/avatars/night-cat.png", "commando-cat": "/avatars/commando-cat.png", "comms-cat": "/avatars/comms-cat.png", "mine-dog": "/avatars/mine-dog.png", "drone-fox": "/avatars/drone-fox.png", "demo-raccoon": "/avatars/demo-raccoon.png", "rookie-penguin": "/avatars/rookie-penguin.png", "field-corgi": "/avatars/field-corgi.png", "journal-cat": "/avatars/journal-cat.png", "recon-owl": "/avatars/recon-owl.png" };
+var AVATAR_IMAGES = { teddy: "/avatars/mine-teddy.png", "recon-fox": "/avatars/recon-fox.png", "eod-bulldog": "/avatars/eod-bulldog.png", "night-cat": "/avatars/night-cat.png", "commando-cat": "/avatars/commando-cat.png", "comms-cat": "/avatars/comms-cat.png", "mine-dog": "/avatars/mine-dog.png", "drone-fox": "/avatars/drone-fox.png", "demo-raccoon": "/avatars/demo-raccoon.png", "rookie-penguin": "/avatars/rookie-penguin.png", "field-corgi": "/avatars/field-corgi.png", "journal-cat": "/avatars/journal-cat.png", "recon-owl": "/avatars/recon-owl.png", "scout-dog": "/avatars/scout-dog.png" };
 // localBoardSkin = the skin the *local* user picked (their own board + UI previews).
 // Other players' boards render in THEIR skin (passed per-BoardView); bots/unknown fall
 // back to classic. Each BoardView.draw() loads its skin's palette into these vars for the
