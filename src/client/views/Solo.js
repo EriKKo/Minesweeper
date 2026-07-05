@@ -108,7 +108,7 @@ function countSoloSafeRevealed() {
 }
 
 function startSolo(size) {
-	enterGameFullscreen();
+	autoEnterGameFullscreen();
 	soloSelectedSize = size || soloSelectedSize || "medium";
 	syncSoloControls();
 	socket.emit("request_solo_board", { size: soloSelectedSize, density: soloSelectedDensity });

@@ -1,10 +1,9 @@
-// Fullscreen.js — go into browser fullscreen when a game starts (any mode) and
-// release it when leaving the game.
+// Fullscreen.js — go into browser fullscreen when a game starts (any mode, and only if the
+// player opted in on Settings) and release it when leaving the game.
 //
-// requestFullscreen() needs a transient user gesture, so enterGameFullscreen()
-// is called straight from the click handlers that commit the player to a game
-// (Ready, findRanked, startSolo, renderPuzzlePlay, territory create), never
-// from a later socket/board callback. It's idempotent and fails silently if the
+// requestFullscreen() needs a transient user gesture, so autoEnterGameFullscreen() is called
+// straight from the click handlers that commit the player to a game (Ready, findRanked,
+// startSolo), never from a later socket/board callback. It's idempotent and fails silently if the
 // browser blocks or doesn't support it — the game just stays windowed.
 
 function isInFullscreen() {
@@ -16,6 +15,23 @@ function isInFullscreen() {
 // fails outright on iOS Safari). Skip it on mobile-sized viewports and just play in the page.
 function isMobileViewport() {
 	return !!(window.matchMedia && window.matchMedia("(max-width: 700px)").matches);
+}
+
+// Auto-entering fullscreen the instant a game starts is opt-in (default off) — persisted locally,
+// like the board skin / keybinds. Off by default because the abrupt jump (plus the "Press Esc to
+// exit" banner some browsers flash) surprised players who never asked for it; the in-game
+// fullscreen button (toggleGameFullscreen) always works regardless of this setting.
+function autoFullscreenEnabled() {
+	return localStorage.getItem("ms_auto_fullscreen") === "1";
+}
+function setAutoFullscreenEnabled(on) {
+	try { localStorage.setItem("ms_auto_fullscreen", on ? "1" : "0"); } catch (e) {}
+}
+// Call this from the "commit to a game" click handlers (Ready, findRanked, startSolo, …) instead of
+// enterGameFullscreen() directly — it only fires if the player opted in. The manual toggle button
+// bypasses this and calls enterGameFullscreen() unconditionally.
+function autoEnterGameFullscreen() {
+	if (autoFullscreenEnabled()) enterGameFullscreen();
 }
 
 function enterGameFullscreen() {
@@ -69,3 +85,42 @@ document.addEventListener("webkitfullscreenchange", syncFullscreenChrome);
 	var btn = document.getElementById("fullscreen_btn");
 	if (btn) btn.addEventListener("click", toggleGameFullscreen);
 })();
+
+// Settings-page toggle for the auto-fullscreen opt-in (see autoFullscreenEnabled above).
+function renderGameplaySettings() {
+	var card = document.getElementById("gameplay_card");
+	if (!card) return;
+	card.innerHTML = "";
+	var h = document.createElement("h2");
+	h.className = "controls-title";
+	h.textContent = "Gameplay";
+	card.appendChild(h);
+
+	var row = document.createElement("div");
+	row.className = "setting-row";
+	var text = document.createElement("div");
+	text.className = "setting-row-text";
+	var label = document.createElement("span");
+	label.className = "setting-row-label";
+	label.textContent = "Auto fullscreen";
+	var note = document.createElement("span");
+	note.className = "setting-row-note";
+	note.textContent = "Jump into fullscreen the moment a game starts. Off by default — use the in-game fullscreen button any time.";
+	text.appendChild(label);
+	text.appendChild(note);
+	row.appendChild(text);
+
+	var sw = document.createElement("button");
+	sw.type = "button";
+	sw.className = "toggle-switch" + (autoFullscreenEnabled() ? " on" : "");
+	sw.setAttribute("aria-pressed", autoFullscreenEnabled() ? "true" : "false");
+	sw.addEventListener("click", function() {
+		var next = !autoFullscreenEnabled();
+		setAutoFullscreenEnabled(next);
+		sw.classList.toggle("on", next);
+		sw.setAttribute("aria-pressed", next ? "true" : "false");
+	});
+	row.appendChild(sw);
+
+	card.appendChild(row);
+}

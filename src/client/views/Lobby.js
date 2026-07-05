@@ -7,7 +7,7 @@
 // inline script — they need access to DOM elements declared there.
 
 function findRanked(mode) {
-	enterGameFullscreen();
+	autoEnterGameFullscreen();
 	currentRankedMode = mode;
 	socket.emit("find_ranked", { mode: mode });
 	// Racing modes (1v1 + 6P Sprint/Standard) drop straight into the battle UI and slot opponents

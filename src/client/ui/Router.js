@@ -266,6 +266,7 @@ function showSettingsView() {
 	hideAllViews();
 	document.getElementById("settings_view").style.display = "";
 	setSiteNavActive("settings");
+	if (typeof renderGameplaySettings === "function") renderGameplaySettings();
 	if (typeof renderBoardSkins === "function") renderBoardSkins();
 	if (typeof renderKeybindings === "function") renderKeybindings();
 }

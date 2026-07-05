@@ -1383,7 +1383,7 @@ document.getElementById("leave_button").addEventListener("click", function() {
 });
 
 readyButton.addEventListener("click", function() {
-	enterGameFullscreen();
+	autoEnterGameFullscreen();
 	socket.emit("player_ready");
 });
 
