@@ -57,6 +57,15 @@ test("a game server runs an allocated match and reports the result to main", asy
 		assert.strictEqual(rep.matchId, "split:match:1");
 		assert.strictEqual(rep.ranked, true);
 		assert.ok(Array.isArray(rep.standings) && rep.standings.length === 2, "report carries the final standings");
+		// The replay captured on the game process must travel over the wire too (it used to be dropped
+		// at this exact hop — reportResultToMain built a slimmed wire object that never included it, so
+		// every match run on a game server ended up with no watchable replay). The gzip blob arrives
+		// base64-encoded since JSON has no binary type.
+		assert.ok(rep.replayPayload, "the report carries a replay payload over the wire");
+		assert.strictEqual(typeof rep.replayPayload.blob, "string", "the gzip blob is base64-encoded for JSON transport");
+		assert.ok(rep.replayPayload.blob.length > 0, "the blob is non-empty");
+		assert.ok(Array.isArray(rep.replayPayload.participants), "participants list travels alongside the blob");
+		assert.strictEqual(rep.replayPayload.meta.mode, "sprint_duo");
 	} finally {
 		game.stop();
 		await new Promise(r => capture.close(r));

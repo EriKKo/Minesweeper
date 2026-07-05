@@ -175,8 +175,10 @@ function serialize(rp, winnerIndex) {
 	return w.buffer();
 }
 
-// Serialize + gzip + persist the finished match, then drop the accumulator.
-function finishMatch(room, seriesStandings) {
+// Serialize + gzip the finished match into a wire-safe payload (meta + blob + participant userIds),
+// then drop the accumulator. Pure — no db access — so it can run on a game server and travel over
+// the main↔game internal API just as well as in-process (see persistPayload / results.js).
+function buildPayload(room, seriesStandings) {
 	var rp = room.replay;
 	if (!rp) return null;
 	room.replay = null;
@@ -206,14 +208,35 @@ function finishMatch(room, seriesStandings) {
 			format: REPLAY_VERSION,
 			rawBytes: raw.length
 		};
-		var id = db.saveReplay(meta, blob, participants);
-		// Back-link this match's history rows so the profile's recent-games list can offer a "Watch".
-		if (id) db.linkReplayToMatches(id, participants, rp.createdAt);
-		return id;
+		return { meta: meta, blob: blob, participants: participants, createdAt: rp.createdAt };
 	} catch (e) {
-		console.error("replay.finishMatch failed", e);
+		console.error("replay.buildPayload failed", e);
 		return null;
 	}
+}
+
+// Persist an already-built payload. `blob` is a Buffer when built in-process, or a base64 string
+// when it arrived over the wire from a game server's /internal/report post (JSON has no binary
+// type) — accept either. Back-links the match's history rows so the profile's recent-games list
+// can offer a "Watch".
+function persistPayload(payload) {
+	if (!payload) return null;
+	try {
+		var blob = Buffer.isBuffer(payload.blob) ? payload.blob : Buffer.from(payload.blob, "base64");
+		var id = db.saveReplay(payload.meta, blob, payload.participants);
+		if (id) db.linkReplayToMatches(id, payload.participants, payload.createdAt);
+		return id;
+	} catch (e) {
+		console.error("replay.persistPayload failed", e);
+		return null;
+	}
+}
+
+// In-process convenience (build then persist immediately) — kept for anything that still wants the
+// old one-call shape; results.js now calls buildPayload/persistPayload separately so the payload can
+// travel over the wire in between on a split deploy.
+function finishMatch(room, seriesStandings) {
+	return persistPayload(buildPayload(room, seriesStandings));
 }
 
 module.exports = {
@@ -221,5 +244,7 @@ module.exports = {
 	startMatch: startMatch,
 	startRound: startRound,
 	attach: attach,
+	buildPayload: buildPayload,
+	persistPayload: persistPayload,
 	finishMatch: finishMatch
 };

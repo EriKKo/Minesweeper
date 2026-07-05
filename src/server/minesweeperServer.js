@@ -901,7 +901,15 @@ function reportResultToMain(report) {
 	var wire = {
 		matchId: report.matchId, ranked: report.ranked, mode: report.mode, style: report.style,
 		standings: standings,
-		winnerId: standings[0] ? standings[0].id : null
+		winnerId: standings[0] ? standings[0].id : null,
+		// JSON has no binary type — base64-encode the gzipped replay blob for the hop; persistPayload
+		// on the main side accepts either a Buffer (in-process) or this base64 form.
+		replayPayload: report.replayPayload ? {
+			meta: report.replayPayload.meta,
+			blob: report.replayPayload.blob.toString("base64"),
+			participants: report.replayPayload.participants,
+			createdAt: report.replayPayload.createdAt
+		} : null
 	};
 	fetch(role.MAIN_URL + "/internal/report", {
 		method: "POST",

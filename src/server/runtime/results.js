@@ -96,9 +96,10 @@ function buildMatchConfig(room) {
 }
 
 // Build the report a finished match hands to persistence. `standings` is the series standings, already
-// mutated with placement + cumulative score + per-series progress. `room` is carried by reference for the
-// in-process replay capture (room.replay holds the input log); in the split this becomes a serialized
-// roster + a prebuilt replay blob shipped in the report.
+// mutated with placement + cumulative score + per-series progress. `room` is carried by reference for
+// in-process use (e.g. reading ratings from the accounts cache); `replayPayload` is the wire-safe
+// serialized+gzipped replay (built here, from room.replay, while the room is still a real in-process
+// object) so it survives the game→main hop unchanged — see runtime/replay.js buildPayload/persistPayload.
 function buildResultReport(room, seriesStandings) {
 	var config = room.matchConfig || null;
 	return {
@@ -110,7 +111,8 @@ function buildResultReport(room, seriesStandings) {
 		style: room.rankedStyle || null,
 		standings: seriesStandings,
 		config: config, // self-contained roster + rating-before captured at start (P0-2)
-		room: room
+		room: room,
+		replayPayload: replay.buildPayload(room, seriesStandings) // null when nothing was recorded
 	};
 }
 
@@ -130,9 +132,10 @@ function persistResult(report) {
 			else elo.applyRankedEloFromReport(report.standings, report.style);
 		}
 	}
-	// In-process the report carries the live room (its replay accumulator); a report arriving over the
-	// internal API from a game server won't (replay shipping is a later step), so guard it.
-	if (report.room) replay.finishMatch(report.room, report.standings);
+	// replayPayload is already wire-safe (built at buildResultReport time, in-process, before any
+	// network hop) — persisting it is the same call whether this report came from the local match-end
+	// path or over the internal API from a game server.
+	if (report.replayPayload) replay.persistPayload(report.replayPayload);
 	return { applied: true };
 }
 
