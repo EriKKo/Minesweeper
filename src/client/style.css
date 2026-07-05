@@ -4154,15 +4154,23 @@ body.touch .find-next-arrow { display: inline-flex; }
 		display: flex;
 		flex-direction: column;
 	}
+	/* Single source of truth for the action bar's real rendered height (button + its own top/bottom
+	   padding + the safe-area inset it adds on the bottom). Board-scroll clearance and the solo strip's
+	   position both derive from this, so they can't drift out of sync with the bar's actual CSS again —
+	   a hardcoded px guess previously under-counted env(safe-area-inset-bottom) on notched/gesture-nav
+	   phones, leaving the action bar covering (and eating touches on) the board's last row. */
+	body.in-game {
+		--mobile-action-bar-h: calc(64px + 2.35rem + env(safe-area-inset-bottom, 0px));
+	}
 	body.in-game .board-scroll {
 		flex: 1;
 		min-height: 0;
 		max-height: none !important;
-		/* Extra inner space so the canvas can scroll above the fixed action bar (~108px tall) */
-		padding-bottom: 108px;
+		/* Extra inner space so the canvas can scroll above the fixed action bar */
+		padding-bottom: var(--mobile-action-bar-h);
 	}
 	.game-view.solo .board-scroll {
-		padding-bottom: 158px; /* action bar (108) + solo strip (50) */
+		padding-bottom: calc(var(--mobile-action-bar-h) + 50px); /* action bar + solo strip (50) */
 	}
 
 	/* Pin action bar and strip to the bottom of the viewport — never scrolled off-screen. The button is
@@ -4179,7 +4187,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 	}
 	body.in-game .mobile-solo-strip {
 		position: fixed;
-		bottom: 108px; /* sits above the action bar */
+		bottom: var(--mobile-action-bar-h); /* sits above the action bar */
 		left: 0;
 		right: 0;
 		z-index: 50;
