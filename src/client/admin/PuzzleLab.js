@@ -103,6 +103,12 @@ function renderAdminLanding() {
 		"/admin/combined-puzzles"
 	));
 	cards.appendChild(makeAdminCard(
+		"Marathon boards",
+		"Long, dense, no-guess-solvable boards from the hill-climb generator — sort by difficulty, play any of them.",
+		"Browse marathon boards",
+		"/admin/marathon-boards"
+	));
+	cards.appendChild(makeAdminCard(
 		"Design",
 		"Visual design reference — the full rank ladder (every tier and sub-tier) rendered with the live badge component.",
 		"Open design",

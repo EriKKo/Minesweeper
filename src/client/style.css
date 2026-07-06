@@ -1139,6 +1139,9 @@ main {
 }
 .cr-close:hover { color: var(--text); border-color: var(--muted); }
 .cr-dialog-sub { color: var(--muted); font-size: 0.9rem; margin: 0.35rem 0 1.25rem; }
+/* Wide modifier — for content that needs more room than the default 560px (e.g. the marathon-board
+   Play modal, which embeds a real 20-30-column board). */
+.cr-dialog-wide { width: min(1040px, 100%); }
 
 /* Help modal — concise rules + controls. Reuses .cr-modal/.cr-dialog chrome. */
 .help-dialog { width: min(540px, 100%); }
@@ -2039,6 +2042,31 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 .puzzle-card-meta { font-size: 0.75rem; color: var(--muted); }
 .puzzle-card-label { font-size: 0.8rem; font-weight: 600; margin: 0.45rem 0 0.1rem; }
 .puzzle-card .learn-puzzle { padding: 0; }
+/* Same tier color coding as the puzzle cards above, reused on the marathon-boards table rows. */
+.marathon-row.puzzle-diff-1 .puzzle-diff-badge { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
+.marathon-row.puzzle-diff-2 .puzzle-diff-badge { background: rgba(34, 211, 238, 0.18); color: #22d3ee; }
+.marathon-row.puzzle-diff-3 .puzzle-diff-badge { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+.marathon-row.puzzle-diff-4 .puzzle-diff-badge { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
+.marathon-row.puzzle-diff-5 .puzzle-diff-badge { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+.marathon-row.puzzle-diff-6 .puzzle-diff-badge { background: rgba(192, 132, 252, 0.22); color: #c084fc; }
+
+/* Marathon boards admin page — plain metadata table (no board thumbnails; these boards are too big). */
+.marathon-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+.marathon-row {
+	display: grid;
+	grid-template-columns: 4.5rem 5.5rem 4.5rem 5rem 3rem 7rem 4rem 5rem 4rem;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.55rem 0.8rem;
+	font-size: 0.85rem;
+	border-bottom: 1px solid var(--border);
+}
+.marathon-row:last-child { border-bottom: none; }
+.marathon-row-head {
+	font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+	font-weight: 700; background: var(--surface-2);
+}
+.marathon-row:not(.marathon-row-head):hover { background: rgba(255, 255, 255, 0.03); }
 /* Wide combined boards (up to ~11 cols) are rendered at a fixed cell size; scale the canvas
    down to fit its card / modal column instead of overflowing. `width: fit-content` keeps the
    board tray hugging the canvas (so narrow boards don't leave a dark gap) while `max-width:100%`

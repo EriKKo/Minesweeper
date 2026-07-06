@@ -190,7 +190,11 @@ function servePuzzles(req, res, url) {
 	var listSourceRaw = url.searchParams.get("source");
 	// Accept any well-formed source (random, inside_out, template:<id>, …); the DB query is parameterized.
 	var listSource = (listSourceRaw && /^[\w:.-]+$/.test(listSourceRaw)) ? listSourceRaw : null;
-	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, source: listSource, page: page, pageSize: pageSize, sort: sort });
+	var orderByRaw = url.searchParams.get("orderBy");
+	// Whitelisted against db.js's ORDER_BY_COLUMNS — lets the marathon-boards admin page sort by the
+	// raw complexity floats instead of the curriculum pool's `rating` metric (the default).
+	var orderBy = (orderByRaw === "max_complexity" || orderByRaw === "total_complexity" || orderByRaw === "created_at") ? orderByRaw : null;
+	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, source: listSource, page: page, pageSize: pageSize, sort: sort, orderBy: orderBy });
 	var total = db.puzzleCount(diffFilter, method, scoreBand, listSource);
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({

@@ -297,6 +297,16 @@ addColumnIfMissing("puzzles", "source", "TEXT NOT NULL DEFAULT 'random'");
 // up rows whose stored version is below CURRENT_SCORING_VERSION and
 // re-analyzes them.
 addColumnIfMissing("puzzles", "scoring_version", "INTEGER NOT NULL DEFAULT 0");
+// Raw CSP-analyzer complexity floats (nullable — only populated by generators that keep them, e.g.
+// scripts/generate-marathon-boards.js; the tier-banded `difficulty` above is derived from max_complexity
+// but the exact value isn't otherwise stored). Mirrors the same fields on `starting_positions`.
+addColumnIfMissing("puzzles", "max_complexity", "REAL");
+addColumnIfMissing("puzzles", "total_complexity", "REAL");
+// Generation provenance for script-generated boards (marathon/Nightmare boards): which algorithm
+// produced it (e.g. "hillclimb:6x6") and how many accepted improvement passes it took. Null for the
+// normal curriculum-puzzle sources (random/inside_out/template:*).
+addColumnIfMissing("puzzles", "gen_method", "TEXT");
+addColumnIfMissing("puzzles", "gen_iterations", "INTEGER");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS daily_puzzles (" +
@@ -911,8 +921,9 @@ function insertPuzzle(p) {
 	var info = db.prepare(
 		"INSERT OR IGNORE INTO puzzles " +
 		"(canonical_key, rows, cols, mines, revealed, covered_safe, difficulty, score, rating, " +
-		" max_enum_size, needs_case_split, csp_method, source, scoring_version, created_at) " +
-		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		" max_enum_size, needs_case_split, csp_method, source, scoring_version, created_at, " +
+		" max_complexity, total_complexity, gen_method, gen_iterations) " +
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	).run(
 		p.key, p.rows, p.cols,
 		JSON.stringify(p.mines), JSON.stringify(p.revealed),
@@ -922,7 +933,11 @@ function insertPuzzle(p) {
 		p.cspMethod || "trivial",
 		p.source || "random",
 		CURRENT_SCORING_VERSION,
-		Date.now()
+		Date.now(),
+		typeof p.maxComplexity === "number" ? p.maxComplexity : null,
+		typeof p.totalComplexity === "number" ? p.totalComplexity : null,
+		p.genMethod || null,
+		typeof p.genIterations === "number" ? p.genIterations : null
 	);
 	return info.changes > 0;
 }
@@ -944,7 +959,12 @@ function deserializePuzzle(row) {
 		needsCaseSplit: !!row.needs_case_split,
 		source: row.source || "random",
 		attempts: row.attempts,
-		solves: row.solves
+		solves: row.solves,
+		maxComplexity: row.max_complexity,
+		totalComplexity: row.total_complexity,
+		genMethod: row.gen_method,
+		genIterations: row.gen_iterations,
+		createdAt: row.created_at
 	};
 }
 
@@ -982,6 +1002,9 @@ function sourceClause(source) {
 	return null;
 }
 
+// Columns `listPuzzles`'s `opts.orderBy` is allowed to sort by (never interpolate the raw param into SQL).
+var ORDER_BY_COLUMNS = ["rating", "max_complexity", "total_complexity", "created_at"];
+
 function listPuzzles(opts) {
 	opts = opts || {};
 	var clauses = [];
@@ -1002,9 +1025,12 @@ function listPuzzles(opts) {
 	var sortDir = opts.sort === "desc" ? "DESC" : "ASC";
 	var pageSize = Math.max(1, Math.min(200, opts.pageSize || 50));
 	var page = Math.max(0, opts.page || 0);
+	// Whitelisted sort column — defaults to the pool's usual `rating` metric; the marathon-boards
+	// admin page sorts by the raw complexity floats instead (rating isn't meaningful for those).
+	var orderCol = ORDER_BY_COLUMNS.indexOf(opts.orderBy) >= 0 ? opts.orderBy : "rating";
 	var sql = "SELECT * FROM puzzles";
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
-	sql += " ORDER BY rating " + sortDir + " LIMIT ? OFFSET ?";
+	sql += " ORDER BY " + orderCol + " " + sortDir + " LIMIT ? OFFSET ?";
 	params.push(pageSize, page * pageSize);
 	var stmt = db.prepare(sql);
 	return stmt.all.apply(stmt, params).map(deserializePuzzle);
@@ -1233,6 +1259,14 @@ function getSoloBests(userId) {
 function getPuzzleById(id) {
 	var row = db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id);
 	return row ? deserializePuzzle(row) : null;
+}
+
+// Remove a single puzzle by id. Used by generators (e.g. generate-marathon-boards.js) that replace
+// their own in-progress row in place as a board improves — canonical_key changes every time the mine
+// layout does, so a plain re-insert can't UPDATE it; delete-then-insert keeps one row per run instead
+// of accumulating an intermediate row per accepted improvement.
+function deletePuzzleById(id) {
+	db.prepare("DELETE FROM puzzles WHERE id = ?").run(id);
 }
 
 function updatePuzzleRating(puzzleId, newRating, solved) {
@@ -1473,6 +1507,7 @@ module.exports = {
 	puzzleStats: puzzleStats,
 	clearPuzzles: clearPuzzles,
 	getPuzzleById: getPuzzleById,
+	deletePuzzleById: deletePuzzleById,
 	updatePuzzleRating: updatePuzzleRating,
 	updateUserPuzzleRating: updateUserPuzzleRating,
 	addPuzzlePoints: addPuzzlePoints,

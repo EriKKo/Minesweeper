@@ -2086,7 +2086,7 @@ socket.on("draw_board", function(data) {
 
 // danger warning moved to DangerWarning.js
 
-var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "leaderboard_view", "profile_view", "settings_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "design_view", "territory_view", "puzzle_play_view", "ranked_picker_view", "puzzle_picker_view", "replay_view", "privacy_view", "terms_view"];
+var allViews = ["name_view", "lobby_view", "game_view", "learn_view", "leaderboard_view", "profile_view", "settings_view", "custom_view", "admin_view", "puzzles_view", "puzzles_list_view", "bots_view", "starting_positions_view", "patterns_view", "start_patterns_view", "combined_puzzles_view", "marathon_boards_view", "design_view", "territory_view", "puzzle_play_view", "ranked_picker_view", "puzzle_picker_view", "replay_view", "privacy_view", "terms_view"];
 // Routing + view show/hide moved to Router.js.
 // Profile view rendering moved to Profile.js.
 
