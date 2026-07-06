@@ -71,7 +71,6 @@ var DENSITY_SURCHARGE = 0.12;
 // is mentally heavier than a 1-cell one even at the same depth.
 var RESULT_SIZE_SURCHARGE = 0.12;
 
-function cellKey(cell) { return cell[0] + "," + cell[1]; }
 function cellCompare(a, b) { return a[0] - b[0] || a[1] - b[1]; }
 
 // Merges two already row/col-sorted, cell-disjoint arrays into one sorted array in O(n) — used by
@@ -177,6 +176,23 @@ function buildInitialClues(board, state) {
 	return out;
 }
 
+// Bitmask of `cells` relative to (originR, originC) in a window `width` columns wide — bit
+// (r-originR)*width + (c-originC) is set iff that cell is present. Used in place of a hash-set for
+// membership tests in the three combine ops below: each op's own geometric precondition (checked
+// before this is ever called) bounds the shared window to at most 5x5 = 25 bits — subset needs only
+// B's own bbox (<=3x3, since B was already admitted within maxBbox), intersection requires actual
+// overlap (worst case two max-span clues overlapping by one row/col, <=5x5), and union's own result
+// must itself fit within maxBbox (<=3x3) — so this always fits in one native (32-bit) JS integer,
+// no BigInt or multi-word packing needed. A bitwise AND/OR is a single machine op vs. a string
+// concatenation + dictionary-mode property lookup per cell for the hash-set version.
+function cellsMask(cells, originR, originC, width) {
+	var mask = 0;
+	for (var i = 0; i < cells.length; i++) {
+		mask |= 1 << ((cells[i][0] - originR) * width + (cells[i][1] - originC));
+	}
+	return mask;
+}
+
 function combineSubset(A, B) {
 	// A.cells ⊂ B.cells. The extras (B\A) hold mines(B) − mines(A).
 	// With bounded clues, mines(B\A) ∈ [B.lo − A.hi, B.hi − A.lo].
@@ -186,17 +202,15 @@ function combineSubset(A, B) {
 	// other (maxBbox keeps every clue's own footprint small, but says nothing about how far apart
 	// two clues sit from one another).
 	if (A.minR < B.minR || A.maxR > B.maxR || A.minC < B.minC || A.maxC > B.maxC) return null;
-	var bSet = {};
-	for (var i = 0; i < B.cells.length; i++) bSet[cellKey(B.cells[i])] = true;
-	var aKeys = {};
-	for (var j = 0; j < A.cells.length; j++) {
-		var ak = cellKey(A.cells[j]);
-		if (!bSet[ak]) return null;
-		aKeys[ak] = true;
-	}
+	// A's bbox ⊆ B's bbox (just checked), so both fit in B's own window.
+	var width = B.maxC - B.minC + 1;
+	var aMask = cellsMask(A.cells, B.minR, B.minC, width);
+	var bMask = cellsMask(B.cells, B.minR, B.minC, width);
+	if ((aMask & bMask) !== aMask) return null; // some cell of A isn't in B
 	var extras = [];
 	for (var m = 0; m < B.cells.length; m++) {
-		if (!aKeys[cellKey(B.cells[m])]) extras.push(B.cells[m]);
+		var bit = 1 << ((B.cells[m][0] - B.minR) * width + (B.cells[m][1] - B.minC));
+		if (!(aMask & bit)) extras.push(B.cells[m]);
 	}
 	var lo = Math.max(0, B.lo - A.hi);
 	var hi = Math.min(extras.length, B.hi - A.lo);
@@ -217,10 +231,15 @@ function combineDisjointUnion(A, B, maxBbox) {
 	var minR = A.minR < B.minR ? A.minR : B.minR, maxR = A.maxR > B.maxR ? A.maxR : B.maxR;
 	var minC = A.minC < B.minC ? A.minC : B.minC, maxC = A.maxC > B.maxC ? A.maxC : B.maxC;
 	if ((maxR - minR) > maxBbox || (maxC - minC) > maxBbox) return null;
-	var aSet = {};
-	for (var i = 0; i < A.cells.length; i++) aSet[cellKey(A.cells[i])] = true;
-	for (var j = 0; j < B.cells.length; j++) {
-		if (aSet[cellKey(B.cells[j])]) return null;
+	// Two cells can only coincide if the bboxes actually overlap — if they don't, disjointness is
+	// automatic (common case: most admissible-union pairs are gap-adjacent, not overlapping).
+	var bboxesOverlap = !(A.maxR < B.minR || B.maxR < A.minR || A.maxC < B.minC || B.maxC < A.minC);
+	if (bboxesOverlap) {
+		// The maxBbox check above already bounds this shared window to <=(maxBbox+1)^2.
+		var uWidth = maxC - minC + 1;
+		var aMask = cellsMask(A.cells, minR, minC, uWidth);
+		var bMask = cellsMask(B.cells, minR, minC, uWidth);
+		if (aMask & bMask) return null;
 	}
 	var union = mergeSortedCells(A.cells, B.cells);
 	var lo = A.lo + B.lo;
@@ -237,11 +256,15 @@ function combineIntersection(A, B) {
 	// A non-empty intersection requires the two bounding boxes to overlap at all — cheap AABB test
 	// before paying for the real membership check.
 	if (A.maxR < B.minR || B.maxR < A.minR || A.maxC < B.minC || B.maxC < A.minC) return null;
-	var aSet = {};
-	for (var i = 0; i < A.cells.length; i++) aSet[cellKey(A.cells[i])] = true;
+	// Overlap just confirmed, so the shared span is at most (maxBbox+1) + (maxBbox+1) - 1 in the
+	// worst case (two max-span clues overlapping by a single row/col).
+	var originR = A.minR < B.minR ? A.minR : B.minR, originC = A.minC < B.minC ? A.minC : B.minC;
+	var width = (A.maxC > B.maxC ? A.maxC : B.maxC) - originC + 1;
+	var aMask = cellsMask(A.cells, originR, originC, width);
 	var inter = [];
 	for (var j = 0; j < B.cells.length; j++) {
-		if (aSet[cellKey(B.cells[j])]) inter.push(B.cells[j]);
+		var bit = 1 << ((B.cells[j][0] - originR) * width + (B.cells[j][1] - originC));
+		if (aMask & bit) inter.push(B.cells[j]);
 	}
 	if (inter.length === 0) return null;
 	if (inter.length === A.cells.length) return null; // A ⊆ B — subset handles it
