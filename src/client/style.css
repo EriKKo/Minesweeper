@@ -1139,9 +1139,6 @@ main {
 }
 .cr-close:hover { color: var(--text); border-color: var(--muted); }
 .cr-dialog-sub { color: var(--muted); font-size: 0.9rem; margin: 0.35rem 0 1.25rem; }
-/* Wide modifier — for content that needs more room than the default 560px (e.g. the marathon-board
-   Play modal, which embeds a real 20-30-column board). */
-.cr-dialog-wide { width: min(1040px, 100%); }
 
 /* Help modal — concise rules + controls. Reuses .cr-modal/.cr-dialog chrome. */
 .help-dialog { width: min(540px, 100%); }

@@ -229,43 +229,23 @@ function renderMarathonRow(p) {
 	var playBtn = document.createElement("button");
 	playBtn.className = "puzzle-card-analyze";
 	playBtn.textContent = "Play";
-	playBtn.addEventListener("click", function() { openMarathonPlayModal(p); });
+	playBtn.addEventListener("click", function() { playMarathonBoard(p); });
 	playCell.appendChild(playBtn);
 	row.appendChild(playCell);
 
 	return row;
 }
 
-// Play modal: wraps the same fully-interactive, real-rules board widget the All-Puzzles page already
-// embeds inline (buildLearnPuzzle, Learn.js) in the app's standard .cr-modal chrome, instead of the
-// bespoke Analyze-modal layout — no solver trace needed here, just a way to try the board for real.
-// buildLearnPuzzle already renders its own status line and Reset button (Learn.js resetBtn/setStatus),
-// so the modal doesn't need to duplicate either.
-function openMarathonPlayModal(p) {
-	var modal = document.getElementById("marathon_play_modal");
-	if (!modal) {
-		modal = document.createElement("div");
-		modal.id = "marathon_play_modal";
-		modal.className = "cr-modal";
-		modal.setAttribute("hidden", "");
-		modal.innerHTML =
-			'<div class="cr-backdrop" data-marathon-close></div>' +
-			'<div class="cr-dialog cr-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="marathon_play_title">' +
-				'<div class="cr-dialog-head"><h2 id="marathon_play_title">Marathon board</h2>' +
-				'<button class="cr-close" type="button" data-marathon-close aria-label="Close">×</button></div>' +
-				'<div id="marathon_play_board"></div>' +
-			'</div>';
-		document.body.appendChild(modal);
-		modal.addEventListener("click", function(e) { if (e.target.closest("[data-marathon-close]")) modal.setAttribute("hidden", ""); });
-		document.addEventListener("keydown", function(e) { if (e.key === "Escape" && !modal.hasAttribute("hidden")) modal.setAttribute("hidden", ""); });
-	}
-	var title = modal.querySelector("#marathon_play_title");
-	if (title) title.textContent = "Marathon board #" + p.id + " — " + p.rows + "×" + p.cols;
-	var boardWrap = modal.querySelector("#marathon_play_board");
-	boardWrap.innerHTML = "";
-
-	var pseudoPuzzle = { title: "", rows: p.rows, cols: p.cols, mines: p.mines, revealed: p.revealed };
-	boardWrap.appendChild(buildLearnPuzzle(pseudoPuzzle, false, function() {}, function() {}));
-
-	modal.removeAttribute("hidden");
+// Play through the real game engine — the same puzzle_retry path "Try again" already uses
+// (Main.js's puzzle_retry_btn handler) — rather than a lightweight local preview widget. Marathon
+// boards are already rows in the same puzzles table curriculum puzzles live in, so the server needs
+// no special handling: it's just db.getPuzzleById(p.id) + startPuzzlePlay with noRating set
+// (src/server/runtime/puzzlePlay.js). This gets every real-game feature (keyboard focus cursor,
+// chording, fullscreen, …) for free instead of reimplementing any of it — there's nothing different
+// about playing a marathon board vs. any other puzzle. Takes over the whole screen like any other
+// "commit to a game" action; leaving it returns home (exitPuzzle's normal behavior), same as it does
+// for every other puzzle.
+function playMarathonBoard(p) {
+	if (typeof autoEnterGameFullscreen === "function") autoEnterGameFullscreen();
+	socket.emit("puzzle_retry", { puzzleId: p.id });
 }
