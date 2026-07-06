@@ -483,7 +483,7 @@ function ensurePuzzlePoolTopUp() {
 	if (process.env.PUZZLE_POOL_TOPUP_DISABLED === "1") return;
 	var target = parseInt(process.env.PUZZLE_POOL_TARGET, 10);
 	if (!target || target <= 0) return;
-	var have = db.puzzleCount();
+	var have = db.curriculumPuzzleCount();
 	if (have >= target) {
 		console.log("puzzle pool: " + have + " / " + target + " (full)");
 		return;
@@ -496,7 +496,7 @@ function ensurePuzzlePoolTopUp() {
 			setTimeout(tick, 30 * 1000);
 			return;
 		}
-		var current = db.puzzleCount();
+		var current = db.curriculumPuzzleCount();
 		if (current >= target) {
 			console.log("puzzle pool top-up complete (" + current + " / " + target + ")");
 			return;

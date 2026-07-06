@@ -1002,6 +1002,14 @@ function sourceClause(source) {
 	return null;
 }
 
+// Marathon boards (source="marathon", scripts/generate-marathon-boards.js) live in this same table
+// deliberately — the admin Marathon boards page and the puzzle_retry "Play" flow both work by
+// treating them as ordinary puzzles.puzzles rows. But they're long, dense, "lots of medium moves"
+// boards for the solo campaign, not curriculum material, so any query that RANDOMLY serves a puzzle
+// for actual play (daily, rated ladder, streak, storm) must exclude them — only direct by-id lookups
+// (getPuzzleById, used by puzzle_retry and the Analyze modal) are meant to reach a marathon row.
+var CURRICULUM_ONLY_CLAUSE = "source != 'marathon'";
+
 // Columns `listPuzzles`'s `opts.orderBy` is allowed to sort by (never interpolate the raw param into SQL).
 var ORDER_BY_COLUMNS = ["rating", "max_complexity", "total_complexity", "created_at"];
 
@@ -1067,6 +1075,13 @@ function puzzleCount(difficulty, method, scoreBand, source) {
 	if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
 	var stmt = db.prepare(sql);
 	return stmt.get.apply(stmt, params).n;
+}
+
+// Size of the servable curriculum pool (excludes marathon boards) — what the background pool
+// top-up job should compare against PUZZLE_POOL_TARGET, so a batch of marathon boards doesn't read
+// as "the pool is full enough" and starve real curriculum generation.
+function curriculumPuzzleCount() {
+	return db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE " + CURRICULUM_ONLY_CLAUSE).get().n;
 }
 
 // Aggregate stats for the All-Puzzles dashboard. Single query per metric
@@ -1331,12 +1346,13 @@ function getOrPickDailyPuzzle(date) {
 
 function pickDailyCandidate() {
 	// Never serve a case-analysis puzzle as the daily — those need reasoning beyond the in-game
-	// (pass-based) solver and aren't accessible to casual players.
-	var row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND rating BETWEEN 1400 AND 1700 ORDER BY RANDOM() LIMIT 1").get();
+	// (pass-based) solver and aren't accessible to casual players. Never serve a marathon board
+	// either — see CURRICULUM_ONLY_CLAUSE.
+	var row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND " + CURRICULUM_ONLY_CLAUSE + " AND rating BETWEEN 1400 AND 1700 ORDER BY RANDOM() LIMIT 1").get();
 	if (row) return deserializePuzzle(row);
-	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND rating BETWEEN 1100 AND 2000 ORDER BY RANDOM() LIMIT 1").get();
+	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND " + CURRICULUM_ONLY_CLAUSE + " AND rating BETWEEN 1100 AND 2000 ORDER BY RANDOM() LIMIT 1").get();
 	if (row) return deserializePuzzle(row);
-	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 ORDER BY RANDOM() LIMIT 1").get();
+	row = db.prepare("SELECT * FROM puzzles WHERE needs_case_split = 0 AND " + CURRICULUM_ONLY_CLAUSE + " ORDER BY RANDOM() LIMIT 1").get();
 	return row ? deserializePuzzle(row) : null;
 }
 
@@ -1423,7 +1439,7 @@ function pickPuzzleNearRating(targetRating, excludeIds, windows) {
 	}
 	for (var i = 0; i < windows.length; i++) {
 		var w = windows[i];
-		var sql = "SELECT * FROM puzzles WHERE rating BETWEEN ? AND ?" + excludeClause +
+		var sql = "SELECT * FROM puzzles WHERE " + CURRICULUM_ONLY_CLAUSE + " AND rating BETWEEN ? AND ?" + excludeClause +
 			" ORDER BY RANDOM() LIMIT 1";
 		var p = [targetRating - w, targetRating + w].concat(params);
 		var stmt = db.prepare(sql);
@@ -1432,7 +1448,7 @@ function pickPuzzleNearRating(targetRating, excludeIds, windows) {
 	}
 	// Last resort: any puzzle they haven't recently played.
 	if (excludeIds && excludeIds.length) {
-		var sql2 = "SELECT * FROM puzzles WHERE 1=1" + excludeClause + " ORDER BY RANDOM() LIMIT 1";
+		var sql2 = "SELECT * FROM puzzles WHERE " + CURRICULUM_ONLY_CLAUSE + excludeClause + " ORDER BY RANDOM() LIMIT 1";
 		var stmt2 = db.prepare(sql2);
 		var row2 = stmt2.get.apply(stmt2, params);
 		if (row2) return deserializePuzzle(row2);
@@ -1502,6 +1518,7 @@ module.exports = {
 	insertPuzzle: insertPuzzle,
 	listPuzzles: listPuzzles,
 	puzzleCount: puzzleCount,
+	curriculumPuzzleCount: curriculumPuzzleCount,
 	puzzleSources: puzzleSources,
 	clearPuzzlesBySource: clearPuzzlesBySource,
 	puzzleStats: puzzleStats,
@@ -1521,6 +1538,7 @@ module.exports = {
 	setRunBest: setRunBest,
 	todayUtc: todayUtc,
 	getOrPickDailyPuzzle: getOrPickDailyPuzzle,
+	pickDailyCandidate: pickDailyCandidate,
 	getDailyAttempt: getDailyAttempt,
 	recordDailyAttempt: recordDailyAttempt,
 	dailyStreakForUser: dailyStreakForUser,
