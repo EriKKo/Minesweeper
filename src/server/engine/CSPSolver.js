@@ -677,9 +677,12 @@ function analyzeBoard(board, state, opts) {
 	for (var pr = 0; pr < rows; pr++) prevState.push(new Array(cols).fill(UNKNOWN));
 
 	function admitCandidatesFrom(cellList) {
+		// Numeric key (a plain array index, not a string) — same fix as makeClue's cellsKey earlier:
+		// avoids a string allocation + dictionary-mode property lookup for what's a tiny, hot,
+		// per-move dedup (candidates here are almost always single digits per move).
 		var seenCand = {}, candidates = [];
 		function addCandidate(r, c) {
-			var k = r + "," + c;
+			var k = r * cols + c;
 			if (seenCand[k]) return;
 			seenCand[k] = true;
 			candidates.push([r, c]);
