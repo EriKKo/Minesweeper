@@ -40,7 +40,6 @@ var MINE = BoardLogic.MINE;
 var DEFAULT_MAX_CELLS = 8;
 var DEFAULT_MAX_BBOX = 2;     // Chebyshev distance between any two cells
 var DEFAULT_MAX_CLUES = 10000; // hard ceiling on the seen-set per search
-var FLAG_BONUS = 0.5;
 var SUBSET_COST = 2.0;
 var UNION_COST = 1.0;
 var INTERSECT_COST = 2.5;
@@ -55,6 +54,15 @@ var SAFE = -5;
 // covered cells is harder than against two; the surcharge propagates
 // through every derivation since parent complexities sum.
 var CELL_SURCHARGE = 0.15;  // each covered cell adds this much
+// Per-flagged-neighbour surcharge on an initial clue — a flagged neighbour still costs a little to
+// track (subtracting it from the number), but strictly less than a covered one: deliberately half of
+// CELL_SURCHARGE, so flagging a neighbour is a *net decrease* in that origin's complexity (loses a
+// full CELL_SURCHARGE off the covered count, gains only half back). This keeps the complexity model
+// monotonic — placing a flag can only ever make a clue easier, never harder — which is what lets
+// analyzeBoard's incremental clue store (see the persistent-store comment there) leave old clues in
+// place indefinitely instead of retiring/regenerating them: a stale clue can never look cheaper than
+// a fresh recomputation would.
+var FLAG_BONUS = CELL_SURCHARGE / 2;
 // Mine-density surcharge. Clues with mines in the middle of the range
 // (e.g. "3 of 5") are harder than extremes ("0 of 5" / "5 of 5"). Add
 // per unit of min(mines, cells - mines) to the initial clue cost.
@@ -118,26 +126,33 @@ function bboxOk(cells, maxDist) {
 	return (maxR - minR) <= maxDist && (maxC - minC) <= maxDist;
 }
 
+// The single revealed-numbered-cell -> initial-clue computation, factored out so the whole-board
+// scan (buildInitialClues) and analyzeBoard's incremental per-cell discovery can share it.
+function buildOriginClue(board, state, rows, cols, r, c) {
+	if (state[r][c] !== KNOWN || board[r][c] <= 0) return null;
+	var flagged = 0, covered = [];
+	BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
+		if (state[nr][nc] === FLAGGED) flagged++;
+		else if (state[nr][nc] === UNKNOWN) covered.push([nr, nc]);
+	});
+	if (covered.length === 0) return null;
+	var mines = board[r][c] - flagged;
+	if (mines < 0) return null; // shouldn't happen on a consistent state
+	var sizeSurcharge = CELL_SURCHARGE * covered.length;
+	var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
+	return makeClue(covered, mines, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
+		source: "initial",
+		from: [r, c]
+	});
+}
+
 function buildInitialClues(board, state) {
 	var rows = board.length, cols = board[0].length;
 	var out = [];
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
-			if (state[r][c] !== KNOWN || board[r][c] <= 0) continue;
-			var flagged = 0, covered = [];
-			BoardLogic.forEachNeighbour(r, c, rows, cols, function(nr, nc) {
-				if (state[nr][nc] === FLAGGED) flagged++;
-				else if (state[nr][nc] === UNKNOWN) covered.push([nr, nc]);
-			});
-			if (covered.length === 0) continue;
-			var mines = board[r][c] - flagged;
-			if (mines < 0) continue; // shouldn't happen on a consistent state
-			var sizeSurcharge = CELL_SURCHARGE * covered.length;
-			var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
-			out.push(makeClue(covered, mines, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
-				source: "initial",
-				from: [r, c]
-			}));
+			var clue = buildOriginClue(board, state, rows, cols, r, c);
+			if (clue) out.push(clue);
 		}
 	}
 	return out;
@@ -234,15 +249,13 @@ function heapPop(h) {
 	return top;
 }
 
-function findBestTrivialClue(initialClues, opts) {
-	opts = opts || {};
+// Builds an admit() closure bound to a given seen/keys/heap store. Shared between
+// findBestTrivialClue's one-shot store and analyzeBoard's persistent, whole-solve store.
+function makeAdmitter(seen, keys, heap, opts) {
 	var maxCells = opts.maxCells || DEFAULT_MAX_CELLS;
 	var maxBbox = opts.maxBbox != null ? opts.maxBbox : DEFAULT_MAX_BBOX;
-	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
 	var maxComplexity = opts.maxComplexity != null ? opts.maxComplexity : Infinity;
-	var seen = {}, keys = [], heap = [];
-
-	function admit(clue) {
+	return function admit(clue) {
 		if (!clue) return;
 		if (clue.cells.length > maxCells) return;
 		// Derivations only get more complex (children >= parent complexity + a
@@ -256,7 +269,14 @@ function findBestTrivialClue(initialClues, opts) {
 		seen[clue.key] = clue;
 		heapPush(heap, [clue.complexity, clue]);
 		if (!prev) keys.push(clue.key);
-	}
+	};
+}
+
+function findBestTrivialClue(initialClues, opts) {
+	opts = opts || {};
+	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
+	var seen = {}, keys = [], heap = [];
+	var admit = makeAdmitter(seen, keys, heap, opts);
 
 	for (var i = 0; i < initialClues.length; i++) admit(initialClues[i]);
 
@@ -596,20 +616,96 @@ function applyTrivialClue(board, state, clue, revealCell) {
 // boards.
 function analyzeBoard(board, state, opts) {
 	opts = opts || {};
+	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
 	var maxComplexity = opts.maxComplexity != null ? opts.maxComplexity : Infinity;
+	var rows = board.length, cols = board[0].length;
 	var moves = [];
-	while (true) {
-		var initial = buildInitialClues(board, state);
-		if (initial.length === 0) break;
-		// Cheap path first: a starting clue that's already trivial costs 0
-		// (or 0.5·flagged) and doesn't require any search.
-		var directTrivial = null;
-		for (var i = 0; i < initial.length; i++) {
-			if (isTrivial(initial[i]) && (!directTrivial || initial[i].complexity < directTrivial.complexity)) {
-				directTrivial = initial[i];
+
+	// Persistent clue store for the whole solve, instead of rebuilding the reachable clue space
+	// from scratch on every move. A derived clue is a permanently-true fact about the fixed board,
+	// so it's never WRONG to leave one in place once a cell inside it resolves — but it does
+	// become structurally stale: combineSubset/DisjointUnion/Intersection match on the literal
+	// cell lists, so a clue that still lists an already-resolved cell can fail to line up with a
+	// freshly-built (narrower) clue from another origin in ways a fresh rebuild wouldn't, and
+	// bundleMoves reports a move's cell list verbatim, so returning one as an answer would leak
+	// already-resolved cells into the reported output. So a stale clue is left in the store (cheap
+	// — no bookkeeping to remove it) but ignored entirely — not combined from, not returned as an
+	// answer — the moment any of its cells resolve (`isFresh`, below); only a clue whose entire
+	// cell list is still unknown is touched again, exactly matching what a fresh per-iteration
+	// rebuild would have available.
+	var seen = {}, keys = [], heap = [];
+	var admit = makeAdmitter(seen, keys, heap, opts);
+	var prevState = [];
+	for (var pr = 0; pr < rows; pr++) prevState.push(new Array(cols).fill(UNKNOWN));
+
+	// Diffs `state` against the last-seen snapshot to find every cell that actually changed this
+	// move (a plain full-board scan — cheap, and the only way to catch every cell a cascade
+	// revealed, not just the ones the winning clue's own cell list named). For each changed cell
+	// and its neighbours, rebuilds and (re-)admits that origin's initial clue if it's revealed and
+	// numbered — covers both brand-new origins and existing ones whose covered set just narrowed.
+	// `admit`'s existing key-based dedup makes re-admitting an unchanged origin a cheap no-op.
+	function syncOrigins() {
+		var seenCand = {}, candidates = [];
+		function addCandidate(r, c) {
+			var k = r + "," + c;
+			if (seenCand[k]) return;
+			seenCand[k] = true;
+			candidates.push([r, c]);
+		}
+		for (var r = 0; r < rows; r++) {
+			for (var c = 0; c < cols; c++) {
+				if (prevState[r][c] === state[r][c]) continue;
+				prevState[r][c] = state[r][c];
+				addCandidate(r, c);
+				BoardLogic.forEachNeighbour(r, c, rows, cols, addCandidate);
 			}
 		}
-		var best = directTrivial || findBestTrivialClue(initial, opts);
+		for (var i = 0; i < candidates.length; i++) {
+			var clue = buildOriginClue(board, state, rows, cols, candidates[i][0], candidates[i][1]);
+			if (clue) admit(clue);
+		}
+	}
+
+	function isFresh(clue) {
+		for (var i = 0; i < clue.cells.length; i++) {
+			if (state[clue.cells[i][0]][clue.cells[i][1]] !== UNKNOWN) return false;
+		}
+		return true;
+	}
+
+	// Best-first search over the persistent store: pop cheapest, skip anything superseded by a
+	// cheaper version or stale (a cell inside it has since resolved, whether fully or partly),
+	// combine with every other still-fresh key, admit results. Resumes exactly where the previous
+	// call left off instead of starting over. A clue with even one resolved cell is skipped
+	// entirely, not just excluded from combination: bundleMoves reports a move's raw cell list
+	// verbatim (not filtered to only-still-unknown cells), so returning a partly-stale clue as the
+	// answer would leak already-resolved cells into the reported revealed/flagged output. A fresh
+	// rebuild never has this problem (every clue it holds is built from currently-unknown cells by
+	// construction), so requiring full freshness here is what keeps the two behaviourally identical.
+	function searchForTrivial() {
+		while (heap.length > 0) {
+			if (keys.length > maxClues) break;
+			var top = heapPop(heap);
+			var c = top[1];
+			if (seen[c.key] !== c) continue; // a cheaper version superseded this one
+			if (!isFresh(c)) continue; // stale (or fully dead) — a fresh equivalent will surface separately
+			if (isTrivial(c)) return c;
+			for (var k = 0; k < keys.length; k++) {
+				var other = seen[keys[k]];
+				if (other === c || !isFresh(other)) continue;
+				admit(combineSubset(c, other));
+				admit(combineSubset(other, c));
+				admit(combineDisjointUnion(c, other));
+				admit(combineIntersection(c, other));
+			}
+		}
+		return null;
+	}
+
+	syncOrigins();
+
+	while (true) {
+		var best = searchForTrivial();
 		if (best && best.complexity <= maxComplexity) {
 			// Snapshot the cells the move actually changed (reveal or flag)
 			// before applying, so the UI can highlight them on the board.
@@ -629,6 +725,7 @@ function analyzeBoard(board, state, opts) {
 				depth: best.depth,
 				derivation: flattenDerivation(best)
 			});
+			syncOrigins();
 			continue;
 		}
 		// CSP subset search exhausted. First try a SOUND 1-cell case split (findCaseSplitStep): hypothesise
@@ -661,6 +758,7 @@ function analyzeBoard(board, state, opts) {
 					flagged: caseFlagged,
 					branches: caseStep.branches
 				});
+				syncOrigins();
 				continue;
 			}
 		}
@@ -695,11 +793,11 @@ function analyzeBoard(board, state, opts) {
 			revealed: revealed,
 			flagged: flagged
 		});
+		syncOrigins();
 	}
 	// Solved = every safe cell is KNOWN. Mines may sit either FLAGGED or
 	// UNKNOWN (they don't all need to be flagged for the player to win),
 	// matching the existing analyzer's definition.
-	var rows = board.length, cols = board[0].length;
 	var safeCovered = 0;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {

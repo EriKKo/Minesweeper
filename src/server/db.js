@@ -8,7 +8,7 @@ var BoardLogic = require("../common/BoardLogic");
 // Bumped any time the puzzle scoring formula changes. Rows stored under an
 // older version are re-classified on startup so their score and rating
 // match what a freshly-generated puzzle would get.
-var CURRENT_SCORING_VERSION = 20;
+var CURRENT_SCORING_VERSION = 21;
 
 // Dev: ranked.db lives at the project root (gitignored). Prod: RANKED_DB is
 // set to /data/ranked.db on the fly volume.
