@@ -676,6 +676,56 @@ function analyzeBoard(board, state, opts) {
 	var prevState = [];
 	for (var pr = 0; pr < rows; pr++) prevState.push(new Array(cols).fill(UNKNOWN));
 
+	// Flat (row*cols+col) typed-array shadow of board/state, local to this analyzeBoard call. The
+	// external `board`/`state` 2D arrays stay the source of truth (revealCell and every other
+	// caller/file reads and writes them directly, and that contract isn't changing) — this is purely
+	// an internal read cache for the hot per-candidate work below (buildOriginClueFlat, isFresh),
+	// which does a small, fixed number of value reads per cell many times over a solve. A typed
+	// array is one bounds-checked, contiguous lookup per read; the 2D form is two (row array, then
+	// column element), with the row array itself being a separate heap object each time. Kept in
+	// sync inside syncOrigins, the one place that already knows exactly which cells changed each move.
+	var flatBoard = new Int8Array(rows * cols);
+	var flatState = new Int8Array(rows * cols);
+	for (var fr = 0; fr < rows; fr++) {
+		for (var fc = 0; fc < cols; fc++) {
+			var fi = fr * cols + fc;
+			flatBoard[fi] = board[fr][fc];
+			flatState[fi] = state[fr][fc];
+		}
+	}
+
+	// Same computation as buildOriginClue, reading the flat shadow arrays instead of board/state,
+	// with the neighbour bounds inlined instead of going through BoardLogic.forEachNeighbour's
+	// per-neighbour callback — this is the single most-called function in a solve (once per
+	// candidate origin, of which there are many over a whole board), so avoiding the callback and
+	// array-of-arrays indirection here is worth the duplication with buildOriginClue (kept as-is for
+	// findBestTrivialClue/case-split/enum, which still work on the plain board/state 2D arrays).
+	function buildOriginClueFlat(r, c) {
+		var idx = r * cols + c;
+		if (flatState[idx] !== KNOWN || flatBoard[idx] <= 0) return null;
+		var flagged = 0, covered = [];
+		var rLo = r > 0 ? r - 1 : 0, rHi = r < rows - 1 ? r + 1 : rows - 1;
+		var cLo = c > 0 ? c - 1 : 0, cHi = c < cols - 1 ? c + 1 : cols - 1;
+		for (var nr = rLo; nr <= rHi; nr++) {
+			var rowBase = nr * cols;
+			for (var nc = cLo; nc <= cHi; nc++) {
+				if (nr === r && nc === c) continue;
+				var v = flatState[rowBase + nc];
+				if (v === FLAGGED) flagged++;
+				else if (v === UNKNOWN) covered.push([nr, nc]);
+			}
+		}
+		if (covered.length === 0) return null;
+		var mines = flatBoard[idx] - flagged;
+		if (mines < 0) return null; // shouldn't happen on a consistent state
+		var sizeSurcharge = CELL_SURCHARGE * covered.length;
+		var densitySurcharge = DENSITY_SURCHARGE * Math.min(mines, covered.length - mines);
+		return makeClue(covered, mines, mines, sizeSurcharge + densitySurcharge + FLAG_BONUS * flagged, {
+			source: "initial",
+			from: [r, c]
+		});
+	}
+
 	function admitCandidatesFrom(cellList) {
 		// Numeric key (a plain array index, not a string) — same fix as makeClue's cellsKey earlier:
 		// avoids a string allocation + dictionary-mode property lookup for what's a tiny, hot,
@@ -693,7 +743,7 @@ function analyzeBoard(board, state, opts) {
 			BoardLogic.forEachNeighbour(r, c, rows, cols, addCandidate);
 		}
 		for (var j = 0; j < candidates.length; j++) {
-			var clue = buildOriginClue(board, state, rows, cols, candidates[j][0], candidates[j][1]);
+			var clue = buildOriginClueFlat(candidates[j][0], candidates[j][1]);
 			if (clue) admit(clue);
 		}
 	}
@@ -708,22 +758,25 @@ function analyzeBoard(board, state, opts) {
 	//  - `touchedCells` omitted: falls back to a full-board diff against the last-seen snapshot —
 	//    used for the very first sync (before any move — the pre-existing opening isn't reported to
 	//    us) and if a caller's revealCell doesn't cooperate with the new contract.
+	// Either way this is also where the flat shadow arrays get caught up with `state`.
 	function syncOrigins(touchedCells) {
 		if (touchedCells) {
-			admitCandidatesFrom(touchedCells);
-			// Keep prevState caught up too, so an eventual fallback scan only looks for changes
-			// since the LAST scan, not ones already handled through this explicit-list path.
 			for (var i = 0; i < touchedCells.length; i++) {
 				var r = touchedCells[i][0], c = touchedCells[i][1];
-				prevState[r][c] = state[r][c];
+				var v = state[r][c];
+				prevState[r][c] = v;
+				flatState[r * cols + c] = v;
 			}
+			admitCandidatesFrom(touchedCells);
 			return;
 		}
 		var changed = [];
 		for (var r2 = 0; r2 < rows; r2++) {
 			for (var c2 = 0; c2 < cols; c2++) {
 				if (prevState[r2][c2] === state[r2][c2]) continue;
-				prevState[r2][c2] = state[r2][c2];
+				var v2 = state[r2][c2];
+				prevState[r2][c2] = v2;
+				flatState[r2 * cols + c2] = v2;
 				changed.push([r2, c2]);
 			}
 		}
@@ -756,8 +809,9 @@ function analyzeBoard(board, state, opts) {
 	}
 
 	function isFresh(clue) {
-		for (var i = 0; i < clue.cells.length; i++) {
-			if (state[clue.cells[i][0]][clue.cells[i][1]] !== UNKNOWN) return false;
+		var cells = clue.cells;
+		for (var i = 0; i < cells.length; i++) {
+			if (flatState[cells[i][0] * cols + cells[i][1]] !== UNKNOWN) return false;
 		}
 		return true;
 	}
