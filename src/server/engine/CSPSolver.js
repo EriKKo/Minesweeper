@@ -103,11 +103,18 @@ function makeClue(cells, lo, hi, complexity, meta, alreadySorted) {
 	if (lo < 0) lo = 0;
 	if (hi > cells.length) hi = cells.length;
 	// Key includes bounds so "≤2 mines" and "=1 mine" on the same cells
-	// are tracked as distinct deductions.
+	// are tracked as distinct deductions. The bounding box is computed in the same pass (cheap —
+	// no extra iteration) and cached on the clue so combine ops can cheaply rule out a pairing
+	// before doing any real membership-check work (see combineSubset/DisjointUnion/Intersection),
+	// and admit() can bounds-check a candidate in O(1) instead of re-scanning its cells.
 	var cellsKey = "";
+	var minR = cells[0][0], maxR = minR, minC = cells[0][1], maxC = minC;
 	for (var i = 0; i < cells.length; i++) {
 		if (i) cellsKey += ";";
-		cellsKey += cells[i][0] + "," + cells[i][1];
+		var r = cells[i][0], c = cells[i][1];
+		cellsKey += r + "," + c;
+		if (r < minR) minR = r; else if (r > maxR) maxR = r;
+		if (c < minC) minC = c; else if (c > maxC) maxC = c;
 	}
 	var key = cellsKey + "|" + lo + "-" + hi;
 	meta = meta || {};
@@ -119,6 +126,7 @@ function makeClue(cells, lo, hi, complexity, meta, alreadySorted) {
 	}
 	return {
 		key: key, cellsKey: cellsKey, cells: cells, lo: lo, hi: hi,
+		minR: minR, maxR: maxR, minC: minC, maxC: maxC,
 		complexity: complexity,
 		source: meta.source || "initial",
 		parents: meta.parents || null,
@@ -135,17 +143,6 @@ function isTrivial(clue) {
 
 function isContradiction(clue) {
 	return clue.lo > clue.hi;
-}
-
-function bboxOk(cells, maxDist) {
-	if (cells.length <= 1) return true;
-	var minR = cells[0][0], maxR = minR, minC = cells[0][1], maxC = minC;
-	for (var i = 1; i < cells.length; i++) {
-		var rr = cells[i][0], cc = cells[i][1];
-		if (rr < minR) minR = rr; else if (rr > maxR) maxR = rr;
-		if (cc < minC) minC = cc; else if (cc > maxC) maxC = cc;
-	}
-	return (maxR - minR) <= maxDist && (maxC - minC) <= maxDist;
 }
 
 // The single revealed-numbered-cell -> initial-clue computation, factored out so the whole-board
@@ -184,6 +181,11 @@ function combineSubset(A, B) {
 	// A.cells ⊂ B.cells. The extras (B\A) hold mines(B) − mines(A).
 	// With bounded clues, mines(B\A) ∈ [B.lo − A.hi, B.hi − A.lo].
 	if (A.cells.length >= B.cells.length) return null;
+	// A can only be a cell-subset of B if A's whole bounding box sits inside B's — cheap to rule
+	// out first, since most (A, B) pairs drawn from a board-wide clue store are nowhere near each
+	// other (maxBbox keeps every clue's own footprint small, but says nothing about how far apart
+	// two clues sit from one another).
+	if (A.minR < B.minR || A.maxR > B.maxR || A.minC < B.minC || A.maxC > B.maxC) return null;
 	var bSet = {};
 	for (var i = 0; i < B.cells.length; i++) bSet[cellKey(B.cells[i])] = true;
 	var aKeys = {};
@@ -208,7 +210,13 @@ function combineSubset(A, B) {
 	}, true);
 }
 
-function combineDisjointUnion(A, B) {
+function combineDisjointUnion(A, B, maxBbox) {
+	// Unlike subset/intersection (whose result is always ⊆ one of the parents' already-admissible
+	// footprints), a union can span a WIDER area than either parent — that's the one case where the
+	// result can fail the bbox cap on its own merits, so it's the one combine op that needs it.
+	var minR = A.minR < B.minR ? A.minR : B.minR, maxR = A.maxR > B.maxR ? A.maxR : B.maxR;
+	var minC = A.minC < B.minC ? A.minC : B.minC, maxC = A.maxC > B.maxC ? A.maxC : B.maxC;
+	if ((maxR - minR) > maxBbox || (maxC - minC) > maxBbox) return null;
 	var aSet = {};
 	for (var i = 0; i < A.cells.length; i++) aSet[cellKey(A.cells[i])] = true;
 	for (var j = 0; j < B.cells.length; j++) {
@@ -226,6 +234,9 @@ function combineDisjointUnion(A, B) {
 
 function combineIntersection(A, B) {
 	// Bounds on mines(A∩B) from each side, then take the tighter.
+	// A non-empty intersection requires the two bounding boxes to overlap at all — cheap AABB test
+	// before paying for the real membership check.
+	if (A.maxR < B.minR || B.maxR < A.minR || A.maxC < B.minC || B.maxC < A.minC) return null;
 	var aSet = {};
 	for (var i = 0; i < A.cells.length; i++) aSet[cellKey(A.cells[i])] = true;
 	var inter = [];
@@ -287,7 +298,7 @@ function makeAdmitter(seen, keys, heap, opts) {
 		// descendants would exceed it too. This both enforces the skill ceiling and
 		// is the main speedup for capped solves.
 		if (clue.complexity > maxComplexity) return;
-		if (!bboxOk(clue.cells, maxBbox)) return;
+		if ((clue.maxR - clue.minR) > maxBbox || (clue.maxC - clue.minC) > maxBbox) return;
 		var prev = seen[clue.key];
 		if (prev && prev.complexity <= clue.complexity) return;
 		seen[clue.key] = clue;
@@ -299,6 +310,7 @@ function makeAdmitter(seen, keys, heap, opts) {
 function findBestTrivialClue(initialClues, opts) {
 	opts = opts || {};
 	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
+	var maxBbox = opts.maxBbox != null ? opts.maxBbox : DEFAULT_MAX_BBOX;
 	var seen = {}, keys = [], heap = [];
 	var admit = makeAdmitter(seen, keys, heap, opts);
 
@@ -318,7 +330,7 @@ function findBestTrivialClue(initialClues, opts) {
 			if (other === c) continue;
 			admit(combineSubset(c, other));
 			admit(combineSubset(other, c));
-			admit(combineDisjointUnion(c, other));
+			admit(combineDisjointUnion(c, other, maxBbox));
 			admit(combineIntersection(c, other));
 		}
 	}
@@ -641,6 +653,7 @@ function applyTrivialClue(board, state, clue, revealCell) {
 function analyzeBoard(board, state, opts) {
 	opts = opts || {};
 	var maxClues = opts.maxClues || DEFAULT_MAX_CLUES;
+	var maxBbox = opts.maxBbox != null ? opts.maxBbox : DEFAULT_MAX_BBOX;
 	var maxComplexity = opts.maxComplexity != null ? opts.maxComplexity : Infinity;
 	var rows = board.length, cols = board[0].length;
 	var moves = [];
@@ -719,7 +732,7 @@ function analyzeBoard(board, state, opts) {
 				if (other === c || !isFresh(other)) continue;
 				admit(combineSubset(c, other));
 				admit(combineSubset(other, c));
-				admit(combineDisjointUnion(c, other));
+				admit(combineDisjointUnion(c, other, maxBbox));
 				admit(combineIntersection(c, other));
 			}
 		}
