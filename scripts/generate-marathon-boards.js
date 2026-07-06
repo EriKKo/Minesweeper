@@ -34,12 +34,25 @@ var REGION_H = parseInt(process.env.REGION_H, 10) || 6;
 var REGION_W = parseInt(process.env.REGION_W, 10) || 6;
 var TRIALS_PER_REGION = parseInt(process.env.TRIALS_PER_REGION, 10) || 12;
 var TIME_BUDGET_MS = parseInt(process.env.TIME_BUDGET_MS, 10) || 120000;
+// "grid" (default) sweeps a fixed REGION_H x REGION_W partition, always reworking the single weakest
+// region until every region has been tried with no improvement (see hillClimbGrid). "weighted" instead
+// samples a random cell — biased toward cells that only needed an easy move — and re-randomizes a
+// random small square around it (see hillClimbWeighted); it never locks onto fixed region boundaries
+// and doesn't get stuck cycling the same handful of regions once they've all been "tried".
+var REGION_STRATEGY = (process.env.REGION_STRATEGY || "grid").toLowerCase();
+var MIN_REGION_SIZE = parseInt(process.env.MIN_REGION_SIZE, 10) || 2;
+var MAX_REGION_SIZE = parseInt(process.env.MAX_REGION_SIZE, 10) || 6;
+// Weighted strategy has no fixed region count to exhaust, so convergence is judged by a rolling
+// stale-iteration count instead (no accepted improvement in this many consecutive tries).
+var STALE_LIMIT = parseInt(process.env.STALE_LIMIT, 10) || 400;
 // Complexity cap for the CSP solver during generation — kept below the case-split threshold (8) so
 // generation stays fast (a full case-split re-solve costs orders of magnitude more per candidate).
 // "Marathon" boards are meant to be long and dense, not case-split-hard (see Nightmare+ follow-up).
 var MAX_COMPLEXITY = parseFloat(process.env.MAX_COMPLEXITY) || 7;
 var SOURCE = process.env.SOURCE || "marathon";
-var GEN_METHOD = "hillclimb:" + REGION_H + "x" + REGION_W;
+var GEN_METHOD = REGION_STRATEGY === "weighted"
+	? "hillclimb:weighted:" + MIN_REGION_SIZE + "-" + MAX_REGION_SIZE
+	: "hillclimb:" + REGION_H + "x" + REGION_W;
 
 function buildBoardFromMineGrid(isMine, R, C) {
 	var board = [];
@@ -187,25 +200,96 @@ function saveBoard(isMine, board, result, R, C, startR, startC, iterations) {
 	return currentRowId;
 }
 
-function hillClimb() {
-	var R = ROWS, C = COLS, density = DENSITY;
-	var startR = Math.floor(R / 2), startC = Math.floor(C / 2);
-	var t0 = Date.now();
+// Try TRIALS_PER_REGION random re-randomizations of the r0,c0,sh,sw rectangle (respecting the fixed
+// safe start zone), keeping only the one with the highest totalComplexity that still fully solves —
+// shared by both region-selection strategies below.
+function tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw, bestTotalC, t0) {
+	var bestIsMine = null, bestBoard = null, bestResult = null;
+	for (var t = 0; t < TRIALS_PER_REGION; t++) {
+		if (Date.now() - t0 > TIME_BUDGET_MS) break;
+		var candidate = isMine.map(function(row) { return row.slice(); });
+		randomFillRegion(candidate, r0, c0, sh, sw, density);
+		clearSafeZone(candidate, R, C, startR, startC, 2);
+		var candBoard = buildBoardFromMineGrid(candidate, R, C);
+		var candResult = analyzeFull(candBoard, R, C, startR, startC, MAX_COMPLEXITY);
+		if (!candResult.solved) continue;
+		if (candResult.totalComplexity > bestTotalC) {
+			bestTotalC = candResult.totalComplexity;
+			bestIsMine = candidate; bestBoard = candBoard; bestResult = candResult;
+		}
+	}
+	return bestIsMine ? { isMine: bestIsMine, board: bestBoard, result: bestResult } : null;
+}
 
-	console.log("Marathon board generator: " + R + "x" + C + " @ " + density + " density, " +
-		"regions " + REGION_H + "x" + REGION_W + ", cap=" + MAX_COMPLEXITY + ", budget=" + TIME_BUDGET_MS + "ms\n");
+// Per-cell selection weight for the "weighted" strategy: a cell gets a high weight if the easiest
+// move that touched it was cheap (low complexity) — the same "find the weakest spot" idea the grid
+// strategy uses, just at cell granularity and sampled probabilistically instead of always picking the
+// single global minimum (which is what let the grid strategy get stuck re-trying the same handful of
+// regions). Cells no move ever touched (still covered, or resolved without contributing a `changed`
+// entry) get the same weight as a trivial (cx=1) move, so blank areas stay reachable without dominating
+// over a genuine easy spot.
+function cellEasyWeights(moves, R, C) {
+	var minC = new Float64Array(R * C).fill(Infinity);
+	moves.forEach(function(mv) {
+		var cells = mv.changed || mv.cells || [];
+		cells.forEach(function(rc) {
+			var idx = rc[0] * C + rc[1];
+			if (mv.complexity < minC[idx]) minC[idx] = mv.complexity;
+		});
+	});
+	var w = new Float64Array(R * C);
+	for (var i = 0; i < w.length; i++) {
+		var c = minC[i];
+		w[i] = isFinite(c) ? 1 / Math.max(0.25, c) : 1;
+	}
+	return w;
+}
 
-	var start = generateValidBoard(R, C, density, startR, startC, MAX_COMPLEXITY, 200);
-	if (!start) { console.log("could not find an initial valid board — try a lower density."); return; }
-	var isMine = start.isMine, board = start.board, result = start.result;
-	console.log("initial board found on try " + start.tries + ": totalC=" + result.totalComplexity.toFixed(1) +
-		" maxC=" + result.maxComplexity.toFixed(2) + " moves=" + result.moves.length);
-	var id = saveBoard(isMine, board, result, R, C, startR, startC, 0);
-	console.log("  saved as puzzle id " + id);
+function pickWeightedCell(weights, R, C) {
+	var total = 0;
+	for (var i = 0; i < weights.length; i++) total += weights[i];
+	var x = Math.random() * total, acc = 0;
+	for (var i2 = 0; i2 < weights.length; i2++) {
+		acc += weights[i2];
+		if (x < acc) return { r: Math.floor(i2 / C), c: i2 % C };
+	}
+	return { r: R - 1, c: C - 1 };
+}
 
+function hillClimbWeighted(isMine, board, result, R, C, startR, startC, density, t0) {
+	var accepted = 0, rejectedNoImprovement = 0, iter = 0, stale = 0;
+	var id = currentRowId;
+
+	while (Date.now() - t0 < TIME_BUDGET_MS) {
+		var weights = cellEasyWeights(result.moves, R, C);
+		var cell = pickWeightedCell(weights, R, C);
+		var size = MIN_REGION_SIZE + Math.floor(Math.random() * (MAX_REGION_SIZE - MIN_REGION_SIZE + 1));
+		var r0 = Math.max(0, Math.min(R - size, cell.r - Math.floor(size / 2)));
+		var c0 = Math.max(0, Math.min(C - size, cell.c - Math.floor(size / 2)));
+		var sh = Math.min(size, R - r0), sw = Math.min(size, C - c0);
+
+		var improved = tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw, result.totalComplexity, t0);
+		if (improved) {
+			isMine = improved.isMine; board = improved.board; result = improved.result;
+			accepted++; stale = 0;
+			id = saveBoard(isMine, board, result, R, C, startR, startC, accepted);
+			console.log("  iter " + iter + ": cell (" + cell.r + "," + cell.c + ") size " + size + "x" + size +
+				" improved -> totalC=" + result.totalComplexity.toFixed(1) + " maxC=" + result.maxComplexity.toFixed(2) +
+				" [" + (Date.now() - t0) + "ms elapsed] saved as id " + id);
+		} else {
+			rejectedNoImprovement++; stale++;
+			if (stale >= STALE_LIMIT) break;
+		}
+		iter++;
+	}
+	return { isMine: isMine, board: board, result: result, id: id, iter: iter, accepted: accepted, rejectedNoImprovement: rejectedNoImprovement, t0: t0 };
+}
+
+function hillClimbGrid(isMine, board, result, R, C, startR, startC, density, t0) {
 	var regionsR = Math.ceil(R / REGION_H), regionsC = Math.ceil(C / REGION_W);
 	var totalRegions = regionsR * regionsC;
 	var accepted = 0, rejectedNoImprovement = 0, iter = 0;
+	var id = currentRowId;
 
 	var startRegionKey = Math.floor(startR / REGION_H) * regionsC + Math.floor(startC / REGION_W);
 	var backedOff = new Set([startRegionKey]);
@@ -224,22 +308,9 @@ function hillClimb() {
 		var r0 = sr * REGION_H, c0 = sc * REGION_W;
 		var sh = Math.min(REGION_H, R - r0), sw = Math.min(REGION_W, C - c0);
 
-		var bestTotalC = result.totalComplexity, bestIsMine = null, bestBoard = null, bestResult = null;
-		for (var t = 0; t < TRIALS_PER_REGION; t++) {
-			if (Date.now() - t0 > TIME_BUDGET_MS) break;
-			var candidate = isMine.map(function(row) { return row.slice(); });
-			randomFillRegion(candidate, r0, c0, sh, sw, density);
-			clearSafeZone(candidate, R, C, startR, startC, 2);
-			var candBoard = buildBoardFromMineGrid(candidate, R, C);
-			var candResult = analyzeFull(candBoard, R, C, startR, startC, MAX_COMPLEXITY);
-			if (!candResult.solved) continue;
-			if (candResult.totalComplexity > bestTotalC) {
-				bestTotalC = candResult.totalComplexity;
-				bestIsMine = candidate; bestBoard = candBoard; bestResult = candResult;
-			}
-		}
-		if (bestIsMine) {
-			isMine = bestIsMine; board = bestBoard; result = bestResult;
+		var improved = tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw, result.totalComplexity, t0);
+		if (improved) {
+			isMine = improved.isMine; board = improved.board; result = improved.result;
 			accepted++;
 			backedOff = new Set([startRegionKey]);
 			convergedStreak = 0;
@@ -253,10 +324,33 @@ function hillClimb() {
 		}
 		iter++;
 	}
+	return { isMine: isMine, board: board, result: result, id: id, iter: iter, accepted: accepted, rejectedNoImprovement: rejectedNoImprovement, t0: t0 };
+}
 
-	console.log("\nstopped after " + iter + " iterations (" + accepted + " accepted, " + rejectedNoImprovement +
-		" no-improvement): totalC=" + result.totalComplexity.toFixed(1) + " maxC=" + result.maxComplexity.toFixed(2) +
-		" moves=" + result.moves.length + " solved=" + result.solved + " [" + (Date.now() - t0) + "ms] final puzzle id=" + id);
+function hillClimb() {
+	var R = ROWS, C = COLS, density = DENSITY;
+	var startR = Math.floor(R / 2), startC = Math.floor(C / 2);
+	var t0 = Date.now();
+
+	console.log("Marathon board generator: " + R + "x" + C + " @ " + density + " density, strategy=" + REGION_STRATEGY +
+		(REGION_STRATEGY === "weighted" ? " (" + MIN_REGION_SIZE + "-" + MAX_REGION_SIZE + " cell squares)" : " (regions " + REGION_H + "x" + REGION_W + ")") +
+		", cap=" + MAX_COMPLEXITY + ", budget=" + TIME_BUDGET_MS + "ms\n");
+
+	var start = generateValidBoard(R, C, density, startR, startC, MAX_COMPLEXITY, 200);
+	if (!start) { console.log("could not find an initial valid board — try a lower density."); return; }
+	var isMine = start.isMine, board = start.board, result = start.result;
+	console.log("initial board found on try " + start.tries + ": totalC=" + result.totalComplexity.toFixed(1) +
+		" maxC=" + result.maxComplexity.toFixed(2) + " moves=" + result.moves.length);
+	currentRowId = saveBoard(isMine, board, result, R, C, startR, startC, 0);
+	console.log("  saved as puzzle id " + currentRowId);
+
+	var run = REGION_STRATEGY === "weighted"
+		? hillClimbWeighted(isMine, board, result, R, C, startR, startC, density, t0)
+		: hillClimbGrid(isMine, board, result, R, C, startR, startC, density, t0);
+
+	console.log("\nstopped after " + run.iter + " iterations (" + run.accepted + " accepted, " + run.rejectedNoImprovement +
+		" no-improvement): totalC=" + run.result.totalComplexity.toFixed(1) + " maxC=" + run.result.maxComplexity.toFixed(2) +
+		" moves=" + run.result.moves.length + " solved=" + run.result.solved + " [" + (Date.now() - t0) + "ms] final puzzle id=" + run.id);
 }
 
 hillClimb();
