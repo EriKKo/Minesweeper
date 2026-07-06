@@ -259,6 +259,20 @@ function combineIntersection(A, B) {
 	}, true);
 }
 
+// Cheap, loose necessary condition covering all three combine ops at once: if the two bounding
+// boxes are farther apart than maxBbox in either dimension, NONE of subset/intersection/union could
+// ever succeed (a non-overlapping gap only ever adds to a union's combined span, so a gap already
+// over the cap means the combined span is too, and subset/intersection both require actual overlap,
+// a strictly stronger condition than "gap <= maxBbox"). Meant to be checked once per (clue, other)
+// pair, before the 4 separate combine attempts (each of which still does its own tighter check) and
+// before the more expensive isFresh scan in analyzeBoard's search loop.
+function boxesCanCombine(A, B, maxBbox) {
+	var gapR = A.maxR < B.minR ? (B.minR - A.maxR) : (B.maxR < A.minR ? (A.minR - B.maxR) : 0);
+	if (gapR > maxBbox) return false;
+	var gapC = A.maxC < B.minC ? (B.minC - A.maxC) : (B.maxC < A.minC ? (A.minC - B.maxC) : 0);
+	return gapC <= maxBbox;
+}
+
 // Tiny binary heap keyed on the first element of each entry.
 function heapPush(h, x) {
 	h.push(x);
@@ -327,7 +341,7 @@ function findBestTrivialClue(initialClues, opts) {
 		// (try both directions); union and intersection are symmetric.
 		for (var k = 0; k < keys.length; k++) {
 			var other = seen[keys[k]];
-			if (other === c) continue;
+			if (other === c || !boxesCanCombine(c, other, maxBbox)) continue;
 			admit(combineSubset(c, other));
 			admit(combineSubset(other, c));
 			admit(combineDisjointUnion(c, other, maxBbox));
@@ -681,6 +695,10 @@ function analyzeBoard(board, state, opts) {
 	// and its neighbours, rebuilds and (re-)admits that origin's initial clue if it's revealed and
 	// numbered — covers both brand-new origins and existing ones whose covered set just narrowed.
 	// `admit`'s existing key-based dedup makes re-admitting an unchanged origin a cheap no-op.
+	// (A version tracking only still-unknown cells in a shrinking list was tried here instead of a
+	// full prevState scan, on the theory that skipping already-resolved cells would win — measured
+	// slower in practice: the per-cell bookkeeping to maintain that shrinking list costs more than
+	// the plain array-vs-array comparison this does instead, at least at these board sizes.)
 	function syncOrigins() {
 		var seenCand = {}, candidates = [];
 		function addCandidate(r, c) {
@@ -729,7 +747,9 @@ function analyzeBoard(board, state, opts) {
 			if (isTrivial(c)) return c;
 			for (var k = 0; k < keys.length; k++) {
 				var other = seen[keys[k]];
-				if (other === c || !isFresh(other)) continue;
+				// Cheapest check first: rule out geometrically-incompatible pairs before paying for
+				// the isFresh scan (which touches every one of other's cells).
+				if (other === c || !boxesCanCombine(c, other, maxBbox) || !isFresh(other)) continue;
 				admit(combineSubset(c, other));
 				admit(combineSubset(other, c));
 				admit(combineDisjointUnion(c, other, maxBbox));
