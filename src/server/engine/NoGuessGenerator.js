@@ -32,11 +32,15 @@ function analyzeSolvability(board, knownCells, numMines) {
 	for (var r = 0; r < rows; r++) state.push(new Array(cols).fill(UNKNOWN));
 	for (var i = 0; i < knownCells.length; i++) state[knownCells[i][0]][knownCells[i][1]] = KNOWN;
 
+	// Reports back every cell this call revealed (including anything cascaded), so analyzeBoard can
+	// skip its full-board diff scan and go straight to the cells that actually changed.
 	function cascade(rr, cc) {
+		var touched = [];
 		BoardLogic.cascadeReveal(rr, cc, rows, cols,
 			function(a, b) { return state[a][b] === UNKNOWN; },
-			function(a, b) { state[a][b] = KNOWN; return false; },
+			function(a, b) { state[a][b] = KNOWN; touched.push([a, b]); return false; },
 			function(a, b) { return board[a][b]; });
+		return touched;
 	}
 
 	var result = csp.analyzeBoard(board, state, { revealCell: cascade, maxComplexity: GEN_MAX_COMPLEXITY });

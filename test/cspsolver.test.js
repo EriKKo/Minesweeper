@@ -25,7 +25,23 @@ function mulberry32(seed) {
 	};
 }
 
+// Reports back every cell it revealed (including anything cascaded) so analyzeBoard can use its
+// fast explicit-list origin-sync path instead of falling back to a full-board diff scan.
 function cascadeFor(board, state) {
+	const rows = board.length, cols = board[0].length;
+	return function(r, c) {
+		const touched = [];
+		BoardLogic.cascadeReveal(r, c, rows, cols,
+			(rr, cc) => state[rr][cc] === U,
+			(rr, cc) => { state[rr][cc] = K; touched.push([rr, cc]); return false; },
+			(rr, cc) => board[rr][cc]);
+		return touched;
+	};
+}
+
+// Does NOT report back what it revealed — exercises analyzeBoard's fallback full-board-diff sync
+// path (used when a caller doesn't cooperate with the newer contract).
+function cascadeNonCooperating(board, state) {
 	const rows = board.length, cols = board[0].length;
 	return function(r, c) {
 		BoardLogic.cascadeReveal(r, c, rows, cols,
@@ -150,4 +166,43 @@ test("partial-solve state: analyzeBoard stays sound and completes when called on
 	const resumed = csp.analyzeBoard(tmpl.board, partialState, { revealCell: cascadeFor(tmpl.board, partialState) });
 	assert.strictEqual(resumed.solved, true, "resuming from a partial state should still reach a full solve");
 	assertSound(tmpl.board, partialState, "partial-solve resume");
+});
+
+test("cooperating vs non-cooperating revealCell produce byte-identical output", () => {
+	// Regression for a real bug found while wiring up the fast explicit-list origin-sync path: the
+	// search's min-heap didn't have a deterministic tiebreak for equal-complexity clues, so pop
+	// order for ties depended on heap-internal shape, which in turn depended on the order origins
+	// were admitted in — normally fixed (a row-major diff scan), but different when a cooperating
+	// revealCell reports cells in cascade-traversal order instead. Fixed by tie-breaking the heap on
+	// the clue's own canonical key (see heapEntryLess), making pop order independent of admission
+	// order. This pins that down: a cooperating and non-cooperating revealCell must always agree.
+	const cases = [
+		{ rows: 15, cols: 20, density: 0.15, seed: 40 },
+		{ rows: 16, cols: 30, density: 0.20, seed: 41 },
+		{ rows: 24, cols: 30, density: 0.15, seed: 42 }
+	];
+	const origRandom = Math.random;
+	try {
+		cases.forEach(({ rows, cols, density, seed }) => {
+			Math.random = mulberry32(seed);
+			const mines = Math.round(rows * cols * density);
+			const tmpl = GameCreator.createTemplate(Math.floor(rows / 2), Math.floor(cols / 2), mines, rows, cols);
+
+			const seedState = [];
+			for (let r = 0; r < rows; r++) seedState.push(new Array(cols).fill(U));
+			tmpl.knownCells.forEach(([r, c]) => { seedState[r][c] = K; });
+
+			const s1 = seedState.map(row => row.slice());
+			const s2 = seedState.map(row => row.slice());
+			const res1 = csp.analyzeBoard(tmpl.board, s1, { maxComplexity: 7, revealCell: cascadeNonCooperating(tmpl.board, s1) });
+			const res2 = csp.analyzeBoard(tmpl.board, s2, { maxComplexity: 7, revealCell: cascadeFor(tmpl.board, s2) });
+
+			assert.strictEqual(res1.solved, res2.solved, `${rows}x${cols}@${density}: solved mismatch`);
+			assert.strictEqual(res1.maxComplexity, res2.maxComplexity, `${rows}x${cols}@${density}: maxComplexity mismatch`);
+			assert.strictEqual(res1.totalComplexity, res2.totalComplexity, `${rows}x${cols}@${density}: totalComplexity mismatch`);
+			assert.strictEqual(res1.moves.length, res2.moves.length, `${rows}x${cols}@${density}: move count mismatch`);
+		});
+	} finally {
+		Math.random = origRandom;
+	}
 });

@@ -77,11 +77,15 @@ function clearSafeZone(isMine, R, C, startR, startC, radius) {
 function analyzeFull(board, R, C, startR, startC, maxComplexity) {
 	var state = [];
 	for (var r = 0; r < R; r++) state.push(new Array(C).fill(UNKNOWN));
+	// Reports back every cell this call revealed (including anything cascaded), so analyzeBoard can
+	// skip its full-board diff scan and go straight to the cells that actually changed.
 	function cascade(rr, cc) {
+		var touched = [];
 		BoardLogic.cascadeReveal(rr, cc, R, C,
 			function(a, b) { return state[a][b] === UNKNOWN; },
-			function(a, b) { state[a][b] = KNOWN; return false; },
+			function(a, b) { state[a][b] = KNOWN; touched.push([a, b]); return false; },
 			function(a, b) { return board[a][b]; });
+		return touched;
 	}
 	cascade(startR, startC);
 	return csp.analyzeBoard(board, state, { revealCell: cascade, maxComplexity: maxComplexity });

@@ -273,13 +273,22 @@ function boxesCanCombine(A, B, maxBbox) {
 	return gapC <= maxBbox;
 }
 
-// Tiny binary heap keyed on the first element of each entry.
+// Tiny binary heap keyed on (complexity, clue.key) — the key is a pure tiebreaker so pop order for
+// equal-complexity entries is a deterministic function of the clues themselves, not of whatever
+// order they happened to be admitted in. A heap isn't stable under ties, and admission order isn't
+// fixed (it depends on how origins get discovered — a row-major diff scan vs. an explicit
+// touched-cell list, say), so without this a complexity tie could silently resolve to a different
+// (equally valid) clue depending on incidental admission order.
+function heapEntryLess(a, b) {
+	if (a[0] !== b[0]) return a[0] < b[0];
+	return a[1].key < b[1].key;
+}
 function heapPush(h, x) {
 	h.push(x);
 	var i = h.length - 1;
 	while (i > 0) {
 		var p = (i - 1) >> 1;
-		if (h[p][0] > h[i][0]) { var t = h[p]; h[p] = h[i]; h[i] = t; i = p; } else break;
+		if (heapEntryLess(h[i], h[p])) { var t = h[p]; h[p] = h[i]; h[i] = t; i = p; } else break;
 	}
 }
 function heapPop(h) {
@@ -289,8 +298,8 @@ function heapPop(h) {
 		var i = 0, n = h.length;
 		for (;;) {
 			var l = 2 * i + 1, r = l + 1, best = i;
-			if (l < n && h[l][0] < h[best][0]) best = l;
-			if (r < n && h[r][0] < h[best][0]) best = r;
+			if (l < n && heapEntryLess(h[l], h[best])) best = l;
+			if (r < n && heapEntryLess(h[r], h[best])) best = r;
 			if (best === i) break;
 			var t = h[i]; h[i] = h[best]; h[best] = t; i = best;
 		}
@@ -634,28 +643,6 @@ function flattenDerivation(clue) {
 	return steps;
 }
 
-// Apply a trivial clue's effect to the state. Returns false if the clue
-// wasn't trivial (caller error) or didn't change anything.
-function applyTrivialClue(board, state, clue, revealCell) {
-	if (!isTrivial(clue)) return false;
-	var prog = false;
-	if (clue.hi === 0) {
-		for (var i = 0; i < clue.cells.length; i++) {
-			var r = clue.cells[i][0], c = clue.cells[i][1];
-			if (state[r][c] === UNKNOWN) {
-				if (revealCell) revealCell(r, c); else state[r][c] = KNOWN;
-				prog = true;
-			}
-		}
-	} else {
-		for (var j = 0; j < clue.cells.length; j++) {
-			var r2 = clue.cells[j][0], c2 = clue.cells[j][1];
-			if (state[r2][c2] === UNKNOWN) { state[r2][c2] = FLAGGED; prog = true; }
-		}
-	}
-	return prog;
-}
-
 // Drive the full solve, replaying CSP search → apply → rebuild until
 // either the puzzle is solved or no trivial clue is reachable inside the
 // search budget. Returns { solved, moves, maxComplexity, totalComplexity }.
@@ -689,17 +676,7 @@ function analyzeBoard(board, state, opts) {
 	var prevState = [];
 	for (var pr = 0; pr < rows; pr++) prevState.push(new Array(cols).fill(UNKNOWN));
 
-	// Diffs `state` against the last-seen snapshot to find every cell that actually changed this
-	// move (a plain full-board scan — cheap, and the only way to catch every cell a cascade
-	// revealed, not just the ones the winning clue's own cell list named). For each changed cell
-	// and its neighbours, rebuilds and (re-)admits that origin's initial clue if it's revealed and
-	// numbered — covers both brand-new origins and existing ones whose covered set just narrowed.
-	// `admit`'s existing key-based dedup makes re-admitting an unchanged origin a cheap no-op.
-	// (A version tracking only still-unknown cells in a shrinking list was tried here instead of a
-	// full prevState scan, on the theory that skipping already-resolved cells would win — measured
-	// slower in practice: the per-cell bookkeeping to maintain that shrinking list costs more than
-	// the plain array-vs-array comparison this does instead, at least at these board sizes.)
-	function syncOrigins() {
+	function admitCandidatesFrom(cellList) {
 		var seenCand = {}, candidates = [];
 		function addCandidate(r, c) {
 			var k = r + "," + c;
@@ -707,18 +684,72 @@ function analyzeBoard(board, state, opts) {
 			seenCand[k] = true;
 			candidates.push([r, c]);
 		}
-		for (var r = 0; r < rows; r++) {
-			for (var c = 0; c < cols; c++) {
-				if (prevState[r][c] === state[r][c]) continue;
-				prevState[r][c] = state[r][c];
-				addCandidate(r, c);
-				BoardLogic.forEachNeighbour(r, c, rows, cols, addCandidate);
-			}
+		for (var i = 0; i < cellList.length; i++) {
+			var r = cellList[i][0], c = cellList[i][1];
+			addCandidate(r, c);
+			BoardLogic.forEachNeighbour(r, c, rows, cols, addCandidate);
 		}
-		for (var i = 0; i < candidates.length; i++) {
-			var clue = buildOriginClue(board, state, rows, cols, candidates[i][0], candidates[i][1]);
+		for (var j = 0; j < candidates.length; j++) {
+			var clue = buildOriginClue(board, state, rows, cols, candidates[j][0], candidates[j][1]);
 			if (clue) admit(clue);
 		}
+	}
+
+	// Rebuilds/re-admits the initial clue of every cell adjacent to something that just changed
+	// (covers both brand-new origins and existing ones whose covered set just narrowed; `admit`'s
+	// existing key-based dedup makes re-admitting an unchanged origin a cheap no-op). Two ways in:
+	//  - `touchedCells` given (the common case): an explicit, reliable list of exactly what changed
+	//    this move — from a flag action (analyzeBoard always knows precisely which cells it just
+	//    flagged) or from a revealCell that reports back everything a cascade touched (see
+	//    revealCells() below). No board scan at all.
+	//  - `touchedCells` omitted: falls back to a full-board diff against the last-seen snapshot —
+	//    used for the very first sync (before any move — the pre-existing opening isn't reported to
+	//    us) and if a caller's revealCell doesn't cooperate with the new contract.
+	function syncOrigins(touchedCells) {
+		if (touchedCells) {
+			admitCandidatesFrom(touchedCells);
+			// Keep prevState caught up too, so an eventual fallback scan only looks for changes
+			// since the LAST scan, not ones already handled through this explicit-list path.
+			for (var i = 0; i < touchedCells.length; i++) {
+				var r = touchedCells[i][0], c = touchedCells[i][1];
+				prevState[r][c] = state[r][c];
+			}
+			return;
+		}
+		var changed = [];
+		for (var r2 = 0; r2 < rows; r2++) {
+			for (var c2 = 0; c2 < cols; c2++) {
+				if (prevState[r2][c2] === state[r2][c2]) continue;
+				prevState[r2][c2] = state[r2][c2];
+				changed.push([r2, c2]);
+			}
+		}
+		admitCandidatesFrom(changed);
+	}
+
+	// Reveals every still-unknown cell in `cells` (via opts.revealCell, or a direct KNOWN write if
+	// none was given) and returns the definite list of cells this touched — including anything a
+	// cascade revealed beyond `cells` itself — PROVIDED opts.revealCell reports back what it did (a
+	// caller may optionally return an array of the [r,c] pairs it touched). Returns null if it
+	// doesn't (any call returns something other than an array), signalling that syncOrigins should
+	// fall back to a full-board diff to find out what actually changed this move. Every cell in
+	// `cells` still gets revealed either way — this only affects how we learn what happened.
+	function revealCells(cells) {
+		var touched = [], reliable = true;
+		for (var i = 0; i < cells.length; i++) {
+			var r = cells[i][0], c = cells[i][1];
+			if (state[r][c] !== UNKNOWN) continue;
+			if (opts.revealCell) {
+				var result = opts.revealCell(r, c);
+				if (!reliable) continue;
+				if (Array.isArray(result)) { for (var j = 0; j < result.length; j++) touched.push(result[j]); }
+				else reliable = false;
+			} else {
+				state[r][c] = KNOWN;
+				touched.push([r, c]);
+			}
+		}
+		return reliable ? touched : null;
 	}
 
 	function isFresh(clue) {
@@ -759,7 +790,7 @@ function analyzeBoard(board, state, opts) {
 		return null;
 	}
 
-	syncOrigins();
+	syncOrigins(); // no explicit list yet — the pre-existing opening isn't reported to us
 
 	while (true) {
 		var best = searchForTrivial();
@@ -771,7 +802,13 @@ function analyzeBoard(board, state, opts) {
 				var rc = best.cells[ci];
 				if (state[rc[0]][rc[1]] === UNKNOWN) changed.push(rc);
 			}
-			applyTrivialClue(board, state, best, opts.revealCell);
+			var touched;
+			if (best.hi === 0) {
+				touched = revealCells(changed);
+			} else {
+				for (var fi = 0; fi < changed.length; fi++) state[changed[fi][0]][changed[fi][1]] = FLAGGED;
+				touched = changed; // flagging is never cascading — this list is already exact
+			}
 			moves.push({
 				complexity: best.complexity,
 				action: best.hi === 0 ? "reveal" : "flag",
@@ -782,7 +819,7 @@ function analyzeBoard(board, state, opts) {
 				depth: best.depth,
 				derivation: flattenDerivation(best)
 			});
-			syncOrigins();
+			syncOrigins(touched);
 			continue;
 		}
 		// CSP subset search exhausted. First try a SOUND 1-cell case split (findCaseSplitStep): hypothesise
@@ -791,15 +828,14 @@ function analyzeBoard(board, state, opts) {
 		// Cheaper than full enumeration and works on frontiers larger than ENUM_CAP. Skipped below CASE_BASE.
 		var caseStep = (maxComplexity >= CASE_BASE) ? findCaseSplitStep(board, state, opts) : null;
 		if (caseStep && caseStep.complexity <= maxComplexity) {
-			var caseRevealed = [], caseFlagged = [];
+			var caseRevealed = [];
 			for (var csi = 0; csi < caseStep.revealed.length; csi++) {
 				var crc = caseStep.revealed[csi];
-				if (state[crc[0]][crc[1]] === UNKNOWN) {
-					caseRevealed.push(crc);
-					// The cell is forced safe by public info, so revealing it (and cascading) is legitimate.
-					if (opts.revealCell) opts.revealCell(crc[0], crc[1]); else state[crc[0]][crc[1]] = KNOWN;
-				}
+				if (state[crc[0]][crc[1]] === UNKNOWN) caseRevealed.push(crc);
 			}
+			// The cells are forced safe by public info, so revealing them (and cascading) is legitimate.
+			var caseTouched = revealCells(caseRevealed);
+			var caseFlagged = [];
 			for (var cfi = 0; cfi < caseStep.flagged.length; cfi++) {
 				var cfc = caseStep.flagged[cfi];
 				if (state[cfc[0]][cfc[1]] !== FLAGGED) { caseFlagged.push(cfc); state[cfc[0]][cfc[1]] = FLAGGED; }
@@ -815,7 +851,7 @@ function analyzeBoard(board, state, opts) {
 					flagged: caseFlagged,
 					branches: caseStep.branches
 				});
-				syncOrigins();
+				syncOrigins(caseTouched && caseTouched.concat(caseFlagged));
 				continue;
 			}
 		}
@@ -824,15 +860,13 @@ function analyzeBoard(board, state, opts) {
 		// case split, this reasons purely over visible clue sums — it never reads a covered cell's number.
 		var enumStep = findSmallestEnumStep(board, state);
 		if (!enumStep || enumComplexity(enumStep.componentSize) > maxComplexity) break;
-		var revealed = [], flagged = [];
+		var revealed = [];
 		for (var si = 0; si < enumStep.safeCells.length; si++) {
 			var sr = enumStep.safeCells[si];
-			if (state[sr[0]][sr[1]] === UNKNOWN) {
-				revealed.push(sr);
-				if (opts.revealCell) opts.revealCell(sr[0], sr[1]);
-				else state[sr[0]][sr[1]] = KNOWN;
-			}
+			if (state[sr[0]][sr[1]] === UNKNOWN) revealed.push(sr);
 		}
+		var enumTouched = revealCells(revealed);
+		var flagged = [];
 		for (var mi = 0; mi < enumStep.mineCells.length; mi++) {
 			var mr = enumStep.mineCells[mi];
 			if (state[mr[0]][mr[1]] !== FLAGGED) {
@@ -850,7 +884,7 @@ function analyzeBoard(board, state, opts) {
 			revealed: revealed,
 			flagged: flagged
 		});
-		syncOrigins();
+		syncOrigins(enumTouched && enumTouched.concat(flagged));
 	}
 	// Solved = every safe cell is KNOWN. Mines may sit either FLAGGED or
 	// UNKNOWN (they don't all need to be flagged for the player to win),
