@@ -130,6 +130,11 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		solved: user.puzzles_solved,
 		attempted: user.puzzles_attempted,
 		noRating: !!opts.noRating,
+		// Marathon boards (source="marathon") reuse this same puzzle-play path (the admin Marathon
+		// boards "Play" button), but are much bigger than curriculum puzzles and aren't rated — the
+		// client uses this to size the board like a normal game instead of the small fixed puzzle
+		// box, and to hide the rating/ladder chrome that doesn't apply to them.
+		marathon: puzzle.source === "marathon",
 		run: run ? Object.assign({
 			mode: run.mode,
 			targetRating: run.targetRating || null,

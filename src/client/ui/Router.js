@@ -345,7 +345,7 @@ function applyRouteFromHash() {
 		}
 		stopStormTicker();
 		togglePuzzleChrome(false);
-		if (gameView) gameView.classList.remove("puzzle");
+		if (gameView) { gameView.classList.remove("puzzle"); gameView.classList.remove("marathon"); }
 		puzzleSession = null;
 		puzzleRunMode = null;
 		hideOverlay();

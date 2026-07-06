@@ -547,7 +547,8 @@ function applyPuzzleBoard(data) {
 		startedAt: Date.now(),
 		finished: false,
 		mode: data.mode || "rated",
-		run: data.run || null
+		run: data.run || null,
+		marathon: !!data.marathon
 	};
 	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
@@ -598,7 +599,8 @@ function applyPuzzleBoard(data) {
 	document.body.classList.add("in-game");
 	gameView.classList.remove("duo");
 	gameView.classList.add("puzzle");
-	togglePuzzleChrome(true, puzzleSession.mode);
+	gameView.classList.toggle("marathon", puzzleSession.marathon);
+	togglePuzzleChrome(true, puzzleSession.mode, puzzleSession.marathon);
 	if (typeof setRatedFailActions === "function") setRatedFailActions(false);
 	updatePuzzleHud();
 	renderPlayerBoard();

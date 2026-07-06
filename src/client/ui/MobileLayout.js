@@ -70,8 +70,11 @@ function fitMobileCellPx() {
 
 function sizePlayerCanvas() {
 	var inPuzzle = (typeof puzzleSession !== "undefined") && puzzleSession;
+	// Marathon boards reuse the puzzle-play path but are full-size boards (24x30-30x40), not small
+	// curriculum puzzles — size them like a regular game instead of the fixed puzzle box.
+	var fixedBox = inPuzzle && !puzzleSession.marathon;
 	var cellPx;
-	if (inPuzzle) {
+	if (fixedBox) {
 		var target = mobileLayout ? PUZZLE_BOARD_PX_MOBILE : PUZZLE_BOARD_PX;
 		var cap = mobileLayout ? PUZZLE_CELL_MAX_MOBILE : PUZZLE_CELL_MAX;
 		cellPx = Math.min(cap, Math.floor(target / Math.max(rows, cols)));
@@ -90,8 +93,8 @@ function sizePlayerCanvas() {
 		playerCanvas.style.maxWidth = "none";
 		// Constrain the scroll viewport to a whole number of cells (centered), so its edges always land
 		// on cell boundaries — combined with whole-step panning (snapBoardScroll), no cell is ever
-		// rendered half-visible. Puzzles keep their fixed centered box.
-		if (boardScroll && !inPuzzle) {
+		// rendered half-visible. Puzzles keep their fixed centered box (marathon boards don't).
+		if (boardScroll && !fixedBox) {
 			var visW = Math.min(cols, Math.floor(mobileAvailW() / cellPx)) * cellPx;
 			boardScroll.style.width = visW + "px";
 			boardScroll.style.marginLeft = "auto";

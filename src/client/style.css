@@ -1491,6 +1491,62 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	.game-view.puzzle .board-scroll { height: 320px; }
 }
 
+/* Marathon boards reuse the puzzle-play path (see puzzlePlay.js) but are full-size boards
+   (24x30-30x40), not small curriculum puzzles — undo the fixed small-puzzle box above so they
+   size and scroll like a normal game board instead of being clipped to 480x480 (320x320 mobile). */
+.game-view.marathon.puzzle .game-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	justify-content: initial;
+	max-width: none;
+}
+.game-view.marathon.puzzle .game-left {
+	display: block;
+	align-items: initial;
+	justify-content: initial;
+	flex: initial;
+	min-width: 0;
+}
+.game-view.marathon.puzzle .board-scroll {
+	width: auto;
+	height: auto;
+	display: inline-block;
+	align-items: initial;
+	justify-content: initial;
+	overflow: visible;
+	background: none;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+}
+.game-view.marathon.puzzle .board-wrap { width: auto; }
+.game-view.marathon.puzzle .game-side { flex: none; }
+.game-view.marathon.puzzle #puzzle_card { height: auto; }
+@media (max-width: 900px) {
+	.game-view.marathon.puzzle .game-grid { flex-direction: initial; align-items: initial; }
+	.game-view.marathon.puzzle .game-side { flex: none; }
+	.game-view.marathon.puzzle #puzzle_card { height: auto; width: auto; }
+}
+@media (max-width: 600px) {
+	.game-view.marathon.puzzle .board-scroll,
+	.game-view.marathon.puzzle .board-wrap,
+	.game-view.marathon.puzzle #puzzle_card {
+		width: auto;
+	}
+	.game-view.marathon.puzzle .board-scroll { height: auto; }
+}
+/* Restore the normal scrollable-viewport behavior (matching plain .board-scroll in the
+   body.in-game mobile block below) that the unconditional overflow:visible above would
+   otherwise clobber via higher specificity — a 30x40 marathon board needs to scroll on a
+   phone screen, it can't just spill past the viewport. */
+@media (max-width: 700px) {
+	.game-view.marathon.puzzle .board-scroll {
+		max-width: 100%;
+		max-height: 75vh;
+		overflow: auto;
+	}
+}
+
 /* Puzzle side card — chess.com-style: title at top, big rating + streak
    chip, tier name, progress bar, hint button anchored at the bottom. */
 .puzzle-side-card {

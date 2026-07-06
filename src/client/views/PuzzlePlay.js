@@ -112,6 +112,7 @@ function exitPuzzle() {
 	togglePuzzleChrome(false);
 	if (gameView) {
 		gameView.classList.remove("puzzle");
+		gameView.classList.remove("marathon");
 	}
 	hideOverlay();
 	myState = null;
@@ -120,7 +121,7 @@ function exitPuzzle() {
 	navigate("/");
 }
 
-function togglePuzzleChrome(on, mode) {
+function togglePuzzleChrome(on, mode, marathon) {
 	var card = document.getElementById("puzzle_card");
 	if (card) card.style.display = on ? "" : "none";
 	var scoreboardCard = document.getElementById("scoreboard_card");
@@ -161,8 +162,19 @@ function togglePuzzleChrome(on, mode) {
 	} else {
 		if (ratedPanel) ratedPanel.style.display = "";
 		if (runPanel) runPanel.style.display = "none";
-		if (titleEl) titleEl.textContent = "Puzzle Ladder";
+		if (titleEl) titleEl.textContent = marathon ? "Marathon board" : "Puzzle Ladder";
 	}
+	// Marathon boards aren't rated — there's no tier/points to show, and "Next puzzle" on a miss
+	// would emit puzzle_next, which would incorrectly hand back an unrelated rated puzzle instead
+	// of just letting the player retry this same marathon board.
+	var ladderHeadline = document.querySelector(".puzzle-ladder-headline");
+	var rankBar = document.querySelector(".puzzle-rank-bar");
+	var rankFoot = document.querySelector(".puzzle-rank-foot");
+	if (ladderHeadline) ladderHeadline.style.display = marathon ? "none" : "";
+	if (rankBar) rankBar.style.display = marathon ? "none" : "";
+	if (rankFoot) rankFoot.style.display = marathon ? "none" : "";
+	var skipBtn = document.getElementById("puzzle_skip_btn");
+	if (skipBtn) skipBtn.style.display = marathon ? "none" : "";
 }
 
 function updatePuzzleHud() {
