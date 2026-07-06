@@ -72,21 +72,43 @@ var DENSITY_SURCHARGE = 0.12;
 var RESULT_SIZE_SURCHARGE = 0.12;
 
 function cellKey(cell) { return cell[0] + "," + cell[1]; }
+function cellCompare(a, b) { return a[0] - b[0] || a[1] - b[1]; }
 
-function makeClue(cells, lo, hi, complexity, meta) {
-	// Canonicalise so structurally-equal clues hash to the same key.
-	var seen = {}, canon = [];
-	for (var i = 0; i < cells.length; i++) {
-		var k = cellKey(cells[i]);
-		if (!seen[k]) { seen[k] = true; canon.push(cells[i]); }
+// Merges two already row/col-sorted, cell-disjoint arrays into one sorted array in O(n) — used by
+// combineDisjointUnion instead of concat+sort, since both inputs already come pre-sorted.
+function mergeSortedCells(a, b) {
+	var out = new Array(a.length + b.length);
+	var i = 0, j = 0, k = 0;
+	while (i < a.length && j < b.length) {
+		out[k++] = (cellCompare(a[i], b[j]) <= 0) ? a[i++] : b[j++];
 	}
-	canon.sort(function(a, b) { return a[0] - b[0] || a[1] - b[1]; });
+	while (i < a.length) out[k++] = a[i++];
+	while (j < b.length) out[k++] = b[j++];
+	return out;
+}
+
+// This sits on the hottest path in the whole solver (every combine attempt builds a clue here
+// before admit() decides whether to keep it), so it's written to do the minimum necessary work:
+//  - `cells` is never reused by its caller afterward (each call site builds it fresh just for this
+//    call), so it's taken and sorted in place rather than defensively copied.
+//  - No de-dup pass: every caller already produces a duplicate-free cell list by construction
+//    (buildOriginClue visits each neighbour once; the combine ops filter/merge already-unique
+//    parent cell lists), so there's never anything to de-duplicate.
+//  - `alreadySorted` lets combineSubset/combineIntersection (whose results are order-preserving
+//    subsequences of an already-sorted parent) skip the sort entirely; combineDisjointUnion merges
+//    its two sorted inputs in O(n) (mergeSortedCells) instead of sorting the concatenation.
+function makeClue(cells, lo, hi, complexity, meta, alreadySorted) {
+	if (!alreadySorted) cells.sort(cellCompare);
 	// Clamp bounds to the legal [0, |cells|] range.
 	if (lo < 0) lo = 0;
-	if (hi > canon.length) hi = canon.length;
+	if (hi > cells.length) hi = cells.length;
 	// Key includes bounds so "≤2 mines" and "=1 mine" on the same cells
 	// are tracked as distinct deductions.
-	var cellsKey = canon.map(cellKey).join(";");
+	var cellsKey = "";
+	for (var i = 0; i < cells.length; i++) {
+		if (i) cellsKey += ";";
+		cellsKey += cells[i][0] + "," + cells[i][1];
+	}
 	var key = cellsKey + "|" + lo + "-" + hi;
 	meta = meta || {};
 	var depth = 0;
@@ -96,7 +118,7 @@ function makeClue(cells, lo, hi, complexity, meta) {
 		}
 	}
 	return {
-		key: key, cellsKey: cellsKey, cells: canon, lo: lo, hi: hi,
+		key: key, cellsKey: cellsKey, cells: cells, lo: lo, hi: hi,
 		complexity: complexity,
 		source: meta.source || "initial",
 		parents: meta.parents || null,
@@ -180,9 +202,10 @@ function combineSubset(A, B) {
 	// Skip trivially-uninformative results (no tighter than (0..|extras|)).
 	if (lo === 0 && hi === extras.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * extras.length;
+	// extras was built by scanning B.cells (already row/col-sorted) in order, so it's already sorted.
 	return makeClue(extras, lo, hi, Math.max(A.complexity, B.complexity) + SUBSET_COST + sizeCost, {
 		source: "subset", parents: [A, B]
-	});
+	}, true);
 }
 
 function combineDisjointUnion(A, B) {
@@ -191,14 +214,14 @@ function combineDisjointUnion(A, B) {
 	for (var j = 0; j < B.cells.length; j++) {
 		if (aSet[cellKey(B.cells[j])]) return null;
 	}
-	var union = A.cells.concat(B.cells);
+	var union = mergeSortedCells(A.cells, B.cells);
 	var lo = A.lo + B.lo;
 	var hi = A.hi + B.hi;
 	if (lo === 0 && hi === union.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * union.length;
 	return makeClue(union, lo, hi, Math.max(A.complexity, B.complexity) + UNION_COST + sizeCost, {
 		source: "union", parents: [A, B]
-	});
+	}, true);
 }
 
 function combineIntersection(A, B) {
@@ -219,9 +242,10 @@ function combineIntersection(A, B) {
 	if (lo > hi) return null;
 	if (lo === 0 && hi === inter.length) return null;
 	var sizeCost = RESULT_SIZE_SURCHARGE * inter.length;
+	// inter was built by scanning B.cells (already row/col-sorted) in order, so it's already sorted.
 	return makeClue(inter, lo, hi, Math.max(A.complexity, B.complexity) + INTERSECT_COST + sizeCost, {
 		source: "intersect", parents: [A, B]
-	});
+	}, true);
 }
 
 // Tiny binary heap keyed on the first element of each entry.
