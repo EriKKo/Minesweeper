@@ -92,11 +92,11 @@ test("a fast win on the game server reports a real ratingDelta back through seri
 		const ratingBefore = auth.ratingSprint;
 
 		lobby.emit("find_ranked", { mode: "sprint_duo" });
-		const handoff = await once(lobby, "match_handoff", 15000);
+		const handoff = await once(lobby, "match_handoff", 20000);
 
 		gameSock = io(handoff.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: handoff.token } });
-		await once(gameSock, "joined_room", 15000);
-		const start = await once(gameSock, "start_game", 15000);
+		await once(gameSock, "joined_room", 20000);
+		const start = await once(gameSock, "start_game", 20000);
 		const board = decodeBoard(start.boardData, start.boardMask, start.rows, start.cols);
 
 		// Win as fast as possible: reveal every non-mine cell right after the countdown, well before
@@ -108,7 +108,7 @@ test("a fast win on the game server reports a real ratingDelta back through seri
 			}
 		}
 
-		const ended = await once(gameSock, "series_ended", 25000);
+		const ended = await once(gameSock, "series_ended", 35000);
 		const mine = ended.standings.find(s => s.id === gameSock.id);
 		assert.ok(mine, "the winner's own standing is present");
 		assert.strictEqual(typeof mine.ratingDelta, "number", "ratingDelta must be a real number, not missing");

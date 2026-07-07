@@ -499,6 +499,12 @@ function showDailyAlreadyDone(data) {
 	hideAllViews();
 	if (gameView) {
 		gameView.style.display = "";
+		// A leftover .duo/.multi from a race that ended without a room_state update in between (they're
+		// only cleared by applyDuoClass, which this path doesn't call) would otherwise hide #puzzle_card
+		// via ".game-view.multi .game-side > *:not(#all_opponents_div) { display: none; }" — see the
+		// same fix in Main.js's applyPuzzleBoard.
+		gameView.classList.remove("duo");
+		gameView.classList.remove("multi");
 		gameView.classList.add("puzzle");
 	}
 	togglePuzzleChrome(true, "daily");

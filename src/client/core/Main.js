@@ -598,7 +598,12 @@ function applyPuzzleBoard(data) {
 	hideAllViews();
 	gameView.style.display = "";
 	document.body.classList.add("in-game");
+	// Both battle-layout classes, not just duo: a leftover .multi from a 3-6 player race (it's only
+	// ever cleared by applyDuoClass, which doesn't run on this path) matches ".game-view.multi
+	// .game-side > *:not(#all_opponents_div) { display: none; }" and silently hides #puzzle_card even
+	// though togglePuzzleChrome just turned it back on — the CSS class rule wins over the inline style.
 	gameView.classList.remove("duo");
+	gameView.classList.remove("multi");
 	gameView.classList.add("puzzle");
 	gameView.classList.toggle("marathon", puzzleSession.marathon);
 	togglePuzzleChrome(true, puzzleSession.mode, puzzleSession.marathon);
@@ -789,7 +794,9 @@ socket.on("solo_board", function(data) {
 	hideAllViews();
 	gameView.style.display = "";
 	document.body.classList.add("in-game");
+	// Same leftover-.multi hazard as applyPuzzleBoard — see the comment there.
 	gameView.classList.remove("duo");
+	gameView.classList.remove("multi");
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
 	sizePlayerCanvas();
