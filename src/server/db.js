@@ -14,6 +14,13 @@ var CURRENT_SCORING_VERSION = 22;
 // set to /data/ranked.db on the fly volume.
 var DB_PATH = process.env.RANKED_DB || path.join(__dirname, "..", "..", "ranked.db");
 var db = new sqlite.DatabaseSync(DB_PATH);
+// WAL lets readers and writers proceed concurrently instead of blocking on the single rollback
+// journal, and busy_timeout makes a writer that DOES collide with another connection's write retry
+// for a few seconds instead of failing instantly with SQLITE_BUSY. Needed now that a spawned
+// generator subprocess (marathonGen.js) can hold its own connection to this same file alongside
+// the main server process's.
+db.exec("PRAGMA journal_mode = WAL");
+db.exec("PRAGMA busy_timeout = 5000");
 
 db.exec(
 	"CREATE TABLE IF NOT EXISTS users (" +

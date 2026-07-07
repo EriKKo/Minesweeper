@@ -43,10 +43,19 @@ function renderMarathonBoards() {
 	readMarathonStateFromHash();
 	view.innerHTML = "";
 
+	var titleRow = document.createElement("div");
+	titleRow.className = "marathon-title-row";
 	var title = document.createElement("h1");
 	title.className = "section-page-title";
 	title.textContent = "Marathon boards";
-	view.appendChild(title);
+	titleRow.appendChild(title);
+	var genBtn = document.createElement("button");
+	genBtn.className = "btn btn-primary";
+	genBtn.type = "button";
+	genBtn.textContent = "Generate board";
+	genBtn.addEventListener("click", openMarathonGenModal);
+	titleRow.appendChild(genBtn);
+	view.appendChild(titleRow);
 
 	var sub = document.createElement("p");
 	sub.className = "section-page-sub";
@@ -54,6 +63,15 @@ function renderMarathonBoards() {
 		"(scripts/generate-marathon-boards.js) — lots of medium-difficulty moves rather than one rare " +
 		"hard one. Sort by difficulty, click Play to try one.";
 	view.appendChild(sub);
+
+	var statusBar = document.createElement("div");
+	statusBar.id = "marathon_gen_status_bar";
+	statusBar.className = "marathon-gen-bar";
+	statusBar.style.display = "none";
+	view.appendChild(statusBar);
+
+	wireMarathonGenSocket();
+	socket.emit("marathon_gen_status");
 
 	var toolbar = document.createElement("div");
 	toolbar.className = "puzzles-toolbar";
@@ -255,4 +273,298 @@ function renderMarathonRow(p) {
 function playMarathonBoard(p) {
 	if (typeof autoEnterGameFullscreen === "function") autoEnterGameFullscreen();
 	socket.emit("puzzle_retry", { puzzleId: p.id });
+}
+
+// --- Generate-from-the-UI (marathonGen.js on the server spawns the script as a subprocess so its
+// heavy CSP re-solving never blocks the live game server; this streams its progress back). ---
+
+var marathonGenJob = null;       // last snapshot received from the server (see marathonGen.js's `snapshot()`)
+var marathonGenWired = false;    // registers the socket listener once, even across repeated page visits
+var marathonGenTicker = null;    // ticks the elapsed-time display while a job is running
+var marathonGenDismissedId = null; // id of a finished job the admin closed the bar for
+
+function wireMarathonGenSocket() {
+	if (marathonGenWired) return;
+	marathonGenWired = true;
+	socket.on("marathon_gen_update", function(data) {
+		marathonGenJob = data;
+		if (data.status === "running" || data.status === "stopping") marathonGenDismissedId = null;
+		renderMarathonGenStatusBar();
+		renderMarathonGenModalBody();
+		if (data.status === "done") refreshMarathonList();
+	});
+}
+
+function formatElapsed(ms) {
+	var s = Math.floor(ms / 1000);
+	var m = Math.floor(s / 60);
+	s = s % 60;
+	return m + ":" + (s < 10 ? "0" : "") + s;
+}
+
+function ensureMarathonGenTicker() {
+	if (marathonGenTicker) return;
+	marathonGenTicker = setInterval(function() {
+		var bar = document.getElementById("marathon_gen_status_bar");
+		if (!bar) { clearInterval(marathonGenTicker); marathonGenTicker = null; return; }
+		if (!marathonGenJob || marathonGenJob.status !== "running") return;
+		var el = document.getElementById("marathon_gen_elapsed");
+		if (el) el.textContent = formatElapsed(Date.now() - marathonGenJob.startedAt);
+	}, 500);
+}
+
+function marathonGenStatusLabel(status) {
+	return status === "running" ? "Generating…" : status === "stopping" ? "Stopping…"
+		: status === "done" ? "Done" : status === "stopped" ? "Stopped" : status === "error" ? "Error" : status;
+}
+
+// The status bar is the "I would like to see it while it's running" surface — always visible on
+// this page (not just inside the modal) while a job is active, and left up briefly after it finishes
+// so the outcome is visible without having to have kept the modal open.
+function renderMarathonGenStatusBar() {
+	var bar = document.getElementById("marathon_gen_status_bar");
+	if (!bar) return;
+	var job = marathonGenJob;
+	if (!job || job.status === "idle" || job.id === marathonGenDismissedId) { bar.style.display = "none"; return; }
+	bar.style.display = "";
+	bar.innerHTML = "";
+	bar.className = "marathon-gen-bar marathon-gen-bar-" + job.status;
+
+	var head = document.createElement("div");
+	head.className = "marathon-gen-bar-head";
+	var badge = document.createElement("span");
+	badge.className = "marathon-gen-badge";
+	badge.textContent = marathonGenStatusLabel(job.status);
+	head.appendChild(badge);
+
+	var summary = document.createElement("span");
+	summary.className = "marathon-gen-summary";
+	var p = job.params || {};
+	summary.textContent = p.rows + "×" + p.cols + " @ " + Math.round(p.density * 100) + "% · target " +
+		p.target + " · " + p.strategy;
+	head.appendChild(summary);
+
+	if (job.status === "running") {
+		var elapsed = document.createElement("span");
+		elapsed.id = "marathon_gen_elapsed";
+		elapsed.className = "marathon-gen-elapsed";
+		elapsed.textContent = formatElapsed(Date.now() - job.startedAt);
+		head.appendChild(elapsed);
+		ensureMarathonGenTicker();
+	}
+	bar.appendChild(head);
+
+	var latest = job.latest || {};
+	if (latest.totalC != null) {
+		var stats = document.createElement("div");
+		stats.className = "marathon-gen-stats";
+		stats.textContent = "iter " + (latest.iter || 0) + " · totalC=" + latest.totalC.toFixed(1) +
+			" · maxC=" + latest.maxC.toFixed(2) +
+			(latest.accepted != null ? " · " + latest.accepted + " accepted" : "");
+		bar.appendChild(stats);
+	} else if (job.status !== "running" && job.log && job.log.length) {
+		// Nothing ever parsed (e.g. it never found a solvable initial board within the density/size
+		// given) — surface the generator's own last line instead of leaving the bar blank.
+		var note = document.createElement("div");
+		note.className = "marathon-gen-stats";
+		note.textContent = job.log[job.log.length - 1];
+		bar.appendChild(note);
+	}
+
+	if (job.status === "error" && job.error) {
+		var errEl = document.createElement("div");
+		errEl.className = "marathon-gen-error";
+		errEl.textContent = job.error;
+		bar.appendChild(errEl);
+	}
+
+	var actions = document.createElement("div");
+	actions.className = "marathon-gen-bar-actions";
+	if (job.status === "running") {
+		var stopBtn = document.createElement("button");
+		stopBtn.className = "btn btn-ghost";
+		stopBtn.type = "button";
+		stopBtn.textContent = "Stop";
+		stopBtn.addEventListener("click", function() { socket.emit("marathon_gen_stop"); });
+		actions.appendChild(stopBtn);
+	} else {
+		var dismissBtn = document.createElement("button");
+		dismissBtn.className = "btn btn-ghost";
+		dismissBtn.type = "button";
+		dismissBtn.textContent = "Dismiss";
+		dismissBtn.addEventListener("click", function() {
+			marathonGenDismissedId = job.id;
+			renderMarathonGenStatusBar();
+		});
+		actions.appendChild(dismissBtn);
+	}
+	bar.appendChild(actions);
+
+	if (job.log && job.log.length) {
+		var details = document.createElement("details");
+		details.className = "marathon-gen-log-details";
+		var summaryEl = document.createElement("summary");
+		summaryEl.textContent = "Log";
+		details.appendChild(summaryEl);
+		var log = document.createElement("pre");
+		log.className = "marathon-gen-log";
+		log.textContent = job.log.join("\n");
+		details.appendChild(log);
+		bar.appendChild(details);
+	}
+}
+
+// --- Generate modal: pick params, start the job, then hand off to the status bar above. ---
+
+function marathonGenModal() {
+	var modal = document.getElementById("marathon_gen_modal");
+	if (modal) return modal;
+	modal = document.createElement("div");
+	modal.id = "marathon_gen_modal";
+	modal.className = "cr-modal";
+	modal.setAttribute("hidden", "");
+	modal.innerHTML =
+		'<div class="cr-backdrop" data-mg-close></div>' +
+		'<div class="cr-dialog" role="dialog" aria-modal="true" aria-labelledby="mg_title">' +
+			'<div class="cr-dialog-head"><h2 id="mg_title">Generate marathon board</h2>' +
+			'<button class="cr-close" type="button" data-mg-close aria-label="Close">×</button></div>' +
+			'<p class="cr-dialog-sub">Runs the hill-climb generator in the background — it’s safe to close ' +
+			'this and keep browsing, the status bar on the page tracks it.</p>' +
+			'<div id="marathon_gen_modal_body"></div>' +
+		'</div>';
+	document.body.appendChild(modal);
+	modal.addEventListener("click", function(e) { if (e.target.closest("[data-mg-close]")) modal.setAttribute("hidden", ""); });
+	document.addEventListener("keydown", function(e) { if (e.key === "Escape" && !modal.hasAttribute("hidden")) modal.setAttribute("hidden", ""); });
+	return modal;
+}
+
+// True renders the config form; false (while a job exists) renders progress/result instead. Reset
+// to true whenever the modal is freshly opened with nothing running, or the admin picks "Generate
+// another" off a finished result — otherwise a finished job's result view stays up so a
+// still-open modal doesn't silently blank back to the form the moment the job completes.
+var marathonGenShowForm = true;
+
+function openMarathonGenModal() {
+	var modal = marathonGenModal();
+	var job = marathonGenJob;
+	if (!(job && (job.status === "running" || job.status === "stopping"))) marathonGenShowForm = true;
+	renderMarathonGenModalBody();
+	modal.removeAttribute("hidden");
+}
+
+// Dispatches on the current job status: the config form, a live progress view (running/stopping),
+// or a finished result view (done/error/stopped) — reused by both the socket update handler and
+// opening the modal, so the two stay in sync automatically.
+function renderMarathonGenModalBody() {
+	var body = document.getElementById("marathon_gen_modal_body");
+	if (!body) return;
+	var job = marathonGenJob;
+	if (job && (job.status === "running" || job.status === "stopping")) {
+		marathonGenShowForm = false;
+		renderMarathonGenProgressView(job, false);
+	} else if (job && !marathonGenShowForm && (job.status === "done" || job.status === "error" || job.status === "stopped")) {
+		renderMarathonGenProgressView(job, true);
+	} else {
+		renderMarathonGenFormView();
+	}
+}
+
+function renderMarathonGenFormView() {
+	var body = document.getElementById("marathon_gen_modal_body");
+	if (!body) return;
+	body.innerHTML =
+		'<div class="cr-fields">' +
+			'<div class="cr-field"><span class="cr-field-label">Rows</span>' +
+				'<input type="number" id="mg_rows" min="8" max="40" value="24"></div>' +
+			'<div class="cr-field"><span class="cr-field-label">Cols</span>' +
+				'<input type="number" id="mg_cols" min="8" max="60" value="30"></div>' +
+			'<div class="cr-field"><span class="cr-field-label">Mine density (%)</span>' +
+				'<input type="number" id="mg_density" min="5" max="35" value="20"></div>' +
+			'<div class="cr-field">' +
+				'<span class="cr-field-label">Target total difficulty</span>' +
+				'<input type="number" id="mg_target" min="1" max="100000" value="300">' +
+				'<label class="marathon-gen-checkbox"><input type="checkbox" id="mg_maximize"> Maximize instead (ignore target)</label>' +
+			'</div>' +
+			'<div class="cr-field"><span class="cr-field-label">Time limit (seconds)</span>' +
+				'<input type="number" id="mg_time" min="5" max="900" value="90"></div>' +
+			'<div class="cr-field"><span class="cr-field-label">Region strategy</span>' +
+				'<select id="mg_strategy">' +
+					'<option value="weighted" selected>Weighted (recommended)</option>' +
+					'<option value="grid">Grid</option>' +
+				'</select>' +
+			'</div>' +
+			'<details class="marathon-gen-advanced"><summary>Advanced</summary>' +
+				'<div class="cr-field"><span class="cr-field-label">Max single-move complexity</span>' +
+					'<input type="number" id="mg_maxcomplexity" min="1" max="9.9" step="0.1" value="7"></div>' +
+			'</details>' +
+		'</div>' +
+		'<div class="cr-dialog-actions">' +
+			'<button class="btn btn-ghost" type="button" data-mg-close>Cancel</button>' +
+			'<button id="mg_start" class="btn btn-primary" type="button">Start generation</button>' +
+		'</div>';
+	var maximizeBox = document.getElementById("mg_maximize");
+	var targetInput = document.getElementById("mg_target");
+	maximizeBox.addEventListener("change", function() { targetInput.disabled = maximizeBox.checked; });
+	document.getElementById("mg_start").addEventListener("click", submitMarathonGen);
+}
+
+function numField(id, dflt) {
+	var el = document.getElementById(id);
+	var v = el ? parseFloat(el.value) : NaN;
+	return Number.isFinite(v) ? v : dflt;
+}
+
+function submitMarathonGen() {
+	var maximize = document.getElementById("mg_maximize").checked;
+	var params = {
+		rows: numField("mg_rows", 24),
+		cols: numField("mg_cols", 30),
+		density: numField("mg_density", 20) / 100,
+		target: maximize ? 100000 : numField("mg_target", 300),
+		timeBudgetSec: numField("mg_time", 90),
+		strategy: document.getElementById("mg_strategy").value,
+		maxComplexity: numField("mg_maxcomplexity", 7)
+	};
+	marathonGenShowForm = false;
+	socket.emit("marathon_gen_start", params);
+	// The server's ack (marathon_gen_update) arrives within a tick and re-renders via the dispatcher;
+	// this just avoids a blank instant where the stale form (or nothing) shows before it lands.
+	renderMarathonGenModalBody();
+}
+
+function escapeHtml(s) {
+	return String(s).replace(/[&<>"']/g, function(c) {
+		return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+	});
+}
+
+// Live progress (running/stopping) or a frozen final result (done/error/stopped) — same content
+// shape as the status bar's numbers, reused inside the modal so watching from there works too.
+function renderMarathonGenProgressView(job, finished) {
+	var body = document.getElementById("marathon_gen_modal_body");
+	if (!body) return;
+	var latest = job.latest || {};
+	var statsLine = latest.totalC != null
+		? ("iter " + (latest.iter || 0) + " · totalC=" + latest.totalC.toFixed(1) + " · maxC=" + latest.maxC.toFixed(2) +
+			(finished && latest.puzzleId != null ? " · saved as puzzle id " + latest.puzzleId : ""))
+		: (finished && job.log && job.log.length ? job.log[job.log.length - 1] : "Searching for an initial solvable board…");
+	body.innerHTML = '<div class="marathon-gen-modal-progress">' +
+		'<div class="marathon-gen-badge">' + escapeHtml(marathonGenStatusLabel(job.status)) + '</div>' +
+		'<div class="marathon-gen-stats">' + escapeHtml(statsLine) + '</div>' +
+		(finished && job.status === "error" && job.error ? '<div class="marathon-gen-error">' + escapeHtml(job.error) + '</div>' : "") +
+		'<pre class="marathon-gen-log">' + escapeHtml((job.log || []).join("\n")) + '</pre>' +
+	'</div>' +
+	'<div class="cr-dialog-actions">' +
+		'<button class="btn btn-ghost" type="button" data-mg-close>Close</button>' +
+		(finished
+			? '<button id="mg_again" class="btn btn-primary" type="button">Generate another</button>'
+			: '<button id="mg_stop" class="btn btn-primary" type="button">Stop</button>') +
+	'</div>';
+	var stopBtn = document.getElementById("mg_stop");
+	if (stopBtn) stopBtn.addEventListener("click", function() { socket.emit("marathon_gen_stop"); });
+	var againBtn = document.getElementById("mg_again");
+	if (againBtn) againBtn.addEventListener("click", function() { marathonGenShowForm = true; renderMarathonGenModalBody(); });
+	// Auto-scroll the log to the newest line.
+	var log = body.querySelector(".marathon-gen-log");
+	if (log) log.scrollTop = log.scrollHeight;
 }

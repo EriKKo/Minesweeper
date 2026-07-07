@@ -21,6 +21,7 @@ var http = require("http")
   , botMgr = require("./runtime/bots")
   , puzzleMode = require("./runtime/puzzlePlay")
   , botDemo = require("./runtime/botDemo")
+  , marathonGen = require("./runtime/marathonGen")
   , standings = require("./runtime/standings")
   , roomState = require("./runtime/roomState")
   , session = require("./runtime/session")
@@ -156,6 +157,7 @@ botMgr.init({
 
 // Single-player puzzle play lives in puzzlePlay.js; it's self-contained (obfuscateBoard via gameUtil).
 botDemo.init({ isSocketAdmin: isSocketAdmin, RANKED_RULES: RANKED_RULES });
+marathonGen.init({ isSocketAdmin: isSocketAdmin });
 
 // Wire the ranked module with the core services it needs (breaks the circular require).
 // Placed after the consts above so they're assigned; the injected fns are hoisted declarations.
@@ -1214,6 +1216,7 @@ io.on("connection", function (socket) {
 	puzzleMode.registerSocketHandlers(socket, playerID);
 	botDemo.registerSocketHandlers(socket, playerID);
 	territory.registerSocketHandlers(socket, playerID);
+	marathonGen.registerSocketHandlers(socket, playerID);
 
 	socket.on("disconnect", function() {
 		ranked.dequeue(playerID);

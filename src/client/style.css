@@ -636,7 +636,8 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .user-provider-logo { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .user-provider-logo svg { width: 1.05rem; height: 1.05rem; display: block; }
 
-input[type="text"] {
+input[type="text"],
+input[type="number"] {
 	background: var(--surface);
 	border: 1px solid var(--border);
 	color: var(--text);
@@ -646,11 +647,14 @@ input[type="text"] {
 	font-family: inherit;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="number"]:focus {
 	outline: none;
 	border-color: var(--accent);
 	box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
+
+input[type="number"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
 select {
 	background: var(--surface);
@@ -2127,6 +2131,52 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	font-weight: 700; background: var(--surface-2);
 }
 .marathon-row:not(.marathon-row-head):hover { background: rgba(255, 255, 255, 0.03); }
+
+.marathon-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.marathon-title-row .section-page-title { margin: 0; }
+
+/* Live status bar for a background board-generation job (marathonGen.js) — sits on the page itself,
+   not just inside the modal, so it's visible without having to reopen the "Generate board" dialog. */
+.marathon-gen-bar {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin: 0.9rem 0;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	background: var(--surface);
+}
+.marathon-gen-bar-error { border-color: rgba(248, 113, 113, 0.5); }
+.marathon-gen-bar-done { border-color: rgba(74, 222, 128, 0.4); }
+.marathon-gen-bar-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.marathon-gen-badge {
+	font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+	padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--surface-2); color: var(--accent-hover);
+}
+.marathon-gen-bar-done .marathon-gen-badge { color: #4ade80; }
+.marathon-gen-bar-error .marathon-gen-badge { color: #f87171; }
+.marathon-gen-summary { font-size: 0.85rem; color: var(--muted); }
+.marathon-gen-elapsed { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.marathon-gen-stats { font-size: 0.88rem; }
+.marathon-gen-error { font-size: 0.85rem; color: #f87171; }
+.marathon-gen-bar-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.marathon-gen-bar-actions .btn { padding: 0.3rem 0.8rem; font-size: 0.82rem; min-width: 0; }
+.marathon-gen-log-details summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+.marathon-gen-log {
+	max-height: 12rem; overflow-y: auto; margin: 0.5rem 0 0;
+	background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+	padding: 0.6rem 0.75rem; font-size: 0.76rem; line-height: 1.5; white-space: pre-wrap;
+}
+
+/* Generate-board modal form fields (plain inputs/selects, not the segmented .cr-seg controls the
+   create-room modal uses — this is a numeric power-tool form, not a small fixed set of presets). */
+.marathon-gen-checkbox { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--muted); margin-top: 0.35rem; }
+.marathon-gen-advanced { margin-top: 0.2rem; }
+.marathon-gen-advanced summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.5rem; }
+.marathon-gen-modal-progress .marathon-gen-badge { margin-bottom: 0.5rem; display: inline-block; }
+.marathon-gen-modal-progress .marathon-gen-stats { margin-bottom: 0.4rem; }
+
 /* Wide combined boards (up to ~11 cols) are rendered at a fixed cell size; scale the canvas
    down to fit its card / modal column instead of overflowing. `width: fit-content` keeps the
    board tray hugging the canvas (so narrow boards don't leave a dark gap) while `max-width:100%`
