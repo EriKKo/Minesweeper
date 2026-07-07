@@ -214,7 +214,14 @@ function renderMarathonRow(p) {
 	row.appendChild(tier);
 
 	var method = document.createElement("div");
-	method.textContent = p.genMethod || "—";
+	method.className = "marathon-cell-method";
+	// Every method currently generated is "hillclimb:…" — that prefix is redundant on a page that
+	// only ever shows hillclimb-generated boards, and dropping it buys the real distinguishing part
+	// (e.g. "weighted:2-6") enough room to fit. Full string still available via the tooltip, and the
+	// column itself ellipsizes as a safety net for any longer method name added later.
+	var methodText = (p.genMethod || "—").replace(/^hillclimb:/, "");
+	method.textContent = methodText;
+	method.title = p.genMethod || "";
 	row.appendChild(method);
 
 	var passes = document.createElement("div");

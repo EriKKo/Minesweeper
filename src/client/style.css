@@ -2107,7 +2107,7 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 .marathon-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
 .marathon-row {
 	display: grid;
-	grid-template-columns: 4.5rem 5.5rem 4.5rem 5rem 3rem 7rem 4rem 5rem 4rem;
+	grid-template-columns: 4.5rem 5.5rem 4.5rem 5rem 3rem 8rem 3.5rem 5rem 4rem;
 	align-items: center;
 	gap: 0.6rem;
 	padding: 0.55rem 0.8rem;
@@ -2115,6 +2115,10 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 	border-bottom: 1px solid var(--border);
 }
 .marathon-row:last-child { border-bottom: none; }
+/* Method names (e.g. "weighted:2-6") can still run longer than the column on some future generator
+   variant — ellipsize instead of overflowing into the next column; the full string is in the title
+   tooltip (see MarathonBoards.js). */
+.marathon-cell-method { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .marathon-row-head {
 	font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
 	font-weight: 700; background: var(--surface-2);
