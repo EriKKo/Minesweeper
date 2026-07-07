@@ -20,6 +20,12 @@
 //   node scripts/generate-marathon-boards.js
 //   ROWS=30 COLS=40 DENSITY=0.2 REGION_H=6 REGION_W=6 TRIALS_PER_REGION=12 TIME_BUDGET_MS=120000 \
 //     node scripts/generate-marathon-boards.js
+//
+// By default every accepted region swap is the one that MAXIMIZES totalComplexity. Pass
+// TARGET_COMPLEXITY to steer toward a specific totalComplexity instead — each swap keeps whichever
+// trial lands closest to the target, so it raises OR lowers complexity as needed. Leaving it unset
+// (or passing a very high number) keeps the maximizing behavior, since nothing ever overshoots it.
+//   TARGET_COMPLEXITY=300 node scripts/generate-marathon-boards.js
 
 var csp = require("../src/server/engine/CSPSolver");
 var puzzleGen = require("../src/server/engine/PuzzleGenerator");
@@ -49,6 +55,11 @@ var STALE_LIMIT = parseInt(process.env.STALE_LIMIT, 10) || 400;
 // generation stays fast (a full case-split re-solve costs orders of magnitude more per candidate).
 // "Marathon" boards are meant to be long and dense, not case-split-hard (see Nightmare+ follow-up).
 var MAX_COMPLEXITY = parseFloat(process.env.MAX_COMPLEXITY) || 7;
+// The totalComplexity to steer toward. Unset (default) means "maximize" — represented internally as
+// Infinity, which the distance-to-target scoring below (distanceToTarget) makes equivalent to always
+// preferring a higher value, since nothing achievable ever reaches it.
+var TARGET_COMPLEXITY = process.env.TARGET_COMPLEXITY != null ? parseFloat(process.env.TARGET_COMPLEXITY) : Infinity;
+var TARGET_EPSILON = 0.05; // close enough to TARGET_COMPLEXITY to stop early instead of hill-climbing forever
 var SOURCE = process.env.SOURCE || "marathon";
 var GEN_METHOD = REGION_STRATEGY === "weighted"
 	? "hillclimb:weighted:" + MIN_REGION_SIZE + "-" + MAX_REGION_SIZE
@@ -200,10 +211,19 @@ function saveBoard(isMine, board, result, R, C, startR, startC, iterations) {
 	return currentRowId;
 }
 
+// Distance-to-target scoring: unifies "maximize" (TARGET_COMPLEXITY = Infinity, so any increase is
+// strictly closer) and "steer toward a specific value" (a finite target — a swap can be accepted for
+// RAISING or LOWERING totalComplexity, whichever gets closer) under one comparison.
+function distanceToTarget(totalComplexity) {
+	return Math.abs(TARGET_COMPLEXITY - totalComplexity);
+}
+
 // Try TRIALS_PER_REGION random re-randomizations of the r0,c0,sh,sw rectangle (respecting the fixed
-// safe start zone), keeping only the one with the highest totalComplexity that still fully solves —
+// safe start zone), keeping only the one that lands closest to TARGET_COMPLEXITY (which is "highest
+// totalComplexity" when maximizing — see distanceToTarget) among the trials that still fully solve —
 // shared by both region-selection strategies below.
-function tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw, bestTotalC, t0) {
+function tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw, currentTotalC, t0) {
+	var bestScore = distanceToTarget(currentTotalC);
 	var bestIsMine = null, bestBoard = null, bestResult = null;
 	for (var t = 0; t < TRIALS_PER_REGION; t++) {
 		if (Date.now() - t0 > TIME_BUDGET_MS) break;
@@ -213,8 +233,9 @@ function tryImproveRegion(isMine, R, C, startR, startC, density, r0, c0, sh, sw,
 		var candBoard = buildBoardFromMineGrid(candidate, R, C);
 		var candResult = analyzeFull(candBoard, R, C, startR, startC, MAX_COMPLEXITY);
 		if (!candResult.solved) continue;
-		if (candResult.totalComplexity > bestTotalC) {
-			bestTotalC = candResult.totalComplexity;
+		var candScore = distanceToTarget(candResult.totalComplexity);
+		if (candScore < bestScore) {
+			bestScore = candScore;
 			bestIsMine = candidate; bestBoard = candBoard; bestResult = candResult;
 		}
 	}
@@ -261,6 +282,10 @@ function hillClimbWeighted(isMine, board, result, R, C, startR, startC, density,
 	var id = currentRowId;
 
 	while (Date.now() - t0 < TIME_BUDGET_MS) {
+		if (distanceToTarget(result.totalComplexity) < TARGET_EPSILON) {
+			console.log("  reached target complexity (" + TARGET_COMPLEXITY + ") — stopping.");
+			break;
+		}
 		var weights = cellEasyWeights(result.moves, R, C);
 		var cell = pickWeightedCell(weights, R, C);
 		var size = MIN_REGION_SIZE + Math.floor(Math.random() * (MAX_REGION_SIZE - MIN_REGION_SIZE + 1));
@@ -296,6 +321,10 @@ function hillClimbGrid(isMine, board, result, R, C, startR, startC, density, t0)
 	var convergedStreak = 0;
 
 	while (Date.now() - t0 < TIME_BUDGET_MS) {
+		if (distanceToTarget(result.totalComplexity) < TARGET_EPSILON) {
+			console.log("  reached target complexity (" + TARGET_COMPLEXITY + ") — stopping.");
+			break;
+		}
 		if (backedOff.size >= totalRegions) { convergedStreak++; if (convergedStreak > 3) break; continue; }
 		var diffs = regionDifficulties(result.moves, R, C, REGION_H, REGION_W);
 		var weakestKey = -1, weakestVal = Infinity;
@@ -334,7 +363,8 @@ function hillClimb() {
 
 	console.log("Marathon board generator: " + R + "x" + C + " @ " + density + " density, strategy=" + REGION_STRATEGY +
 		(REGION_STRATEGY === "weighted" ? " (" + MIN_REGION_SIZE + "-" + MAX_REGION_SIZE + " cell squares)" : " (regions " + REGION_H + "x" + REGION_W + ")") +
-		", cap=" + MAX_COMPLEXITY + ", budget=" + TIME_BUDGET_MS + "ms\n");
+		", cap=" + MAX_COMPLEXITY + ", target=" + (isFinite(TARGET_COMPLEXITY) ? TARGET_COMPLEXITY : "max") +
+		", budget=" + TIME_BUDGET_MS + "ms\n");
 
 	var start = generateValidBoard(R, C, density, startR, startC, MAX_COMPLEXITY, 200);
 	if (!start) { console.log("could not find an initial valid board — try a lower density."); return; }
