@@ -103,6 +103,7 @@ function exitPuzzle() {
 	if (puzzleSession && (puzzleSession.mode === "streak" || puzzleSession.mode === "storm") && !puzzleSession.finished) {
 		socket.emit("puzzle_run_abandon");
 	}
+	var wasMarathon = !!(puzzleSession && puzzleSession.marathon);
 	puzzleSession = null;
 	puzzleRunMode = null;
 	stopStormTicker();
@@ -118,7 +119,7 @@ function exitPuzzle() {
 	myState = null;
 	prevPlayerState = null;
 	boardDecoder = null;
-	navigate("/");
+	navigate(wasMarathon ? "/admin/marathon-boards" : "/");
 }
 
 function togglePuzzleChrome(on, mode, marathon) {
@@ -175,6 +176,17 @@ function togglePuzzleChrome(on, mode, marathon) {
 	if (rankFoot) rankFoot.style.display = marathon ? "none" : "";
 	var skipBtn = document.getElementById("puzzle_skip_btn");
 	if (skipBtn) skipBtn.style.display = marathon ? "none" : "";
+	var livesRow = document.getElementById("puzzle_lives_row");
+	if (livesRow) livesRow.style.display = marathon ? "" : "none";
+	if (marathon) updatePuzzleLivesHud();
+}
+
+// 3 hearts, filled left-to-right for lives remaining — marathon boards only (see togglePuzzleChrome).
+function updatePuzzleLivesHud() {
+	var hearts = document.querySelectorAll("#puzzle_lives_row .puzzle-life");
+	if (!hearts.length) return;
+	var livesLeft = (puzzleSession && puzzleSession.livesLeft != null) ? puzzleSession.livesLeft : 3;
+	hearts.forEach(function(el, i) { el.classList.toggle("lost", i >= livesLeft); });
 }
 
 function updatePuzzleHud() {
@@ -355,6 +367,14 @@ function flashPuzzleDelta(delta) {
 }
 
 function showPuzzleOutcome(result) {
+	// Marathon boards have their own outcome (stars from lives survived, or "out of lives") instead
+	// of the Ladder tier/points flash — they aren't rated, and a solve here must NOT auto-advance via
+	// the inline flash's puzzle_next (that would silently hand back an unrelated real rated puzzle,
+	// since marathon boards are deliberately excluded from every random puzzle-serving query).
+	if (puzzleSession && puzzleSession.marathon) {
+		showMarathonOutcome(result);
+		return;
+	}
 	// A solve auto-advances via the inline flash. A failure swaps the
 	// Hint button on the side card for "Try again" / "Next puzzle" — the
 	// player picks; the same hint-button slot keeps the actions in a
@@ -365,6 +385,59 @@ function showPuzzleOutcome(result) {
 		return;
 	}
 	flashPuzzleResult(result);
+}
+
+// Marathon result: a modal-style panel (like the run/daily outcomes below) rather than the inline
+// Ladder flash, since there's no rating/points to animate and no auto-advance to the next puzzle —
+// "Play again" replays THIS board (puzzle_retry), there's no queue of marathon boards to serve next.
+function showMarathonOutcome(result) {
+	var panel = document.createElement("div");
+	panel.className = "result-panel";
+
+	var header = document.createElement("div");
+	header.className = "result-header";
+	header.textContent = result.solved ? "Board cleared!" : "Out of lives";
+	panel.appendChild(header);
+
+	var starsRow = document.createElement("div");
+	starsRow.className = "marathon-stars-row";
+	var starCount = result.solved ? (result.stars || 0) : 0;
+	for (var i = 1; i <= 3; i++) {
+		var star = document.createElement("span");
+		star.className = "marathon-star" + (i <= starCount ? " filled" : "");
+		star.textContent = "★";
+		starsRow.appendChild(star);
+	}
+	panel.appendChild(starsRow);
+
+	var detail = document.createElement("div");
+	detail.className = "tournament-place";
+	detail.style.color = result.solved ? "#4ade80" : "#f87171";
+	detail.textContent = result.solved
+		? (result.livesLost > 0 ? "Lost " + result.livesLost + " life" + (result.livesLost > 1 ? "s" : "") : "Flawless clear!")
+		: "You lost all 3 lives.";
+	panel.appendChild(detail);
+
+	var actions = document.createElement("div");
+	actions.className = "result-actions";
+
+	var again = document.createElement("button");
+	again.className = "btn btn-primary";
+	again.textContent = "Play again";
+	again.addEventListener("click", function() {
+		hideOverlay();
+		if (puzzleSession) socket.emit("puzzle_retry", { puzzleId: puzzleSession.puzzleId });
+	});
+	actions.appendChild(again);
+
+	var back = document.createElement("button");
+	back.className = "btn btn-secondary";
+	back.textContent = "Back to boards";
+	back.addEventListener("click", exitPuzzle);
+	actions.appendChild(back);
+
+	panel.appendChild(actions);
+	presentPanel(panel, result.solved ? "win" : "lose");
 }
 
 // Swap the hint button for retry/next buttons (or back). Called with `true`

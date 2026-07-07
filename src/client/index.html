@@ -724,6 +724,12 @@
 								<span id="puzzle_rank_progress">0 / 0</span>
 								<span id="puzzle_rank_next">→ —</span>
 							</div>
+							<!-- Marathon boards only: 3 lives, shown/reset via togglePuzzleChrome/updatePuzzleLivesHud. -->
+							<div id="puzzle_lives_row" class="puzzle-lives-row" style="display:none">
+								<span class="puzzle-life" data-life="1">♥</span>
+								<span class="puzzle-life" data-life="2">♥</span>
+								<span class="puzzle-life" data-life="3">♥</span>
+							</div>
 							<button id="puzzle_hint_btn" class="btn btn-secondary puzzle-hint-btn" type="button">
 								<span class="puzzle-hint-icon">💡</span>
 								<span>Hint</span>

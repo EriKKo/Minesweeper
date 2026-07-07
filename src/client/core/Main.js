@@ -548,7 +548,8 @@ function applyPuzzleBoard(data) {
 		finished: false,
 		mode: data.mode || "rated",
 		run: data.run || null,
-		marathon: !!data.marathon
+		marathon: !!data.marathon,
+		livesLeft: 3 // only shown/consumed for marathon boards, but harmless to always set
 	};
 	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
@@ -602,12 +603,22 @@ function applyPuzzleBoard(data) {
 	gameView.classList.toggle("marathon", puzzleSession.marathon);
 	togglePuzzleChrome(true, puzzleSession.mode, puzzleSession.marathon);
 	if (typeof setRatedFailActions === "function") setRatedFailActions(false);
+	if (typeof updatePuzzleLivesHud === "function") updatePuzzleLivesHud();
 	updatePuzzleHud();
 	renderPlayerBoard();
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	mobileAutoSelect();
 	if (mobileLayout) redrawOwnBoardWithFocus();
 }
+
+// Marathon boards only — a mine hit that didn't end the run (lives remain). The client already
+// showed the mine-hit shake/sound/red-tile from its own local reveal simulation the instant the
+// click happened; this just syncs the authoritative lives count for the hearts HUD.
+socket.on("puzzle_mine_hit", function(data) {
+	if (!puzzleSession) return;
+	puzzleSession.livesLeft = data.livesLeft;
+	if (typeof updatePuzzleLivesHud === "function") updatePuzzleLivesHud();
+});
 
 socket.on("puzzle_result", function(data) {
 	if (!puzzleSession) return;
@@ -1187,7 +1198,7 @@ document.getElementById("puzzle_skip_btn").addEventListener("click", function() 
 });
 
 document.getElementById("puzzle_side_back").addEventListener("click", function() {
-	navigate("/");
+	navigate(puzzleSession && puzzleSession.marathon ? "/admin/marathon-boards" : "/");
 });
 
 // Spectator: click a scoreboard row to switch which player's board shows

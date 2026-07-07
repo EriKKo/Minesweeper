@@ -96,12 +96,27 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		numMines: puzzle.mines.length,
 		knownCells: puzzle.revealed.slice()
 	};
+	var isMarathon = puzzle.source === "marathon";
 	var game = gameCreator.createGame(puzzle.mines.length, puzzle.rows, puzzle.cols);
 	game.playerName = user.name;
 	game.init(template);
 	game.playing = true;
 	game.win = function() { finalizePuzzle(socket, playerID, true); };
-	game.mineHit = function() { finalizePuzzle(socket, playerID, false); };
+	// Marathon boards get 3 lives: a mine hit costs one and play continues (the engine already just
+	// reveals that single cell and stops the cascade there — see GameCreator.js's dfs — so nothing
+	// else needs to change for "continue playing with a mine now showing"). Every other puzzle mode
+	// keeps today's behavior for free by starting at 1 life, so the first hit is still terminal.
+	game.mineHit = function() {
+		var pp = puzzlePlay[playerID];
+		if (!pp) return;
+		pp.livesLeft--;
+		pp.livesLost++;
+		if (pp.livesLeft > 0) {
+			socket.emit("puzzle_mine_hit", { livesLeft: pp.livesLeft, livesLost: pp.livesLost });
+			return;
+		}
+		finalizePuzzle(socket, playerID, false);
+	};
 
 	puzzlePlay[playerID] = {
 		mode: run ? run.mode : "rated",
@@ -112,7 +127,10 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		puzzleBefore: puzzle.rating,
 		hintUsed: false,
 		startedAt: Date.now(),
-		noRating: !!opts.noRating
+		noRating: !!opts.noRating,
+		marathon: isMarathon,
+		livesLeft: isMarathon ? 3 : 1,
+		livesLost: 0
 	};
 
 	var obf = obfuscateBoard(board, puzzle.rows, puzzle.cols);
@@ -134,7 +152,7 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		// boards "Play" button), but are much bigger than curriculum puzzles and aren't rated — the
 		// client uses this to size the board like a normal game instead of the small fixed puzzle
 		// box, and to hide the rating/ladder chrome that doesn't apply to them.
-		marathon: puzzle.source === "marathon",
+		marathon: isMarathon,
 		run: run ? Object.assign({
 			mode: run.mode,
 			targetRating: run.targetRating || null,
@@ -252,6 +270,11 @@ function finalizePuzzle(socket, playerID, solved) {
 			solved: solved,
 			hintUsed: pp.hintUsed,
 			noRating: true,
+			marathon: pp.marathon,
+			// A marathon solve's livesLost is always 0-2 here — losing the 3rd life is what makes
+			// `solved` false in the first place — so 3-livesLost is always a valid 1-3 star count.
+			livesLost: pp.livesLost,
+			stars: (solved && pp.marathon) ? (3 - pp.livesLost) : null,
 			playerBefore: pp.playerBefore,
 			playerAfter: pp.playerBefore,
 			playerDelta: 0,

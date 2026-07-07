@@ -1591,6 +1591,14 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 .puzzle-side-card .puzzle-rank-bar { margin-top: 0.85rem; height: 10px; }
 .puzzle-side-card .puzzle-rank-foot { margin-top: 0.5rem; font-size: 0.82rem; }
+/* Marathon boards' 3-lives HUD — plain hearts, filled left-to-right for lives remaining. */
+.puzzle-lives-row { display: flex; gap: 0.35rem; margin-top: 0.5rem; font-size: 1.3rem; line-height: 1; }
+.puzzle-life { color: #f87171; transition: opacity 0.2s ease, transform 0.2s ease; }
+.puzzle-life.lost { color: var(--muted); opacity: 0.35; transform: scale(0.85); }
+/* Marathon result panel — 3 stars, filled for lives survived (see PuzzlePlay.js showMarathonOutcome). */
+.marathon-stars-row { display: flex; justify-content: center; gap: 0.4rem; font-size: 2.2rem; line-height: 1; margin: 0.6rem 0; }
+.marathon-star { color: var(--muted); opacity: 0.35; }
+.marathon-star.filled { color: #fbbf24; opacity: 1; }
 .puzzle-hint-btn {
 	margin-top: 0.4rem;
 	display: flex; align-items: center; justify-content: center; gap: 0.5rem;
