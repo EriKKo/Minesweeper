@@ -42,8 +42,11 @@ function fitDesktopCellPx() {
 	if (!(availW > 0)) availW = cols * PLAYER_CELL;
 	if (!(availH > 0)) availH = rows * PLAYER_CELL;
 	var cell = Math.floor(Math.min(availW / cols, availH / rows));
-	// Territory and solo fill the whole area below the nav, so let their cells grow past the racing cap.
-	var bigCell = (typeof territoryActive !== "undefined" && territoryActive) || ((typeof soloSession !== "undefined") && soloSession);
+	// Territory, solo, and marathon boards fill the whole area below the nav, so let their cells grow
+	// past the racing cap (racing keeps a smaller cap since 6 boards' worth of cells need to stay legible
+	// at once, which doesn't apply to these single-board modes).
+	var inMarathon = (typeof puzzleSession !== "undefined") && puzzleSession && puzzleSession.marathon;
+	var bigCell = (typeof territoryActive !== "undefined" && territoryActive) || ((typeof soloSession !== "undefined") && soloSession) || inMarathon;
 	var maxCell = bigCell ? 100 : DESKTOP_CELL_MAX;
 	return Math.max(DESKTOP_CELL_MIN, Math.min(maxCell, cell));
 }

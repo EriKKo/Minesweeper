@@ -1496,7 +1496,10 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
    size and scroll like a normal game board instead of being clipped to 480x480 (320x320 mobile). */
 .game-view.marathon.puzzle .game-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 320px;
+	/* The marathon side card only ever holds a title + Hint/Try-again — much lighter than the rated
+	   ladder chrome the 320px column was sized for — so reclaim some of that width for the board,
+	   which is the whole point of this view (a 24x30-30x40 board needs all the room it can get). */
+	grid-template-columns: minmax(0, 1fr) 220px;
 	justify-content: initial;
 	max-width: none;
 }
