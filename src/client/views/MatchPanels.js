@@ -127,14 +127,24 @@ function prefersReducedMotion() {
 
 // Animate a number element from → to (easeOutCubic), so a rating change lands as a reward
 // rather than snapping. Honours reduced-motion.
+//
+// Elapsed time is measured from Date.now() at call time, NOT from the first rAF callback's
+// timestamp — requestAnimationFrame is throttled/paused in a backgrounded tab, so if the caller
+// (e.g. the ranked result panel, which already shows the correct `to` value before this runs —
+// see showRankedResult) schedules this and the tab loses focus, the first frame can fire long
+// after `dur` has really elapsed. Timing off the first frame's own timestamp would then restart
+// the animation from `from`, visibly resetting an already-correct number back to the OLD value
+// and leaving it stuck there (looking identical to "before") until the animation replays and the
+// tab is watched for the full duration. Wall-clock time makes a late first frame compute t>=1
+// immediately, snapping straight to `to` instead of replaying the animation from scratch.
 function countUpNumber(el, from, to, ms) {
 	if (!el) return;
 	from = Math.round(from); to = Math.round(to);
 	if (prefersReducedMotion() || from === to) { el.textContent = String(to); return; }
-	var start = null, dur = ms || 900;
-	function frame(ts) {
-		if (start === null) start = ts;
-		var t = Math.min(1, (ts - start) / dur);
+	var dur = ms || 900;
+	var startedAt = Date.now();
+	function frame() {
+		var t = Math.min(1, (Date.now() - startedAt) / dur);
 		var e = 1 - Math.pow(1 - t, 3);
 		el.textContent = String(Math.round(from + (to - from) * e));
 		if (t < 1) requestAnimationFrame(frame);
