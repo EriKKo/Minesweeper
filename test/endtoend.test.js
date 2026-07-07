@@ -55,3 +55,70 @@ test("client matchmakes on main, plays on a game server, result persists on main
 		main.stop();
 	}
 });
+
+function decodeBoard(dataB64, maskB64, rows, cols) {
+	const data = Buffer.from(dataB64, "base64");
+	const mask = Buffer.from(maskB64, "base64");
+	const board = [];
+	for (let r = 0; r < rows; r++) {
+		const row = [];
+		for (let c = 0; c < cols; c++) {
+			const v = data[r * cols + c] ^ mask[(r * cols + c) % mask.length];
+			row.push(v === 9 ? -1 : v);
+		}
+		board.push(row);
+	}
+	return board;
+}
+
+// Regression test for the bug where a game-role match's series_ended carried the STALE pre-match
+// rating as both "before" and "after": endSeries used to fire-and-forget the report to main (where
+// the actual Elo math runs) and emit series_ended immediately, before main had computed anything.
+// The DB write on main was always correct (a page reload showed the real new rating) — only the
+// live event the winner's own client received was wrong. This plays the match to a real, fast,
+// deterministic win (instead of racing an indeterminate bot, like the test above) so it can assert
+// the WebSocket payload itself carries a real ratingDelta and a rating that differs from the start.
+test("a fast win on the game server reports a real ratingDelta back through series_ended", async () => {
+	const SECRET = "e2e-internal-2";
+	const game = await startServer({ port: 13864, env: { ROLE: "game", INTERNAL_SECRET: SECRET, MATCH_TOKEN_SECRET: "e2e-tok", MAIN_URL: "http://localhost:13865" } });
+	const main = await startServer({ port: 13865, env: { ROLE: "main", INTERNAL_SECRET: SECRET, MATCH_TOKEN_SECRET: "e2e-tok", GAME_SERVERS: game.base } });
+
+	let lobby, gameSock;
+	try {
+		lobby = io(main.base, { transports: ["websocket"], forceNew: true });
+		await once(lobby, "connected");
+		lobby.emit("guest_session");
+		const auth = await once(lobby, "authenticated");
+		const ratingBefore = auth.ratingSprint;
+
+		lobby.emit("find_ranked", { mode: "sprint_duo" });
+		const handoff = await once(lobby, "match_handoff", 15000);
+
+		gameSock = io(handoff.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: handoff.token } });
+		await once(gameSock, "joined_room", 15000);
+		const start = await once(gameSock, "start_game", 15000);
+		const board = decodeBoard(start.boardData, start.boardMask, start.rows, start.cols);
+
+		// Win as fast as possible: reveal every non-mine cell right after the countdown, well before
+		// the filler bot can finish, so the series always ends with THIS client as the winner.
+		await new Promise(r => setTimeout(r, (start.time + 0.5) * 1000));
+		for (let r = 0; r < start.rows; r++) {
+			for (let c = 0; c < start.cols; c++) {
+				if (board[r][c] !== -1) gameSock.emit("left_click", { r, c, id: "1" });
+			}
+		}
+
+		const ended = await once(gameSock, "series_ended", 25000);
+		const mine = ended.standings.find(s => s.id === gameSock.id);
+		assert.ok(mine, "the winner's own standing is present");
+		assert.strictEqual(typeof mine.ratingDelta, "number", "ratingDelta must be a real number, not missing");
+		assert.notStrictEqual(mine.ratingDelta, 0, "a win should never be a zero-delta for a fresh placement game");
+		assert.strictEqual(typeof mine.rating, "number");
+		assert.notStrictEqual(mine.rating, ratingBefore, "the reported rating must differ from the pre-match rating");
+	} finally {
+		if (gameSock) gameSock.close();
+		if (lobby) lobby.close();
+		game.stop();
+		main.stop();
+	}
+});

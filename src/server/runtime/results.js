@@ -119,12 +119,16 @@ function buildResultReport(room, seriesStandings) {
 // Apply a finished match's results: ranked Elo (racing only — tournament rates incrementally) + the
 // captured replay (a no-op when nothing was recorded). The one call the match-end path makes into
 // persistence.
+//
+// Returns the (possibly Elo-enriched) standings alongside `applied` — the split/game-role caller
+// (reportResultToMain) relays these back over the wire so the game server's series_ended event can
+// carry the real ratingDelta/rating instead of the stale pre-match numbers it built the report with.
 function persistResult(report) {
-	if (!report) return { applied: false };
+	if (!report) return { applied: false, standings: null };
 	if (report.ranked) {
 		// Apply this match's results at most once (P0-5). A retried/duplicate report short-circuits here
 		// so Elo + replay are never double-applied. Non-ranked matches persist nothing, so they skip the guard.
-		if (!db.markMatchPersisted(report.matchId)) return { applied: false };
+		if (!db.markMatchPersisted(report.matchId)) return { applied: false, standings: report.standings };
 		if (report.mode !== "tournament") {
 			// In-process the report carries the live room → read ratings from the accounts cache; a report
 			// from a game server over the network carries userId + rating-before per standing instead.
@@ -136,7 +140,7 @@ function persistResult(report) {
 	// network hop) — persisting it is the same call whether this report came from the local match-end
 	// path or over the internal API from a game server.
 	if (report.replayPayload) replay.persistPayload(report.replayPayload);
-	return { applied: true };
+	return { applied: true, standings: report.standings };
 }
 
 module.exports = {

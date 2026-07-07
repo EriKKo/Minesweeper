@@ -402,7 +402,7 @@ function reduceRoundDeadline(room, targetSeconds) {
 }
 
 
-function endSeries(room) {
+async function endSeries(room) {
 	if (nextGameTimers[room.id]) {
 		clearTimeout(nextGameTimers[room.id]);
 		delete nextGameTimers[room.id];
@@ -430,7 +430,28 @@ function endSeries(room) {
 	}
 	// Single persistence seam: ranked racing Elo (tournament rated incrementally elsewhere) + the
 	// captured replay (no-op unless this was a ranked match being recorded). See runtime/results.js.
-	gameService.reportResult(results.buildResultReport(room, seriesStandings));
+	// Awaited (not fire-and-forget): in-process (monolith/main) this resolves on the next microtask
+	// tick since persistResult already mutated seriesStandings in place synchronously — reportResult
+	// returns {applied, standings}, not an array, so the merge below is a no-op there. In the split
+	// game role, reportResult is reportResultToMain (a real network round-trip to main, where the
+	// actual Elo math runs) and resolves with an array of {id, ratingDelta, rating, provisional} —
+	// without awaiting it here, series_ended would go out carrying the stale pre-match rating as both
+	// "before" and "after" (the bug this fixes), since the game server never otherwise learns what
+	// main computed.
+	var reported = await gameService.reportResult(results.buildResultReport(room, seriesStandings));
+	if (Array.isArray(reported)) {
+		var byId = {};
+		reported.forEach(function(r) { byId[r.id] = r; });
+		seriesStandings.forEach(function(s) {
+			var r = byId[s.id];
+			if (r && typeof r.ratingDelta === "number") {
+				s.ratingDelta = r.ratingDelta;
+				s.rating = r.rating;
+				s.provisional = r.provisional;
+			}
+		});
+	}
+	if (!rooms[room.id]) return; // the room was torn down while we were awaiting main's report
 	io.to("room:" + room.id).emit("series_ended", {
 		winnerId: room.seriesWinner,
 		winnerName: room.seriesWinner ? names[room.seriesWinner] : null,
@@ -893,8 +914,14 @@ function abortPendingMatch(matchId) {
 
 // Game → main: post the finished match's result (wire-safe; the live room/config aren't serializable).
 // Each human standing is enriched with its userId + rating-before so main can apply Elo from the report.
-function reportResultToMain(report) {
-	if (!role.MAIN_URL) return;
+// Awaited by endSeries — main's response carries back each standing's computed ratingDelta/rating/
+// provisional (see internalApi.js's /internal/report handler), which endSeries merges into the
+// standings it's about to emit in series_ended. Without this the game server's own series_ended would
+// always show the pre-match rating as both "before" and "after", since the actual Elo computation only
+// happens on main. Returns null (not a rejection) on any failure — endSeries falls back to emitting the
+// un-enriched standings rather than the match result getting stuck.
+async function reportResultToMain(report) {
+	if (!role.MAIN_URL) return null;
 	var seatByPid = (report.room && report.room.seatByPid) || {};
 	var standings = (report.standings || []).map(function(s) {
 		var seat = seatByPid[s.id];
@@ -913,11 +940,18 @@ function reportResultToMain(report) {
 			createdAt: report.replayPayload.createdAt
 		} : null
 	};
-	fetch(role.MAIN_URL + "/internal/report", {
-		method: "POST",
-		headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET },
-		body: JSON.stringify(wire)
-	}).catch(function(e) { console.error("report to main failed", e); });
+	try {
+		var res = await fetch(role.MAIN_URL + "/internal/report", {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-internal-secret": role.INTERNAL_SECRET },
+			body: JSON.stringify(wire)
+		});
+		var data = await res.json();
+		return (data && data.standings) || null;
+	} catch (e) {
+		console.error("report to main failed", e);
+		return null;
+	}
 }
 
 io.on("connection", function (socket) {

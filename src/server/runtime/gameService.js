@@ -81,8 +81,11 @@ function allocate(room) {
 
 // Called by the game runtime when a match ends; the control plane persists it. In the split this is the
 // game→main reportResult network call (idempotent + retried); here it's a direct, in-process hand-off.
+// Returns whatever the handler returns — in-process that's a plain object (persistResult), over the
+// network it's a Promise (reportResultToMain) — so callers should `await` this either way; awaiting a
+// non-Promise value just resolves immediately, so this is safe for both roles.
 function reportResult(report) {
-	if (typeof resultHandler === "function") resultHandler(report);
+	if (typeof resultHandler === "function") return resultHandler(report);
 }
 
 module.exports = {

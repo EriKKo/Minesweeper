@@ -32,11 +32,20 @@ function handleInternalRoute(req, res, url) {
 		return true;
 	}
 
-	// game → main: persist a finished match's outcome (idempotent; see persistResult / P0-5).
+	// game → main: persist a finished match's outcome (idempotent; see persistResult / P0-5). Echoes
+	// back each standing's computed ratingDelta/rating/provisional so the game server (which already
+	// emitted its own series_ended off the pre-Elo standings, or is about to) can relay the real
+	// numbers to the client instead of leaving it stuck showing the stale pre-match rating.
 	if (url.pathname === "/internal/report" && req.method === "POST") {
 		readJson(req, function(err, report) {
 			if (err) { send(res, 400, { error: "bad_json" }); return; }
-			try { var r = results.persistResult(report); send(res, 200, { ok: true, applied: !!(r && r.applied) }); }
+			try {
+				var r = results.persistResult(report);
+				var ratings = (r && r.standings || []).map(function(s) {
+					return { id: s.id, ratingDelta: s.ratingDelta, rating: s.rating, provisional: s.provisional };
+				});
+				send(res, 200, { ok: true, applied: !!(r && r.applied), standings: ratings });
+			}
 			catch (e) { console.error("internal report failed", e); send(res, 500, { error: "persist_failed" }); }
 		});
 		return true;

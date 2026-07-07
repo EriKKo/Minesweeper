@@ -214,6 +214,11 @@ function applyRankedElo(standings, style) {
 // applyRankedElo, it can't read the in-memory accounts cache (those sockets live on the game server),
 // so each standing carries its own userId + rating-before + played, captured at match start. The pure
 // computeRankedElo does the math; we persist by userId. (P1-5 Elo-from-report.)
+//
+// Mutates `standings` in place with ratingDelta/rating/provisional for every human entry, mirroring
+// applyRankedElo's contract — the game server awaits this call (see reportResultToMain/gameService.
+// reportResult) specifically so it can relay the computed numbers back to the client's series_ended
+// event instead of showing the stale pre-match rating as both "before" and "after".
 function applyRankedEloFromReport(standings, style) {
 	if (!standings || standings.length < 2) return;
 	var parts = standings.map(function(s) {
@@ -236,6 +241,9 @@ function applyRankedEloFromReport(standings, style) {
 			placement: p.rank, players: parts.length, won: p.rank === 1,
 			opponent: (parts.length === 2 && standings[1 - i]) ? standings[1 - i].name : null
 		});
+		standings[i].ratingDelta = p.delta;
+		standings[i].rating = p.newRating;
+		standings[i].provisional = p.provisional;
 	}
 }
 
