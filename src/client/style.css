@@ -5050,12 +5050,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 	background: var(--surface); border: 1px solid var(--border);
 	border-radius: 12px; padding: 0.55rem 0.9rem;
 	text-decoration: none; color: var(--text);
-	transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-/* A single accent on hover (not a per-mode color), and a small zoom in every direction
-   instead of the old upward-only lift — same idea as achtung-royale's .lobby-card:hover. */
+/* A single accent on hover (not a per-mode color) — no movement, just the border/glow. */
 .dash-row:hover {
-	transform: scale(1.015);
 	border-color: var(--accent);
 	box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgba(0, 0, 0, 0.35);
 }
