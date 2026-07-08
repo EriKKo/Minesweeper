@@ -808,13 +808,13 @@ main:has(.game-view.territory) { max-width: none; }
 	font: inherit; font-weight: 600; font-size: 0.98rem;
 	padding: 0.7rem 1rem; border-radius: 10px; border: 1px solid transparent;
 	cursor: pointer; user-select: none;
-	transition: background var(--motion-micro) var(--ease-out), box-shadow var(--motion-micro) var(--ease-out);
+	transition: background var(--motion-micro) var(--ease-out);
 }
 .btn-oauth-logo { display: inline-flex; flex: 0 0 auto; }
 .btn-oauth-logo svg { width: 1.25rem; height: 1.25rem; display: block; }
 /* Google: white button, dark text, multicolour G (per Google's button guidelines). */
 .btn-oauth-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
-.btn-oauth-google:hover { background: #f6f7f9; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.btn-oauth-google:hover { background: #f6f7f9; }
 /* Discord: brand blurple, white text + logo. */
 .btn-oauth-discord { background: #5865f2; color: #fff; }
 .btn-oauth-discord:hover { background: #4752c4; }
@@ -2610,7 +2610,9 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	font-size: 0.9rem;
 }
 
-/* Buttons */
+/* Buttons — flat and plain, same spirit as the leaderboard mode tabs (.lb-tab): a single flat
+   color, a color/border change on hover, no shadow and no movement (nothing that reserves or
+   shifts layout on interaction). */
 .btn {
 	font: inherit;
 	font-weight: 600;
@@ -2620,28 +2622,21 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	cursor: pointer;
 	transition: background var(--motion-micro) var(--ease-out),
 		border-color var(--motion-micro) var(--ease-out),
-		box-shadow var(--motion-micro) var(--ease-out),
-		transform var(--motion-micro) var(--ease);
+		color var(--motion-micro) var(--ease-out);
 	color: var(--text);
 }
 
-.btn:hover { transform: translateY(-1px); }
-.btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Primary is a raised "tile": gradient face, top highlight, dropped shadow that compresses on press. */
 .btn-primary {
-	background: linear-gradient(180deg, var(--accent-hover), var(--accent));
-	border-color: transparent;
-	box-shadow: var(--tile-hi), var(--tile-shadow);
+	background: var(--accent);
+	border-color: var(--accent);
 	font-family: var(--font-display);
 }
-.btn-primary:hover:not(:disabled) {
-	background: linear-gradient(180deg, #93a0ff, var(--accent-hover));
-	box-shadow: var(--tile-hi), 0 4px 0 rgba(0, 0, 0, 0.35), 0 12px 28px -8px rgba(99, 102, 241, 0.6);
-}
+.btn-primary:hover:not(:disabled),
 .btn-primary:active:not(:disabled) {
-	box-shadow: var(--tile-hi), 0 1px 0 rgba(0, 0, 0, 0.35);
+	background: var(--accent-hover);
+	border-color: var(--accent-hover);
 }
 
 .btn-secondary { background: var(--surface-2); border-color: var(--border); }
