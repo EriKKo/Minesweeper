@@ -772,6 +772,14 @@ main {
 	margin: 0 auto;
 	padding: 2rem;
 }
+/* The 1200px cap suits text-heavy pages (Profile, Leaderboard, Learn, …) but needlessly squeezes an
+   active battle-layout game into a fraction of a wide screen even OUTSIDE fullscreen — the boards then
+   render well under their own size caps (DESKTOP_CELL_MAX / the bigCell ceiling in MobileLayout.js),
+   leaving a lot of visibly unused space on either side. Lift the cap the same way
+   body.game-fullscreen main already does, for every "active board" layout, not just fullscreen ones. */
+main:has(.game-view.duo),
+main:has(.game-view.multi),
+main:has(.game-view.territory) { max-width: none; }
 
 .view { animation: fade 180ms ease; }
 

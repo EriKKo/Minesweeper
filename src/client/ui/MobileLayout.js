@@ -42,11 +42,13 @@ function fitDesktopCellPx() {
 	if (!(availW > 0)) availW = cols * PLAYER_CELL;
 	if (!(availH > 0)) availH = rows * PLAYER_CELL;
 	var cell = Math.floor(Math.min(availW / cols, availH / rows));
-	// Territory, solo, and marathon boards fill the whole area below the nav, so let their cells grow
-	// past the racing cap (racing keeps a smaller cap since 6 boards' worth of cells need to stay legible
-	// at once, which doesn't apply to these single-board modes).
+	// Territory, solo, marathon, and 1v1 duo boards fill the whole area below the nav (duo splits it
+	// with exactly one opponent board, the same "just 1-2 boards" situation territory/solo are already
+	// in), so let their cells grow past the racing cap — the cap stays at 6-player multi, where that
+	// many boards' worth of cells genuinely do need to stay legible at once.
 	var inMarathon = (typeof puzzleSession !== "undefined") && puzzleSession && puzzleSession.marathon;
-	var bigCell = (typeof territoryActive !== "undefined" && territoryActive) || ((typeof soloSession !== "undefined") && soloSession) || inMarathon;
+	var inDuo = (typeof isDuoRacing === "function") && isDuoRacing();
+	var bigCell = (typeof territoryActive !== "undefined" && territoryActive) || ((typeof soloSession !== "undefined") && soloSession) || inMarathon || inDuo;
 	var maxCell = bigCell ? 100 : DESKTOP_CELL_MAX;
 	return Math.max(DESKTOP_CELL_MIN, Math.min(maxCell, cell));
 }
