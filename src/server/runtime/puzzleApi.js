@@ -89,6 +89,15 @@ function isPuzzleAdmin(req) {
 	return !!(user && user.is_admin);
 }
 
+// Read-only counterpart to isPuzzleAdmin: resolve the requesting user (if any) from the same
+// X-Session-Token header, with no admin gate — used to personalize a GET response (e.g. attaching the
+// caller's own marathon-board bests) without requiring elevated privileges just to read.
+function puzzleApiUser(req) {
+	var token = req.headers["x-session-token"];
+	if (!token) return null;
+	return db.getUserByToken(token);
+}
+
 // Admin bot browser: list the benchmarked pool, sorted/filtered/paginated in JS (the
 // pool is ~500 entries, in memory). Each returned bot carries its pool index so the
 // demo modal can request it back. Density keys map to ranked modes (10/15/20%).
@@ -196,6 +205,19 @@ function servePuzzles(req, res, url) {
 	var orderBy = (orderByRaw === "max_complexity" || orderByRaw === "total_complexity" || orderByRaw === "created_at") ? orderByRaw : null;
 	var puzzles = db.listPuzzles({ difficulty: diffFilter, method: method, scoreBand: scoreBand, source: listSource, page: page, pageSize: pageSize, sort: sort, orderBy: orderBy });
 	var total = db.puzzleCount(diffFilter, method, scoreBand, listSource);
+	// Personalize marathon rows with the requesting user's own best, if any — read-only, no admin gate
+	// (see puzzleApiUser). Every other source is untouched (bestStars/attempts stay undefined for them).
+	var apiUser = puzzleApiUser(req);
+	if (apiUser) {
+		var marathonIds = puzzles.filter(function(p) { return p.source === "marathon"; }).map(function(p) { return p.id; });
+		if (marathonIds.length) {
+			var bests = db.getMarathonBests(apiUser.id, marathonIds);
+			puzzles.forEach(function(p) {
+				var b = bests[p.id];
+				if (b) { p.bestStars = b.bestStars; p.attempts = b.attempts; }
+			});
+		}
+	}
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({
 		puzzles: puzzles,

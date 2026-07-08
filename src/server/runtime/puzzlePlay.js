@@ -133,6 +133,10 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		livesLost: 0
 	};
 
+	// Looked up once at start so the side panel can show "Best: X★" the whole time you're playing,
+	// the same way Solo's sidebar shows its best time continuously (rather than only after finishing).
+	var marathonBest = isMarathon ? db.getMarathonBest(user.id, puzzle.id) : null;
+
 	var obf = obfuscateBoard(board, puzzle.rows, puzzle.cols);
 	socket.emit("puzzle_board", {
 		mode: run ? run.mode : "rated",
@@ -153,12 +157,15 @@ function startPuzzlePlay(socket, playerID, user, puzzle, run, opts) {
 		// client uses this to size the board like a normal game instead of the small fixed puzzle
 		// box, and to hide the rating/ladder chrome that doesn't apply to them.
 		marathon: isMarathon,
+		bestStars: marathonBest ? marathonBest.bestStars : null,
+		attempts: marathonBest ? marathonBest.attempts : 0,
 		run: run ? Object.assign({
 			mode: run.mode,
 			targetRating: run.targetRating || null,
 			solves: run.solves || 0,
 			endsAt: run.endsAt || null
-		}, run.date ? { date: run.date } : {}, typeof run.streak === "number" ? { streak: run.streak } : {}) : null
+		}, run.date ? { date: run.date } : {}, typeof run.streak === "number" ? { streak: run.streak } : {},
+			typeof run.bestStreak === "number" ? { bestStreak: run.bestStreak } : {}) : null
 	});
 }
 
@@ -222,12 +229,13 @@ function finalizePuzzle(socket, playerID, solved) {
 	if (pp.mode === "daily") {
 		delete puzzlePlay[playerID];
 		var date = db.todayUtc();
-		db.recordDailyAttempt(pp.userId, date, solved);
+		db.recordDailyAttempt(pp.userId, date, solved); // also bumps player_stats.daily_streak_best
 		var streak = db.dailyStreakForUser(pp.userId);
 		socket.emit("puzzle_daily_result", {
 			date: date,
 			solved: solved,
 			streak: streak,
+			bestStreak: db.dailyStreakBestForUser(pp.userId),
 			puzzleId: pp.puzzleId
 		});
 		return;
@@ -261,10 +269,14 @@ function finalizePuzzle(socket, playerID, solved) {
 	}
 
 	delete puzzlePlay[playerID];
-	// Retry attempts (after a failure on the same puzzle) are practice — no
-	// Elo exchange, no DB write. The original failure already moved the
-	// rating; replaying for closure shouldn't be either rewarded or punished.
+	// Retry attempts (after a failure on the same puzzle) are practice — no Elo exchange. The original
+	// failure already moved the rating; replaying for closure shouldn't be either rewarded or punished.
+	// Marathon boards are the one noRating case that DOES get a DB write — marathon_best is the only
+	// history a marathon play leaves behind (see db.js), separate from the rated Elo/puzzle_attempts
+	// path below, which marathon never touches.
 	if (pp.noRating) {
+		var marathonResult = null;
+		if (pp.marathon) marathonResult = db.recordMarathonAttempt(pp.userId, pp.puzzleId, solved, pp.livesLost);
 		socket.emit("puzzle_result", {
 			puzzleId: pp.puzzleId,
 			solved: solved,
@@ -275,6 +287,9 @@ function finalizePuzzle(socket, playerID, solved) {
 			// `solved` false in the first place — so 3-livesLost is always a valid 1-3 star count.
 			livesLost: pp.livesLost,
 			stars: (solved && pp.marathon) ? (3 - pp.livesLost) : null,
+			bestStars: marathonResult ? marathonResult.bestStars : null,
+			isNewBest: marathonResult ? marathonResult.isNewBest : false,
+			attempts: marathonResult ? marathonResult.attempts : 0,
 			playerBefore: pp.playerBefore,
 			playerAfter: pp.playerBefore,
 			playerDelta: 0,
@@ -439,7 +454,8 @@ function registerSocketHandlers(socket, playerID) {
 				difficulty: puzzle.difficulty
 			} : null,
 			attempt: attempt ? { solved: !!attempt.solved, at: attempt.attempted_at } : null,
-			streak: db.dailyStreakForUser(u.id)
+			streak: db.dailyStreakForUser(u.id),
+			bestStreak: db.dailyStreakBestForUser(u.id)
 		});
 	});
 
@@ -455,7 +471,8 @@ function registerSocketHandlers(socket, playerID) {
 		startPuzzlePlay(socket, playerID, u, puzzle, {
 			mode: "daily",
 			date: date,
-			streak: db.dailyStreakForUser(u.id)
+			streak: db.dailyStreakForUser(u.id),
+			bestStreak: db.dailyStreakBestForUser(u.id)
 		});
 	});
 

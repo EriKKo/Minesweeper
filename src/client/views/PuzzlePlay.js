@@ -178,7 +178,9 @@ function togglePuzzleChrome(on, mode, marathon) {
 	if (skipBtn) skipBtn.style.display = marathon ? "none" : "";
 	var livesRow = document.getElementById("puzzle_lives_row");
 	if (livesRow) livesRow.style.display = marathon ? "" : "none";
-	if (marathon) updatePuzzleLivesHud();
+	var bestChip = document.getElementById("puzzle_marathon_best");
+	if (bestChip) bestChip.style.display = marathon ? "" : "none";
+	if (marathon) { updatePuzzleLivesHud(); updatePuzzleMarathonBestChip(); }
 }
 
 // 3 hearts, filled left-to-right for lives remaining — marathon boards only (see togglePuzzleChrome).
@@ -187,6 +189,22 @@ function updatePuzzleLivesHud() {
 	if (!hearts.length) return;
 	var livesLeft = (puzzleSession && puzzleSession.livesLeft != null) ? puzzleSession.livesLeft : 3;
 	hearts.forEach(function(el, i) { el.classList.toggle("lost", i >= livesLeft); });
+}
+
+// Live "Best: ★★☆" while playing a marathon board — the same "your standing record is always visible"
+// treatment Solo's sidebar gives its best time, so replaying a board doesn't feel like starting from
+// nothing. bestStars is null when this is the player's first-ever attempt at this puzzle.
+function updatePuzzleMarathonBestChip() {
+	var chip = document.getElementById("puzzle_marathon_best");
+	if (!chip || !puzzleSession) return;
+	chip.innerHTML = "";
+	if (puzzleSession.bestStars == null) {
+		chip.textContent = "First attempt";
+		return;
+	}
+	var label = document.createTextNode("Best: ");
+	chip.appendChild(label);
+	chip.appendChild(buildStarGlyphs(puzzleSession.bestStars, "marathon-star-mini"));
 }
 
 function updatePuzzleHud() {
@@ -235,12 +253,9 @@ function renderPuzzleRunHud() {
 	if (bestEl && account) {
 		if (run.mode === "streak") bestEl.textContent = String(account.streakBest || 0);
 		else if (run.mode === "storm") bestEl.textContent = String(account.stormBest || 0);
-		else if (run.mode === "daily") {
-			// Foot reads "Best · solved (Y/N today)" — keep it short.
-			bestEl.textContent = puzzleSession && puzzleSession.finished
-				? (puzzleSession.run.lastSolved ? "Solved" : "Missed")
-				: "—";
-		}
+		// Best daily streak — was previously showing "Solved"/"Missed" under a "Best" label, which
+		// didn't match the label at all (see showDailyOutcome for the actual result feedback).
+		else if (run.mode === "daily") bestEl.textContent = String(run.bestStreak || 0);
 	}
 }
 
@@ -387,6 +402,21 @@ function showPuzzleOutcome(result) {
 	flashPuzzleResult(result);
 }
 
+// Reusable 3-star rating glyphs — the marathon outcome panel, the live "Best" chip while playing, and
+// the admin Marathon Boards list all show the same star language, just at different sizes (extraClass
+// adds a size modifier alongside the shared marathon-star/filled pair, e.g. "marathon-star-mini").
+// Returns a fragment of exactly 3 spans; the caller supplies its own container/wrapper element.
+function buildStarGlyphs(count, extraClass) {
+	var frag = document.createDocumentFragment();
+	for (var i = 1; i <= 3; i++) {
+		var star = document.createElement("span");
+		star.className = "marathon-star" + (extraClass ? " " + extraClass : "") + (i <= count ? " filled" : "");
+		star.textContent = "★";
+		frag.appendChild(star);
+	}
+	return frag;
+}
+
 // Marathon result: a modal-style panel (like the run/daily outcomes below) rather than the inline
 // Ladder flash, since there's no rating/points to animate and no auto-advance to the next puzzle —
 // "Play again" replays THIS board (puzzle_retry), there's no queue of marathon boards to serve next.
@@ -402,12 +432,7 @@ function showMarathonOutcome(result) {
 	var starsRow = document.createElement("div");
 	starsRow.className = "marathon-stars-row";
 	var starCount = result.solved ? (result.stars || 0) : 0;
-	for (var i = 1; i <= 3; i++) {
-		var star = document.createElement("span");
-		star.className = "marathon-star" + (i <= starCount ? " filled" : "");
-		star.textContent = "★";
-		starsRow.appendChild(star);
-	}
+	starsRow.appendChild(buildStarGlyphs(starCount));
 	panel.appendChild(starsRow);
 
 	var detail = document.createElement("div");
@@ -417,6 +442,26 @@ function showMarathonOutcome(result) {
 		? (result.livesLost > 0 ? "Lost " + result.livesLost + " life" + (result.livesLost > 1 ? "s" : "") : "Flawless clear!")
 		: "You lost all 3 lives.";
 	panel.appendChild(detail);
+
+	// Per-board history: "New best!" when this attempt raised the record, otherwise the standing best
+	// (if any) — makes replaying the same board feel like it's building toward something instead of
+	// starting fresh every time, the same "beat your own record" language Solo/Streak/Storm already use.
+	var bestLine = document.createElement("div");
+	bestLine.className = "puzzle-best-line";
+	if (result.isNewBest) {
+		bestLine.classList.add("puzzle-best-line-new");
+		bestLine.textContent = "🏆 New best!";
+	} else if (result.bestStars != null) {
+		bestLine.textContent = "Best: ";
+		bestLine.appendChild(buildStarGlyphs(result.bestStars, "marathon-star-mini"));
+		if (result.attempts) {
+			var attemptsSpan = document.createElement("span");
+			attemptsSpan.className = "marathon-best-attempts";
+			attemptsSpan.textContent = " · " + result.attempts + " attempt" + (result.attempts === 1 ? "" : "s");
+			bestLine.appendChild(attemptsSpan);
+		}
+	}
+	if (bestLine.childNodes.length || bestLine.textContent) panel.appendChild(bestLine);
 
 	var actions = document.createElement("div");
 	actions.className = "result-actions";
@@ -470,6 +515,20 @@ function showDailyOutcome(data) {
 	line.textContent = "Streak · " + data.streak;
 	panel.appendChild(line);
 
+	// Best streak — same "beat your own record" language Solo/Streak/Storm already use, so the daily
+	// puzzle doesn't feel like it resets to nothing every single day.
+	if (typeof data.bestStreak === "number") {
+		var bestLine = document.createElement("div");
+		bestLine.className = "puzzle-best-line";
+		if (data.streak > 0 && data.streak >= data.bestStreak) {
+			bestLine.classList.add("puzzle-best-line-new");
+			bestLine.textContent = "🏆 New best streak!";
+		} else {
+			bestLine.textContent = "Best streak: " + data.bestStreak;
+		}
+		panel.appendChild(bestLine);
+	}
+
 	var foot = document.createElement("div");
 	foot.className = "result-foot";
 	foot.textContent = "Come back tomorrow for a new puzzle.";
@@ -493,23 +552,18 @@ function showDailyAlreadyDone(data) {
 	puzzleSession = {
 		mode: "daily",
 		finished: true,
-		run: { mode: "daily", date: data.date, streak: data.streak, lastSolved: data.attempt.solved }
+		run: { mode: "daily", date: data.date, streak: data.streak, bestStreak: data.bestStreak, lastSolved: data.attempt.solved }
 	};
 	// Show the side card chrome so the result panel reads naturally.
 	hideAllViews();
 	if (gameView) {
 		gameView.style.display = "";
-		// A leftover .duo/.multi from a race that ended without a room_state update in between (they're
-		// only cleared by applyDuoClass, which this path doesn't call) would otherwise hide #puzzle_card
-		// via ".game-view.multi .game-side > *:not(#all_opponents_div) { display: none; }" — see the
-		// same fix in Main.js's applyPuzzleBoard.
-		gameView.classList.remove("duo");
-		gameView.classList.remove("multi");
+		clearBattleLayoutClasses(); // see Main.js's clearBattleLayoutClasses comment
 		gameView.classList.add("puzzle");
 	}
 	togglePuzzleChrome(true, "daily");
 	updatePuzzleHud();
-	showDailyOutcome({ date: data.date, solved: data.attempt.solved, streak: data.streak });
+	showDailyOutcome({ date: data.date, solved: data.attempt.solved, streak: data.streak, bestStreak: data.bestStreak });
 }
 
 // Run-end panel (Streak / Storm). Modal-style since the run is done and

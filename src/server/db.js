@@ -189,6 +189,22 @@ db.exec(
 	"  PRIMARY KEY (user_id, size, density)" +
 	");"
 );
+// Marathon boards' per-user best attempt, one row per (user, puzzle). Marathon plays are unrated
+// (source="marathon" puzzles are always played with noRating:true — see puzzlePlay.js) so they never
+// touch puzzle_attempts/puzzles.attempts; this is the only history a marathon play leaves behind.
+// best_stars is 1-3 (3 lives, stars = 3 - livesLost on a solve); attempts counts every play, solved or
+// not, so the UI can show "Attempt #4" even before a first clear.
+db.exec(
+	"CREATE TABLE IF NOT EXISTS marathon_best (" +
+	"  user_id INTEGER NOT NULL," +
+	"  puzzle_id INTEGER NOT NULL," +
+	"  best_stars INTEGER NOT NULL," +
+	"  best_lives_lost INTEGER NOT NULL," +
+	"  attempts INTEGER NOT NULL DEFAULT 0," +
+	"  achieved_at INTEGER NOT NULL," +
+	"  PRIMARY KEY (user_id, puzzle_id)" +
+	");"
+);
 // Ranked match history: one row per human player per completed ranked match (written wherever Elo
 // is persisted — see elo.js). Powers the profile's rating graph + recent-games list. `rating_before`
 // / `rating_after` are the style's rating around this match; `placement`/`players` give the finish
@@ -1278,6 +1294,50 @@ function getSoloBests(userId) {
 	return map;
 }
 
+// Record a marathon-board attempt; updates the (user, puzzle) best only on a SOLVE with a strictly
+// higher star count (mirrors recordSoloBest's "only write when improved" logic — an unsolved attempt,
+// or a solved one that ties/loses to the stored best, still counts toward `attempts` but leaves
+// best_stars/best_lives_lost untouched). Returns { bestStars, isNewBest, attempts } so the client can
+// celebrate a new record the same way Solo does.
+function recordMarathonAttempt(userId, puzzleId, solved, livesLost) {
+	var row = db.prepare("SELECT best_stars, attempts FROM marathon_best WHERE user_id = ? AND puzzle_id = ?").get(userId, puzzleId);
+	var stars = solved ? (3 - livesLost) : 0;
+	var isNewBest = solved && (!row || stars > row.best_stars);
+	var attempts = (row ? row.attempts : 0) + 1;
+	if (isNewBest) {
+		db.prepare(
+			"INSERT OR REPLACE INTO marathon_best (user_id, puzzle_id, best_stars, best_lives_lost, attempts, achieved_at) VALUES (?, ?, ?, ?, ?, ?)"
+		).run(userId, puzzleId, stars, livesLost, attempts, Date.now());
+	} else if (row) {
+		db.prepare("UPDATE marathon_best SET attempts = ? WHERE user_id = ? AND puzzle_id = ?").run(attempts, userId, puzzleId);
+	} else {
+		// First-ever attempt on this puzzle and it wasn't a solve — still record the attempt count,
+		// with a 0 best (no star has been earned yet).
+		db.prepare(
+			"INSERT INTO marathon_best (user_id, puzzle_id, best_stars, best_lives_lost, attempts, achieved_at) VALUES (?, ?, 0, 0, ?, ?)"
+		).run(userId, puzzleId, attempts, Date.now());
+	}
+	return { bestStars: isNewBest ? stars : (row ? row.best_stars : 0), isNewBest: isNewBest, attempts: attempts };
+}
+
+// A user's best/attempts on one marathon board, or null if they've never played it.
+function getMarathonBest(userId, puzzleId) {
+	var row = db.prepare("SELECT best_stars, attempts FROM marathon_best WHERE user_id = ? AND puzzle_id = ?").get(userId, puzzleId);
+	return row ? { bestStars: row.best_stars, attempts: row.attempts } : null;
+}
+
+// Batch version of getMarathonBest for the admin list — one query for a whole page of puzzle ids.
+function getMarathonBests(userId, puzzleIds) {
+	var map = {};
+	if (!puzzleIds || !puzzleIds.length) return map;
+	var placeholders = puzzleIds.map(function() { return "?"; }).join(",");
+	var stmt = db.prepare("SELECT puzzle_id, best_stars, attempts FROM marathon_best WHERE user_id = ? AND puzzle_id IN (" + placeholders + ")");
+	stmt.all.apply(stmt, [userId].concat(puzzleIds)).forEach(function(r) {
+		map[r.puzzle_id] = { bestStars: r.best_stars, attempts: r.attempts };
+	});
+	return map;
+}
+
 function getPuzzleById(id) {
 	var row = db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id);
 	return row ? deserializePuzzle(row) : null;
@@ -1396,6 +1456,22 @@ function getRunBest(userId, mode) {
 	return row ? row.v : 0;
 }
 
+// The best daily-puzzle streak ever reached, kept in player_stats.daily_streak_best (bumped by
+// bumpDailyStats on every solve — see recordDailyAttempt below). Guarded by the same lazy backfill
+// achievementStats uses, so an existing player's historical best isn't shown as 0 the first time this
+// is read (a fresh player_stats row starts unbackfilled).
+function dailyStreakBestForUser(userId) {
+	try {
+		ensurePlayerStats(userId);
+		var row = db.prepare("SELECT daily_streak_best, backfilled FROM player_stats WHERE user_id = ?").get(userId);
+		if (row && !row.backfilled) {
+			backfillPlayerStats(userId);
+			row = db.prepare("SELECT daily_streak_best FROM player_stats WHERE user_id = ?").get(userId);
+		}
+		return (row && row.daily_streak_best) || 0;
+	} catch (e) { console.error("dailyStreakBestForUser failed", e); return 0; }
+}
+
 function setRunBest(userId, mode, score) {
 	var col = mode === "streak" ? "streak_best" : "storm_best";
 	db.prepare("UPDATE users SET " + col + " = ? WHERE id = ?").run(score, userId);
@@ -1498,6 +1574,9 @@ module.exports = {
 	displayNameOf: displayNameOf,
 	recordSoloBest: recordSoloBest,
 	getSoloBests: getSoloBests,
+	recordMarathonAttempt: recordMarathonAttempt,
+	getMarathonBest: getMarathonBest,
+	getMarathonBests: getMarathonBests,
 	pruneStaleGuests: pruneStaleGuests,
 	createSession: createSession,
 	getUserByToken: getUserByToken,
@@ -1549,6 +1628,7 @@ module.exports = {
 	getDailyAttempt: getDailyAttempt,
 	recordDailyAttempt: recordDailyAttempt,
 	dailyStreakForUser: dailyStreakForUser,
+	dailyStreakBestForUser: dailyStreakBestForUser,
 	legacyPuzzleRows: legacyPuzzleRows,
 	applyPuzzleClassification: applyPuzzleClassification,
 	// Starting positions

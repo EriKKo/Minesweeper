@@ -706,6 +706,27 @@ function renderHomeRankChips() {
 			? (account.puzzlesSolved || 0) + " / " + (account.puzzlesAttempted || 0)
 			: "";
 	}
+	// Solo home row: fastest recorded time across every size/density combo the player has cleared,
+	// so the row shows real progress instead of a static "Practice" label (Sprint/Standard/Puzzles all
+	// show something live; Solo was the one row with nothing).
+	var soloBestEl = document.getElementById("dash_solo_best");
+	var soloBestLabelEl = document.getElementById("dash_solo_best_label");
+	if (soloBestEl) {
+		var bests = account && account.soloBests;
+		var fastest = null;
+		if (bests) {
+			Object.keys(bests).forEach(function(k) {
+				if (fastest == null || bests[k] < fastest) fastest = bests[k];
+			});
+		}
+		if (fastest != null && typeof formatSoloTime === "function") {
+			soloBestEl.textContent = formatSoloTime(fastest);
+			if (soloBestLabelEl) soloBestLabelEl.textContent = "Best time";
+		} else {
+			soloBestEl.textContent = "Practice";
+			if (soloBestLabelEl) soloBestLabelEl.textContent = "";
+		}
+	}
 	var streakBestEl = document.getElementById("puzzle_streak_best");
 	var stormBestEl = document.getElementById("puzzle_storm_best");
 	if (streakBestEl) streakBestEl.textContent = account ? (account.streakBest || 0) : "—";

@@ -131,7 +131,7 @@ function renderMarathonBoards() {
 	tableWrap.className = "marathon-table-wrap";
 	var header = document.createElement("div");
 	header.className = "marathon-row marathon-row-head";
-	["Size", "Mines", "Max diff", "Total diff", "Tier", "Method", "Passes", "Created", ""].forEach(function(label) {
+	["Size", "Mines", "Max diff", "Total diff", "Tier", "Method", "Passes", "Best", "Created", ""].forEach(function(label) {
 		var cell = document.createElement("div");
 		cell.textContent = label;
 		header.appendChild(cell);
@@ -160,7 +160,11 @@ function refreshMarathonList() {
 		"pageSize=" + marathonListState.pageSize
 	];
 	if (marathonListState.tier) bits.push("diff=" + marathonListState.tier);
-	fetch("/api/puzzles?" + bits.join("&")).then(function(r) { return r.json(); }).then(function(data) {
+	// The session token lets the server attach the signed-in admin's own best (marathon_best) to each
+	// row — same "read-only, no admin-gate" header pattern PuzzleLab.js uses for its own requests.
+	var headers = {};
+	try { var t = localStorage.getItem("ms_session"); if (t) headers["X-Session-Token"] = t; } catch (e) {}
+	fetch("/api/puzzles?" + bits.join("&"), { headers: headers }).then(function(r) { return r.json(); }).then(function(data) {
 		var boards = data.puzzles || [];
 		var total = typeof data.total === "number" ? data.total : boards.length;
 		var status = document.getElementById("marathon_boards_status");
@@ -245,6 +249,16 @@ function renderMarathonRow(p) {
 	var passes = document.createElement("div");
 	passes.textContent = p.genIterations != null ? p.genIterations : "—";
 	row.appendChild(passes);
+
+	var best = document.createElement("div");
+	best.className = "marathon-cell-best";
+	if (p.bestStars != null) {
+		best.appendChild(buildStarGlyphs(p.bestStars, "marathon-star-mini"));
+		if (p.attempts) best.title = p.attempts + " attempt" + (p.attempts === 1 ? "" : "s");
+	} else {
+		best.textContent = "—";
+	}
+	row.appendChild(best);
 
 	var created = document.createElement("div");
 	created.textContent = relativeTime(p.createdAt || p.created_at);

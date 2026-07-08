@@ -1599,6 +1599,16 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 .marathon-stars-row { display: flex; justify-content: center; gap: 0.4rem; font-size: 2.2rem; line-height: 1; margin: 0.6rem 0; }
 .marathon-star { color: var(--muted); opacity: 0.35; }
 .marathon-star.filled { color: #fbbf24; opacity: 1; }
+/* Compact star variant — the live "Best" chip while playing, the outcome panel's best-line, and the
+   admin Marathon Boards list's Best column all reuse the same marathon-star colors at a smaller size. */
+.marathon-star-mini { font-size: 0.85rem; }
+/* Live "Best: ★★☆" chip on the side panel while playing a marathon board (togglePuzzleChrome /
+   updatePuzzleMarathonBestChip) — same quiet-but-always-visible treatment as Solo's sidebar best time. */
+.puzzle-marathon-best { display: flex; align-items: center; gap: 0.2rem; margin-top: 0.4rem; font-size: 0.82rem; color: var(--muted); }
+/* Outcome panel's best-line (below the big stars row) — muted by default, gold + bold on a fresh record. */
+.puzzle-best-line { display: flex; align-items: center; justify-content: center; gap: 0.2rem; margin-top: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+.puzzle-best-line-new { color: #fbbf24; font-weight: 700; font-size: 0.95rem; }
+.marathon-best-attempts { color: var(--muted); font-weight: 400; }
 .puzzle-hint-btn {
 	margin-top: 0.4rem;
 	display: flex; align-items: center; justify-content: center; gap: 0.5rem;
@@ -2122,7 +2132,7 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
 .marathon-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
 .marathon-row {
 	display: grid;
-	grid-template-columns: 4.5rem 5.5rem 4.5rem 5rem 3rem 8rem 3.5rem 5rem 4rem;
+	grid-template-columns: 4.5rem 5.5rem 4.5rem 5rem 3rem 8rem 3.5rem 4rem 5rem 4rem;
 	align-items: center;
 	gap: 0.6rem;
 	padding: 0.55rem 0.8rem;
@@ -2134,6 +2144,7 @@ input[type="range"]:disabled { opacity: 0.55; cursor: not-allowed; }
    variant — ellipsize instead of overflowing into the next column; the full string is in the title
    tooltip (see MarathonBoards.js). */
 .marathon-cell-method { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.marathon-cell-best { font-size: 0.9rem; white-space: nowrap; }
 .marathon-row-head {
 	font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
 	font-weight: 700; background: var(--surface-2);

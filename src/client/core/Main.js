@@ -45,6 +45,18 @@ function battleSize() {
 function isDuoRacing() { return battleSize() === 2; }
 function isMultiRacing() { var n = battleSize(); return n >= 3 && n <= 6; }
 function isBattleRacing() { return isDuoRacing() || isMultiRacing(); }
+// duo/multi (the 1v1 / 3-6 player battle layouts) must always be cleared together — a leftover from
+// one leaking into a mode that doesn't expect it breaks that mode's CSS (a leftover .multi hid the
+// Puzzle Ladder side panel via ".game-view.multi .game-side > *:not(#all_opponents_div) { display:
+// none; }", style.css, out-specificity-ing the puzzle-mode rule that was supposed to show it — the
+// .duo rule has the same shape). Anything entering non-racing chrome (puzzle, solo, …) should call
+// this instead of hand-rolling classList.remove("duo") — a single source of truth so a future entry
+// point can't reintroduce the bug by forgetting the sibling class.
+function clearBattleLayoutClasses() {
+	if (typeof gameView === "undefined" || !gameView) return;
+	gameView.classList.remove("duo");
+	gameView.classList.remove("multi");
+}
 function applyDuoClass() {
 	// Battle layout while playing (the countdown counts as playing). Ranked matches also use it during
 	// the brief planning/reveal window so you see the field immediately on joining; custom rooms
@@ -53,8 +65,9 @@ function applyDuoClass() {
 	var searching = !!(rankedSearch && rankedSearch.race); // in-battle search shows the field too
 	var on = playing || searching;
 	if (typeof gameView !== "undefined" && gameView) {
-		gameView.classList.toggle("duo", isDuoRacing() && on);
-		gameView.classList.toggle("multi", isMultiRacing() && on);
+		clearBattleLayoutClasses();
+		if (on && isDuoRacing()) gameView.classList.add("duo");
+		else if (on && isMultiRacing()) gameView.classList.add("multi");
 		// The battle layout changes the column widths, so the own board has to be re-fit to the new
 		// game-left track — otherwise it stays at the small fallback cell size it was built with before
 		// the layout settled. Re-measure on the next frame once the new layout has been applied
@@ -549,7 +562,9 @@ function applyPuzzleBoard(data) {
 		mode: data.mode || "rated",
 		run: data.run || null,
 		marathon: !!data.marathon,
-		livesLeft: 3 // only shown/consumed for marathon boards, but harmless to always set
+		livesLeft: 3, // only shown/consumed for marathon boards, but harmless to always set
+		bestStars: (typeof data.bestStars === "number") ? data.bestStars : null,
+		attempts: data.attempts || 0
 	};
 	if (puzzleSession.mode === "storm") startStormTicker(); else stopStormTicker();
 	puzzleHintClues = [];
@@ -598,12 +613,7 @@ function applyPuzzleBoard(data) {
 	hideAllViews();
 	gameView.style.display = "";
 	document.body.classList.add("in-game");
-	// Both battle-layout classes, not just duo: a leftover .multi from a 3-6 player race (it's only
-	// ever cleared by applyDuoClass, which doesn't run on this path) matches ".game-view.multi
-	// .game-side > *:not(#all_opponents_div) { display: none; }" and silently hides #puzzle_card even
-	// though togglePuzzleChrome just turned it back on — the CSS class rule wins over the inline style.
-	gameView.classList.remove("duo");
-	gameView.classList.remove("multi");
+	clearBattleLayoutClasses(); // see its own comment — a leftover .multi/.duo would hide #puzzle_card
 	gameView.classList.add("puzzle");
 	gameView.classList.toggle("marathon", puzzleSession.marathon);
 	togglePuzzleChrome(true, puzzleSession.mode, puzzleSession.marathon);
@@ -632,6 +642,10 @@ socket.on("puzzle_result", function(data) {
 	if (puzzleSession.mode === "streak" || puzzleSession.mode === "storm") return;
 	puzzleSession.finished = true;
 	puzzleSession.result = data;
+	if (data.marathon && typeof data.bestStars === "number") {
+		puzzleSession.bestStars = data.bestStars;
+		puzzleSession.attempts = data.attempts || puzzleSession.attempts;
+	}
 	// Retry attempts (noRating) leave rating + counters + streak untouched —
 	// the original attempt already moved them. Skip account mutation so a
 	// practice solve doesn't double-count or revive a broken streak.
@@ -676,6 +690,7 @@ socket.on("puzzle_daily_status", function(data) {
 	// Two cases: arriving on the /puzzles/daily route, OR home-card prefetch.
 	if (account) {
 		account.dailyStreak = data.streak || 0;
+		account.dailyStreakBest = data.bestStreak || 0;
 		account.dailyAttempt = data.attempt || null;
 		account.dailyBoard = data.board || null;
 		account.dailyDate = data.date || null;
@@ -698,6 +713,7 @@ socket.on("puzzle_daily_result", function(data) {
 	puzzleSession.run = puzzleSession.run || {};
 	puzzleSession.run.streak = data.streak;
 	puzzleSession.run.lastSolved = data.solved;
+	if (typeof data.bestStreak === "number") puzzleSession.run.bestStreak = data.bestStreak;
 	stopStormTicker();
 	if (account) {
 		account.dailyStreak = data.streak;
@@ -794,9 +810,7 @@ socket.on("solo_board", function(data) {
 	hideAllViews();
 	gameView.style.display = "";
 	document.body.classList.add("in-game");
-	// Same leftover-.multi hazard as applyPuzzleBoard — see the comment there.
-	gameView.classList.remove("duo");
-	gameView.classList.remove("multi");
+	clearBattleLayoutClasses(); // same leftover-.multi hazard as applyPuzzleBoard — see its comment
 	gameView.classList.add("solo");
 	toggleSoloChrome(true);
 	sizePlayerCanvas();

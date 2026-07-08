@@ -135,6 +135,57 @@ test("marathon board: the 3rd mine hit ends the run (no 3rd puzzle_mine_hit, str
 	} finally { c.close(); }
 });
 
+test("marathon board: best stars only improve, never regress, across repeated attempts by the same player", async function() {
+	var c = connect();
+	try {
+		// Attempt 1: first-ever play — no history yet.
+		var board1 = await startPuzzle(c, ids[MARATHON_2MINE.key]);
+		assert.strictEqual(board1.bestStars, null, "no best before any attempt");
+		assert.strictEqual(board1.attempts, 0);
+
+		c.emit("left_click", { r: 0, c: 0, id: "1" });
+		await once(c, "puzzle_mine_hit", 3000);
+		c.emit("left_click", { r: 3, c: 3, id: "1" });
+		await once(c, "puzzle_mine_hit", 3000);
+		SAFE_CELLS_4X4.forEach(function(rc) { c.emit("left_click", { r: rc[0], c: rc[1], id: "1" }); });
+		var result1 = await once(c, "puzzle_result", 6000);
+		assert.strictEqual(result1.stars, 1);
+		assert.strictEqual(result1.bestStars, 1);
+		assert.strictEqual(result1.isNewBest, true);
+		assert.strictEqual(result1.attempts, 1);
+
+		// Attempt 2: replay via puzzle_retry — the board payload should now show attempt 1's best.
+		c.emit("puzzle_retry", { puzzleId: ids[MARATHON_2MINE.key] });
+		var board2 = await once(c, "puzzle_board", 6000);
+		assert.strictEqual(board2.bestStars, 1);
+		assert.strictEqual(board2.attempts, 1);
+
+		// A flawless clear (0 lives lost -> 3 stars) beats it.
+		SAFE_CELLS_4X4.forEach(function(rc) { c.emit("left_click", { r: rc[0], c: rc[1], id: "1" }); });
+		var result2 = await once(c, "puzzle_result", 6000);
+		assert.strictEqual(result2.stars, 3);
+		assert.strictEqual(result2.bestStars, 3);
+		assert.strictEqual(result2.isNewBest, true);
+		assert.strictEqual(result2.attempts, 2);
+
+		// Attempt 3: a WORSE solve (2 lives lost again) must not regress the stored best.
+		c.emit("puzzle_retry", { puzzleId: ids[MARATHON_2MINE.key] });
+		var board3 = await once(c, "puzzle_board", 6000);
+		assert.strictEqual(board3.bestStars, 3, "the side panel should keep showing the real best, not this attempt's");
+
+		c.emit("left_click", { r: 0, c: 0, id: "1" });
+		await once(c, "puzzle_mine_hit", 3000);
+		c.emit("left_click", { r: 3, c: 3, id: "1" });
+		await once(c, "puzzle_mine_hit", 3000);
+		SAFE_CELLS_4X4.forEach(function(rc) { c.emit("left_click", { r: rc[0], c: rc[1], id: "1" }); });
+		var result3 = await once(c, "puzzle_result", 6000);
+		assert.strictEqual(result3.stars, 1, "this attempt itself scored only 1 star");
+		assert.strictEqual(result3.bestStars, 3, "but the STORED best must stay at 3");
+		assert.strictEqual(result3.isNewBest, false);
+		assert.strictEqual(result3.attempts, 3);
+	} finally { c.close(); }
+});
+
 test("non-marathon puzzle: first mine hit ends the run immediately (unchanged behavior)", async function() {
 	var c = connect();
 	try {

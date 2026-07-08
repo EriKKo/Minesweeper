@@ -152,7 +152,12 @@
 								<h4 class="dash-row-title">Solo</h4>
 								<p class="dash-row-sub">Practice to improve your times</p>
 							</span>
-							<span class="dash-row-stat"><span class="dash-row-casual">Practice</span></span>
+							<span class="dash-row-stat">
+								<span class="dash-row-stat-text">
+									<span class="mode-card-rank-tier" id="dash_solo_best">—</span>
+									<span class="mode-card-rank-rating" id="dash_solo_best_label"></span>
+								</span>
+							</span>
 						</a>
 					</div>
 
@@ -730,6 +735,9 @@
 								<span class="puzzle-life" data-life="2">♥</span>
 								<span class="puzzle-life" data-life="3">♥</span>
 							</div>
+							<!-- Marathon boards only: this board's standing best, live for the whole play (not just
+							     the post-game panel) — see togglePuzzleChrome/updatePuzzleMarathonBestChip. -->
+							<div id="puzzle_marathon_best" class="puzzle-marathon-best" style="display:none"></div>
 							<button id="puzzle_hint_btn" class="btn btn-secondary puzzle-hint-btn" type="button">
 								<span class="puzzle-hint-icon">💡</span>
 								<span>Hint</span>
