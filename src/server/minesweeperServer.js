@@ -90,7 +90,7 @@ function handler (req, res) {
 	if (role.isSplit() && internalApi.handleInternalRoute(req, res, url)) return;
 	if (oauth.handleAuthRoute(req, res, url)) return;
 	if (puzzleApi.handleApiRoute(req, res, url)) return;
-	staticServer.serve(res, url.pathname);
+	staticServer.serve(res, url.pathname, req);
 }
 
 

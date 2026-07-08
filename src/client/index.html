@@ -914,45 +914,51 @@
 		</div>
 	</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="/BoardLogic.js"></script>
-<script src="/core/Countries.js"></script>
-<script src="/core/PuzzleLadder.js"></script>
-<script src="/ui/Fullscreen.js"></script>
-<script src="/core/BoardRender.js"></script>
-<script src="/admin/AdminList.js"></script>
-<script src="/ui/MobileLayout.js"></script>
-<script src="/views/Ranking.js"></script>
-<script src="/views/Leaderboard.js"></script>
-<script src="/views/MatchPanels.js"></script>
-<script src="/views/Lobby.js"></script>
-<script src="/views/GameRoom.js"></script>
-<script src="/core/Animations.js"></script>
-<script src="/ui/Keybindings.js"></script>
-<script src="/core/Input.js"></script>
-<script src="/ui/Sound.js"></script>
-<script src="/ui/Music.js"></script>
-<script src="/admin/PuzzleLab.js"></script>
-<script src="/admin/Puzzles.js"></script>
-<script src="/admin/BotsAdmin.js"></script>
-<script src="/admin/StartingPositionsView.js"></script>
-<script src="/admin/PatternsView.js"></script>
-<script src="/admin/StartPatternsView.js"></script>
-<script src="/admin/CombinedPuzzlesView.js"></script>
-<script src="/admin/MarathonBoards.js"></script>
-<script src="/admin/DesignView.js"></script>
-<script src="/views/Territory.js"></script>
-<script src="/views/PuzzlePlay.js"></script>
-<script src="/ui/Overlay.js"></script>
-<script src="/ui/RoundTimer.js"></script>
-<script src="/core/BoardDecoder.js"></script>
-<script src="/ui/DangerWarning.js"></script>
-<script src="/ui/Auth.js"></script>
-<script src="/views/Learn.js"></script>
-<script src="/views/Solo.js"></script>
-<script src="/views/Profile.js"></script>
-<script src="/views/Replay.js"></script>
-<script src="/ui/Router.js"></script>
-<script src="/core/Main.js"></script>
+<!-- All deferred (not just async): defer preserves this document order for execution — the same
+     guarantee blocking scripts placed at the end of body already gave, since every one of these
+     relies on plain-global side effects from files loaded earlier in the list — while letting the
+     browser fetch all of them in parallel during HTML parsing instead of blocking the parser on each
+     one sequentially. Execution still happens after parsing completes, same as today (these tags are
+     already the last thing in body), so document.readyState-dependent code elsewhere is unaffected. -->
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/BoardLogic.js" defer></script>
+<script src="/core/Countries.js" defer></script>
+<script src="/core/PuzzleLadder.js" defer></script>
+<script src="/ui/Fullscreen.js" defer></script>
+<script src="/core/BoardRender.js" defer></script>
+<script src="/admin/AdminList.js" defer></script>
+<script src="/ui/MobileLayout.js" defer></script>
+<script src="/views/Ranking.js" defer></script>
+<script src="/views/Leaderboard.js" defer></script>
+<script src="/views/MatchPanels.js" defer></script>
+<script src="/views/Lobby.js" defer></script>
+<script src="/views/GameRoom.js" defer></script>
+<script src="/core/Animations.js" defer></script>
+<script src="/ui/Keybindings.js" defer></script>
+<script src="/core/Input.js" defer></script>
+<script src="/ui/Sound.js" defer></script>
+<script src="/ui/Music.js" defer></script>
+<script src="/admin/PuzzleLab.js" defer></script>
+<script src="/admin/Puzzles.js" defer></script>
+<script src="/admin/BotsAdmin.js" defer></script>
+<script src="/admin/StartingPositionsView.js" defer></script>
+<script src="/admin/PatternsView.js" defer></script>
+<script src="/admin/StartPatternsView.js" defer></script>
+<script src="/admin/CombinedPuzzlesView.js" defer></script>
+<script src="/admin/MarathonBoards.js" defer></script>
+<script src="/admin/DesignView.js" defer></script>
+<script src="/views/Territory.js" defer></script>
+<script src="/views/PuzzlePlay.js" defer></script>
+<script src="/ui/Overlay.js" defer></script>
+<script src="/ui/RoundTimer.js" defer></script>
+<script src="/core/BoardDecoder.js" defer></script>
+<script src="/ui/DangerWarning.js" defer></script>
+<script src="/ui/Auth.js" defer></script>
+<script src="/views/Learn.js" defer></script>
+<script src="/views/Solo.js" defer></script>
+<script src="/views/Profile.js" defer></script>
+<script src="/views/Replay.js" defer></script>
+<script src="/ui/Router.js" defer></script>
+<script src="/core/Main.js" defer></script>
 </body>
 </html>
