@@ -5005,21 +5005,21 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Skeleton loader cover — the real card is always rendered underneath at its normal size (see
    index.html); this shimmer overlay fades out once the corresponding render function actually
    populates it with live data (or a short timeout passes — see hideSkeleton()/showLobbyView() in
-   Router.js), so a slow connection never shimmers forever. Deliberately a shade darker than the
-   card it sits on (var(--bg), not var(--surface-2)) so it reads clearly as a loading state instead
-   of blending into the card background; the "bones" (.skel-bar/.skel-circle) mimic the shape of the
-   real content underneath, same idea as achtung-royale's .load-skel/.load-bar. */
+   Router.js), so a slow connection never shimmers forever. A translucent tint (not a flat opaque
+   color) so it reads as a soft "loading" veil over the card rather than a hard dark block; the
+   "bones" (.skel-bar/.skel-circle) mimic the shape of the real content underneath, same idea as
+   achtung-royale's .load-skel/.load-bar. */
 .dash-skel-cover {
 	position: absolute;
 	inset: 0;
 	z-index: 5;
 	border-radius: inherit;
-	background: var(--bg);
+	background: rgba(11, 16, 32, 0.4);
 	transition: opacity 0.35s ease;
 }
 .dash-skel-cover.skel-hide { opacity: 0; pointer-events: none; }
-.skel-bar { display: block; background: rgba(255, 255, 255, 0.1); border-radius: 6px; }
-.skel-circle { display: block; border-radius: 50%; background: rgba(255, 255, 255, 0.1); flex: 0 0 auto; }
+.skel-bar { display: block; background: rgba(255, 255, 255, 0.08); border-radius: 6px; }
+.skel-circle { display: block; border-radius: 50%; background: rgba(255, 255, 255, 0.08); flex: 0 0 auto; }
 /* "You" card skeleton: badge circle + two stacked bars, laid out like the real identity row. */
 .dash-skel-cover.skel-you { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.2rem; }
 .dash-skel-cover.skel-you .skel-bars { display: flex; flex-direction: column; gap: 0.5rem; }
