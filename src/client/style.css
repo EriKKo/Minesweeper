@@ -5048,12 +5048,17 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row {
 	display: flex; align-items: center; gap: 0.9rem;
 	background: var(--surface); border: 1px solid var(--border);
-	border-left: 3px solid var(--dash-acc, var(--accent));
 	border-radius: 12px; padding: 0.55rem 0.9rem;
 	text-decoration: none; color: var(--text);
-	transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+	transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.dash-row:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); border-color: var(--dash-acc, var(--accent)); }
+/* A single accent on hover (not a per-mode color), and a small zoom in every direction
+   instead of the old upward-only lift — same idea as achtung-royale's .lobby-card:hover. */
+.dash-row:hover {
+	transform: scale(1.015);
+	border-color: var(--accent);
+	box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgba(0, 0, 0, 0.35);
+}
 .dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 165px; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
@@ -5064,10 +5069,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
 .dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
 .dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
-.dash-row-sprint { --dash-acc: var(--mode-sprint); }
-.dash-row-standard { --dash-acc: var(--mode-standard); }
-.dash-row-puzzles { --dash-acc: #60a5fa; }
-.dash-row-solo { --dash-acc: #34d399; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
 .dash-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 1rem; }
