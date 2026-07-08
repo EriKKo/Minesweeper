@@ -63,9 +63,9 @@ var menuSignoutButton = document.getElementById("menu_signout");
 		// REAL avatar's exact size, rather than the Sign-in pill, so the reserved space is already
 		// the right shape when the actual identity lands a moment later.
 		if (userAvatarFallback) userAvatarFallback.classList.add("skel-shimmer");
-		if (userAccount) userAccount.style.display = "";
+		if (userAccount) userAccount.style.visibility = "visible";
 	} else {
-		if (signinButton) signinButton.style.display = "";
+		if (signinButton) signinButton.style.visibility = "visible";
 	}
 })();
 
@@ -134,8 +134,8 @@ function applyUserIdentity(data) {
 		// synchronous first-frame guess may have applied.
 		if (userAvatarFallback) userAvatarFallback.classList.remove("skel-shimmer");
 	}
-	if (signinButton) signinButton.style.display = isGuest ? "" : "none";
-	if (userAccount) userAccount.style.display = isGuest ? "none" : "";
+	if (signinButton) signinButton.style.visibility = isGuest ? "visible" : "hidden";
+	if (userAccount) userAccount.style.visibility = isGuest ? "hidden" : "visible";
 	if (isGuest) closeUserAccountPopover();
 	renderMenuAccount(isGuest);
 }
@@ -268,8 +268,8 @@ function doSignOut() {
 	// Flip to the guest view optimistically (we know guest_session below will land us there
 	// shortly) instead of hiding the whole reserved slot — #user_badge itself always stays laid
 	// out now (see the CLS fix at the top of this file), only its children toggle.
-	if (userAccount) userAccount.style.display = "none";
-	if (signinButton) signinButton.style.display = "";
+	if (userAccount) userAccount.style.visibility = "hidden";
+	if (signinButton) signinButton.style.visibility = "visible";
 	setSignedInHint(false);
 	socket.emit("guest_session"); // drop back to a fresh guest rather than a login wall
 }

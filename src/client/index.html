@@ -6,8 +6,15 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<!-- Display face for headings, brand, and numbers (--font-display). Body stays system sans.
-	     swap = render with the fallback immediately, never block on the font. -->
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap">
+	     optional = render with the fallback immediately and never swap in the web font later if it's
+	     still loading — swap (the previous value) also renders the fallback first, but SWAPS to Space
+	     Grotesk whenever it finishes loading, and its width/letter-spacing differ enough from the
+	     system-ui fallback that .logo-name ("MSBattle" in the topbar) visibly changes width on the
+	     swap — .logo and .site-nav are flex siblings under justify-content:space-between, so that
+	     width change shifts .site-nav sideways, independent of (and in addition to) the user-badge
+	     shift fixed separately. optional trades "the custom font might not show up on a slow first
+	     visit" for "the topbar never moves once painted" — worth it here since the font is cosmetic. -->
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=optional">
 	<link rel="stylesheet" type="text/css" href="/style.css">
 	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 	<title>MSBattle — Multiplayer Minesweeper</title>
@@ -55,15 +62,17 @@
 					</label>
 				</div>
 			</div>
-			<!-- Reserved-width auth slot: whichever child shows (Sign in pill, or the avatar), the box
-			     never changes size — the initial visible child is picked SYNCHRONOUSLY (before the
-			     socket even connects) from a cached localStorage hint (see Auth.js's IIFE at the top
-			     of the file), so this never pops in from nothing and never re-widens the centered
-			     .site-nav next to it. No inline display:none here on purpose — one of the two children
-			     is always showing from the very first frame. -->
+			<!-- Reserved auth slot — CSS-grid-stacked (see .user-badge in style.css): both children
+			     below sit in the same grid cell, so the slot's size is the browser-computed max of
+			     whichever is bigger, not a guessed min-width/min-height. visibility (not display) is
+			     what toggles which one shows — both stay in normal flow either way, so the slot can
+			     never resize when swapping between them. The initially-visible one is picked
+			     SYNCHRONOUSLY (before the socket even connects) from a cached localStorage hint — see
+			     Auth.js's IIFE at the top of the file — so this never pops in from nothing and never
+			     re-widens the centered .site-nav next to it. -->
 			<div id="user_badge" class="user-badge">
-				<button id="signin_button" class="btn btn-primary" type="button" style="display:none">Sign in</button>
-				<div id="user_account" class="user-account" style="display:none">
+				<button id="signin_button" class="btn btn-primary" type="button" style="visibility:hidden">Sign in</button>
+				<div id="user_account" class="user-account" style="visibility:hidden">
 					<button id="user_avatar_btn" class="user-avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">
 						<img id="user_avatar_img" class="user-avatar-img" alt="" style="display:none">
 						<span id="user_avatar_fallback" class="user-avatar-fallback" aria-hidden="true"></span>

@@ -639,16 +639,20 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
    showing — the Sign-in pill or the avatar — sits flush against the topbar's right edge inside a
    box that's always at least as wide as the wider of the two, so the centered .site-nav next to it
    never shifts when the real auth state resolves or on sign in/out. */
+/* Reserved auth slot, CSS-grid-stacked rather than hand-sized: both possible children (#signin_button
+   and #user_account) sit in the SAME grid cell (all direct children default to grid-area 1/1), so the
+   cell's size is the browser-computed max of whichever is bigger — no guessed min-width/min-height
+   that could be wrong. Only ONE is ever visible at a time (JS toggles visibility, not display — see
+   Auth.js), but BOTH stay in normal flow for sizing purposes, so the reserved footprint can't be
+   smaller than either state and the slot never resizes when swapping between them. */
 .user-badge {
-	display: flex;
+	display: grid;
 	align-items: center;
-	justify-content: flex-end;
-	gap: 0.6rem;
+	justify-items: end;
 	font-size: 0.9rem;
 	color: var(--muted);
-	min-width: 5.5rem;
-	min-height: 2.6rem; /* tallest of the two children (the .btn Sign-in pill) — see the vertical CLS fix */
 }
+.user-badge > * { grid-area: 1 / 1; }
 
 .user-badge strong { color: var(--text); font-weight: 600; }
 
