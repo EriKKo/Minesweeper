@@ -51,19 +51,6 @@
 			</div>
 		</nav>
 		<div class="topbar-right">
-			<div class="audio-control">
-				<button id="mute_button" class="btn btn-ghost" type="button" aria-label="Sound settings">🔊</button>
-				<div id="audio_panel" class="audio-panel" hidden>
-					<label class="audio-panel-row">
-						<span class="audio-panel-label">Music</span>
-						<input id="music_slider" type="range" min="0" max="100" aria-label="Music volume">
-					</label>
-					<label class="audio-panel-row">
-						<span class="audio-panel-label">Effects</span>
-						<input id="volume_slider" type="range" min="0" max="100" aria-label="Effects volume">
-					</label>
-				</div>
-			</div>
 			<!-- Reserved auth slot — CSS-grid-stacked (see .user-badge in style.css): both children
 			     below sit in the same grid cell, so the slot's size is the browser-computed max of
 			     whichever is bigger, not a guessed min-width/min-height. visibility (not display) is
@@ -489,6 +476,7 @@
 			<h1 class="section-page-title">Settings</h1>
 			<p class="section-page-sub">Local preferences — board skin and controls, saved on this device.</p>
 			<div id="gameplay_card" class="section-card"></div>
+			<div id="audio_card" class="section-card" style="margin-top:1.25rem"></div>
 			<div id="skins_card" class="section-card" style="margin-top:1.25rem"></div>
 			<div id="controls_card" class="section-card" style="margin-top:1.25rem"></div>
 		</section>

@@ -288,6 +288,7 @@ function showSettingsView() {
 	document.getElementById("settings_view").style.display = "";
 	setSiteNavActive("settings");
 	if (typeof renderGameplaySettings === "function") renderGameplaySettings();
+	if (typeof renderAudioSettings === "function") renderAudioSettings();
 	if (typeof renderBoardSkins === "function") renderBoardSkins();
 	if (typeof renderKeybindings === "function") renderKeybindings();
 }

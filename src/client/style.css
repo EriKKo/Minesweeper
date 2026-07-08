@@ -617,24 +617,6 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .ach-complete .ach-prog-bar { background: var(--success, #4ade80); } /* all tiers done = green */
 .ach-prog-text { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.audio-control {
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
-}
-
-.audio-control #mute_button {
-	font-size: 1rem;
-	padding: 0.3rem 0.45rem;
-	line-height: 1;
-}
-
-#volume_slider {
-	width: 84px;
-	accent-color: var(--accent);
-	cursor: pointer;
-}
-
 /* Reserved-width auth slot (see the CLS-fix comment in index.html / Auth.js): whichever child is
    showing — the Sign-in pill or the avatar — sits flush against the topbar's right edge inside a
    box that's always at least as wide as the wider of the two, so the centered .site-nav next to it
@@ -692,8 +674,7 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 .user-avatar-btn:hover .user-avatar-img,
 .user-avatar-btn:hover .user-avatar-fallback { box-shadow: 0 0 0 2px var(--accent-hover); }
 
-/* Account popover — Profile + Sign out, opened by clicking the avatar. Same positioning shape as the
-   topbar's existing audio-settings popover (.audio-panel). */
+/* Account popover — Profile + Sign out, opened by clicking the avatar. */
 .user-account-popover {
 	position: absolute;
 	top: calc(100% + 0.4rem); right: 0;
@@ -4985,24 +4966,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.puzzles-stats-body { grid-template-columns: 1fr; }
 }
 
-/* Audio settings popover (music + effects volume sliders). */
-.audio-control { position: relative; }
-.audio-panel {
-	position: absolute;
-	top: calc(100% + 0.4rem); right: 0;
-	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 0.5rem;
-	box-shadow: var(--shadow);
-	padding: 0.6rem 0.8rem;
-	display: flex; flex-direction: column; gap: 0.4rem;
-	min-width: 14rem;
-	z-index: 50;
+/* Audio settings (Settings page): a volume slider on the right of a .setting-row. */
+.setting-row-slider {
+	width: 140px;
+	flex: 0 0 auto;
 }
-.audio-panel[hidden] { display: none; }
-.audio-panel-row { display: flex; align-items: center; gap: 0.6rem; }
-.audio-panel-label { min-width: 4.2rem; font-size: 0.82rem; color: var(--muted); }
-.audio-panel-row input[type="range"] { flex: 1; }
 
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the

@@ -140,8 +140,7 @@ function applyUserIdentity(data) {
 	renderMenuAccount(isGuest);
 }
 
-// Account popover — Profile link + Sign out, opened by clicking the avatar. Same [hidden]-toggle +
-// outside-click-to-close shape as the topbar's existing audio-settings popover (#audio_panel).
+// Account popover — Profile link + Sign out, opened by clicking the avatar.
 function setUserAccountPopoverOpen(open) {
 	if (!userAccountPopover || !userAvatarBtn) return;
 	if (open) userAccountPopover.removeAttribute("hidden");

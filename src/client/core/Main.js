@@ -893,10 +893,6 @@ var leaderboardList = document.getElementById("leaderboard_list");
 var boardOverlay = document.getElementById("board_overlay");
 var roundTimer = document.getElementById("round_timer");
 var gameProgressText = document.getElementById("game_progress_text");
-var muteButton = document.getElementById("mute_button");
-var volumeSlider = document.getElementById("volume_slider");
-var musicSlider = document.getElementById("music_slider");
-var audioPanel = document.getElementById("audio_panel");
 var readyButton = document.getElementById("ready_button");
 var readyStatus = document.getElementById("ready_status");
 var gameCountSelect = document.getElementById("game_count_select");
@@ -1133,48 +1129,8 @@ function playTournamentRoundEnd(data, onComplete) {
 }
 
 // Name form + sign-in/out button bindings live in Auth.js.
-
-function refreshMuteIcon() {
-	// Speaker icon reflects the OVERALL state — silent only when both
-	// channels are muted (mute toggle or volume at 0).
-	var sfxOff = sound.isMuted() || sound.getVolume() === 0;
-	var musOff = !music || music.isMuted() || music.getVolume() === 0;
-	muteButton.textContent = (sfxOff && musOff) ? "🔇" : "🔊";
-}
-volumeSlider.value = String(Math.round(sound.getVolume() * 100));
-if (typeof music !== "undefined") musicSlider.value = String(Math.round(music.getVolume() * 100));
-refreshMuteIcon();
-
-function setAudioPanelOpen(open) {
-	if (open) audioPanel.removeAttribute("hidden");
-	else audioPanel.setAttribute("hidden", "");
-}
-muteButton.addEventListener("click", function(e) {
-	e.stopPropagation();
-	sound.unlock();
-	if (typeof music !== "undefined") music.unlock();
-	setAudioPanelOpen(audioPanel.hasAttribute("hidden"));
-});
-document.addEventListener("click", function(e) {
-	if (audioPanel.hasAttribute("hidden")) return;
-	if (audioPanel.contains(e.target) || muteButton.contains(e.target)) return;
-	setAudioPanelOpen(false);
-});
-volumeSlider.addEventListener("input", function() {
-	sound.unlock();
-	var v = parseInt(volumeSlider.value, 10) / 100;
-	sound.setVolume(v);
-	sound.setMuted(v === 0);
-	refreshMuteIcon();
-});
-musicSlider.addEventListener("input", function() {
-	if (typeof music === "undefined") return;
-	music.unlock();
-	var v = parseInt(musicSlider.value, 10) / 100;
-	music.setVolume(v);
-	music.setMuted(v === 0);
-	refreshMuteIcon();
-});
+// Audio (music/effects volume) settings live in the Settings page — see
+// renderAudioSettings() in Fullscreen.js.
 
 document.getElementById("open_daily_button").addEventListener("click", function() {
 	navigate("/puzzles/daily");

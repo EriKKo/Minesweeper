@@ -124,3 +124,47 @@ function renderGameplaySettings() {
 
 	card.appendChild(row);
 }
+
+// Settings-page volume sliders (Music + Effects), replacing the old topbar speaker-icon popover.
+function renderAudioSettings() {
+	var card = document.getElementById("audio_card");
+	if (!card) return;
+	card.innerHTML = "";
+	var h = document.createElement("h2");
+	h.className = "controls-title";
+	h.textContent = "Audio";
+	card.appendChild(h);
+
+	function addRow(label, channel) {
+		var row = document.createElement("div");
+		row.className = "setting-row";
+		var text = document.createElement("div");
+		text.className = "setting-row-text";
+		var lbl = document.createElement("span");
+		lbl.className = "setting-row-label";
+		lbl.textContent = label;
+		text.appendChild(lbl);
+		row.appendChild(text);
+
+		var slider = document.createElement("input");
+		slider.type = "range";
+		slider.className = "cr-slider setting-row-slider";
+		slider.min = "0";
+		slider.max = "100";
+		slider.step = "1";
+		slider.setAttribute("aria-label", label + " volume");
+		slider.value = String(Math.round(channel.getVolume() * 100));
+		slider.addEventListener("input", function() {
+			channel.unlock();
+			var v = parseInt(slider.value, 10) / 100;
+			channel.setVolume(v);
+			channel.setMuted(v === 0);
+		});
+		row.appendChild(slider);
+
+		card.appendChild(row);
+	}
+
+	if (typeof music !== "undefined" && music) addRow("Music", music);
+	addRow("Effects", sound);
+}
