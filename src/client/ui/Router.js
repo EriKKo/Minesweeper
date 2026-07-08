@@ -17,6 +17,10 @@ function hideAllViews() {
 	// Default to "not in a game"; the game entry points (showGameView / solo / puzzle) re-add
 	// `in-game` right after. Drives chrome that should vanish during play (e.g. the site footer).
 	document.body.classList.remove("in-game");
+	// Same idea for the ranked-navbar-replacement state (see body.ranked-game in style.css) — reset
+	// here so leaving a ranked game (without another room_state landing first) doesn't leave the
+	// site navbar hidden.
+	document.body.classList.remove("ranked-game");
 	// The solo pre-game Start overlay must never linger into another view (the solo_board
 	// handler re-shows it right after, so this is safe to clear unconditionally).
 	var soloStart = document.getElementById("solo_start_overlay");

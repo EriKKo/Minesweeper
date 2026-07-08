@@ -2734,6 +2734,24 @@ body.no-fullscreen-support .fullscreen-btn { display: none; }
 	to { opacity: 0.55; }
 }
 
+/* Ranked games: the in-game header (Exit game / progress+timer / fullscreen toggle) already reads
+   as a navbar on its own, so hide the real one and let the header take over that role edge to
+   edge — the reclaimed vertical (and horizontal) space goes to the boards. Driven by
+   body.ranked-game, toggled off the same "is this room ranked" signal #ranked_tag already uses
+   (see renderRoomState in GameRoom.js and startBattleSearch in Main.js), so it covers every ranked
+   mode (racing, territory, tournament), windowed or fullscreen. */
+body.ranked-game .topbar { display: none; }
+body.ranked-game main { max-width: none; padding: 0; }
+body.ranked-game .game-header {
+	padding: 1rem 1.5rem;
+	margin-bottom: 0;
+	border-bottom: 1px solid var(--border);
+	background: rgba(11, 16, 32, 0.6);
+	backdrop-filter: blur(6px);
+}
+body.ranked-game .game-grid { padding: 1.25rem 1.5rem 1.5rem; }
+body.ranked-game #duel_timer { margin-top: 0.85rem; }
+
 .game-grid {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) 320px;

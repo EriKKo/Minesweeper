@@ -1483,6 +1483,9 @@ function startBattleSearch(mode) {
 	resetGameUI();
 	readyButton.style.display = "none";   // nothing to ready while searching
 	if (rankedTag) rankedTag.style.display = "";
+	// All battle-search modes are ranked — hide the site navbar the same way renderRoomState does
+	// once a room forms (see body.ranked-game in style.css).
+	document.body.classList.add("ranked-game");
 	applyDuoClass();
 	setCoveredBoard();        // paints your own board + the opponent slots covered
 	updateBattleSearch();

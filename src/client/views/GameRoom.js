@@ -172,6 +172,15 @@ function renderRoomState(state) {
 	}
 
 	rankedTag.style.display = state.ranked ? "" : "none";
+	// Hide the site navbar for ranked games (the game-header takes over that role — see the
+	// body.ranked-game rules in style.css) — only re-run the board resize on an actual transition,
+	// not on every room_state broadcast.
+	var wasRanked = document.body.classList.contains("ranked-game");
+	var isRanked = !!state.ranked;
+	document.body.classList.toggle("ranked-game", isRanked);
+	if (isRanked !== wasRanked && typeof refreshPlayerBoardSize === "function") {
+		requestAnimationFrame(refreshPlayerBoardSize);
+	}
 	// Ranked rooms have a locked ruleset — show the values read-only, even to the owner.
 	var showSelects = isOwner && !state.ranked;
 	var canEdit = showSelects && state.phase === "planning";
