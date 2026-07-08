@@ -43,6 +43,21 @@
 	* { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
+/* === Skeleton shimmer utility — a loading placeholder to drop onto any element (the topbar's
+   synchronous-hint avatar placeholder, and the home page's skeleton-loading regions). The real
+   element is always rendered at its normal size; this class just overlays a moving highlight sweep
+   while content is still in flight, and gets removed once it lands. Respects reduced-motion via the
+   rule above (animation-duration collapses to ~0). === */
+.skel-shimmer { position: relative; overflow: hidden; background: var(--surface-2); }
+.skel-shimmer::after {
+	content: "";
+	position: absolute; inset: 0;
+	background: linear-gradient(100deg, transparent 25%, rgba(255, 255, 255, 0.08) 50%, transparent 75%);
+	transform: translateX(-100%);
+	animation: skel-shimmer-sweep 1.3s ease-in-out infinite;
+}
+@keyframes skel-shimmer-sweep { to { transform: translateX(100%); } }
+
 /* === Display face: headings, brand, and section titles === */
 h1, h2, h3,
 .logo-name,
@@ -620,21 +635,103 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 	cursor: pointer;
 }
 
+/* Reserved-width auth slot (see the CLS-fix comment in index.html / Auth.js): whichever child is
+   showing — the Sign-in pill or the avatar — sits flush against the topbar's right edge inside a
+   box that's always at least as wide as the wider of the two, so the centered .site-nav next to it
+   never shifts when the real auth state resolves or on sign in/out. */
 .user-badge {
 	display: flex;
 	align-items: center;
+	justify-content: flex-end;
 	gap: 0.6rem;
 	font-size: 0.9rem;
 	color: var(--muted);
+	min-width: 5.5rem;
+	min-height: 2.6rem; /* tallest of the two children (the .btn Sign-in pill) — see the vertical CLS fix */
 }
 
 .user-badge strong { color: var(--text); font-weight: 600; }
 
-/* Topbar identity: provider auth logo + name (real accounts only; guests show just the Sign in button). */
-.user-identity { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
-.user-identity strong { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
+.user-account { position: relative; display: flex; align-items: center; }
+
+/* The circular avatar button — the real OAuth provider photo when there is one, else a fallback
+   letter circle. Both are the SAME size so neither swap nor the loading placeholder shifts anything. */
+.user-avatar-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.6rem;
+	height: 2.6rem;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: none;
+	cursor: pointer;
+	line-height: 0;
+}
+.user-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.user-avatar-fallback {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	color: #fff;
+	font-weight: 700;
+	font-size: 1rem;
+}
+/* The accent fill is only the REAL fallback look (a resolved letter avatar) — while it's still
+   wearing .skel-shimmer (the synchronous first-frame loading guess), let the shimmer's own neutral
+   background show through instead of jumping straight to the accent color pre-emptively. */
+.user-avatar-fallback:not(.skel-shimmer) { background: var(--accent); }
+.user-avatar-btn:hover .user-avatar-img,
+.user-avatar-btn:hover .user-avatar-fallback { box-shadow: 0 0 0 2px var(--accent-hover); }
+
+/* Account popover — Profile + Sign out, opened by clicking the avatar. Same positioning shape as the
+   topbar's existing audio-settings popover (.audio-panel). */
+.user-account-popover {
+	position: absolute;
+	top: calc(100% + 0.4rem); right: 0;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 0.5rem;
+	box-shadow: var(--shadow);
+	padding: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 11rem;
+	z-index: 50;
+}
+.user-account-popover[hidden] { display: none; }
+.user-account-popover-head {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.3rem 0.5rem 0.5rem;
+	margin-bottom: 0.2rem;
+	border-bottom: 1px solid var(--border);
+}
+.user-account-popover-head strong { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-provider-logo { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .user-provider-logo svg { width: 1.05rem; height: 1.05rem; display: block; }
+.user-account-popover-link {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 0.45rem 0.5rem;
+	border-radius: 0.4rem;
+	border: 0;
+	background: none;
+	color: var(--text);
+	font: inherit;
+	font-size: 0.88rem;
+	text-decoration: none;
+	cursor: pointer;
+}
+.user-account-popover-link:hover { background: var(--surface-2); }
+.user-account-popover-signout { color: var(--danger); }
 
 input[type="text"],
 input[type="number"] {

@@ -55,13 +55,28 @@
 					</label>
 				</div>
 			</div>
-			<div id="user_badge" class="user-badge" style="display:none">
-				<span id="user_identity" class="user-identity" style="display:none">
-					<span id="user_provider_logo" class="user-provider-logo" aria-hidden="true"></span>
-					<strong id="user_badge_name"></strong>
-				</span>
+			<!-- Reserved-width auth slot: whichever child shows (Sign in pill, or the avatar), the box
+			     never changes size — the initial visible child is picked SYNCHRONOUSLY (before the
+			     socket even connects) from a cached localStorage hint (see Auth.js's IIFE at the top
+			     of the file), so this never pops in from nothing and never re-widens the centered
+			     .site-nav next to it. No inline display:none here on purpose — one of the two children
+			     is always showing from the very first frame. -->
+			<div id="user_badge" class="user-badge">
 				<button id="signin_button" class="btn btn-primary" type="button" style="display:none">Sign in</button>
-				<button id="sign_out_button" class="btn btn-ghost" type="button" style="display:none">Sign out</button>
+				<div id="user_account" class="user-account" style="display:none">
+					<button id="user_avatar_btn" class="user-avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">
+						<img id="user_avatar_img" class="user-avatar-img" alt="" style="display:none">
+						<span id="user_avatar_fallback" class="user-avatar-fallback" aria-hidden="true"></span>
+					</button>
+					<div id="user_account_popover" class="user-account-popover" hidden>
+						<div class="user-account-popover-head">
+							<span id="user_provider_logo" class="user-provider-logo" aria-hidden="true"></span>
+							<strong id="user_badge_name"></strong>
+						</div>
+						<a href="/profile" class="user-account-popover-link" data-route="profile">Profile</a>
+						<button id="sign_out_button" class="user-account-popover-link user-account-popover-signout" type="button">Sign out</button>
+					</div>
+				</div>
 			</div>
 		</div>
 	</header>

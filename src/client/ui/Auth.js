@@ -19,18 +19,55 @@
 	}
 })();
 
+// A cheap, cached "which topbar auth state did we last resolve to" flag — written every time
+// applyUserIdentity resolves REAL auth state (see below), read synchronously here (before the
+// socket even connects) so the topbar auth slot shows the right kind of control on the very first
+// frame instead of popping in after the connect -> authenticate/guest_session -> authenticated
+// round trip. Without this the slot (and the .site-nav centered next to it, and the topbar's own
+// row height once the taller Sign-in/avatar content lands) all visibly shift once the round trip
+// resolves; this hint just picks the right STARTING state, the real data still corrects it shortly
+// after via applyUserIdentity as normal.
+var SIGNED_IN_HINT_KEY = "ms_signed_in_hint";
+function getSignedInHint() {
+	try { return localStorage.getItem(SIGNED_IN_HINT_KEY) === "1"; } catch (e) { return false; }
+}
+function setSignedInHint(signedIn) {
+	try { localStorage.setItem(SIGNED_IN_HINT_KEY, signedIn ? "1" : "0"); } catch (e) { /* storage blocked */ }
+}
+
 var myName = "";
 var account = null; // { name, rating, ... } when signed in
 
 var nameError = document.getElementById("name_error");
 var userBadge = document.getElementById("user_badge");
-var userIdentity = document.getElementById("user_identity");
+var userAccount = document.getElementById("user_account");
+var userAvatarBtn = document.getElementById("user_avatar_btn");
+var userAvatarImg = document.getElementById("user_avatar_img");
+var userAvatarFallback = document.getElementById("user_avatar_fallback");
+var userAccountPopover = document.getElementById("user_account_popover");
 var userProviderLogo = document.getElementById("user_provider_logo");
 var userBadgeName = document.getElementById("user_badge_name");
 var signOutButton = document.getElementById("sign_out_button");
 var signinButton = document.getElementById("signin_button");
 var menuSigninButton = document.getElementById("menu_signin");
 var menuSignoutButton = document.getElementById("menu_signout");
+
+// Render the best-guess initial state SYNCHRONOUSLY, before anything async happens — this is what
+// actually prevents the pop-in/shift (applyUserIdentity below will re-run once the real data lands,
+// which is a no-op if the guess was right, and a quick, now-common-enough-to-be-rare correction if
+// the cached hint was stale, e.g. a session that expired since the last visit).
+(function() {
+	if (getSignedInHint()) {
+		// We'll likely resolve to a real account — show the avatar slot with a neutral loading
+		// placeholder (the .skel-shimmer class, shared with the home page's skeleton loaders) at the
+		// REAL avatar's exact size, rather than the Sign-in pill, so the reserved space is already
+		// the right shape when the actual identity lands a moment later.
+		if (userAvatarFallback) userAvatarFallback.classList.add("skel-shimmer");
+		if (userAccount) userAccount.style.display = "";
+	} else {
+		if (signinButton) signinButton.style.display = "";
+	}
+})();
 
 // When we're a guest, carry the guest session token into the OAuth flow so the callback upgrades that
 // guest in place (keeping its rating/stats) instead of minting a brand-new account.
@@ -65,26 +102,72 @@ function providerLogoSVG(provider) {
 	return "";
 }
 
-// Topbar identity: a real account shows its provider logo + name and a Sign out button; a guest shows
-// nothing but the Sign in button (no name, no logo).
+// Topbar identity: a real account shows just its avatar (a circle — the real OAuth provider photo
+// when there is one, else a fallback letter), which opens a small popover (name + provider logo,
+// Profile link, Sign out) on click. A guest shows nothing but the Sign in button.
 function applyUserIdentity(data) {
 	var isGuest = !!(data && data.guest);
-	if (isGuest) {
-		if (userIdentity) userIdentity.style.display = "none";
-	} else {
-		if (userBadgeName) userBadgeName.textContent = (data && data.name) || myName;
+	setSignedInHint(!isGuest); // cache for next load's synchronous first-frame guess (see the IIFE above)
+	if (!isGuest) {
+		var name = (data && data.name) || myName;
+		if (userBadgeName) userBadgeName.textContent = name;
 		var logo = providerLogoSVG(data && data.provider);
 		if (userProviderLogo) {
 			userProviderLogo.innerHTML = logo;
 			userProviderLogo.style.display = logo ? "" : "none";
 		}
-		if (userIdentity) userIdentity.style.display = "";
+		var avatarUrl = data && data.avatarUrl;
+		if (userAvatarImg) {
+			if (avatarUrl) {
+				userAvatarImg.src = avatarUrl;
+				userAvatarImg.style.display = "";
+				if (userAvatarFallback) userAvatarFallback.style.display = "none";
+			} else {
+				userAvatarImg.style.display = "none";
+				if (userAvatarFallback) {
+					userAvatarFallback.style.display = "";
+					userAvatarFallback.textContent = (name || "?").charAt(0).toUpperCase();
+				}
+			}
+		}
+		// Whatever landed (photo or letter) is the real content now — drop the loading shimmer the
+		// synchronous first-frame guess may have applied.
+		if (userAvatarFallback) userAvatarFallback.classList.remove("skel-shimmer");
 	}
-	signinButton.style.display = isGuest ? "" : "none";
-	signOutButton.style.display = isGuest ? "none" : "";
-	if (userBadge) userBadge.style.display = "";
+	if (signinButton) signinButton.style.display = isGuest ? "" : "none";
+	if (userAccount) userAccount.style.display = isGuest ? "none" : "";
+	if (isGuest) closeUserAccountPopover();
 	renderMenuAccount(isGuest);
 }
+
+// Account popover — Profile link + Sign out, opened by clicking the avatar. Same [hidden]-toggle +
+// outside-click-to-close shape as the topbar's existing audio-settings popover (#audio_panel).
+function setUserAccountPopoverOpen(open) {
+	if (!userAccountPopover || !userAvatarBtn) return;
+	if (open) userAccountPopover.removeAttribute("hidden");
+	else userAccountPopover.setAttribute("hidden", "");
+	userAvatarBtn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function closeUserAccountPopover() { setUserAccountPopoverOpen(false); }
+if (userAvatarBtn) {
+	userAvatarBtn.addEventListener("click", function(e) {
+		e.stopPropagation();
+		setUserAccountPopoverOpen(userAccountPopover.hasAttribute("hidden"));
+	});
+}
+document.addEventListener("click", function(e) {
+	if (!userAccountPopover || userAccountPopover.hasAttribute("hidden")) return;
+	// The topbar (and this popover) persists across every route in this SPA — close it on any click
+	// INSIDE the popover too (the Profile link navigates away; Sign out has its own explicit call,
+	// but closing here as well is harmless/idempotent), not just clicks outside it, so it never
+	// stays floating open over whatever page you land on next.
+	if (userAccountPopover.contains(e.target)) { closeUserAccountPopover(); return; }
+	if (userAvatarBtn && userAvatarBtn.contains(e.target)) return;
+	closeUserAccountPopover();
+});
+document.addEventListener("keydown", function(e) {
+	if (e.key === "Escape") closeUserAccountPopover();
+});
 
 // The mobile burger menu's account card: avatar + name + tier (same building blocks as the home
 // dashboard / profile), with the sign-in (guest) or sign-out (account) action beneath. Driven off the
@@ -181,7 +264,13 @@ function doSignOut() {
 	account = null;
 	if (inRoom) socket.emit("leave_room");
 	myName = "";
-	userBadge.style.display = "none";
+	closeUserAccountPopover();
+	// Flip to the guest view optimistically (we know guest_session below will land us there
+	// shortly) instead of hiding the whole reserved slot — #user_badge itself always stays laid
+	// out now (see the CLS fix at the top of this file), only its children toggle.
+	if (userAccount) userAccount.style.display = "none";
+	if (signinButton) signinButton.style.display = "";
+	setSignedInHint(false);
 	socket.emit("guest_session"); // drop back to a fresh guest rather than a login wall
 }
 signinButton.addEventListener("click", doSignIn);
