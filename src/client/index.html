@@ -118,7 +118,13 @@
 					<div class="dash-you-stats" id="dash_you_stats"></div>
 					<!-- Skeleton loader: covers the card (real content underneath, sized normally) until
 					     renderDashIdentity actually populates it — see hideSkeleton() in Router.js. -->
-					<div id="dash_you_skel" class="skel-shimmer dash-skel-cover"></div>
+					<div id="dash_you_skel" class="skel-shimmer dash-skel-cover skel-you">
+						<span class="skel-circle" style="width:2.4rem;height:2.4rem"></span>
+						<span class="skel-bars">
+							<span class="skel-bar" style="width:130px;height:16px"></span>
+							<span class="skel-bar" style="width:90px;height:11px"></span>
+						</span>
+					</div>
 				</div>
 
 				<div class="dash-main">
@@ -201,7 +207,14 @@
 								</span>
 							</div>
 							<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
-							<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover"></div>
+							<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover skel-daily">
+								<span class="skel-bar" style="width:70px;height:11px"></span>
+								<span class="skel-bar skel-board"></span>
+								<span class="skel-meta-row">
+									<span class="skel-bar" style="width:100%;height:28px"></span>
+									<span class="skel-bar" style="width:100%;height:28px"></span>
+								</span>
+							</div>
 						</div>
 
 						<div class="dash-card dash-rooms">
@@ -210,7 +223,11 @@
 								<li class="room-empty">Loading…</li>
 							</ul>
 							<a href="/custom" class="btn btn-secondary dash-rooms-browse">Browse Custom Lobbies</a>
-							<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover"></div>
+							<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover skel-rooms">
+								<span class="skel-bar"></span>
+								<span class="skel-bar"></span>
+								<span class="skel-bar"></span>
+							</div>
 						</div>
 					</aside>
 				</div>
