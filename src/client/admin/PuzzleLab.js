@@ -27,15 +27,19 @@ function puzzleAdminHeaders() {
 	} catch (e) { return {}; }
 }
 
-// Admin tab is visible when the signed-in user is flagged is_admin
-// (or in dev for convenience). Called from applyConnected (dev flag)
-// and applyAuthenticated (account.isAdmin).
+// Admin link is visible when the signed-in user is flagged is_admin (or in dev for convenience).
+// Lives in the account popover (desktop) / the mobile burger menu's account card — not the plain
+// nav-link list — since it's an identity-scoped action, not a page everyone browses to. Called from
+// applyConnected (dev flag) and applyAuthenticated (account.isAdmin).
 function refreshAdminNavLink() {
-	var link = document.getElementById("admin_nav_link");
-	if (!link) return;
+	var popoverLink = document.getElementById("admin_popover_link");
+	var menuLink = document.getElementById("admin_menu_link");
+	if (!popoverLink && !menuLink) return;
 	var dev = window.serverInfo && window.serverInfo.dev;
 	var admin = (typeof account !== "undefined" && account && account.isAdmin);
-	link.style.display = (dev || admin) ? "" : "none";
+	var show = (dev || admin) ? "" : "none";
+	if (popoverLink) popoverLink.style.display = show;
+	if (menuLink) menuLink.style.display = show;
 }
 
 function noteServerDev(devFlag) {

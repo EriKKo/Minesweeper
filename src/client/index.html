@@ -33,9 +33,8 @@
 			<a href="/profile" class="site-nav-link" data-route="profile">Profile</a>
 			<a href="/settings" class="site-nav-link" data-route="settings">Settings</a>
 			<button type="button" id="help_nav_link" class="site-nav-link">Help</button>
-			<a href="/admin" id="admin_nav_link" class="site-nav-link" data-route="admin" style="display:none">Admin</a>
 			<!-- Account card — only shown inside the mobile burger menu (hidden on desktop, where the
-			     topbar badge handles identity). Populated by renderMenuAccount() in Auth.js. -->
+			     topbar avatar popover handles identity). Populated by renderMenuAccount() in Auth.js. -->
 			<div id="menu_account" class="menu-account">
 				<a href="/profile" class="menu-account-id" id="menu_account_id">
 					<span class="menu-account-avatar" id="menu_account_avatar"></span>
@@ -44,6 +43,9 @@
 						<span class="menu-account-tier" id="menu_account_tier"></span>
 					</span>
 				</a>
+				<!-- Admin-only; toggled by refreshAdminNavLink() in PuzzleLab.js, same as the desktop
+				     popover's admin_popover_link. -->
+				<a href="/admin" id="admin_menu_link" class="btn btn-ghost menu-account-btn" data-route="admin" style="display:none">Admin</a>
 				<button type="button" id="menu_signin" class="btn btn-primary menu-account-btn" style="display:none">Sign in</button>
 				<button type="button" id="menu_signout" class="btn btn-ghost menu-account-btn" style="display:none">Sign out</button>
 			</div>
@@ -83,6 +85,8 @@
 							<strong id="user_badge_name"></strong>
 						</div>
 						<a href="/profile" class="user-account-popover-link" data-route="profile">Profile</a>
+						<!-- Admin-only; toggled by refreshAdminNavLink() in PuzzleLab.js. -->
+						<a href="/admin" id="admin_popover_link" class="user-account-popover-link" data-route="admin" style="display:none">Admin</a>
 						<button id="sign_out_button" class="user-account-popover-link user-account-popover-signout" type="button">Sign out</button>
 					</div>
 				</div>
