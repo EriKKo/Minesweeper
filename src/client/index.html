@@ -1011,8 +1011,15 @@
      relies on plain-global side effects from files loaded earlier in the list — while letting the
      browser fetch all of them in parallel during HTML parsing instead of blocking the parser on each
      one sequentially. Execution still happens after parsing completes, same as today (these tags are
-     already the last thing in body), so document.readyState-dependent code elsewhere is unaffected. -->
+     already the last thing in body), so document.readyState-dependent code elsewhere is unaffected.
+
+     BUNDLE:START/END below marks the block that scripts/build-client.js concatenates and minifies
+     into bundle.js for production (see staticServer.js — it swaps this whole block for one
+     <script defer src="/bundle.js"> when DEV_AUTH is unset and bundle.js exists on disk; dev keeps
+     loading these individually so edits take effect without a rebuild). socket.io.js is server-
+     supplied (not one of our files) so it stays its own tag either way, outside the marked block. -->
 <script src="/socket.io/socket.io.js" defer></script>
+<!-- BUNDLE:START -->
 <script src="/BoardLogic.js" defer></script>
 <script src="/core/Countries.js" defer></script>
 <script src="/core/PuzzleLadder.js" defer></script>
@@ -1052,5 +1059,6 @@
 <script src="/views/Replay.js" defer></script>
 <script src="/ui/Router.js" defer></script>
 <script src="/core/Main.js" defer></script>
+<!-- BUNDLE:END -->
 </body>
 </html>

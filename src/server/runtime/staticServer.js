@@ -30,6 +30,22 @@ var STATIC_ROOTS = [
 
 var CONTENT_TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png" };
 
+// Production bundle swap: index.html loads its ~39 client scripts individually between two
+// marker comments (BUNDLE:START/BUNDLE:END); `npm run build` (scripts/build-client.js)
+// concatenates + minifies that exact list into bundle.js. In production, with a bundle actually
+// on disk, swap the whole marked block for one <script defer src="/bundle.js"> tag. Dev always
+// serves the files individually — no rebuild needed for day-to-day edits.
+var BUNDLE_START = "<!-- BUNDLE:START -->";
+var BUNDLE_END = "<!-- BUNDLE:END -->";
+var BUNDLE_PATH = path.join(__dirname, "..", "..", "client", "bundle.js");
+function applyBundleSwap(html) {
+	if (DEV) return html;
+	var startIdx = html.indexOf(BUNDLE_START);
+	var endIdx = html.indexOf(BUNDLE_END);
+	if (startIdx === -1 || endIdx === -1 || !fs.existsSync(BUNDLE_PATH)) return html;
+	return html.slice(0, startIdx) + '<script defer src="/bundle.js"></script>' + html.slice(endIdx + BUNDLE_END.length);
+}
+
 // Binary types (png) are already compressed and gain nothing from gzip/brotli — can even grow
 // slightly from the framing overhead — so only compress text.
 var COMPRESSIBLE = { "text/javascript": true, "text/css": true, "image/svg+xml": true, "text/html": true };
@@ -57,6 +73,23 @@ function pickEncoding(req) {
 	return null;
 }
 
+// Compress + send a small in-memory buffer (used for index.html, which needs a text transform
+// first so can't just stream straight from disk).
+function serveBuffer(res, body, headers, encoding) {
+	if (!encoding) {
+		res.writeHead(200, headers);
+		res.end(body);
+		return;
+	}
+	headers = Object.assign({}, headers, { "Content-Encoding": encoding, "Vary": "Accept-Encoding" });
+	var compress = (encoding === "br") ? zlib.brotliCompress : zlib.gzip;
+	compress(body, function(err, compressed) {
+		if (err) { res.destroy(); return; }
+		res.writeHead(200, headers);
+		res.end(compressed);
+	});
+}
+
 function serve(res, pathname, req) {
 	var filePath = resolveStatic(pathname);
 	if (!filePath) {
@@ -72,6 +105,18 @@ function serve(res, pathname, req) {
 	headers["Cache-Control"] = (contentType === "text/html" || DEV) ? "no-cache" : "public, max-age=3600";
 
 	var encoding = COMPRESSIBLE[contentType] ? pickEncoding(req) : null;
+
+	// index.html is the one file that needs a text transform (the production bundle swap above),
+	// so it can't stream straight from disk like everything else — read it fully (a few dozen KB,
+	// cheap) and go through serveBuffer instead.
+	if (path.basename(filePath) === "index.html") {
+		fs.readFile(filePath, "utf8", function(err, html) {
+			if (err) { res.writeHead(500); res.end("Error while loading " + filePath); return; }
+			serveBuffer(res, Buffer.from(applyBundleSwap(html)), headers, encoding);
+		});
+		return;
+	}
+
 	if (!encoding) {
 		fs.readFile(filePath, function(err, data) {
 			if (err) {

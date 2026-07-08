@@ -8,6 +8,7 @@
     "dev": "DEV_AUTH=1 node src/server/minesweeperServer.js",
     "stop": "pkill -f 'node src/server/minesweeperServer.js' || true",
     "restart": "npm run stop; sleep 1; npm run dev",
+    "build": "node scripts/build-client.js",
     "test": "node --test"
   },
   "engines": {
@@ -17,6 +18,7 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "playwright": "^1.61.1",
     "socket.io-client": "^4.8.3"
   }
