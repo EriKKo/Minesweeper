@@ -589,6 +589,9 @@
 		<section id="game_view" class="view game-view" style="display:none">
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Exit game</button>
+				<!-- Battle layouts (duo/multi) move the big round timer up here, centered in the header —
+				     see .game-view.duo/.multi .game-header in style.css. Hidden (display:none) otherwise. -->
+				<div id="duel_timer" class="duel-timer" aria-hidden="true"></div>
 				<div class="game-header-right">
 					<div class="game-progress">
 						<span id="ranked_tag" class="ranked-tag" style="display:none">RANKED</span>
@@ -605,7 +608,6 @@
 					</button>
 				</div>
 			</div>
-			<div id="duel_timer" class="duel-timer" aria-hidden="true"></div>
 				<div class="game-grid">
 				<div class="game-left">
 					<div id="player_div" class="player-board">
@@ -670,9 +672,10 @@
 						</dialog>
 					</div>
 				</div>
-				<div id="duel_center" class="duel-center" aria-hidden="true">
-					<div class="duel-tug"><span id="duel_tug_fill" class="duel-tug-fill"></span></div>
-				</div>
+				<!-- Empty spacer column between the two boards — see .game-view.duo .duel-center in
+				     style.css (keeps the boards symmetrically split by the middle grid track; used to
+				     also hold a tug-of-war progress indicator, since removed). -->
+				<div id="duel_center" class="duel-center" aria-hidden="true"></div>
 				<aside class="game-side">
 					<div id="scoreboard_card" class="side-card">
 						<h3 class="side-title">Scoreboard</h3>

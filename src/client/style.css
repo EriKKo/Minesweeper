@@ -2678,6 +2678,19 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	justify-content: space-between;
 	margin-bottom: 1rem;
 }
+/* Battle layouts (duo/multi) show the big round timer centered in the header instead of the small
+   #round_timer text (which they hide) — a 3-column grid keeps Exit game / timer / progress+fullscreen
+   aligned the same way the site navbar's own items are. */
+.game-view.duo .game-header,
+.game-view.multi .game-header {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+}
+.game-view.duo .game-header-right,
+.game-view.multi .game-header-right {
+	justify-self: end;
+}
 
 .game-header-right {
 	display: flex;
@@ -2750,7 +2763,6 @@ body.ranked-game .game-header {
 	backdrop-filter: blur(6px);
 }
 body.ranked-game .game-grid { padding: 1.25rem 1.5rem 1.5rem; }
-body.ranked-game #duel_timer { margin-top: 0.85rem; }
 
 .game-grid {
 	display: grid;
@@ -3801,7 +3813,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .game-view.duo #duel_bar_opp .duel-bar-pct { right: auto; left: 0.55rem; }
 
-/* Center column: just the vertical tug-of-war bar between the boards (timer moved up, see below). */
+/* Center column: an empty spacer that keeps the two boards symmetrically split (used to also hold
+   a vertical tug-of-war progress indicator, since removed — the per-board bars below already show
+   each side's own progress). */
 .duel-center { display: none; }
 .game-view.duo .duel-center {
 	display: flex;
@@ -3810,19 +3824,19 @@ body.touch .find-next-arrow { display: inline-flex; }
 	align-self: stretch;
 	min-width: 36px;
 }
-/* Big round timer, centered ABOVE the two boards (its own row between the header and the grid).
-   Reserves its height even when empty (min-height) so the boards don't shift when the clock first
+/* Big round timer, centered in the game header (a grid column between Exit game and the
+   progress+fullscreen group — see .game-view.duo/.multi .game-header above). Reserves its width
+   even when empty (min-width) so the header's other items don't shift when the clock first
    appears, and shows nothing (no "VS") before it starts. */
 .duel-timer { display: none; }
 .game-view.duo #duel_timer {
 	display: block;
 	text-align: center;
-	margin: 0 0 0.6rem;
-	min-height: clamp(2rem, 3.4vw, 3rem);
+	min-width: 5ch;
 	font-family: var(--font-display);
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum" 1;
-	font-size: clamp(2rem, 3.4vw, 3rem);
+	font-size: 1.3rem;
 	font-weight: 800;
 	letter-spacing: 0.02em;
 	color: var(--text);
@@ -3832,22 +3846,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 .duel-timer.round-timer-warning { color: var(--energy-streak); }
 .duel-timer.round-timer-urgent { color: var(--danger); animation: duel-timer-pulse 0.7s ease-in-out infinite; }
 @keyframes duel-timer-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-.duel-tug {
-	position: relative;
-	width: 12px;
-	flex: 1 1 auto;
-	min-height: 200px;
-	border-radius: 8px;
-	background: var(--duel-opp);
-	overflow: hidden;
-	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
-}
-.duel-tug-fill {
-	position: absolute; left: 0; right: 0; bottom: 0;
-	height: 50%;
-	background: var(--duel-you);
-	transition: height 0.4s ease;
-}
 
 /* ===== 6-player battle layout (TetrisFriends-style) =====
    One big own board on the left with your identity panel above it; every opponent's live board
@@ -3862,6 +3860,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 	align-items: start;
 	gap: 1.5rem;
 	flex: 1 1 auto;
+	/* The two columns are fr-based, so they always fill 100% of whatever width they're given —
+	   on a wide window (main has no max-width for ranked games, see body.ranked-game above) that
+	   stretches the own board and the opponent tiles apart instead of reading as one centered
+	   block. Cap the whole grid and center it instead. */
+	width: 100%;
+	max-width: 1600px;
+	margin: 0 auto;
+	align-self: center;
 }
 .game-view.multi #round_timer { display: none; }
 .game-view.multi .player-controls { display: none; }
@@ -3930,14 +3936,13 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* A finished opponent reads as "done" — dim + green tick handled by the name %. */
 .game-view.multi .opponent_div.finished { border-color: rgba(74, 222, 128, 0.5); }
 
-/* Big round timer centered above everything (shared with the duel timer styling). */
+/* Big round timer, centered in the game header (shared with the duel timer styling above). */
 .game-view.multi #duel_timer {
 	display: block;
 	text-align: center;
-	margin: 0 0 0.6rem;
-	min-height: clamp(2rem, 3.4vw, 3rem);
+	min-width: 5ch;
 	font-family: var(--font-display);
-	font-size: clamp(2rem, 3.4vw, 3rem);
+	font-size: 1.3rem;
 	font-weight: 800;
 	letter-spacing: 0.02em;
 	color: var(--text);
@@ -5707,8 +5712,8 @@ body.game-fullscreen .game-view:not(.territory):not(.puzzle):not(.solo):not(.duo
 	grid-template-columns: auto 320px;
 	justify-content: center;
 }
-/* The 6-player battle keeps its own two-column grid in fullscreen; just center it. */
-body.game-fullscreen .game-view.multi .game-grid { justify-content: center; }
+/* The 6-player battle's own centering (max-width + margin: auto on .game-view.multi .game-grid,
+   see above) already applies everywhere, fullscreen or not — no fullscreen-specific override needed. */
 
 /* App confirm modal (showConfirm in Overlay.js) — replaces window.confirm(), which is
    suppressed in fullscreen. Appended to body so it sits over everything, fullscreen or not. */

@@ -202,17 +202,15 @@ function setDuelBar(barId, progress) {
 	if (fill) fill.style.width = pct + "%";
 	if (label) label.textContent = pct + "%";
 }
-// Live battle HUD from the current frame: each board's progress bar, the center tug-of-war fill
-// (your share of the combined progress), and the leader glow on the board cards.
+// Live battle HUD from the current frame: each board's progress bar and the leader glow on the
+// board cards (the center tug-of-war indicator was removed — each board's own bar already shows
+// its progress).
 function updateDuelHud(meGame, oppGame) {
 	if (!isDuoRacing()) return;
 	var myP = meGame ? (meGame.progress || 0) : 0;
 	var opP = oppGame ? (oppGame.progress || 0) : 0;
 	setDuelBar("duel_bar_you", myP);
 	setDuelBar("duel_bar_opp", opP);
-	var total = myP + opP;
-	var tug = document.getElementById("duel_tug_fill");
-	if (tug) tug.style.height = Math.round((total > 0 ? myP / total : 0.5) * 100) + "%";
 	var youCard = document.getElementById("player_div");
 	var oppCard = document.querySelector("#all_opponents_div .opponent_div");
 	if (youCard) youCard.classList.toggle("leading", myP > opP + 0.0001);
