@@ -5426,6 +5426,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 	background: rgba(148, 163, 184, 0.15); color: var(--muted);
 }
 
+/* === Ranked mode picker modal (Sprint/Standard — 1v1 vs 6-player) ===
+   Reuses .cr-modal/.cr-dialog chrome plus the .ranked-picker-* content classes below (originally
+   built for the old standalone picker page, still used there for Territory). */
+.ranked-picker-dialog { width: min(620px, 100%); }
+.ranked-picker-dialog .ranked-picker-head { grid-template-columns: auto 1fr auto auto; margin-top: 0; }
+
 /* === Ranked picker page ============================================= */
 .ranked-picker-head {
 	display: grid;

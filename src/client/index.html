@@ -953,6 +953,50 @@
 		</div>
 	</div>
 
+	<!-- Ranked mode picker: 1v1 vs 6-player, for Sprint/Standard. Opened from the home dashboard rows
+	     (openRankedModeModal in Router.js) instead of navigating to a separate page. -->
+	<div id="ranked_mode_modal" class="cr-modal" hidden>
+		<div class="cr-backdrop" data-rm-close></div>
+		<div class="cr-dialog ranked-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="ranked_modal_title">
+			<div class="ranked-picker-head">
+				<div class="ranked-picker-icon" id="ranked_modal_icon" aria-hidden="true"></div>
+				<div>
+					<h2 id="ranked_modal_title" class="ranked-picker-title">Sprint</h2>
+					<p id="ranked_modal_sub" class="ranked-picker-sub"></p>
+				</div>
+				<div class="ranked-picker-rating" id="ranked_modal_rating">
+					<span class="ranked-picker-rating-tier" id="ranked_modal_tier">—</span>
+					<span class="ranked-picker-rating-num" id="ranked_modal_num"></span>
+				</div>
+				<button class="cr-close" data-rm-close type="button" aria-label="Close">×</button>
+			</div>
+			<p id="ranked_modal_pitch" class="ranked-picker-pitch"></p>
+			<div class="ranked-picker-options">
+				<button id="ranked_modal_duo" class="ranked-picker-option" type="button">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5" fill="currentColor"/><circle cx="16" cy="12" r="3.5" fill="currentColor"/></svg>
+					</span>
+					<span class="ranked-picker-option-title" id="ranked_modal_duo_title">1v1</span>
+					<span class="ranked-picker-option-sub" id="ranked_modal_duo_sub">Head-to-head race</span>
+				</button>
+				<button id="ranked_modal_six" class="ranked-picker-option" type="button">
+					<span class="ranked-picker-option-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24">
+							<circle cx="5" cy="8" r="2.4" fill="currentColor"/>
+							<circle cx="12" cy="6" r="2.4" fill="currentColor"/>
+							<circle cx="19" cy="8" r="2.4" fill="currentColor"/>
+							<circle cx="5" cy="17" r="2.4" fill="currentColor"/>
+							<circle cx="12" cy="19" r="2.4" fill="currentColor"/>
+							<circle cx="19" cy="17" r="2.4" fill="currentColor"/>
+						</svg>
+					</span>
+					<span class="ranked-picker-option-title" id="ranked_modal_six_title">6-player</span>
+					<span class="ranked-picker-option-sub" id="ranked_modal_six_sub">Free-for-all sprint</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
 <!-- All deferred (not just async): defer preserves this document order for execution — the same
      guarantee blocking scripts placed at the end of body already gave, since every one of these
      relies on plain-global side effects from files loaded earlier in the list — while letting the

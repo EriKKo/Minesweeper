@@ -105,6 +105,72 @@ function showRankedPickerView(style) {
 	document.getElementById("ranked_picker_back").onclick = function() { navigate("/"); };
 }
 
+// Sprint/Standard used to route to the same full-page picker as Territory (showRankedPickerView
+// above); they now open this modal instead — no page navigation, no "back to lobby" round trip.
+// Territory (admin-only entry point) keeps the page, since it's a rarer, more deliberate action.
+function openRankedModeModal(style) {
+	var meta = RANKED_PICKER_META[style];
+	var modal = document.getElementById("ranked_mode_modal");
+	if (!meta || !modal) return;
+	var iconEl = document.getElementById("ranked_modal_icon");
+	if (iconEl) {
+		iconEl.style.color = meta.color;
+		iconEl.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + meta.iconPath + '" fill="currentColor"/></svg>';
+	}
+	document.getElementById("ranked_modal_title").textContent = meta.title;
+	document.getElementById("ranked_modal_sub").textContent = meta.sub;
+	document.getElementById("ranked_modal_pitch").textContent = meta.pitch;
+	document.getElementById("ranked_modal_duo_sub").textContent = meta.duoSub;
+	document.getElementById("ranked_modal_six_sub").textContent = meta.sixSub;
+	document.getElementById("ranked_modal_duo_title").textContent = meta.duoTitle || "1v1";
+	document.getElementById("ranked_modal_six_title").textContent = meta.sixTitle || "6-player";
+	var rating = null;
+	if (account) {
+		if (style === "sprint") rating = account.ratingSprint;
+		else if (style === "standard") rating = account.ratingStandard;
+	}
+	var tierEl = document.getElementById("ranked_modal_tier");
+	var ratingEl = document.getElementById("ranked_modal_num");
+	if (rating != null && typeof tierFor === "function") {
+		var t = tierFor(rating, account && account.provisional);
+		tierEl.textContent = t.name; tierEl.style.color = t.color;
+		ratingEl.textContent = rating;
+	} else {
+		tierEl.textContent = "—"; ratingEl.textContent = "";
+	}
+	function pick(mode) {
+		findRanked(mode);
+		closeRankedModeModal();
+	}
+	document.getElementById("ranked_modal_duo").onclick = function() { pick(style + "_duo"); };
+	document.getElementById("ranked_modal_six").onclick = function() { pick(style + "_six"); };
+	modal.removeAttribute("hidden");
+}
+function closeRankedModeModal() {
+	var modal = document.getElementById("ranked_mode_modal");
+	if (modal) modal.setAttribute("hidden", "");
+}
+(function wireRankedModeModal() {
+	var modal = document.getElementById("ranked_mode_modal");
+	if (!modal) return;
+	modal.addEventListener("click", function(e) {
+		if (e.target.hasAttribute("data-rm-close")) closeRankedModeModal();
+	});
+	document.addEventListener("keydown", function(e) {
+		if (e.key === "Escape" && !modal.hasAttribute("hidden")) closeRankedModeModal();
+	});
+	// Sprint/Standard home rows open the modal directly instead of navigating to a picker page.
+	// Leave modified clicks (new tab, etc.) alone — same guard the router's own link handler uses —
+	// so they fall through to the href and land on the back-compat /ranked/:style route.
+	document.querySelectorAll('.home-card-ranked[data-style="sprint"], .home-card-ranked[data-style="standard"]').forEach(function(row) {
+		row.addEventListener("click", function(e) {
+			if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+			e.preventDefault();
+			openRankedModeModal(row.dataset.style);
+		});
+	});
+})();
+
 
 // Skeleton-loader helper (see .skel-shimmer / .dash-skel-cover in style.css): fades out the cover
 // over a home-dashboard card. Idempotent — safe to call more than once (e.g. both the real data
@@ -396,11 +462,20 @@ function applyRouteFromHash() {
 	if (typeof music !== "undefined") {
 		if (inGame) music.resume(); else music.pause();
 	}
-	// Ranked picker: /ranked/sprint, /ranked/standard, /ranked/tournament.
-	// Tournament has no size choice so it just queues immediately.
+	// Ranked picker: /ranked/sprint, /ranked/standard, /ranked/tournament, /ranked/territory.
+	// Tournament has no size choice so it just queues immediately. Sprint/Standard open the mode
+	// modal over the lobby instead of a dedicated page (see openRankedModeModal) — this route is
+	// just a back-compat landing spot for old links/bookmarks; Territory keeps the real page.
 	if (hash.indexOf("/ranked/") === 0) {
 		var style = hash.slice("/ranked/".length);
 		if (style === "tournament") { if (typeof findRanked === "function") findRanked("tournament"); navigate("/"); return; }
+		if ((style === "sprint" || style === "standard") && typeof openRankedModeModal === "function") {
+			history.replaceState(null, "", "/"); // no dedicated page for this anymore — land on the lobby
+			lastAppliedHash = "/";
+			showLobbyView();
+			openRankedModeModal(style);
+			return;
+		}
 		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
 	if (hash === "/" || hash === "") return showLobbyView();
