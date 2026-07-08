@@ -101,7 +101,7 @@
 			</div>
 		</section>
 
-		<section id="lobby_view" class="view" style="display:none">
+		<section id="lobby_view" class="view">
 			<div class="dash">
 				<div class="dash-you">
 					<span class="dash-you-badge" id="dash_you_badge" aria-hidden="true"></span>
@@ -118,18 +118,12 @@
 					<div class="dash-you-stats" id="dash_you_stats"></div>
 					<!-- Skeleton loader: covers the card (real content underneath, sized normally) until
 					     renderDashIdentity actually populates it — see hideSkeleton() in Router.js. -->
-					<div id="dash_you_skel" class="skel-shimmer dash-skel-cover skel-you">
-						<span class="skel-circle" style="width:2.4rem;height:2.4rem"></span>
-						<span class="skel-bars">
-							<span class="skel-bar" style="width:130px;height:16px"></span>
-							<span class="skel-bar" style="width:90px;height:11px"></span>
-						</span>
-					</div>
+					<div id="dash_you_skel" class="skel-shimmer dash-skel-cover"></div>
 				</div>
 
 				<div class="dash-main">
 					<div class="dash-modes">
-						<a class="dash-row dash-row-sprint home-card-ranked" href="/ranked/sprint" data-style="sprint" aria-label="Play Sprint">
+						<a class="dash-row dash-row-sprint home-card-ranked" href="/ranked/sprint" data-style="sprint" aria-label="Play Sprint" style="display:none">
 							<span class="dash-row-board" id="dash_board_sprint" aria-hidden="true"></span>
 							<span class="dash-row-info">
 								<h4 class="dash-row-title">Sprint</h4>
@@ -143,7 +137,7 @@
 								<span id="dash_stat_skel_sprint" class="skel-shimmer dash-row-stat-skel"></span>
 							</span>
 						</a>
-						<a class="dash-row dash-row-standard home-card-ranked" href="/ranked/standard" data-style="standard" aria-label="Play Standard">
+						<a class="dash-row dash-row-standard home-card-ranked" href="/ranked/standard" data-style="standard" aria-label="Play Standard" style="display:none">
 							<span class="dash-row-board" id="dash_board_standard" aria-hidden="true"></span>
 							<span class="dash-row-info">
 								<h4 class="dash-row-title">Standard</h4>
@@ -209,14 +203,7 @@
 								</span>
 							</div>
 							<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
-							<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover skel-daily">
-								<span class="skel-bar" style="width:70px;height:11px"></span>
-								<span class="skel-bar skel-board"></span>
-								<span class="skel-meta-row">
-									<span class="skel-bar" style="width:100%;height:28px"></span>
-									<span class="skel-bar" style="width:100%;height:28px"></span>
-								</span>
-							</div>
+							<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover"></div>
 						</div>
 
 						<div class="dash-card dash-rooms">
@@ -225,11 +212,7 @@
 								<li class="room-empty">Loading…</li>
 							</ul>
 							<a href="/custom" class="btn btn-secondary dash-rooms-browse">Browse Custom Lobbies</a>
-							<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover skel-rooms">
-								<span class="skel-bar"></span>
-								<span class="skel-bar"></span>
-								<span class="skel-bar"></span>
-							</div>
+							<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover"></div>
 						</div>
 					</aside>
 				</div>
@@ -237,6 +220,20 @@
 				<p id="lobby_message" class="lobby-message" style="display:none"></p>
 			</div>
 		</section>
+
+		<!-- The lobby (above) is visible by default in raw HTML — including its skeleton covers,
+		     which have no .skel-hide class until real data lands — so the skeleton-covered dashboard
+		     is the very first thing painted, without waiting for any script to run. This tiny
+		     synchronous (non-deferred) script runs during parsing, before the browser paints, to hide
+		     it again for any other route; Router.js's normal client-side routing takes over once the
+		     deferred scripts finish loading (see the eager showLobbyView() call at the end of
+		     core/Main.js, which re-shows this correctly once account data is known). -->
+		<script>
+			if (location.pathname !== "/" && location.pathname !== "") {
+				var lv = document.getElementById("lobby_view");
+				if (lv) lv.style.display = "none";
+			}
+		</script>
 
 		<section id="ranked_picker_view" class="view section-view" style="display:none">
 			<button id="ranked_picker_back" class="btn btn-ghost learn-back-btn" type="button">← Back to lobby</button>

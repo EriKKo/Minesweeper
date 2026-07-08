@@ -5005,10 +5005,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Skeleton loader cover — the real card is always rendered underneath at its normal size (see
    index.html); this shimmer overlay fades out once the corresponding render function actually
    populates it with live data (or a short timeout passes — see hideSkeleton()/showLobbyView() in
-   Router.js), so a slow connection never shimmers forever. A translucent tint (not a flat opaque
-   color) so it reads as a soft "loading" veil over the card rather than a hard dark block; the
-   "bones" (.skel-bar/.skel-circle) mimic the shape of the real content underneath, same idea as
-   achtung-royale's .load-skel/.load-bar. */
+   Router.js), so a slow connection never shimmers forever. Deliberately plain: one flat rectangle
+   with the shimmer sweep, no placeholder shapes inside it — simpler read than trying to mimic the
+   real content's layout. */
 .dash-skel-cover {
 	position: absolute;
 	inset: 0;
@@ -5018,18 +5017,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 	transition: opacity 0.35s ease;
 }
 .dash-skel-cover.skel-hide { opacity: 0; pointer-events: none; }
-.skel-bar { display: block; background: rgba(255, 255, 255, 0.08); border-radius: 6px; }
-.skel-circle { display: block; border-radius: 50%; background: rgba(255, 255, 255, 0.08); flex: 0 0 auto; }
-/* "You" card skeleton: badge circle + two stacked bars, laid out like the real identity row. */
-.dash-skel-cover.skel-you { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.2rem; }
-.dash-skel-cover.skel-you .skel-bars { display: flex; flex-direction: column; gap: 0.5rem; }
-/* Daily-puzzle card skeleton: a square board placeholder + two small meta bars. */
-.dash-skel-cover.skel-daily { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.85rem 1rem; }
-.dash-skel-cover.skel-daily .skel-bar.skel-board { flex: 1 1 auto; border-radius: 10px; min-height: 0; }
-.dash-skel-cover.skel-daily .skel-meta-row { display: flex; gap: 0.6rem; }
-/* Active-rooms card skeleton: a few row-shaped bars standing in for room list items. */
-.dash-skel-cover.skel-rooms { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.85rem 1rem; }
-.dash-skel-cover.skel-rooms .skel-bar { height: 2rem; border-radius: 8px; }
 .dash-you-badge { flex: 0 0 auto; display: inline-flex; }
 .dash-you-badge .rank-badge { font-size: 9px; }
 .dash-you-main { min-width: 0; }
