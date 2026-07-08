@@ -15,6 +15,8 @@
 var fs = require("fs");
 var path = require("path");
 var zlib = require("zlib");
+var db = require("../db");
+var session = require("./session");
 
 // In dev (npm run dev / DEV_AUTH=1) nothing has a cache-busting URL and the whole point is fast
 // iteration, so long-lived caching just serves stale JS/CSS after every edit — disable it there.
@@ -44,6 +46,70 @@ function applyBundleSwap(html) {
 	var endIdx = html.indexOf(BUNDLE_END);
 	if (startIdx === -1 || endIdx === -1 || !fs.existsSync(BUNDLE_PATH)) return html;
 	return html.slice(0, startIdx) + '<script defer src="/bundle.js"></script>' + html.slice(endIdx + BUNDLE_END.length);
+}
+
+// HTML injection ("SSR-lite"): give the client real data before the deferred bundle even runs, so
+// the first render doesn't have to show placeholders while the socket connects/authenticates.
+// This only ever inlines DATA (a plain JS object assignment) — the actual rendering still happens
+// entirely client-side, in the same functions that already handle live socket updates; there's no
+// server-side templating or hydration-matching to get right.
+var HYDRATE_MARKER = "<!-- HYDRATE_DATA -->";
+
+// A cookie mirrors the session token that normally only lives in localStorage (see Auth.js) — a
+// plain HTTP GET has no access to localStorage, but does send cookies, so this is what lets a
+// returning visitor's very first HTML response carry their own account data. Hand-rolled parse:
+// no cookie library in this project, and the format is trivial (see the no-cookie-parsing-anywhere
+// finding — this is the first cookie use in the app).
+function parseCookies(header) {
+	var out = {};
+	(header || "").split(";").forEach(function(part) {
+		var idx = part.indexOf("=");
+		if (idx === -1) return;
+		var key = part.slice(0, idx).trim();
+		if (!key) return;
+		try { out[key] = decodeURIComponent(part.slice(idx + 1).trim()); } catch (e) { /* malformed — ignore */ }
+	});
+	return out;
+}
+
+// JSON.stringify, but safe to drop inside an inline <script> — escapes "<" so a value containing
+// "</script>" (or "<!--") can't break out of the tag. None of today's data (numbers, board arrays,
+// short strings) could actually produce this, but the response is per-request text, not a fixed
+// template, so it's worth guarding regardless of what future fields might carry.
+function safeJson(value) {
+	return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+function buildHydrationScript(req) {
+	var parts = [];
+
+	// window.__DAILY__: today's puzzle board. Same for every visitor (no auth needed) — see
+	// db.getOrPickDailyPuzzle, the same lookup the puzzle_daily_status socket handler uses.
+	try {
+		var date = db.todayUtc();
+		var puzzle = db.getOrPickDailyPuzzle(date);
+		var daily = puzzle ? { date: date, rows: puzzle.rows, cols: puzzle.cols, mines: puzzle.mines, revealed: puzzle.revealed } : null;
+		parts.push("window.__DAILY__=" + safeJson(daily) + ";");
+	} catch (e) { parts.push("window.__DAILY__=null;"); }
+
+	// window.__ACCOUNT__: the requesting user's account snapshot, IF their ms_session cookie
+	// resolves to a real session (see Auth.js's setSessionCookie — mirrors the same token already
+	// trusted over the socket, so this isn't a new trust boundary). Absent for a first-time visitor
+	// with no cookie yet — they fall back to today's behavior (skeleton until guest_session resolves).
+	try {
+		var token = parseCookies(req && req.headers && req.headers.cookie).ms_session;
+		var user = token ? db.getUserByToken(token) : null;
+		var account = user ? session.buildAccountPayload(user) : null;
+		parts.push("window.__ACCOUNT__=" + safeJson(account) + ";");
+	} catch (e) { parts.push("window.__ACCOUNT__=null;"); }
+
+	return "<script>" + parts.join("") + "</script>";
+}
+
+function applyHydration(html, req) {
+	var idx = html.indexOf(HYDRATE_MARKER);
+	if (idx === -1) return html;
+	return html.slice(0, idx) + buildHydrationScript(req) + html.slice(idx + HYDRATE_MARKER.length);
 }
 
 // Binary types (png) are already compressed and gain nothing from gzip/brotli — can even grow
@@ -106,13 +172,14 @@ function serve(res, pathname, req) {
 
 	var encoding = COMPRESSIBLE[contentType] ? pickEncoding(req) : null;
 
-	// index.html is the one file that needs a text transform (the production bundle swap above),
-	// so it can't stream straight from disk like everything else — read it fully (a few dozen KB,
-	// cheap) and go through serveBuffer instead.
+	// index.html is the one file that needs a text transform (the production bundle swap, and the
+	// hydration data injection, both above), so it can't stream straight from disk like everything
+	// else — read it fully (a few dozen KB, cheap) and go through serveBuffer instead.
 	if (path.basename(filePath) === "index.html") {
 		fs.readFile(filePath, "utf8", function(err, html) {
 			if (err) { res.writeHead(500); res.end("Error while loading " + filePath); return; }
-			serveBuffer(res, Buffer.from(applyBundleSwap(html)), headers, encoding);
+			html = applyHydration(applyBundleSwap(html), req);
+			serveBuffer(res, Buffer.from(html), headers, encoding);
 		});
 		return;
 	}

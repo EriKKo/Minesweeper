@@ -874,20 +874,24 @@ function renderLobbyDailyBoard() {
 	var container = document.getElementById("lobby_daily_board");
 	if (!container) return;
 	var dateEl = document.getElementById("lobby_daily_date");
-	var board = account && account.dailyBoard;
+	// Prefer the live (authoritative) copy once it lands over the socket; fall back to the
+	// server-inlined snapshot (window.__DAILY__ — see staticServer.js) so the board can paint
+	// before the socket round trip even starts. Both describe the same public, day-shared puzzle
+	// (no personalization), so there's nothing to reconcile beyond "whichever is available" — the
+	// boardKey dedupe below keeps the canvas from being rebuilt when the authoritative copy arrives
+	// a moment later with identical data.
+	var inline = (typeof window.__DAILY__ !== "undefined") ? window.__DAILY__ : null;
+	var board = (account && account.dailyBoard) || inline;
+	var date = (account && account.dailyDate) || (inline && inline.date);
 	if (!board) {
-		container.innerHTML = '<div class="lobby-daily-board-empty">Sign in to see today’s puzzle.</div>';
+		container.innerHTML = '<div class="lobby-daily-board-empty">No puzzle available today.</div>';
 		if (dateEl) dateEl.textContent = "";
 		return;
 	}
-	if (dateEl) dateEl.textContent = account.dailyDate || "";
-	// The real board only exists once BOTH auth AND the separate puzzle_daily_status round trip have
-	// landed — hide the skeleton here (once `board` is real), not on the `!board` branch above, so it
-	// doesn't briefly reveal the "Sign in to see today's puzzle" placeholder in the gap between those
-	// two events (see hideSkeleton() in Router.js).
+	if (dateEl) dateEl.textContent = date || "";
 	if (typeof hideSkeleton === "function") hideSkeleton("dash_daily_skel");
-	if (container.dataset.boardKey === board.rows + "x" + board.cols + "@" + account.dailyDate) return;
-	container.dataset.boardKey = board.rows + "x" + board.cols + "@" + account.dailyDate;
+	if (container.dataset.boardKey === board.rows + "x" + board.cols + "@" + date) return;
+	container.dataset.boardKey = board.rows + "x" + board.cols + "@" + date;
 	container.innerHTML = "";
 	var pseudo = {
 		title: "",

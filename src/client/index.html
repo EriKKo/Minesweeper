@@ -1017,7 +1017,15 @@
      into bundle.js for production (see staticServer.js — it swaps this whole block for one
      <script defer src="/bundle.js"> when DEV_AUTH is unset and bundle.js exists on disk; dev keeps
      loading these individually so edits take effect without a rebuild). socket.io.js is server-
-     supplied (not one of our files) so it stays its own tag either way, outside the marked block. -->
+     supplied (not one of our files) so it stays its own tag either way, outside the marked block.
+
+     HYDRATE_DATA below is replaced (every request — see staticServer.js) with a plain, non-deferred
+     <script> setting window.__DAILY__ (today's puzzle board — same for everyone, no auth needed)
+     and, if the request carries a valid ms_session cookie, window.__ACCOUNT__ (that user's account
+     snapshot). Both run before any deferred script, so Auth.js / Profile.js can use them to skip
+     straight to real data on the very first render instead of showing "—" placeholders until the
+     socket round trip lands. -->
+<!-- HYDRATE_DATA -->
 <script src="/socket.io/socket.io.js" defer></script>
 <!-- BUNDLE:START -->
 <script src="/BoardLogic.js" defer></script>

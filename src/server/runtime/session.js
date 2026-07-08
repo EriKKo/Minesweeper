@@ -18,6 +18,41 @@ var updateDraw = gameUtil.updateDraw;
 var PROVISIONAL_GAMES;
 function init(deps) { PROVISIONAL_GAMES = deps.PROVISIONAL_GAMES; }
 
+// The "authenticated" snapshot for a user row — shared by loginSocket (the live socket path) and
+// staticServer's HTML hydration (a cookie-identified user gets this same shape inlined into the
+// page, so the client's first render already has real data instead of "—" placeholders; see
+// window.__ACCOUNT__ in staticServer.js). No side effects (doesn't touch appState/live games) —
+// just the data.
+function buildAccountPayload(user) {
+	var today = db.todayUtc();
+	var dailyAttempt = db.getDailyAttempt(user.id, today);
+	var avatarColor = user.avatar_color || (user.is_guest ? "anon" : null);
+	return {
+		name: db.displayNameOf(user),
+		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
+		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory,
+		avatarUrl: user.avatar_url,
+		avatarColor: avatarColor,
+		country: user.country || null,
+		wins: user.wins,
+		played: user.played,
+		createdAt: user.created_at,
+		provisional: user.played < PROVISIONAL_GAMES,
+		puzzleRating: user.puzzle_rating,
+		puzzlePoints: user.puzzle_points || 0,
+		puzzlesSolved: user.puzzles_solved,
+		puzzlesAttempted: user.puzzles_attempted,
+		streakBest: user.streak_best,
+		stormBest: user.storm_best,
+		dailyStreak: db.dailyStreakForUser(user.id),
+		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
+		isAdmin: !!user.is_admin,
+		guest: !!user.is_guest,
+		soloBests: db.getSoloBests(user.id),
+		provider: user.last_provider || user.provider
+	};
+}
+
 function loginSocket(socket, playerID, user, token, sendToken) {
 	accounts[playerID] = {
 		userId: user.id, token: token, played: user.played,
@@ -37,35 +72,7 @@ function loginSocket(socket, playerID, user, token, sendToken) {
 		games[playerID].country = countries[playerID];
 		updateDraw(roomMapping[playerID]);
 	}
-	var today = db.todayUtc();
-	var dailyAttempt = db.getDailyAttempt(user.id, today);
-	var payload = {
-		name: displayName,
-		ratingSprint: user.rating_sprint, ratingStandard: user.rating_standard,
-		ratingTournament: user.rating_tournament, ratingTerritory: user.rating_territory,
-		avatarUrl: user.avatar_url,
-		avatarColor: avatarColor,
-		country: user.country || null,
-		wins: user.wins,
-		played: user.played,
-		createdAt: user.created_at, // for "Member since" on the profile
-		provisional: user.played < PROVISIONAL_GAMES,
-		puzzleRating: user.puzzle_rating,
-		puzzlePoints: user.puzzle_points || 0,
-		puzzlesSolved: user.puzzles_solved,
-		puzzlesAttempted: user.puzzles_attempted,
-		streakBest: user.streak_best,
-		stormBest: user.storm_best,
-		dailyStreak: db.dailyStreakForUser(user.id),
-		dailyAttempt: dailyAttempt ? { solved: !!dailyAttempt.solved, at: dailyAttempt.attempted_at } : null,
-		isAdmin: !!user.is_admin,
-		guest: !!user.is_guest,
-		soloBests: db.getSoloBests(user.id), // { "<size>_<density%>": ms } — Free-play best clear times
-
-		// The provider most recently signed in with (for accounts linked across several) — drives the
-		// topbar auth logo. Falls back to the original provider for rows predating last_provider.
-		provider: user.last_provider || user.provider
-	};
+	var payload = buildAccountPayload(user);
 	if (sendToken) payload.token = token;
 	socket.emit("authenticated", payload);
 	if (isFirst) socket.emit("room_list", { rooms: roomState.getRoomList() });
@@ -221,4 +228,4 @@ function registerSocketHandlers(socket, playerID) {
 	});
 }
 
-module.exports = { init: init, registerSocketHandlers: registerSocketHandlers };
+module.exports = { init: init, registerSocketHandlers: registerSocketHandlers, buildAccountPayload: buildAccountPayload };

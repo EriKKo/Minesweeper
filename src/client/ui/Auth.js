@@ -15,6 +15,7 @@
 	var m = /(?:^|[#&])token=([a-f0-9]+)/.exec(location.hash || "");
 	if (m) {
 		localStorage.setItem("ms_session", m[1]);
+		setSessionCookie(m[1]);
 		history.replaceState(null, "", location.pathname + location.search);
 	}
 })();
@@ -35,8 +36,32 @@ function setSignedInHint(signedIn) {
 	try { localStorage.setItem(SIGNED_IN_HINT_KEY, signedIn ? "1" : "0"); } catch (e) { /* storage blocked */ }
 }
 
+// Mirrors the session token into a cookie too, alongside every localStorage write/removal below —
+// a plain HTTP GET can't read localStorage, but DOES send cookies, so this is what lets the server
+// recognize a returning visitor on the very next page load and inline their account data (see
+// window.__ACCOUNT__ below / staticServer.js). Same trust level as the token already sitting in
+// localStorage — not httpOnly, since this file needs to write it; no expiry server-side either
+// (sessions never expire — see db.createSession), so a long max-age just matches that.
+function setSessionCookie(token) {
+	var secure = location.protocol === "https:" ? "; secure" : "";
+	document.cookie = "ms_session=" + encodeURIComponent(token) + "; path=/; max-age=31536000; samesite=lax" + secure;
+}
+function clearSessionCookie() {
+	document.cookie = "ms_session=; path=/; max-age=0; samesite=lax";
+}
+
 var myName = "";
 var account = null; // { name, rating, ... } when signed in
+// Server-inlined account snapshot (see staticServer.js) — present when this page was requested
+// with a valid ms_session cookie, so the very first render (showLobbyView's eager call at the end
+// of Main.js) already has real data instead of "—" placeholders. applyAuthenticated overwrites
+// this moments later with the authoritative version from the live socket round trip; same "start
+// with a good guess, correct shortly after" shape as getSignedInHint above, just with the actual
+// data instead of a boolean.
+if (typeof window.__ACCOUNT__ !== "undefined" && window.__ACCOUNT__) {
+	account = window.__ACCOUNT__;
+	myName = account.name;
+}
 
 var nameError = document.getElementById("name_error");
 var userBadge = document.getElementById("user_badge");
@@ -260,6 +285,7 @@ function doSignIn() {
 function doSignOut() {
 	socket.emit("sign_out");
 	localStorage.removeItem("ms_session");
+	clearSessionCookie();
 	account = null;
 	if (inRoom) socket.emit("leave_room");
 	myName = "";
@@ -293,15 +319,21 @@ function applyConnected(data) {
 	var token = localStorage.getItem("ms_session");
 	// Stored token → resume that account/guest. No token → start a guest session automatically
 	// (no login wall); the server mints a "GuestNNNNN" user and returns a token we persist.
-	if (token) socket.emit("authenticate", { token: token });
-	else socket.emit("guest_session");
+	if (token) {
+		// Self-heals the cookie for anyone who already had a localStorage token from before the
+		// cookie existed — otherwise they'd never get window.__ACCOUNT__ on a future visit.
+		setSessionCookie(token);
+		socket.emit("authenticate", { token: token });
+	} else {
+		socket.emit("guest_session");
+	}
 }
 
 function applyAuthenticated(data) {
 	account = data;
 	myName = data.name;
 	// A freshly-minted guest session ships its token back so it survives reloads.
-	if (data.token) localStorage.setItem("ms_session", data.token);
+	if (data.token) { localStorage.setItem("ms_session", data.token); setSessionCookie(data.token); }
 	renderRatingBadge();
 	// Topbar: real accounts show name + provider logo + Change + Sign out; guests show only Sign in.
 	applyUserIdentity(data);
@@ -316,6 +348,7 @@ function applyAuthenticated(data) {
 
 function applyAuthFailed() {
 	localStorage.removeItem("ms_session");
+	clearSessionCookie();
 	account = null;
 	socket.emit("guest_session"); // stale/expired token → start fresh as a guest
 }

@@ -5192,7 +5192,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 	background: rgba(11, 16, 32, 0.4);
 	border-radius: 0.5rem;
 	padding: 0.4rem;
-	min-height: 0;
+	/* Reserved so the card doesn't collapse-then-grow while waiting for the puzzle to draw (the
+	   canvas's own size depends on that day's rows/cols, computed only once JS runs — see
+	   renderLobbyDailyBoard) — matches .lobby-daily-preview's own max-width, since puzzles vary in
+	   aspect ratio day to day and this is the best fixed guess available. */
+	min-height: 132px;
 	display: flex; align-items: center; justify-content: center;
 }
 .lobby-daily-board-empty { color: var(--muted); font-size: 0.9rem; }
