@@ -4998,11 +4998,24 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* ===== Home dashboard ("player dashboard" layout) ===== */
 .dash { max-width: 1180px; margin: 0 auto; padding: 0.3rem 0; }
 .dash-you {
+	position: relative;
 	display: flex; align-items: center; gap: 1rem;
 	background: linear-gradient(110deg, var(--surface-2), var(--surface));
 	border: 1px solid var(--border); border-radius: 14px;
 	padding: 0.7rem 1.2rem; margin-bottom: 0.8rem;
 }
+/* Skeleton loader cover — the real card is always rendered underneath at its normal size (see
+   index.html); this shimmer overlay fades out once the corresponding render function actually
+   populates it with live data (or a short timeout passes — see hideSkeleton()/showLobbyView() in
+   Router.js), so a slow connection never shimmers forever. */
+.dash-skel-cover {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	border-radius: inherit;
+	transition: opacity 0.35s ease;
+}
+.dash-skel-cover.skel-hide { opacity: 0; pointer-events: none; }
 .dash-you-badge { flex: 0 0 auto; display: inline-flex; }
 .dash-you-badge .rank-badge { font-size: 9px; }
 .dash-you-main { min-width: 0; }
@@ -5061,7 +5074,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-solo { --dash-acc: #34d399; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
-.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 1rem; }
+.dash-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 1rem; }
 .dash-card-title { font-size: 1rem; margin: 0 0 0.4rem; }
 .dash-lb-list { list-style: none; margin: 0; padding: 0; }
 .dash-lb-list .lb-row { font-size: 0.84rem; padding: 0.32rem 0.6rem; background: transparent; }

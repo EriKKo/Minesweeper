@@ -757,6 +757,10 @@ function renderDashIdentity() {
 	var lineEl = document.getElementById("dash_you_line");
 	var statsEl = document.getElementById("dash_you_stats");
 	nameEl.textContent = (typeof myName !== "undefined" && myName) || (account && account.name) || "Player";
+	// Whatever this function renders below (with or without an account) is already its correct final
+	// state for the data available right now — no further round trip this card is waiting on — so
+	// the skeleton can come down as soon as we get here (see hideSkeleton() in Router.js).
+	if (typeof hideSkeleton === "function") hideSkeleton("dash_you_skel");
 	if (!account) {
 		if (badgeEl) badgeEl.innerHTML = "";
 		if (lineEl) lineEl.textContent = "Sign in to track your rank.";
@@ -872,6 +876,11 @@ function renderLobbyDailyBoard() {
 		return;
 	}
 	if (dateEl) dateEl.textContent = account.dailyDate || "";
+	// The real board only exists once BOTH auth AND the separate puzzle_daily_status round trip have
+	// landed — hide the skeleton here (once `board` is real), not on the `!board` branch above, so it
+	// doesn't briefly reveal the "Sign in to see today's puzzle" placeholder in the gap between those
+	// two events (see hideSkeleton() in Router.js).
+	if (typeof hideSkeleton === "function") hideSkeleton("dash_daily_skel");
 	if (container.dataset.boardKey === board.rows + "x" + board.cols + "@" + account.dailyDate) return;
 	container.dataset.boardKey = board.rows + "x" + board.cols + "@" + account.dailyDate;
 	container.innerHTML = "";

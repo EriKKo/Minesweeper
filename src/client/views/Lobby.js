@@ -254,6 +254,9 @@ var HOME_ROOMS_MAX = 6;
 function renderHomeRooms(rooms) {
 	var list = document.getElementById("home_room_list");
 	if (!list) return;
+	// This is always a real room_list response (there's no intermediate placeholder state to wait
+	// past) — safe to reveal unconditionally (see hideSkeleton() in Router.js).
+	if (typeof hideSkeleton === "function") hideSkeleton("dash_rooms_skel");
 	var open = rooms.filter(function(r) { return r.phase === "planning"; });
 	var busy = rooms.filter(function(r) { return r.phase !== "planning"; });
 	var ordered = open.concat(busy);

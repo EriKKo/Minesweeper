@@ -102,6 +102,15 @@ function showRankedPickerView(style) {
 }
 
 
+// Skeleton-loader helper (see .skel-shimmer / .dash-skel-cover in style.css): fades out the cover
+// over a home-dashboard card. Idempotent — safe to call more than once (e.g. both the real data
+// handler AND the safety timeout below might fire for the same id; the second call is just a no-op).
+function hideSkeleton(id) {
+	var el = document.getElementById(id);
+	if (el) el.classList.add("skel-hide");
+}
+var DASH_SKELETON_IDS = ["dash_you_skel", "dash_daily_skel", "dash_rooms_skel"];
+
 function showLobbyView() {
 	hideAllViews();
 	lobbyView.style.display = "";
@@ -116,6 +125,11 @@ function showLobbyView() {
 	setSiteNavActive("home");
 	// The home aside now lists active rooms (open + in-progress) instead of the leaderboard.
 	socket.emit("list_rooms");
+	// Safety net for the skeleton loaders: an unreachable/slow server shouldn't shimmer forever —
+	// reveal whatever's underneath (even if it's still a placeholder) after a few seconds regardless.
+	// The normal path (renderDashIdentity / renderLobbyDailyBoard / renderHomeRooms actually landing
+	// real data) already hides these well before this fires in the common case.
+	setTimeout(function() { DASH_SKELETON_IDS.forEach(hideSkeleton); }, 5000);
 }
 
 // Learn page lives in Learn.js (loaded via a separate <script> tag).
