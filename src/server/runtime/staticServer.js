@@ -16,6 +16,11 @@ var fs = require("fs");
 var path = require("path");
 var zlib = require("zlib");
 
+// In dev (npm run dev / DEV_AUTH=1) nothing has a cache-busting URL and the whole point is fast
+// iteration, so long-lived caching just serves stale JS/CSS after every edit — disable it there.
+// Production keeps the real max-age.
+var DEV = process.env.DEV_AUTH === "1";
+
 // Static file roots, tried in order. Client assets (HTML, CSS, .js modules) live in
 // src/client; the one shared module (BoardLogic.js) lives in src/common.
 var STATIC_ROOTS = [
@@ -63,8 +68,8 @@ function serve(res, pathname, req) {
 	var headers = { "Content-Type": contentType };
 	// index.html (and any other text/html path — the SPA fallback) must never go stale behind a
 	// cache; everything else has no cache-busting in its URL, so keep the lifetime short rather
-	// than long-lived/immutable.
-	headers["Cache-Control"] = (contentType === "text/html") ? "no-cache" : "public, max-age=3600";
+	// than long-lived/immutable. Dev disables it entirely (see DEV above).
+	headers["Cache-Control"] = (contentType === "text/html" || DEV) ? "no-cache" : "public, max-age=3600";
 
 	var encoding = COMPRESSIBLE[contentType] ? pickEncoding(req) : null;
 	if (!encoding) {
