@@ -5006,14 +5006,16 @@ body.touch .find-next-arrow { display: inline-flex; }
    index.html); this shimmer overlay fades out once the corresponding render function actually
    populates it with live data (or a short timeout passes — see hideSkeleton()/showLobbyView() in
    Router.js), so a slow connection never shimmers forever. Deliberately plain: one flat rectangle
-   with the shimmer sweep, no placeholder shapes inside it — simpler read than trying to mimic the
-   real content's layout. */
+   with the shimmer sweep, no placeholder shapes inside it. The background must be fully OPAQUE
+   (not a translucent tint) — the whole point is that no text/content underneath shows through
+   until real data lands and the cover is hidden. var(--surface-2) is a visible-but-gentle step up
+   from the cards' own var(--surface)/gradient background, not the harsher var(--bg). */
 .dash-skel-cover {
 	position: absolute;
 	inset: 0;
 	z-index: 5;
 	border-radius: inherit;
-	background: rgba(11, 16, 32, 0.4);
+	background: var(--surface-2);
 	transition: opacity 0.35s ease;
 }
 .dash-skel-cover.skel-hide { opacity: 0; pointer-events: none; }
