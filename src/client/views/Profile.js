@@ -696,11 +696,12 @@ function renderHomeRankChips() {
 	// Only Sprint + Standard are surfaced on the home page now; Tournament/Territory live under Admin.
 	applyTo(rankTierSprint, sprint, "rank_badge_sprint");
 	applyTo(rankTierStandard, standard, "rank_badge_standard");
-	// The four mode rows' own title/subtitle/board preview are static; only this small rank/rating
-	// corner waits on account data — keep it covered until account is confirmed (guest or signed in),
-	// same reasoning as dash_you_skel below.
+	// Each mode row gets its own full-card skeleton (matching the you-card/daily/rooms treatment) —
+	// keep them covered until account is confirmed (guest or signed in), same reasoning as
+	// dash_you_skel below. They currently all resolve together (one account payload), but are kept
+	// as separate elements/ids so each row's loading state is self-contained.
 	if (account && typeof hideSkeleton === "function") {
-		["dash_stat_skel_sprint", "dash_stat_skel_standard", "dash_stat_skel_puzzles", "dash_stat_skel_solo"].forEach(hideSkeleton);
+		["dash_row_skel_sprint", "dash_row_skel_standard", "dash_row_skel_puzzles", "dash_row_skel_solo"].forEach(hideSkeleton);
 	}
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");

@@ -181,19 +181,13 @@ function hideSkeleton(id) {
 }
 var DASH_SKELETON_IDS = [
 	"dash_you_skel", "dash_daily_skel", "dash_rooms_skel",
-	"dash_stat_skel_sprint", "dash_stat_skel_standard", "dash_stat_skel_puzzles", "dash_stat_skel_solo"
+	"dash_row_skel_sprint", "dash_row_skel_standard", "dash_row_skel_puzzles", "dash_row_skel_solo"
 ];
 
 function showLobbyView() {
 	hideAllViews();
 	lobbyView.style.display = "";
 	lobbyMessage.style.display = "none";
-	// Ranked cards only make sense for signed-in players; custom lobby card is
-	// always visible so guests can still create casual rooms.
-	var rankedCards = document.querySelectorAll(".home-card-ranked");
-	for (var i = 0; i < rankedCards.length; i++) {
-		rankedCards[i].style.display = account ? "" : "none";
-	}
 	renderHomeRankChips();
 	setSiteNavActive("home");
 	// The home aside now lists active rooms (open + in-progress) instead of the leaderboard.
