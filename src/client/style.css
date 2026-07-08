@@ -5053,7 +5053,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 .dash-modes { display: flex; flex-direction: column; gap: 0.55rem; }
 .dash-row {
-	position: relative;
 	display: flex; align-items: center; gap: 0.9rem;
 	background: var(--surface); border: 1px solid var(--border);
 	border-radius: 12px; padding: 0.55rem 0.9rem;
@@ -5069,11 +5068,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
-.dash-row-stat { flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; min-width: 4.5rem; min-height: 1.4rem; }
+.dash-row-stat { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; min-width: 4.5rem; min-height: 1.4rem; }
 .dash-row-stat-text { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .dash-row-stat .mode-card-rank-tier { font-weight: 700; }
 .dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
 .dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
+/* Small skeleton over just the rank/rating corner — the only piece of each mode row that's
+   actually fetched from the server. Title, subtitle, and board preview are static/local and
+   render immediately; don't cover more than the data that's genuinely still loading. */
+.dash-row-stat-skel { position: absolute; inset: 0; border-radius: 6px; transition: opacity 0.35s ease; }
+.dash-row-stat-skel.skel-hide { opacity: 0; pointer-events: none; }
 .dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
@@ -5086,6 +5090,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-lb-more:hover { text-decoration: underline; }
 
 /* Home dashboard "Active rooms" strip (replaces the leaderboard in the aside). */
+/* Wraps just the fetched room list so the skeleton cover doesn't also hide the static title above
+   it or the "Browse Custom Lobbies" button below it. */
+.dash-rooms-body { position: relative; }
 .dash-rooms-list { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .dash-room-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.55rem; border-radius: 9px; background: var(--bg); border: 1px solid var(--border); }
 .dash-room-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -5176,6 +5183,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 .lobby-daily-date { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lobby-daily-title { margin: 0; font-size: 1rem; }
 .lobby-daily-sub { margin: 0; font-size: 0.8rem; color: var(--muted); }
+/* Wraps just the fetched part (board/meta/button) so the skeleton cover doesn't also hide the
+   static tag+title above it. display:flex + the same gap as .lobby-daily-hero keeps the internal
+   spacing identical to when these were direct children of it. */
+.lobby-daily-body { position: relative; display: flex; flex-direction: column; gap: 0.45rem; }
 
 .lobby-daily-board {
 	background: rgba(11, 16, 32, 0.4);

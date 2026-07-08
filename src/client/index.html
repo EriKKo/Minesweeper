@@ -134,8 +134,8 @@
 								<span class="dash-row-stat-text">
 									<span class="mode-card-rank-tier" id="rank_tier_sprint">—</span>
 								</span>
+								<span id="dash_row_skel_sprint" class="skel-shimmer dash-row-stat-skel"></span>
 							</span>
-							<div id="dash_row_skel_sprint" class="skel-shimmer dash-skel-cover"></div>
 						</a>
 						<a class="dash-row dash-row-standard home-card-ranked" href="/ranked/standard" data-style="standard" aria-label="Play Standard">
 							<span class="dash-row-board" id="dash_board_standard" aria-hidden="true"></span>
@@ -148,8 +148,8 @@
 								<span class="dash-row-stat-text">
 									<span class="mode-card-rank-tier" id="rank_tier_standard">—</span>
 								</span>
+								<span id="dash_row_skel_standard" class="skel-shimmer dash-row-stat-skel"></span>
 							</span>
-							<div id="dash_row_skel_standard" class="skel-shimmer dash-skel-cover"></div>
 						</a>
 						<a class="dash-row dash-row-puzzles" href="/puzzles" data-style="puzzles" aria-label="Open Puzzles">
 							<span class="dash-row-board" id="dash_board_puzzles" aria-hidden="true"></span>
@@ -162,8 +162,8 @@
 									<span class="mode-card-rank-tier" id="puzzle_rating_value">—</span>
 									<span class="mode-card-rank-rating" id="puzzle_solved_count"></span>
 								</span>
+								<span id="dash_row_skel_puzzles" class="skel-shimmer dash-row-stat-skel"></span>
 							</span>
-							<div id="dash_row_skel_puzzles" class="skel-shimmer dash-skel-cover"></div>
 						</a>
 						<a class="dash-row dash-row-solo" href="/solo" data-style="solo" aria-label="Open Practice">
 							<span class="dash-row-board" id="dash_board_solo" aria-hidden="true"></span>
@@ -176,8 +176,8 @@
 									<span class="mode-card-rank-tier" id="dash_solo_best">—</span>
 									<span class="mode-card-rank-rating" id="dash_solo_best_label"></span>
 								</span>
+								<span id="dash_row_skel_solo" class="skel-shimmer dash-row-stat-skel"></span>
 							</span>
-							<div id="dash_row_skel_solo" class="skel-shimmer dash-skel-cover"></div>
 						</a>
 					</div>
 
@@ -188,31 +188,39 @@
 								<span id="lobby_daily_date" class="lobby-daily-date"></span>
 							</div>
 							<h3 class="lobby-daily-title">Today's challenge</h3>
-							<div class="lobby-daily-board-wrap">
-								<div id="lobby_daily_board" class="lobby-daily-board"></div>
-								<span class="lobby-daily-badge" aria-hidden="true"></span>
+							<!-- Only this part is actually fetched (the board, streak/status values, and the
+							     button's final label) — the tag/title above are static and already shown. -->
+							<div class="lobby-daily-body">
+								<div class="lobby-daily-board-wrap">
+									<div id="lobby_daily_board" class="lobby-daily-board"></div>
+									<span class="lobby-daily-badge" aria-hidden="true"></span>
+								</div>
+								<div class="lobby-daily-meta">
+									<span class="lobby-daily-meta-cell">
+										<span class="lobby-daily-meta-label">Streak</span>
+										<span class="lobby-daily-meta-value" id="puzzle_daily_streak">—</span>
+									</span>
+									<span class="lobby-daily-meta-cell">
+										<span class="lobby-daily-meta-label">Today</span>
+										<span class="lobby-daily-meta-value" id="puzzle_daily_status">—</span>
+									</span>
+								</div>
+								<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
+								<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover"></div>
 							</div>
-							<div class="lobby-daily-meta">
-								<span class="lobby-daily-meta-cell">
-									<span class="lobby-daily-meta-label">Streak</span>
-									<span class="lobby-daily-meta-value" id="puzzle_daily_streak">—</span>
-								</span>
-								<span class="lobby-daily-meta-cell">
-									<span class="lobby-daily-meta-label">Today</span>
-									<span class="lobby-daily-meta-value" id="puzzle_daily_status">—</span>
-								</span>
-							</div>
-							<button id="open_daily_button" class="btn btn-primary lobby-daily-action">Play today's puzzle</button>
-							<div id="dash_daily_skel" class="skel-shimmer dash-skel-cover"></div>
 						</div>
 
 						<div class="dash-card dash-rooms">
 							<h3 class="dash-card-title">Active rooms</h3>
-							<ul id="home_room_list" class="dash-rooms-list">
-								<li class="room-empty">Loading…</li>
-							</ul>
+							<!-- Only the room list itself is fetched — the title above and the browse button
+							     below are static and already shown. -->
+							<div class="dash-rooms-body">
+								<ul id="home_room_list" class="dash-rooms-list">
+									<li class="room-empty">Loading…</li>
+								</ul>
+								<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover"></div>
+							</div>
 							<a href="/custom" class="btn btn-secondary dash-rooms-browse">Browse Custom Lobbies</a>
-							<div id="dash_rooms_skel" class="skel-shimmer dash-skel-cover"></div>
 						</div>
 					</aside>
 				</div>
