@@ -360,7 +360,7 @@ function profileBestsGrid(bests) {
 	var note = document.createElement("p");
 	note.className = "section-stub-note";
 	note.style.margin = "0.5rem 0 0";
-	note.textContent = "No clears yet — set a time in Solo.";
+	note.textContent = "No clears yet — set a time in Practice.";
 	wrap.appendChild(note);
 	return wrap;
 }
@@ -677,24 +677,25 @@ function profileStat(label, value) {
 }
 
 function renderHomeRankChips() {
-	function applyTo(tierEl, ratingEl, rating, badgeId) {
+	// Home page shows only the tier name, never the exact rating number (same "no precise number"
+	// treatment the in-game duel identity panels already use).
+	function applyTo(tierEl, rating, badgeId) {
 		var badgeEl = badgeId ? document.getElementById(badgeId) : null;
 		if (badgeEl) {
 			badgeEl.innerHTML = "";
 			if (account && typeof rating === "number") badgeEl.appendChild(buildRankBadge(rating));
 		}
-		if (!tierEl || !ratingEl) return;
-		if (!account) { tierEl.textContent = "—"; tierEl.style.color = ""; ratingEl.textContent = ""; return; }
+		if (!tierEl) return;
+		if (!account) { tierEl.textContent = "—"; tierEl.style.color = ""; return; }
 		var t = tierFor(rating, account.provisional);
 		tierEl.textContent = t.name;
 		tierEl.style.color = t.color;
-		ratingEl.textContent = rating;
 	}
 	var sprint = account ? account.ratingSprint : null;
 	var standard = account ? account.ratingStandard : null;
 	// Only Sprint + Standard are surfaced on the home page now; Tournament/Territory live under Admin.
-	applyTo(rankTierSprint, rankRatingSprint, sprint, "rank_badge_sprint");
-	applyTo(rankTierStandard, rankRatingStandard, standard, "rank_badge_standard");
+	applyTo(rankTierSprint, sprint, "rank_badge_sprint");
+	applyTo(rankTierStandard, standard, "rank_badge_standard");
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");
@@ -733,7 +734,7 @@ function renderHomeRankChips() {
 	if (stormBestEl) stormBestEl.textContent = account ? (account.stormBest || 0) : "—";
 	var dailyStreakEl = document.getElementById("puzzle_daily_streak");
 	var dailyStatusEl = document.getElementById("puzzle_daily_status");
-	if (dailyStreakEl) dailyStreakEl.textContent = account ? (account.dailyStreak || 0) : "—";
+	if (dailyStreakEl) dailyStreakEl.textContent = account ? ("🔥 " + (account.dailyStreak || 0)) : "—";
 	if (dailyStatusEl) {
 		if (!account) { dailyStatusEl.textContent = ""; }
 		else if (!account.dailyAttempt) { dailyStatusEl.textContent = "Not played"; }
@@ -780,12 +781,13 @@ function renderDashIdentity() {
 		badgeEl.title = "Edit avatar";
 		badgeEl.onclick = function() { if (typeof openAvatarEditor === "function") openAvatarEditor(); };
 	}
-	if (lineEl) lineEl.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b> · " + overall;
+	if (lineEl) lineEl.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b>";
 	if (statsEl) {
 		var played = account.played || 0, wins = account.wins || 0;
 		var wr = played ? Math.round(wins / played * 100) + "%" : "—";
 		function cell(label, val) { return "<span class=\"dash-stat\"><b>" + val + "</b><span>" + label + "</span></span>"; }
-		statsEl.innerHTML = cell("Played", played) + cell("Win rate", wr) + cell("Daily streak", "🔥 " + (account.dailyStreak || 0));
+		// Daily streak already shows (with its 🔥) under the daily-puzzle card below — no need to repeat it here.
+		statsEl.innerHTML = cell("Played", played) + cell("Win rate", wr);
 	}
 }
 

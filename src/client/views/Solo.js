@@ -233,7 +233,7 @@ function showSoloOutcome(won) {
 
 	var back = document.createElement("button");
 	back.className = "btn btn-secondary";
-	back.textContent = "Back to Solo";
+	back.textContent = "Back to Practice";
 	back.addEventListener("click", exitSolo);
 	actions.appendChild(back);
 

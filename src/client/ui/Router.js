@@ -36,11 +36,11 @@ function showNameView() {
 // Standard playstyle on the lobby. Tournament skips this and queues
 // directly; Custom has its own lobby.
 var RANKED_PICKER_META = {
-	sprint:   { title: "Sprint",   sub: "10% mines · fast race",
+	sprint:   { title: "Sprint",   sub: "10% mines",
 		pitch: "Wide cascades, blink-fast clears. Read the open spaces and out-click your opponent.",
 		duoSub: "Head-to-head sprint", sixSub: "Free-for-all sprint", color: "#fbbf24",
 		iconPath: "M13 2L3 14h7l-1 8 10-12h-7l1-8z" },
-	standard: { title: "Standard", sub: "20% mines · deduction",
+	standard: { title: "Standard", sub: "20% mines",
 		pitch: "Dense boards reward careful reading. Bad guesses end your match — every flag matters.",
 		duoSub: "Head-to-head deduction", sixSub: "Dense free-for-all", color: "#a78bfa",
 		iconPath: "M12 3a9 9 0 109 9 9 9 0 00-9-9zm0 4a5 5 0 11-5 5 5 5 0 015-5zm0 3a2 2 0 102 2 2 2 0 00-2-2z" },

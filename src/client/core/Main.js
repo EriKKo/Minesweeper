@@ -871,11 +871,9 @@ var homeCards = document.getElementById("home_cards");
 // router translates that into findRanked() (tournament fires
 // immediately; sprint/standard show the size picker first).
 var rankTierSprint = document.getElementById("rank_tier_sprint");
-var rankRatingSprint = document.getElementById("rank_rating_sprint");
 var rankTierSprintSix = document.getElementById("rank_tier_sprint_six");
 var rankRatingSprintSix = document.getElementById("rank_rating_sprint_six");
 var rankTierStandard = document.getElementById("rank_tier_standard");
-var rankRatingStandard = document.getElementById("rank_rating_standard");
 var rankTierStandardSix = document.getElementById("rank_tier_standard_six");
 var rankRatingStandardSix = document.getElementById("rank_rating_standard_six");
 var rankTierTournament = document.getElementById("rank_tier_tournament");
