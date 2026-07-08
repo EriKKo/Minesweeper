@@ -696,6 +696,12 @@ function renderHomeRankChips() {
 	// Only Sprint + Standard are surfaced on the home page now; Tournament/Territory live under Admin.
 	applyTo(rankTierSprint, sprint, "rank_badge_sprint");
 	applyTo(rankTierStandard, standard, "rank_badge_standard");
+	// The four mode rows' own title/subtitle/board preview are static; only this small rank/rating
+	// corner waits on account data — keep it covered until account is confirmed (guest or signed in),
+	// same reasoning as dash_you_skel below.
+	if (account && typeof hideSkeleton === "function") {
+		["dash_stat_skel_sprint", "dash_stat_skel_standard", "dash_stat_skel_puzzles", "dash_stat_skel_solo"].forEach(hideSkeleton);
+	}
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");
 	var puzzleSolvedEl = document.getElementById("puzzle_solved_count");
@@ -758,16 +764,12 @@ function renderDashIdentity() {
 	var lineEl = document.getElementById("dash_you_line");
 	var statsEl = document.getElementById("dash_you_stats");
 	nameEl.textContent = (typeof myName !== "undefined" && myName) || (account && account.name) || "Player";
-	// Whatever this function renders below (with or without an account) is already its correct final
-	// state for the data available right now — no further round trip this card is waiting on — so
-	// the skeleton can come down as soon as we get here (see hideSkeleton() in Router.js).
+	// account is null both before the auth round trip resolves AND (in theory) if it never does —
+	// but in practice every visitor ends up with a real account object, guest or not (see the
+	// guest_session flow in Auth.js), so this only really means "still waiting". Leave the skeleton
+	// up rather than reveal a "guest" treatment that might flip the moment the real data lands.
+	if (!account) return;
 	if (typeof hideSkeleton === "function") hideSkeleton("dash_you_skel");
-	if (!account) {
-		if (badgeEl) badgeEl.innerHTML = "";
-		if (lineEl) lineEl.textContent = "Sign in to track your rank.";
-		if (statsEl) statsEl.innerHTML = "";
-		return;
-	}
 	// Dota-style identity: a tall avatar portrait on the left, name on top, rank/tier on the line beneath.
 	var nameRow = nameEl.parentNode;
 	if (nameRow) { var stale = nameRow.querySelector(".dash-avatar"); if (stale) stale.remove(); } // drop the old inline avatar

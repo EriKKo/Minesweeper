@@ -5079,11 +5079,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
-.dash-row-stat { flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; }
+.dash-row-stat { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; min-width: 4.5rem; min-height: 1.4rem; }
 .dash-row-stat-text { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .dash-row-stat .mode-card-rank-tier { font-weight: 700; }
 .dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
 .dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
+/* Small skeleton over just the rank/rating corner — the row's title, subtitle, and board preview
+   are static and render immediately, so only this corner (waiting on account data) needs to look
+   like it's loading. Hidden together once renderHomeRankChips() populates all four rows. */
+.dash-row-stat-skel { position: absolute; inset: 0; border-radius: 6px; transition: opacity 0.35s ease; }
+.dash-row-stat-skel.skel-hide { opacity: 0; pointer-events: none; }
 .dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }

@@ -2121,6 +2121,18 @@ function resetGameUI() {
 // overlay + countdown moved to Overlay.js
 // round timer + freeze ticker moved to RoundTimer.js
 
+// Show the home dashboard immediately on first load instead of waiting for the auth round trip
+// (connect -> authenticate/guest_session -> authenticated) to finish before any view appears at
+// all — that full round trip is exactly the "blank background" gap skeleton loaders are supposed
+// to cover, but they never got a chance to show because nothing called showLobbyView() until auth
+// resolved. `account` is null at this point (set in Auth.js before this script runs), which reads
+// the same as "signed out" — correct until applyAuthenticated corrects it. This call is idempotent
+// (list_rooms re-emits, rank chips re-render) with the one applyAuthenticated/applyNameAccepted
+// fires later via applyRouteFromHash once real auth data lands.
+if ((location.pathname === "/" || location.pathname === "") && typeof showLobbyView === "function") {
+	showLobbyView();
+}
+
 
 // Render the live scoreboard. During a round, sorts by progress (finished
 // first, then % cleared) and shows a progress bar. In planning phase, sorts

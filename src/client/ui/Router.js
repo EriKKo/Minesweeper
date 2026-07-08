@@ -179,7 +179,10 @@ function hideSkeleton(id) {
 	var el = document.getElementById(id);
 	if (el) el.classList.add("skel-hide");
 }
-var DASH_SKELETON_IDS = ["dash_you_skel", "dash_daily_skel", "dash_rooms_skel"];
+var DASH_SKELETON_IDS = [
+	"dash_you_skel", "dash_daily_skel", "dash_rooms_skel",
+	"dash_stat_skel_sprint", "dash_stat_skel_standard", "dash_stat_skel_puzzles", "dash_stat_skel_solo"
+];
 
 function showLobbyView() {
 	hideAllViews();
