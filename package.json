@@ -16,10 +16,10 @@
     "node": ">=22"
   },
   "dependencies": {
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "esbuild": "^0.28.1"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1",
     "playwright": "^1.61.1",
     "socket.io-client": "^4.8.3"
   }
