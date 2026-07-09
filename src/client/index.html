@@ -580,6 +580,23 @@
 			</div>
 		</section>
 
+		<!-- HYDRATE_DATA is replaced (every request — see staticServer.js) with a plain, non-deferred
+		     <script> that: (1) sets window.__DAILY__ (today's puzzle board — same for everyone, no auth
+		     needed) and, if the request carries a valid ms_session cookie, window.__ACCOUNT__ (that
+		     user's account snapshot); (2) shows whichever view matches the current path and highlights
+		     its nav link (showRouteEarly(), reading the same ROUTE_VIEWS table Router.js's real
+		     dispatcher uses — see the SSR_INLINE markers in Router.js/Ranking.js/Profile.js) — every
+		     view in this file defaults to display:none, exactly like lobby_view above, so this is what
+		     makes ANY page's shell show up at all before the deferred bundle loads, not just the home
+		     dashboard; (3) paints the you-card for real if window.__ACCOUNT__ is set
+		     (paintYouCardEarly()). All of this runs before any deferred script, so a returning visitor's
+		     page renders correctly on the very first frame instead of showing a blank body (or "—"
+		     placeholders) until the socket round trip lands. Placed here, right after the last view
+		     ROUTE_VIEWS can target (#terms_view above), rather than at the end of the document after
+		     #game_view + the footer + all the modals — that's ~450 lines of markup a fresh page load
+		     never needs revealed, and the parser has to walk past it before this script can even run. -->
+		<!-- HYDRATE_DATA -->
+
 		<section id="game_view" class="view game-view" style="display:none">
 			<div class="game-header">
 				<button id="leave_button" class="btn btn-ghost">← Exit game</button>
@@ -1003,18 +1020,12 @@
      loading these individually so edits take effect without a rebuild). socket.io.js is server-
      supplied (not one of our files) so it stays its own tag either way, outside the marked block.
 
-     HYDRATE_DATA below is replaced (every request — see staticServer.js) with a plain, non-deferred
-     <script> that: (1) sets window.__DAILY__ (today's puzzle board — same for everyone, no auth
-     needed) and, if the request carries a valid ms_session cookie, window.__ACCOUNT__ (that user's
-     account snapshot); (2) shows whichever view matches the current path and highlights its nav
-     link (showRouteEarly(), reading the same ROUTE_VIEWS table Router.js's real dispatcher uses —
-     see the SSR_INLINE markers in Router.js/Ranking.js/Profile.js) — every view in this file
-     defaults to display:none, exactly like lobby_view above, so this is what makes ANY page's shell
-     show up at all before the deferred bundle loads, not just the home dashboard; (3) paints the
-     you-card for real if window.__ACCOUNT__ is set (paintYouCardEarly()). All of this runs before
-     any deferred script, so a returning visitor's page renders correctly on the very first frame
-     instead of showing a blank body (or "—" placeholders) until the socket round trip lands. -->
-<!-- HYDRATE_DATA -->
+     HYDRATE_DATA itself is placed earlier in this file (right before #game_view — see the comment
+     there) rather than down here: it's a synchronous, non-deferred <script> that reveals the current
+     page's shell, so the sooner the parser reaches it the sooner the page stops looking blank. All the
+     views it can target (everything through #terms_view) sit above that point; #game_view and
+     everything after it (plus this whole deferred-script block) are never what a fresh page load needs
+     to reveal, so there's no reason to make the parser walk through them first. -->
 <script src="/socket.io/socket.io.js" defer></script>
 <!-- BUNDLE:START -->
 <script src="/BoardLogic.js" defer></script>
