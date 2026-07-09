@@ -696,12 +696,12 @@ function renderHomeRankChips() {
 	// Only Sprint + Standard are surfaced on the home page now; Tournament/Territory live under Admin.
 	applyTo(rankTierSprint, sprint, "rank_badge_sprint");
 	applyTo(rankTierStandard, standard, "rank_badge_standard");
-	// Each mode row gets its own full-card skeleton (matching the you-card/daily/rooms treatment) —
-	// keep them covered until account is confirmed (guest or signed in), same reasoning as
-	// dash_you_skel below. They currently all resolve together (one account payload), but are kept
-	// as separate elements/ids so each row's loading state is self-contained.
-	if (account && typeof hideSkeleton === "function") {
-		["dash_row_skel_sprint", "dash_row_skel_standard", "dash_row_skel_puzzles", "dash_row_skel_solo"].forEach(hideSkeleton);
+	// No skeleton on the mode rows' rank/rating corner — it's simply absent until account is
+	// confirmed (guest or signed in), then slides in from the side (see .stat-fade-in in
+	// style.css / revealStat() in Router.js). They currently all resolve together (one account
+	// payload), but are kept as separate elements/ids so each row's reveal is self-contained.
+	if (account && typeof revealStat === "function") {
+		["dash_stat_sprint", "dash_stat_standard", "dash_stat_puzzles", "dash_stat_solo"].forEach(revealStat);
 	}
 
 	var puzzleRatingEl = document.getElementById("puzzle_rating_value");

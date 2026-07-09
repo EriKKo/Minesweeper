@@ -5075,16 +5075,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
-.dash-row-stat { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; min-width: 4.5rem; min-height: 1.4rem; }
+.dash-row-stat { flex: 0 0 auto; display: flex; align-items: center; gap: 0.6rem; min-width: 4.5rem; min-height: 1.4rem; }
 .dash-row-stat-text { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .dash-row-stat .mode-card-rank-tier { font-weight: 700; }
 .dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
 .dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
-/* Small skeleton over just the rank/rating corner — the only piece of each mode row that's
-   actually fetched from the server. Title, subtitle, and board preview are static/local and
-   render immediately; don't cover more than the data that's genuinely still loading. */
-.dash-row-stat-skel { position: absolute; inset: 0; border-radius: 6px; transition: opacity 0.35s ease; }
-.dash-row-stat-skel.skel-hide { opacity: 0; pointer-events: none; }
+/* No skeleton on the rank/rating corner — it just isn't there until the data's ready, then slides
+   in from the right (where it sits) and fades in together, via revealStat() in Profile.js. */
+.stat-fade-in { opacity: 0; transform: translateX(10px); transition: opacity 0.4s ease, transform 0.4s ease; }
+.stat-fade-in.stat-in { opacity: 1; transform: translateX(0); }
 .dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
