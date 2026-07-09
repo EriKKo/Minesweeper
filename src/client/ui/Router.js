@@ -9,6 +9,57 @@
 // Loaded before the inline script so renderLearn, renderProfile, etc. are
 // available when the user navigates.
 
+// SSR_INLINE:START — embedded verbatim into the server-generated synchronous early-paint script
+// (see staticServer.js), alongside showRouteEarly()/setSiteNavActive() below. The single source of
+// truth for every simple "this exact path shows this one view" route — both applyRouteFromHash()
+// (the real router, below) and the pre-boot script that runs before the deferred bundle loads read
+// this same table, so a page's shell renders immediately either way. Routes with redirects,
+// game-state-dependent logic, or no dedicated view to show ahead of live data (solo, /ranked/*,
+// /replay, /practice) aren't here — they stay special-cased in applyRouteFromHash, since a
+// synchronous pre-boot script can't safely replicate logic that needs session/game state that
+// doesn't exist yet this early. Matched on location.pathname only — several of these routes also
+// carry filter state as a query string (e.g. /admin/puzzles?diff=3&page=2), read separately by the
+// view's own render function, so the query string never affects which view is shown.
+var ROUTE_VIEWS = {
+	"/privacy": { view: "privacy_view", nav: null, fn: "showPrivacyView" },
+	"/terms": { view: "terms_view", nav: null, fn: "showTermsView" },
+	"/": { view: "lobby_view", nav: "home", fn: "showLobbyView" },
+	"/learn": { view: "learn_view", nav: "learn", fn: "showLearnView" },
+	"/puzzles": { view: "puzzle_picker_view", nav: "home", fn: "showPuzzlePickerView" },
+	"/custom": { view: "custom_view", nav: "home", fn: "showCustomView" },
+	"/puzzles/play": { view: "puzzle_play_view", nav: "", fn: "showPuzzlePlayView" },
+	"/puzzles/streak": { view: "puzzle_play_view", nav: "", fn: "showPuzzleStreakView" },
+	"/puzzles/storm": { view: "puzzle_play_view", nav: "", fn: "showPuzzleStormView" },
+	"/puzzles/daily": { view: "puzzle_play_view", nav: "", fn: "showPuzzleDailyView" },
+	"/admin": { view: "admin_view", nav: "admin", fn: "showAdminView" },
+	"/admin/lab": { view: "puzzles_view", nav: "admin", fn: "showPuzzleLabView" },
+	"/admin/puzzles": { view: "puzzles_list_view", nav: "admin", fn: "showPuzzlesListView" },
+	"/admin/bots": { view: "bots_view", nav: "admin", fn: "showBotsView" },
+	"/admin/starting-positions": { view: "starting_positions_view", nav: "admin", fn: "showStartingPositionsView" },
+	"/admin/patterns": { view: "patterns_view", nav: "admin", fn: "showPatternsView" },
+	"/admin/start-patterns": { view: "start_patterns_view", nav: "admin", fn: "showStartPatternsView" },
+	"/admin/combined-puzzles": { view: "combined_puzzles_view", nav: "admin", fn: "showCombinedPuzzlesView" },
+	"/admin/marathon-boards": { view: "marathon_boards_view", nav: "admin", fn: "showMarathonBoardsView" },
+	"/admin/design": { view: "design_view", nav: "admin", fn: "showDesignView" },
+	"/leaderboard": { view: "leaderboard_view", nav: "leaderboard", fn: "showLeaderboardView" },
+	"/profile": { view: "profile_view", nav: "profile", fn: "showProfileView" },
+	"/settings": { view: "settings_view", nav: "settings", fn: "showSettingsView" }
+};
+
+// Shows the view matching the current path — the same {view,nav} ROUTE_VIEWS gives the real router
+// above, just without calling that route's specific render function (nothing else has loaded yet
+// to call it). Used only by the server-generated early-paint script; the real router calls the full
+// showXView() functions instead, which do this same "show + set nav" step and then populate the
+// page for real once the bundle's running.
+function showRouteEarly() {
+	var entry = ROUTE_VIEWS[location.pathname];
+	if (!entry) return;
+	var el = document.getElementById(entry.view);
+	if (el) el.style.display = "";
+	setSiteNavActive(entry.nav);
+}
+// SSR_INLINE:END
+
 function hideAllViews() {
 	for (var i = 0; i < allViews.length; i++) {
 		var el = document.getElementById(allViews[i]);
@@ -375,12 +426,15 @@ function showTermsView() {
 	window.scrollTo(0, 0);
 }
 
+// SSR_INLINE:START — showRouteEarly() (above) calls this, so it needs to be part of the same
+// embedded block.
 function setSiteNavActive(route) {
 	var links = document.querySelectorAll(".site-nav-link");
 	for (var i = 0; i < links.length; i++) {
 		links[i].classList.toggle("active", links[i].getAttribute("data-route") === route);
 	}
 }
+// SSR_INLINE:END
 
 // Hash router. If the user is mid-game when they navigate away, we leave
 // the room (multiplayer) or tear down the solo session first, then route.
@@ -475,40 +529,23 @@ function applyRouteFromHash() {
 		}
 		if (typeof showRankedPickerView === "function") return showRankedPickerView(style);
 	}
-	if (hash === "/" || hash === "") return showLobbyView();
-	if (hash === "/learn") return showLearnView();
+	// Solo drops straight into a generated board (no static view to show ahead of that data), and
+	// /practice is a plain redirect — neither fits the "this path shows this one view" shape below.
 	if (hash === "/solo") return showSoloView();
-	if (hash === "/puzzles") return showPuzzlePickerView();
-	// Back-compat: the old Practice page is now Solo (free play).
-	if (hash === "/practice") { navigate("/solo"); return; }
-	if (hash === "/custom") return showCustomView();
-	if (hash === "/puzzles/play") return showPuzzlePlayView();
-	if (hash === "/puzzles/streak") return showPuzzleStreakView();
-	if (hash === "/puzzles/storm") return showPuzzleStormView();
-	if (hash === "/puzzles/daily") return showPuzzleDailyView();
-	if (hash === "/admin") return showAdminView();
-	if (hash === "/admin/lab") return showPuzzleLabView();
-	// /admin/puzzles can carry filter state as a query string
-	// (e.g. ?diff=3&method=overlap&sort=desc&page=2) so reloads persist.
-	if (hash === "/admin/puzzles" || hash.indexOf("/admin/puzzles?") === 0) return showPuzzlesListView();
-	if (hash === "/admin/bots" || hash.indexOf("/admin/bots?") === 0) return showBotsView();
-	if (hash === "/admin/starting-positions" || hash.indexOf("/admin/starting-positions?") === 0) return showStartingPositionsView();
-	if (hash === "/admin/patterns" || hash.indexOf("/admin/patterns?") === 0) return showPatternsView();
-	if (hash === "/admin/start-patterns") return showStartPatternsView();
-	if (hash === "/admin/combined-puzzles") return showCombinedPuzzlesView();
-	if (hash === "/admin/marathon-boards" || hash.indexOf("/admin/marathon-boards?") === 0) return showMarathonBoardsView();
-	if (hash === "/admin/design") return showDesignView();
-	if (hash === "/leaderboard") return showLeaderboardView();
+	if (hash === "/practice") { navigate("/solo"); return; } // old Practice page is now Solo (free play)
 	if (hash === "/replay" || hash.indexOf("/replay?") === 0) {
 		var rid = parseInt(new URLSearchParams(location.search).get("id"), 10);
 		hideAllViews();
 		if (rid && typeof showReplayView === "function") return showReplayView(rid);
 		return showProfileView();
 	}
-	if (hash === "/profile") return showProfileView();
-	if (hash === "/settings") return showSettingsView();
-	if (hash === "/privacy") return showPrivacyView();
-	if (hash === "/terms") return showTermsView();
+	// Every other known route is a plain "this path shows this one view" mapping — see ROUTE_VIEWS
+	// near the top of this file (the single table also embedded synchronously into the page
+	// server-side, see staticServer.js, so these pages' shells render before the deferred bundle
+	// even loads). Adding a new page here is the only step needed for both — no second place to
+	// keep in sync.
+	var routeEntry = ROUTE_VIEWS[hash];
+	if (routeEntry && typeof window[routeEntry.fn] === "function") return window[routeEntry.fn]();
 	showLobbyView();
 }
 

@@ -103,29 +103,31 @@ function buildHydrationScript(req) {
 		parts.push("window.__ACCOUNT__=" + safeJson(account) + ";");
 	} catch (e) { parts.push("window.__ACCOUNT__=null;"); }
 
-	parts.push(buildYouCardPaintScript());
+	parts.push(buildEarlyPaintScript());
 	return "<script>" + parts.join("") + "</script>";
 }
 
-// Filling window.__ACCOUNT__ into the page gets the DATA there before the deferred bundle loads,
-// but something still has to run to turn it into DOM — and hideSkeleton()/renderDashIdentity()
-// only exist once that bundle has finished loading and executing. So the you-card's skeleton was
-// still visible for however long that takes, even with the data already sitting in the page.
+// Every page's shell (the right <section> visible, the right nav link highlighted) — and, where
+// there's data for it, real content — needs to render before the deferred bundle loads, not just
+// the home dashboard. Something still has to RUN to do that, and hideAllViews()/hideSkeleton()/
+// renderDashIdentity() etc. only exist once the bundle has finished loading and executing.
 //
-// Rather than hand-write a second copy of that rendering logic here (which would silently drift
-// from the real one the moment the you-card's markup or fields change), this reads the ACTUAL
-// client source — Ranking.js's tierFor/overallRating and Profile.js's paintYouCardEarly, each
-// wrapped in an // SSR_INLINE:START / SSR_INLINE:END marker pair — straight off disk and embeds it
-// verbatim. paintYouCardEarly is also the exact function renderDashIdentity() calls for the real,
-// post-boot render, so there's exactly one implementation of "paint the you-card", used two ways —
-// editing it updates both. Cached after the first read in production (the files don't change at
-// runtime there); re-read on every request in dev, so editing paintYouCardEarly and reloading
-// reflects immediately, same as everything else in dev needing no rebuild.
+// Rather than hand-write a second copy of that logic here (which would silently drift from the
+// real one the moment a page's routing or rendering changes), this reads the ACTUAL client source
+// — every block wrapped in an // SSR_INLINE:START / SSR_INLINE:END marker pair, across Router.js
+// (ROUTE_VIEWS / showRouteEarly / setSiteNavActive — which page to show), Ranking.js (tierFor /
+// overallRating), and Profile.js (paintYouCardEarly, the you-card's real render function too) —
+// straight off disk and embeds it verbatim. There's exactly one implementation of each piece,
+// used two ways; editing any of it updates both automatically. Cached after the first read in
+// production (the files don't change at runtime there); re-read on every request in dev, so
+// editing any SSR_INLINE block and reloading reflects immediately, same as everything else in dev
+// needing no rebuild.
 var SSR_INLINE_START = "// SSR_INLINE:START";
 var SSR_INLINE_END = "// SSR_INLINE:END";
 var SSR_INLINE_SOURCES = [
-	path.join(__dirname, "..", "..", "client", "views", "Ranking.js"), // tierFor / overallRating
-	path.join(__dirname, "..", "..", "client", "views", "Profile.js")  // paintYouCardEarly (calls the above)
+	path.join(__dirname, "..", "..", "client", "ui", "Router.js"),      // ROUTE_VIEWS / showRouteEarly / setSiteNavActive
+	path.join(__dirname, "..", "..", "client", "views", "Ranking.js"),  // tierFor / overallRating
+	path.join(__dirname, "..", "..", "client", "views", "Profile.js")   // paintYouCardEarly (calls the above)
 ];
 function extractSsrInlineBlocks(filePath) {
 	var src = fs.readFileSync(filePath, "utf8");
@@ -142,17 +144,17 @@ function extractSsrInlineBlocks(filePath) {
 	}
 	return blocks;
 }
-var youCardPaintScriptCache = null;
-function buildYouCardPaintScript() {
-	if (youCardPaintScriptCache && !DEV) return youCardPaintScriptCache;
+var earlyPaintScriptCache = null;
+function buildEarlyPaintScript() {
+	if (earlyPaintScriptCache && !DEV) return earlyPaintScriptCache;
 	var code;
 	try {
 		code = SSR_INLINE_SOURCES.reduce(function(acc, filePath) {
 			return acc.concat(extractSsrInlineBlocks(filePath));
 		}, []).join("\n");
 	} catch (e) { code = ""; }
-	var script = code ? code + "\nif(window.__ACCOUNT__){paintYouCardEarly(window.__ACCOUNT__);}" : "";
-	if (!DEV) youCardPaintScriptCache = script;
+	var script = code ? code + "\nshowRouteEarly();\nif(window.__ACCOUNT__){paintYouCardEarly(window.__ACCOUNT__);}" : "";
+	if (!DEV) earlyPaintScriptCache = script;
 	return script;
 }
 
