@@ -5442,7 +5442,7 @@ body.touch .find-next-arrow { display: inline-flex; }
    Reuses .cr-modal/.cr-dialog chrome plus the .ranked-picker-* content classes below (originally
    built for the old standalone picker page, still used there for Territory). */
 .ranked-picker-dialog { width: min(620px, 100%); }
-.ranked-picker-dialog .ranked-picker-head { grid-template-columns: auto 1fr auto auto; margin-top: 0; }
+.ranked-picker-dialog .ranked-picker-head { margin-top: 0; }
 
 /* === Ranked picker page ============================================= */
 .ranked-picker-head {
