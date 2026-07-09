@@ -756,26 +756,57 @@ function renderHomeRankChips() {
 
 // ---- Home dashboard: the "you" banner + the per-mode board previews ----
 
+// SSR_INLINE:START — embedded verbatim into the server-generated synchronous hydration script
+// (see staticServer.js), immediately after Ranking.js's SSR_INLINE block (tierFor/overallRating,
+// which this calls). Paints the name/tier/stats portion of the you-card straight from an account
+// object, before the deferred bundle even loads — renderDashIdentity() below calls this exact same
+// function for the real, post-boot render, so there's one implementation either way; editing it
+// updates both the early paint and the normal one. Deliberately does NOT touch the avatar (that's
+// canvas-drawn — see buildAvatarChip — real drawing logic, not worth duplicating here); it leaves a
+// plain shimmering circle sized to match, left for renderDashIdentity() to replace for real.
+function paintYouCardEarly(account) {
+	var overall = overallRating(account);
+	var t = tierFor(overall, account.provisional);
+	var nameEl = document.getElementById("dash_you_name");
+	if (nameEl) nameEl.textContent = account.name || "Player";
+	var lineEl = document.getElementById("dash_you_line");
+	if (lineEl) lineEl.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b>";
+	var statsEl = document.getElementById("dash_you_stats");
+	if (statsEl) {
+		var played = account.played || 0, wins = account.wins || 0;
+		var wr = played ? Math.round(wins / played * 100) + "%" : "—";
+		// Daily streak already shows (with its fire emoji) under the daily-puzzle card below — no
+		// need to repeat it here.
+		statsEl.innerHTML = "<span class=\"dash-stat\"><b>" + played + "</b><span>Played</span></span>"
+			+ "<span class=\"dash-stat\"><b>" + wr + "</b><span>Win rate</span></span>";
+	}
+	var badgeEl = document.getElementById("dash_you_badge");
+	if (badgeEl && !badgeEl.firstChild) {
+		badgeEl.innerHTML = "<span class=\"skel-shimmer\" style=\"display:block;width:62px;height:62px;border-radius:50%\"></span>";
+	}
+	var skel = document.getElementById("dash_you_skel");
+	if (skel && skel.classList) skel.classList.add("skel-hide");
+}
+// SSR_INLINE:END
+
 // The "you" banner: rank badge (overall = best across modes), name, overall tier/rating, and a
 // few real lifetime stats. No fabricated "this week" trend — we don't track it yet.
 function renderDashIdentity() {
 	var nameEl = document.getElementById("dash_you_name");
 	if (!nameEl) return; // dashboard markup not present
-	var badgeEl = document.getElementById("dash_you_badge");
-	var lineEl = document.getElementById("dash_you_line");
-	var statsEl = document.getElementById("dash_you_stats");
-	nameEl.textContent = (typeof myName !== "undefined" && myName) || (account && account.name) || "Player";
 	// account is null both before the auth round trip resolves AND (in theory) if it never does —
 	// but in practice every visitor ends up with a real account object, guest or not (see the
 	// guest_session flow in Auth.js), so this only really means "still waiting". Leave the skeleton
 	// up rather than reveal a "guest" treatment that might flip the moment the real data lands.
-	if (!account) return;
-	if (typeof hideSkeleton === "function") hideSkeleton("dash_you_skel");
+	if (!account) {
+		nameEl.textContent = (typeof myName !== "undefined" && myName) || "Player";
+		return;
+	}
+	paintYouCardEarly(account); // name, tier line, stats, skeleton — see above
 	// Dota-style identity: a tall avatar portrait on the left, name on top, rank/tier on the line beneath.
+	var badgeEl = document.getElementById("dash_you_badge");
 	var nameRow = nameEl.parentNode;
 	if (nameRow) { var stale = nameRow.querySelector(".dash-avatar"); if (stale) stale.remove(); } // drop the old inline avatar
-	var overall = overallRating(account);
-	var t = tierFor(overall, account.provisional);
 	if (badgeEl) {
 		badgeEl.innerHTML = "";
 		if (typeof buildAvatarChip === "function") badgeEl.appendChild(buildAvatarChip(account.avatarColor || DEFAULT_AVATAR, account.country || null, 62));
@@ -783,14 +814,6 @@ function renderDashIdentity() {
 		badgeEl.classList.add("dash-avatar-edit");
 		badgeEl.title = "Edit avatar";
 		badgeEl.onclick = function() { if (typeof openAvatarEditor === "function") openAvatarEditor(); };
-	}
-	if (lineEl) lineEl.innerHTML = "<b style=\"color:" + t.color + "\">" + t.name + "</b>";
-	if (statsEl) {
-		var played = account.played || 0, wins = account.wins || 0;
-		var wr = played ? Math.round(wins / played * 100) + "%" : "—";
-		function cell(label, val) { return "<span class=\"dash-stat\"><b>" + val + "</b><span>" + label + "</span></span>"; }
-		// Daily streak already shows (with its 🔥) under the daily-puzzle card below — no need to repeat it here.
-		statsEl.innerHTML = cell("Played", played) + cell("Win rate", wr);
 	}
 }
 

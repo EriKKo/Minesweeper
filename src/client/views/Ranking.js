@@ -5,6 +5,10 @@
 // each (I/II/III, 200 rating per step starting at 0), then an open-ended Master
 // tier above (from 3000). Players reset to 0 and climb up from Bronze I.
 
+// SSR_INLINE:START — embedded verbatim into the server-generated synchronous hydration script
+// (see staticServer.js) so the home dashboard's you-card can compute a tier before the deferred
+// bundle even loads. Keep this block dependency-free (no DOM, no other globals) since it has to
+// stand alone there.
 var TIER_BANDS = [
 	{ name: "Bronze",   color: "#d08b5b" },
 	{ name: "Silver",   color: "#cbd5e1" },
@@ -33,6 +37,7 @@ function overallRating(account) {
 	return Math.max(account.ratingSprint || 0, account.ratingStandard || 0,
 		account.ratingTournament || 0, account.ratingTerritory || 0);
 }
+// SSR_INLINE:END
 
 // Returns { tierClass: "bronze"|"silver"|.., subNum: "I"|"II"|"III"|null, label: "Bronze" }
 // Used to render the round rank badges in the series-end panel.
