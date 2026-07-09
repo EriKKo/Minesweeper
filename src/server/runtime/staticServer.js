@@ -31,7 +31,7 @@ var STATIC_ROOTS = [
 	path.join(__dirname, "..", "..", "common")
 ];
 
-var CONTENT_TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png" };
+var CONTENT_TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/manifest+json" };
 
 // Production bundle swap: index.html loads its ~39 client scripts individually between two
 // marker comments (BUNDLE:START/BUNDLE:END); `npm run build` (scripts/build-client.js)
@@ -205,7 +205,7 @@ function applyRouteReveal(html, pathname) {
 
 // Binary types (png) are already compressed and gain nothing from gzip/brotli — can even grow
 // slightly from the framing overhead — so only compress text.
-var COMPRESSIBLE = { "text/javascript": true, "text/css": true, "image/svg+xml": true, "text/html": true };
+var COMPRESSIBLE = { "text/javascript": true, "text/css": true, "image/svg+xml": true, "text/html": true, "application/manifest+json": true };
 
 function resolveStatic(pathname) {
 	if (pathname === "/") pathname = "/index.html";
@@ -247,7 +247,45 @@ function serveBuffer(res, body, headers, encoding) {
 	});
 }
 
+// Service worker: __SW_VERSION__ (in the real sw.js source) is replaced with this process's start
+// timestamp — every deploy is a fresh process, so every deploy gets a fresh cache name and the
+// worker's `activate` step purges whatever the previous version cached. Computed once at startup,
+// not per-request. Dev serves a small self-unregistering "kill switch" worker instead of the real
+// one — even the source file's cache-first behavior has no place in dev's always-fresh iteration
+// loop, and this also cleans up any real worker a dev previously registered while testing a prod
+// build against this same origin.
+var SW_VERSION = String(Date.now());
+var SW_SOURCE_PATH = path.join(__dirname, "..", "..", "client", "sw.js");
+var SW_KILL_SWITCH = [
+	'self.addEventListener("install", function() { self.skipWaiting(); });',
+	'self.addEventListener("activate", function(event) {',
+	'\tevent.waitUntil(',
+	'\t\tcaches.keys()',
+	'\t\t\t.then(function(names) { return Promise.all(names.map(function(n) { return caches.delete(n); })); })',
+	'\t\t\t.then(function() { return self.registration.unregister(); })',
+	'\t\t\t.then(function() { return self.clients.matchAll(); })',
+	'\t\t\t.then(function(clients) { clients.forEach(function(c) { c.navigate(c.url); }); })',
+	'\t);',
+	'});'
+].join("\n");
+var swSourceCache = null;
+function serveServiceWorker(res, req) {
+	var body;
+	if (DEV) {
+		body = SW_KILL_SWITCH;
+	} else {
+		if (!swSourceCache) swSourceCache = fs.readFileSync(SW_SOURCE_PATH, "utf8");
+		// split/join, not .replace() — a plain string search only swaps the FIRST occurrence, and
+		// this placeholder appears more than once (verified against the current source, but this
+		// makes the substitution correct regardless of future edits to sw.js).
+		body = swSourceCache.split("__SW_VERSION__").join(SW_VERSION);
+	}
+	var headers = { "Content-Type": "text/javascript", "Cache-Control": "no-cache" };
+	serveBuffer(res, Buffer.from(body), headers, pickEncoding(req));
+}
+
 function serve(res, pathname, req) {
+	if (pathname === "/sw.js") { serveServiceWorker(res, req); return; }
 	var filePath = resolveStatic(pathname);
 	if (!filePath) {
 		var last = pathname.split("/").pop();

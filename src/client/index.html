@@ -17,6 +17,9 @@
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=optional">
 	<link rel="stylesheet" type="text/css" href="/style.css">
 	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+	<link rel="apple-touch-icon" href="/logo-512.png">
+	<link rel="manifest" href="/manifest.json">
+	<meta name="theme-color" content="#6366f1">
 	<title>MSBattle — Multiplayer Minesweeper</title>
 </head>
 <body>
@@ -1070,5 +1073,16 @@
 <script src="/ui/Router.js" defer></script>
 <script src="/core/Main.js" defer></script>
 <!-- BUNDLE:END -->
+<script>
+// Registered unconditionally (feature-detected) — dev serves a small self-unregistering worker
+// instead of the real caching one (see staticServer.js), so this is always safe to run. Deferred to
+// the load event, same as the browser's own best-practice guidance: registration competes with
+// nothing else for bandwidth/CPU once the page is already up.
+if ("serviceWorker" in navigator) {
+	window.addEventListener("load", function() {
+		navigator.serviceWorker.register("/sw.js");
+	});
+}
+</script>
 </body>
 </html>
