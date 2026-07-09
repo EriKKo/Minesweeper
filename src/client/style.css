@@ -2687,6 +2687,14 @@ body.tv-aiming #game0, body.tv-aiming .board-wrap canvas { cursor: crosshair; }
 	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
 }
+/* Grid items default to justify-self:stretch, which for #leave_button (the first child, landing in
+   the wide 1fr column by auto-placement) stretched its box across the whole column — its centered
+   button text then sat in the middle of that column, not flush against the header's left edge. Pin
+   both ends explicitly, same idea as the site navbar's own left/right anchoring. */
+.game-view.duo .game-header #leave_button,
+.game-view.multi .game-header #leave_button {
+	justify-self: start;
+}
 .game-view.duo .game-header-right,
 .game-view.multi .game-header-right {
 	justify-self: end;
