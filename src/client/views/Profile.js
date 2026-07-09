@@ -851,6 +851,10 @@ var DASH_MODE_BOARDS = {
 		flagged: []
 	}
 };
+// Defensive fallback only — index.html embeds a pre-rendered <img> in each #dash_board_* slot (see
+// scripts/build-mode-previews.js), so normally this never runs at all: the "slot.firstChild" guard
+// below sees the <img> and no-ops immediately. This only actually builds a live canvas if that file
+// is ever missing.
 function renderModeBoardPreviews() {
 	if (typeof buildLearnPuzzle !== "function") return;
 	Object.keys(DASH_MODE_BOARDS).forEach(function(key) {

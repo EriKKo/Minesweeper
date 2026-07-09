@@ -5068,6 +5068,10 @@ body.touch .find-next-arrow { display: inline-flex; }
    below — the canvas only exists once renderModeBoardPreviews() runs (deferred bundle), so without
    this the empty slot has no height and the whole row grows once the preview actually appears. */
 .dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 165px; min-height: 98px; }
+/* Pre-rendered preview image (see scripts/build-mode-previews.js) — same box the live canvas
+   version used, so renderModeBoardPreviews()'s JS fallback (rare — only if the file is missing)
+   swaps in without any visible size change. */
+.dash-row-board img { display: block; height: 92px; width: auto; max-width: 165px; border-radius: 4px; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }

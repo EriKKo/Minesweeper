@@ -9,6 +9,7 @@
     "stop": "pkill -f 'node src/server/minesweeperServer.js' || true",
     "restart": "npm run stop; sleep 1; npm run dev",
     "build": "node scripts/build-client.js",
+    "build-previews": "node scripts/build-mode-previews.js",
     "test": "node --test"
   },
   "engines": {
