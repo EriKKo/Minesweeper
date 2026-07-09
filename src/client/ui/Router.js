@@ -233,8 +233,7 @@ function hideSkeleton(id) {
 var DASH_SKELETON_IDS = ["dash_you_skel", "dash_daily_skel", "dash_rooms_skel"];
 
 // No skeleton for the mode rows' rank/rating corner (see .stat-fade-in in style.css) — it's just
-// absent until the data's ready, then slides in from the side. Idempotent, same reasoning as
-// hideSkeleton above.
+// absent until the data's ready, then fades in. Idempotent, same reasoning as hideSkeleton above.
 function revealStat(id) {
 	var el = document.getElementById(id);
 	if (el) el.classList.add("stat-in");

@@ -697,9 +697,9 @@ function renderHomeRankChips() {
 	applyTo(rankTierSprint, sprint, "rank_badge_sprint");
 	applyTo(rankTierStandard, standard, "rank_badge_standard");
 	// No skeleton on the mode rows' rank/rating corner — it's simply absent until account is
-	// confirmed (guest or signed in), then slides in from the side (see .stat-fade-in in
-	// style.css / revealStat() in Router.js). They currently all resolve together (one account
-	// payload), but are kept as separate elements/ids so each row's reveal is self-contained.
+	// confirmed (guest or signed in), then fades in (see .stat-fade-in in style.css / revealStat()
+	// in Router.js). They currently all resolve together (one account payload), but are kept as
+	// separate elements/ids so each row's reveal is self-contained.
 	if (account && typeof revealStat === "function") {
 		["dash_stat_sprint", "dash_stat_standard", "dash_stat_puzzles", "dash_stat_solo"].forEach(revealStat);
 	}

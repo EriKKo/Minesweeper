@@ -5080,10 +5080,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 .dash-row-stat .mode-card-rank-tier { font-weight: 700; }
 .dash-row-stat .mode-card-rank-rating { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
 .dash-row-stat .mode-card-rank-badge .rank-badge { font-size: 9px; }
-/* No skeleton on the rank/rating corner — it just isn't there until the data's ready, then slides
-   in from the right (where it sits) and fades in together, via revealStat() in Profile.js. */
-.stat-fade-in { opacity: 0; transform: translateX(10px); transition: opacity 0.4s ease, transform 0.4s ease; }
-.stat-fade-in.stat-in { opacity: 1; transform: translateX(0); }
+/* No skeleton on the rank/rating corner — it just isn't there until the data's ready, then fades
+   in, via revealStat() in Profile.js. */
+.stat-fade-in { opacity: 0; transition: opacity 0.4s ease; }
+.stat-fade-in.stat-in { opacity: 1; }
 .dash-row-casual { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
 
 .dash-aside { display: flex; flex-direction: column; gap: 0.8rem; }
