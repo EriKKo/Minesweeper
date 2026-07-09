@@ -303,6 +303,10 @@ function territoryStart(data) {
 	prevPlayerState = null;
 	resetBoardAnimations();
 	clearFreeze();
+	// Matches the racing start_game handler's reset — roundStartTime is only re-stamped once the
+	// countdown below reaches "GO" (see performAction's countdown guard in Input.js), so this makes
+	// sure a stale timestamp from a previous match can't let input through before this one's live.
+	roundStartTime = 0;
 	// Focus a sensible starting cell (the player's own corner) for keyboard play.
 	var myStart = (data.starts && data.players[0] && data.players[0].id === data.you) ? data.starts[0] : (data.starts ? data.starts[1] : [0, 0]);
 	focusedR = myStart ? myStart[0] : 0;
