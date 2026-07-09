@@ -9,17 +9,17 @@
 // Loaded before the inline script so renderLearn, renderProfile, etc. are
 // available when the user navigates.
 
-// SSR_INLINE:START — embedded verbatim into the server-generated synchronous early-paint script
-// (see staticServer.js), alongside showRouteEarly()/setSiteNavActive() below. The single source of
-// truth for every simple "this exact path shows this one view" route — both applyRouteFromHash()
-// (the real router, below) and the pre-boot script that runs before the deferred bundle loads read
-// this same table, so a page's shell renders immediately either way. Routes with redirects,
+// SSR_INLINE:START — read directly (as data, not executed) by staticServer.js: the server evaluates
+// this object and edits the response HTML itself (stripping the matched view's display:none, marking
+// its nav link active) before the page ever reaches the browser — see applyRouteReveal there. The
+// single source of truth for every simple "this exact path shows this one view" route — both
+// applyRouteFromHash() (the real router, below) and the server read this same table, so a page's
+// shell renders correctly from the very first byte either way. Routes with redirects,
 // game-state-dependent logic, or no dedicated view to show ahead of live data (solo, /ranked/*,
-// /replay, /practice) aren't here — they stay special-cased in applyRouteFromHash, since a
-// synchronous pre-boot script can't safely replicate logic that needs session/game state that
-// doesn't exist yet this early. Matched on location.pathname only — several of these routes also
-// carry filter state as a query string (e.g. /admin/puzzles?diff=3&page=2), read separately by the
-// view's own render function, so the query string never affects which view is shown.
+// /replay, /practice) aren't here — they stay special-cased in applyRouteFromHash, since the server
+// can't safely replicate logic that needs session/game state. Matched on pathname only — several of
+// these routes also carry filter state as a query string (e.g. /admin/puzzles?diff=3&page=2), read
+// separately by the view's own render function, so the query string never affects which view is shown.
 var ROUTE_VIEWS = {
 	"/privacy": { view: "privacy_view", nav: null, fn: "showPrivacyView" },
 	"/terms": { view: "terms_view", nav: null, fn: "showTermsView" },
@@ -45,19 +45,6 @@ var ROUTE_VIEWS = {
 	"/profile": { view: "profile_view", nav: "profile", fn: "showProfileView" },
 	"/settings": { view: "settings_view", nav: "settings", fn: "showSettingsView" }
 };
-
-// Shows the view matching the current path — the same {view,nav} ROUTE_VIEWS gives the real router
-// above, just without calling that route's specific render function (nothing else has loaded yet
-// to call it). Used only by the server-generated early-paint script; the real router calls the full
-// showXView() functions instead, which do this same "show + set nav" step and then populate the
-// page for real once the bundle's running.
-function showRouteEarly() {
-	var entry = ROUTE_VIEWS[location.pathname];
-	if (!entry) return;
-	var el = document.getElementById(entry.view);
-	if (el) el.style.display = "";
-	setSiteNavActive(entry.nav);
-}
 // SSR_INLINE:END
 
 function hideAllViews() {
@@ -430,15 +417,12 @@ function showTermsView() {
 	window.scrollTo(0, 0);
 }
 
-// SSR_INLINE:START — showRouteEarly() (above) calls this, so it needs to be part of the same
-// embedded block.
 function setSiteNavActive(route) {
 	var links = document.querySelectorAll(".site-nav-link");
 	for (var i = 0; i < links.length; i++) {
 		links[i].classList.toggle("active", links[i].getAttribute("data-route") === route);
 	}
 }
-// SSR_INLINE:END
 
 // Hash router. If the user is mid-game when they navigate away, we leave
 // the room (multiplayer) or tear down the solo session first, then route.

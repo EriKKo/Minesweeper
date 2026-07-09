@@ -580,21 +580,23 @@
 			</div>
 		</section>
 
-		<!-- HYDRATE_DATA is replaced (every request — see staticServer.js) with a plain, non-deferred
-		     <script> that: (1) sets window.__DAILY__ (today's puzzle board — same for everyone, no auth
+		<!-- Which view shows and which nav link is active needs no script at all: staticServer.js
+		     (applyRouteReveal) edits THIS raw HTML server-side before it's ever sent — stripping the
+		     matched view's style="display:none" and adding `active` to its nav link, reading the same
+		     ROUTE_VIEWS table Router.js's real client-side dispatcher uses (see its SSR_INLINE block) —
+		     so the right page shell is visible on the very first painted byte, even with JS disabled.
+		     Every view in this file defaults to display:none, exactly like lobby_view above; this is
+		     what un-hides it. What's left needing a script is per-account CONTENT (name/avatar/rating),
+		     which HYDRATE_DATA below still supplies: replaced (every request) with a plain, non-deferred
+		     <script> that (1) sets window.__DAILY__ (today's puzzle board — same for everyone, no auth
 		     needed) and, if the request carries a valid ms_session cookie, window.__ACCOUNT__ (that
-		     user's account snapshot); (2) shows whichever view matches the current path and highlights
-		     its nav link (showRouteEarly(), reading the same ROUTE_VIEWS table Router.js's real
-		     dispatcher uses — see the SSR_INLINE markers in Router.js/Ranking.js/Profile.js) — every
-		     view in this file defaults to display:none, exactly like lobby_view above, so this is what
-		     makes ANY page's shell show up at all before the deferred bundle loads, not just the home
-		     dashboard; (3) paints the you-card for real if window.__ACCOUNT__ is set
-		     (paintYouCardEarly()). All of this runs before any deferred script, so a returning visitor's
-		     page renders correctly on the very first frame instead of showing a blank body (or "—"
-		     placeholders) until the socket round trip lands. Placed here, right after the last view
-		     ROUTE_VIEWS can target (#terms_view above), rather than at the end of the document after
-		     #game_view + the footer + all the modals — that's ~450 lines of markup a fresh page load
-		     never needs revealed, and the parser has to walk past it before this script can even run. -->
+		     user's account snapshot), then (2) paints the you-card for real if window.__ACCOUNT__ is set
+		     (paintYouCardEarly() — see its SSR_INLINE block in Profile.js/Ranking.js). This runs before
+		     any deferred script, so a returning visitor's you-card is correct on the very first frame
+		     instead of showing a skeleton until the socket round trip lands. Placed here, right after
+		     the last view ROUTE_VIEWS can target (#terms_view above), rather than at the end of the
+		     document after #game_view + the footer + all the modals — that's ~450 lines of markup a
+		     fresh page load never needs, and the parser has to walk past it before this script runs. -->
 		<!-- HYDRATE_DATA -->
 
 		<section id="game_view" class="view game-view" style="display:none">

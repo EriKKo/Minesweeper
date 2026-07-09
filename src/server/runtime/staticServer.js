@@ -15,6 +15,7 @@
 var fs = require("fs");
 var path = require("path");
 var zlib = require("zlib");
+var vm = require("vm");
 var db = require("../db");
 var session = require("./session");
 
@@ -107,25 +108,19 @@ function buildHydrationScript(req) {
 	return "<script>" + parts.join("") + "</script>";
 }
 
-// Every page's shell (the right <section> visible, the right nav link highlighted) — and, where
-// there's data for it, real content — needs to render before the deferred bundle loads, not just
-// the home dashboard. Something still has to RUN to do that, and hideAllViews()/hideSkeleton()/
-// renderDashIdentity() etc. only exist once the bundle has finished loading and executing.
-//
-// Rather than hand-write a second copy of that logic here (which would silently drift from the
-// real one the moment a page's routing or rendering changes), this reads the ACTUAL client source
-// — every block wrapped in an // SSR_INLINE:START / SSR_INLINE:END marker pair, across Router.js
-// (ROUTE_VIEWS / showRouteEarly / setSiteNavActive — which page to show), Ranking.js (tierFor /
-// overallRating), and Profile.js (paintYouCardEarly, the you-card's real render function too) —
-// straight off disk and embeds it verbatim. There's exactly one implementation of each piece,
-// used two ways; editing any of it updates both automatically. Cached after the first read in
-// production (the files don't change at runtime there); re-read on every request in dev, so
-// editing any SSR_INLINE block and reloading reflects immediately, same as everything else in dev
-// needing no rebuild.
+// The you-card — real per-account content (name/avatar/rating), not just a visibility toggle —
+// still needs a script to RUN before the deferred bundle loads. Rather than hand-write a second
+// copy of that logic here (which would silently drift from the real one the moment a page's
+// rendering changes), this reads the ACTUAL client source — every block wrapped in an
+// // SSR_INLINE:START / SSR_INLINE:END marker pair, across Ranking.js (tierFor / overallRating)
+// and Profile.js (paintYouCardEarly, which calls the above) — straight off disk and embeds it
+// verbatim. There's exactly one implementation of each piece, used two ways; editing any of it
+// updates both automatically. Cached after the first read in production (the files don't change
+// at runtime there); re-read on every request in dev, so editing any SSR_INLINE block and
+// reloading reflects immediately, same as everything else in dev needing no rebuild.
 var SSR_INLINE_START = "// SSR_INLINE:START";
 var SSR_INLINE_END = "// SSR_INLINE:END";
 var SSR_INLINE_SOURCES = [
-	path.join(__dirname, "..", "..", "client", "ui", "Router.js"),      // ROUTE_VIEWS / showRouteEarly / setSiteNavActive
 	path.join(__dirname, "..", "..", "client", "views", "Ranking.js"),  // tierFor / overallRating
 	path.join(__dirname, "..", "..", "client", "views", "Profile.js")   // paintYouCardEarly (calls the above)
 ];
@@ -153,7 +148,7 @@ function buildEarlyPaintScript() {
 			return acc.concat(extractSsrInlineBlocks(filePath));
 		}, []).join("\n");
 	} catch (e) { code = ""; }
-	var script = code ? code + "\nshowRouteEarly();\nif(window.__ACCOUNT__){paintYouCardEarly(window.__ACCOUNT__);}" : "";
+	var script = code ? code + "\nif(window.__ACCOUNT__){paintYouCardEarly(window.__ACCOUNT__);}" : "";
 	if (!DEV) earlyPaintScriptCache = script;
 	return script;
 }
@@ -162,6 +157,50 @@ function applyHydration(html, req) {
 	var idx = html.indexOf(HYDRATE_MARKER);
 	if (idx === -1) return html;
 	return html.slice(0, idx) + buildHydrationScript(req) + html.slice(idx + HYDRATE_MARKER.length);
+}
+
+// Which view to show and which nav link to highlight is pure path -> {view,nav} data (no
+// account/session dependency), so unlike the you-card above, it doesn't need a script to run in
+// the browser at all — the server can just edit the response HTML directly before it's ever sent,
+// so the right view is visible on the very first painted byte (even with JS disabled). ROUTE_VIEWS
+// itself is read straight off Router.js (its own SSR_INLINE block — see the comment there), the
+// same single source of truth the real client router uses, evaluated here as data via `vm` (this
+// is our own trusted source file, not user input) rather than hand-copied.
+var ROUTER_SOURCE = path.join(__dirname, "..", "..", "client", "ui", "Router.js");
+var routeViewsCache = null;
+function getRouteViews() {
+	if (routeViewsCache && !DEV) return routeViewsCache;
+	var routeViews;
+	try {
+		var block = extractSsrInlineBlocks(ROUTER_SOURCE)[0] || "";
+		routeViews = vm.runInNewContext(block + "\nROUTE_VIEWS;", {});
+	} catch (e) { routeViews = {}; }
+	if (!DEV) routeViewsCache = routeViews;
+	return routeViews;
+}
+
+function escapeRegExp(s) {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Strips `style="display:none"` off the one <section id="..."> the current path maps to, and adds
+// `active` to the matching nav <a>'s class list — both are targeted string edits on the specific
+// tag (matched by id / data-route within that same opening tag, never crossing a `>`), not a
+// template render, so they're safe against the rest of the markup changing shape elsewhere.
+// Unmatched paths (solo, /ranked/*, /replay, /practice, or anything unknown) are left untouched,
+// same as before — those stay hidden until the deferred bundle's real router runs.
+function applyRouteReveal(html, pathname) {
+	var entry = getRouteViews()[pathname];
+	if (!entry) return html;
+	if (entry.view) {
+		var viewRe = new RegExp('(<section id="' + escapeRegExp(entry.view) + '"[^>]*?)\\s*style="display:none"');
+		html = html.replace(viewRe, "$1");
+	}
+	if (entry.nav) {
+		var navRe = new RegExp('(<a\\b[^>]*?class="site-nav-link)("[^>]*?data-route="' + escapeRegExp(entry.nav) + '")');
+		html = html.replace(navRe, "$1 active$2");
+	}
+	return html;
 }
 
 // Binary types (png) are already compressed and gain nothing from gzip/brotli — can even grow
@@ -224,13 +263,13 @@ function serve(res, pathname, req) {
 
 	var encoding = COMPRESSIBLE[contentType] ? pickEncoding(req) : null;
 
-	// index.html is the one file that needs a text transform (the production bundle swap, and the
-	// hydration data injection, both above), so it can't stream straight from disk like everything
-	// else — read it fully (a few dozen KB, cheap) and go through serveBuffer instead.
+	// index.html is the one file that needs a text transform (the production bundle swap, the route
+	// reveal, and the hydration data injection, all above), so it can't stream straight from disk
+	// like everything else — read it fully (a few dozen KB, cheap) and go through serveBuffer instead.
 	if (path.basename(filePath) === "index.html") {
 		fs.readFile(filePath, "utf8", function(err, html) {
 			if (err) { res.writeHead(500); res.end("Error while loading " + filePath); return; }
-			html = applyHydration(applyBundleSwap(html), req);
+			html = applyHydration(applyRouteReveal(applyBundleSwap(html), pathname), req);
 			serveBuffer(res, Buffer.from(html), headers, encoding);
 		});
 		return;
