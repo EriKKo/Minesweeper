@@ -5064,7 +5064,10 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border-color: var(--accent);
 	box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgba(0, 0, 0, 0.35);
 }
-.dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 165px; }
+/* Reserved to match .dash-board-preview canvas's fixed 92px height (+ its 3px top/bottom padding)
+   below — the canvas only exists once renderModeBoardPreviews() runs (deferred bundle), so without
+   this the empty slot has no height and the whole row grows once the preview actually appears. */
+.dash-row-board { flex: 0 0 auto; display: flex; align-items: center; width: 165px; min-height: 98px; }
 .dash-row-info { min-width: 0; flex: 1 1 auto; }
 .dash-row-title { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .dash-row-sub { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
