@@ -103,8 +103,40 @@ function buildHydrationScript(req) {
 		parts.push("window.__ACCOUNT__=" + safeJson(account) + ";");
 	} catch (e) { parts.push("window.__ACCOUNT__=null;"); }
 
+	parts.push(YOU_CARD_PAINT_SCRIPT);
 	return "<script>" + parts.join("") + "</script>";
 }
+
+// Filling window.__ACCOUNT__ into the page gets the DATA there before the deferred bundle loads,
+// but something still has to run to turn it into DOM — and hideSkeleton()/renderDashIdentity()
+// only exist once that bundle has finished loading and executing. So the you-card's skeleton was
+// still visible for however long that takes, even with the data already sitting in the page. This
+// paints the card synchronously instead, right here, using the same tier math as Ranking.js's
+// tierFor/overallRating (duplicated — small and rarely changes, not worth blocking-loading a whole
+// script file just for two pure functions). The avatar itself (buildAvatarChip's canvas-drawn
+// pennant) is NOT duplicated — real avatar shapes stay a plain 62px shimmer circle (matching the
+// real avatar's size, so nothing shifts) until renderDashIdentity() replaces it for real once the
+// bundle runs; that function already unconditionally rebuilds the card's innerHTML, so this is
+// just a temporary first frame, not something that needs "hydrating" — it's simply overwritten.
+var YOU_CARD_PAINT_SCRIPT = "if(window.__ACCOUNT__){" +
+	"(function(){" +
+	"var a=window.__ACCOUNT__;" +
+	"var BANDS=[[\"Bronze\",\"#d08b5b\"],[\"Silver\",\"#cbd5e1\"],[\"Gold\",\"#fbbf24\"],[\"Platinum\",\"#5eead4\"],[\"Diamond\",\"#60a5fa\"]];" +
+	"var overall=Math.max(a.ratingSprint||0,a.ratingStandard||0,a.ratingTournament||0,a.ratingTerritory||0);" +
+	"var tierName,tierColor;" +
+	"if(overall>=3000){tierName=\"Master\";tierColor=\"#c084fc\";}else{" +
+	"var subIdx=Math.floor(Math.max(0,overall)/200);" +
+	"var band=BANDS[Math.min(4,Math.floor(subIdx/3))];" +
+	"tierName=band[0]+\" \"+[\"I\",\"II\",\"III\"][subIdx%3];tierColor=band[1];}" +
+	"var nameEl=document.getElementById(\"dash_you_name\");if(nameEl)nameEl.textContent=a.name||\"Player\";" +
+	"var lineEl=document.getElementById(\"dash_you_line\");if(lineEl)lineEl.innerHTML=\"<b style=\\\"color:\"+tierColor+\"\\\">\"+tierName+\"</b>\";" +
+	"var statsEl=document.getElementById(\"dash_you_stats\");" +
+	"if(statsEl){var played=a.played||0,wins=a.wins||0;var wr=played?Math.round(wins/played*100)+\"%\":\"\\u2014\";" +
+	"statsEl.innerHTML=\"<span class=\\\"dash-stat\\\"><b>\"+played+\"</b><span>Played</span></span><span class=\\\"dash-stat\\\"><b>\"+wr+\"</b><span>Win rate</span></span>\";}" +
+	"var badgeEl=document.getElementById(\"dash_you_badge\");" +
+	"if(badgeEl)badgeEl.innerHTML=\"<span class=\\\"skel-shimmer\\\" style=\\\"display:block;width:62px;height:62px;border-radius:50%\\\"></span>\";" +
+	"var skel=document.getElementById(\"dash_you_skel\");if(skel)skel.className+=\" skel-hide\";" +
+	"})();}";
 
 function applyHydration(html, req) {
 	var idx = html.indexOf(HYDRATE_MARKER);
