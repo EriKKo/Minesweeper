@@ -112,6 +112,7 @@ function countDownStep(number, onDone) {
 	if (number <= 0) {
 		sound.go();
 		roundStartTime = Date.now(); // danger-warning grace period starts here
+		if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
 		if (typeof onDone === "function") onDone();
 		return;
 	}

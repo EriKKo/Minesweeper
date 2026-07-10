@@ -5021,6 +5021,8 @@ input[type="range"].setting-row-slider {
 }
 .countdown-lab-controls .cr-seg { margin-bottom: 1.1rem; }
 .countdown-lab-tune-title { margin-top: 1.4rem; }
+.countdown-lab-go-sub { margin: -0.3rem 0 0.8rem; font-size: 0.82rem; color: var(--muted); }
+.countdown-lab-play-go { width: 100%; margin-top: 0.3rem; margin-bottom: 1.4rem; }
 .countdown-lab-row {
 	display: grid;
 	grid-template-columns: 1fr auto;

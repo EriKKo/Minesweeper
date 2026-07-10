@@ -119,8 +119,8 @@ function renderAdminLanding() {
 		"/admin/design"
 	));
 	cards.appendChild(makeAdminCard(
-		"Countdown",
-		"Live preview of the round-start countdown glyph, looping 3-2-1 forever, with sliders for style, brightness, depth, hold, and fade timing.",
+		"Board animations",
+		"Live preview of the round-start countdown digit and the \"go\" sweep that follows it, looping forever, with sliders for style, colour, and timing.",
 		"Open lab",
 		"/admin/countdown"
 	));

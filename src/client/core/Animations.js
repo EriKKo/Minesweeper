@@ -360,6 +360,102 @@ function drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.restore();
 }
 
+// "Go" board animation: a single wave that sweeps across the board once, the instant the round
+// goes live (see startBoardGoAnimation, called from countDownStep's number<=0 branch in
+// Overlay.js) — a different, one-shot thing from the countdown digit above, tunable separately
+// from the same "Board animations" admin lab (CountdownLab.js). Purely decorative: roundStartTime,
+// not this, is what actually unlocks input (Input.js), so nothing here affects gameplay timing.
+var BOARD_GO_STYLE = {
+	mode: "diagonal", // "diagonal" | "radial" | "rowWipe" | "colWipe"
+	durationMs: 700,
+	width: 3,          // how many cells wide the wave band is
+	brightness: 1,
+	color: "#bfdbfe"
+};
+var boardGoAnim = null; // { start } | null — the live game's current sweep
+
+// Pure: just a timestamp today, but built the same way as buildCountdownGlyphState (a function, not
+// a bare object literal) so the real game and the lab can each hold their own independent instance
+// and so there's one obvious place to add per-sweep parameters later if a style ever needs them.
+function buildBoardGoAnimState() {
+	return { start: performance.now() };
+}
+
+function startBoardGoAnimation(boardRows, boardCols) {
+	if (!boardRows || !boardCols) { boardGoAnim = null; return; }
+	boardGoAnim = buildBoardGoAnimState();
+	startAnimLoop();
+}
+
+// How far cell (r,c) sits along `mode`'s sweep axis, and that axis's max extent on a
+// boardRows x boardCols board — diagonal sweeps top-left to bottom-right, radial ripples out from
+// centre, rowWipe/colWipe scan top-to-bottom / left-to-right. The paint function below moves a wave
+// front linearly along this axis from just-off-board to just-off-board over durationMs.
+function boardGoAxisPos(mode, r, c, boardRows, boardCols) {
+	if (mode === "radial") return Math.hypot(r - (boardRows - 1) / 2, c - (boardCols - 1) / 2);
+	if (mode === "rowWipe") return r;
+	if (mode === "colWipe") return c;
+	return r + c; // diagonal
+}
+function boardGoAxisMax(mode, boardRows, boardCols) {
+	if (mode === "radial") {
+		var cr = (boardRows - 1) / 2, cc = (boardCols - 1) / 2;
+		return Math.hypot(Math.max(cr, boardRows - 1 - cr), Math.max(cc, boardCols - 1 - cc));
+	}
+	if (mode === "rowWipe") return boardRows - 1;
+	if (mode === "colWipe") return boardCols - 1;
+	return boardRows - 1 + boardCols - 1; // diagonal
+}
+
+// Renders animState (from buildBoardGoAnimState) onto ctx at boardRows x boardCols cell geometry.
+// isRevealed(r,c), if given, skips cells that are already revealed — same reasoning as
+// paintCountdownGlyph: washing over a real clue number muddies it instead of reading as the sweep.
+// Returns false once the sweep has fully passed, so callers know to drop their reference.
+function paintBoardGoAnimation(ctx, sw, sh, boardRows, boardCols, animState, isRevealed) {
+	if (!animState) return false;
+	var duration = Math.max(50, BOARD_GO_STYLE.durationMs);
+	var elapsed = performance.now() - animState.start;
+	if (elapsed >= duration) return false;
+	var mode = BOARD_GO_STYLE.mode;
+	var width = Math.max(0.5, BOARD_GO_STYLE.width);
+	var maxP = boardGoAxisMax(mode, boardRows, boardCols);
+	// The front travels from one width-band short of the board to one width-band past it, so the
+	// wave visibly enters and exits rather than snapping on/off at the edges.
+	var frontP = (elapsed / duration) * (maxP + width * 2) - width;
+	var base = hexToRgb(BOARD_GO_STYLE.color);
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
+	for (var r = 0; r < boardRows; r++) {
+		for (var c = 0; c < boardCols; c++) {
+			var dist = Math.abs(boardGoAxisPos(mode, r, c, boardRows, boardCols) - frontP);
+			if (dist > width) continue;
+			if (isRevealed && isRevealed(r, c)) continue;
+			var strength = 1 - dist / width; // 1 at the front's centre, 0 at the band's edge
+			drawGoAnimCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, strength * BOARD_GO_STYLE.brightness, base);
+		}
+	}
+	return true;
+}
+
+// Reuses the glow style's visual language (bright bloom-y fill) since a "the board is coming alive"
+// pulse reads naturally as light, regardless of which countdown digit style is active.
+function drawGoAnimCell(ctx, x, y, w, h, rad, alpha, base) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+	ctx.shadowBlur = Math.max(0, w * 0.6);
+	ctx.shadowColor = rgbaStr(base, 0.8);
+	var g = ctx.createLinearGradient(0, 0, 0, h);
+	g.addColorStop(0, rgbaStr(lightenRgb(base, 0.85), 0.92));
+	g.addColorStop(1, rgbaStr(lightenRgb(base, 0.32), 0.78));
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = g;
+	ctx.fill();
+	ctx.shadowBlur = 0;
+	ctx.restore();
+}
+
 function drawPressedHighlight() {
 	if (!pressedCell || !myState) return;
 	if (!currentActionMode()) return;
@@ -471,6 +567,7 @@ function renderPlayerBoard() {
 			if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
 			if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
 			drawCountdownGlyph(ctx, sw, sh); // round-start countdown digit
+			if (boardGoAnim && !paintBoardGoAnimation(ctx, sw, sh, rows, cols, boardGoAnim, function(r, c) { return myState[r][c] === KNOWN; })) boardGoAnim = null; // "go" sweep
 		});
 		bv.draw();
 	} else {
@@ -531,6 +628,7 @@ function resetBoardAnimations() {
 	lastActionCell = null;
 	countdownGlyphs = [];
 	countdownCells = {};
+	boardGoAnim = null;
 	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
 }
 
@@ -601,6 +699,7 @@ function startAnimLoop() {
 		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks
 		if (typeof territoryInfraAnimating === "function" && territoryInfraAnimating()) alive = true; // animate extractor/line construction
 		if (countdownGlyphs.length || Object.keys(countdownCells).length) alive = true; // keep fading the countdown digit(s)
+		if (boardGoAnim) alive = true; // keep sweeping the "go" animation
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }
