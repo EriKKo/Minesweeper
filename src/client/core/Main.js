@@ -2065,14 +2065,21 @@ socket.on("draw_board", function(data) {
 		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
 			setOppIdentity(i, opp);
-			// Don't paint an opponent's real state until the round has actually gone live client-side
-			// (roundStartTime, stamped at "GO" — the same signal Input.js already gates local moves on).
-			// The server builds each round's board — centre pre-revealed, so it's playable — well before
-			// the countdown finishes, so a stray draw_board broadcast during the countdown (an unrelated
-			// skin/avatar change or reconnect elsewhere in the room, say) would otherwise leak an
-			// opponent's pre-revealed cells before everyone's boards are meant to open together. Leaves
-			// whatever paintOpponentCovered() already painted at start_game untouched until then.
-			if (roundStartTime) drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+			// Don't paint an opponent's real state until THEIR round has actually gone live
+			// server-side (opp.playing, straight off the draw_board payload — see gameForBroadcast
+			// in gameUtil.js). The server builds each round's board — centre pre-revealed, so it's
+			// playable — well before the countdown finishes, so a stray draw_board broadcast during
+			// the countdown (an unrelated skin/avatar change or reconnect elsewhere in the room, say)
+			// would otherwise leak an opponent's pre-revealed cells before everyone's boards are
+			// meant to open together. Leaves whatever paintOpponentCovered() already painted at
+			// start_game untouched until then. Deliberately NOT gated on the client's own local
+			// roundStartTime (stamped when its OWN countdown display finishes) — that's now a tunable
+			// duration (see COUNTDOWN_STYLE in Animations.js) independent of the server's actual,
+			// fixed COUNT_DOWN_TIME, so the two can drift apart; opp.playing is the server's own
+			// authoritative signal and can't desync from itself. A finished-round opponent
+			// (opp.playing false but their board isn't changing anymore either) just keeps showing
+			// whatever their last live frame painted, which is already correct.
+			if (opp.playing) drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";
