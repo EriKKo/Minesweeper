@@ -21,24 +21,33 @@ var COUNTDOWN_GLYPHS = {
 };
 // Tunable knobs, shared by real gameplay and the /admin/countdown lab (CountdownLab.js) — the lab's
 // sliders mutate this object directly, so what it previews is the exact code path a real round
-// uses, not a copy of it. fadeInMs/holdMs/fadeOutMs: the tick is ~1000ms (see countDownStep), so
-// the three together should leave a short beat of plain blue before the next digit lands.
-// fadeInMs defaults to 0 (the digit pops straight to full strength, the original behaviour) — set
-// it to actually fade in. brightness/indent: read by drawPressedGlyphCell/drawGlowGlyphCell below —
-// brightness scales the fill, indent scales the depth cue (pressed: shadow/highlight strength;
-// glow: bloom size). color: the base hue the fill/glow/highlight are derived from (see
-// hexToRgb/lighten/darken below) — the shadow side of the pressed treatment stays neutral black
-// regardless, since that's a depth cue, not a material colour.
+// uses, not a copy of it. fadeInMs/holdMs/fadeOutMs/gapMs together are the length of one digit's
+// tick (see countDownStep in Overlay.js, which reads this instead of a fixed 1000ms): fade in,
+// hold, fade out, then gapMs of plain blue before the next digit starts fading in. Defaults
+// (0+500+400+100 = 1000ms) match the original fixed-1000ms behaviour exactly. brightness/indent:
+// read by drawPressedGlyphCell/drawGlowGlyphCell below — brightness scales the fill, indent scales
+// the depth cue (pressed: shadow/highlight strength; glow: bloom size) — drawFlatGlyphCell ignores
+// indent, since a flat colour swap has no depth to speak of. color: the base hue the fill/glow/
+// highlight/flat-tint are derived from (see hexToRgb/lighten/darken below) — the pressed
+// treatment's top shadow stays neutral black regardless, since that's a depth cue, not a colour.
 var COUNTDOWN_STYLE = {
-	mode: "glow", // "glow" | "pressed"
+	mode: "glow", // "glow" | "pressed" | "flat"
 	fadeInMs: 0,
 	holdMs: 500,
 	fadeOutMs: 400,
+	gapMs: 100,
 	brightness: 1,
 	indent: 1,
 	color: "#bfdbfe"
 };
 var countdownGlyph = null; // { glyph, scale, start } | null — the live game's current glyph
+
+// One digit's full cycle length: fade in, hold, fade out, then a gap of plain blue before the next
+// digit starts. Shared by countDownStep (Overlay.js, real gameplay) and countdownLabStep
+// (CountdownLab.js, the looping preview) so the two can't drift apart on how this is computed.
+function countdownTickMs() {
+	return COUNTDOWN_STYLE.fadeInMs + COUNTDOWN_STYLE.holdMs + COUNTDOWN_STYLE.fadeOutMs + COUNTDOWN_STYLE.gapMs;
+}
 
 function hexToRgb(hex) {
 	hex = (hex || "#bfdbfe").replace("#", "");
@@ -125,7 +134,22 @@ function paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphState, isRe
 
 function drawCountdownGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	if (COUNTDOWN_STYLE.mode === "pressed") drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha);
+	else if (COUNTDOWN_STYLE.mode === "flat") drawFlatGlyphCell(ctx, x, y, w, h, rad, alpha);
 	else drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha);
+}
+
+// Simplest treatment: no depth cue at all, just the cell's colour changing to the base colour and
+// back — same inset/rounding as every other cell so it still reads as a distinct cell, just a flat
+// single-tone fill instead of a gradient.
+function drawFlatGlyphCell(ctx, x, y, w, h, rad, alpha) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = alpha;
+	var base = hexToRgb(COUNTDOWN_STYLE.color);
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = rgbaStr(base, 0.85 * COUNTDOWN_STYLE.brightness);
+	ctx.fill();
+	ctx.restore();
 }
 
 // The normal covered cell (drawUnknown in BoardRender.js) reads as raised: light gradient top to

@@ -117,5 +117,10 @@ function countDownStep(number, onDone) {
 	}
 	if (typeof startCountdownGlyph === "function") startCountdownGlyph(number);
 	sound.beep(392 + (3 - Math.min(number, 3)) * 110);
-	setTimeout(function() { countDownStep(number - 1, onDone); }, 1000);
+	// Was a fixed 1000ms; now the digit's own fade-in + hold + fade-out + gap (tunable from
+	// /admin/countdown — see COUNTDOWN_STYLE/countdownTickMs in Animations.js), so cranking those
+	// sliders actually changes how long a real round's countdown takes, not just how the lab's
+	// preview looks. Defaults (0+500+400+100) sum to the original 1000ms exactly.
+	var tickMs = (typeof countdownTickMs === "function") ? countdownTickMs() : 1000;
+	setTimeout(function() { countDownStep(number - 1, onDone); }, tickMs);
 }

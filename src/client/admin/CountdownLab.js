@@ -45,10 +45,11 @@ function renderCountdownLab() {
 	controls.appendChild(modeHead);
 	var seg = document.createElement("div");
 	seg.className = "cr-seg";
-	["glow", "pressed"].forEach(function(mode) {
+	var MODE_LABELS = { glow: "Glow", pressed: "Pressed in", flat: "Flat colour" };
+	["glow", "pressed", "flat"].forEach(function(mode) {
 		var btn = document.createElement("button");
 		btn.type = "button";
-		btn.textContent = mode === "glow" ? "Glow" : "Pressed in";
+		btn.textContent = MODE_LABELS[mode];
 		btn.classList.toggle("active", COUNTDOWN_STYLE.mode === mode);
 		btn.addEventListener("click", function() {
 			COUNTDOWN_STYLE.mode = mode;
@@ -126,6 +127,7 @@ function renderCountdownLab() {
 	addSlider("Fade-in", "fadeInMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
 	addSlider("Hold", "holdMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
 	addSlider("Fade-out", "fadeOutMs", 100, 1000, 50, function(v) { return Math.round(v) + "ms"; });
+	addSlider("Delay between numbers", "gapMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
 
 	var reset = document.createElement("button");
 	reset.type = "button";
@@ -136,6 +138,7 @@ function renderCountdownLab() {
 		COUNTDOWN_STYLE.fadeInMs = 0;
 		COUNTDOWN_STYLE.holdMs = 500;
 		COUNTDOWN_STYLE.fadeOutMs = 400;
+		COUNTDOWN_STYLE.gapMs = 100;
 		COUNTDOWN_STYLE.brightness = 1;
 		COUNTDOWN_STYLE.indent = 1;
 		COUNTDOWN_STYLE.color = "#bfdbfe";
@@ -149,16 +152,14 @@ function renderCountdownLab() {
 	countdownLabStart();
 }
 
-// Loops 3 -> 2 -> 1 -> a short pause -> repeat, forever, until teardownCountdownLab stops it
-// (see hideAllViews in Router.js). Mirrors countDownStep in Overlay.js but never terminates. Unlike
-// the real countdown's fixed ~1000ms tick, this reads the CURRENT fade-in+hold+fade-out off
-// COUNTDOWN_STYLE each time (so a slider change mid-loop takes effect on the next tick) and always
-// waits at least that long — otherwise cranking any of them past what a 1000ms tick allows would
-// cut a digit off mid-effect, which defeats the point of a page for previewing exactly that.
+// Loops 3 -> 2 -> 1 -> a short pause -> repeat, forever, until teardownCountdownLab stops it (see
+// hideAllViews in Router.js). Mirrors countDownStep in Overlay.js — both read countdownTickMs()
+// (Animations.js) each time, so a slider change mid-loop takes effect on the next tick, here and in
+// a real match alike — but this one never terminates.
 function countdownLabStep(number) {
 	countdownLabGlyph = buildCountdownGlyphState(number, COUNTDOWN_LAB_ROWS);
 	countdownLabDrawLoop();
-	var tickMs = Math.max(600, COUNTDOWN_STYLE.fadeInMs + COUNTDOWN_STYLE.holdMs + COUNTDOWN_STYLE.fadeOutMs + 100);
+	var tickMs = countdownTickMs();
 	countdownLabSeqTimer = setTimeout(function() {
 		if (number > 1) countdownLabStep(number - 1);
 		else countdownLabSeqTimer = setTimeout(function() { countdownLabStep(3); }, 700);
