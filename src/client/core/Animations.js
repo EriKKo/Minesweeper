@@ -13,7 +13,7 @@ var lastActionCell = null;     // where the local player last revealed, for ripp
 // blocky digit (3/2/1) formed from a patch of cells near the board's centre, filled dark and
 // fading back to the normal covered colour before the next digit. No "GO" glyph — the round's
 // opening cascade (the first draw_board once the countdown finishes) is itself the go signal.
-// See startCountdownGlyph (called from countDownStep in Overlay.js).
+// See startCountdownGlyph (called from countdownDigitCycle in Overlay.js).
 var COUNTDOWN_GLYPHS = {
 	"3": ["111", "001", "111", "001", "111"],
 	"2": ["111", "001", "111", "100", "111"],
@@ -22,11 +22,13 @@ var COUNTDOWN_GLYPHS = {
 // Tunable knobs, shared by real gameplay and the /admin/countdown lab (CountdownLab.js) — the lab's
 // sliders mutate this object directly, so what it previews is the exact code path a real round
 // uses, not a copy of it. fadeInMs/holdMs/fadeOutMs/gapMs together set the length of one digit's
-// tick — the interval between one digit STARTING and the next one starting (see countDownStep in
-// Overlay.js, which reads this instead of a fixed 1000ms): fade in, hold, fade out, then gapMs of
-// plain blue before the next digit starts fading in. gapMs can go NEGATIVE — the next digit then
-// starts (and begins fading in) before the previous one has finished fading out, so both are
-// visible and crossfading at once; see countdownGlyphs below. brightness/indent: read by
+// tick — the interval between one digit STARTING and the next one starting (see countdownDigitCycle
+// in Overlay.js, which reads this instead of a fixed 1000ms): fade in, hold, fade out, then gapMs of
+// plain blue before the next digit starts fading in. This is purely cosmetic pacing now — it no
+// longer determines when a round actually goes live, see the comment on countDown in Overlay.js.
+// gapMs can go NEGATIVE — the next digit then starts (and begins fading in) before the previous one
+// has finished fading out, so both are visible and crossfading at once; see countdownGlyphs below.
+// brightness/indent: read by
 // drawPressedGlyphCell/drawGlowGlyphCell below — brightness scales the fill, indent scales the
 // depth cue (pressed: shadow/highlight strength; glow: bloom size) — drawFlatGlyphCell ignores
 // indent, since a flat colour swap has no depth to speak of. color: the base hue the fill/glow/
@@ -63,11 +65,13 @@ var countdownGlyphs = [];
 var countdownCells = {};
 
 // One digit's full cycle length: fade in, hold, fade out, then a gap of plain blue (or, if gapMs is
-// negative, an overlap into the next digit's own fade-in) before the next digit starts. Shared by
-// countDownStep (Overlay.js, real gameplay) and countdownLabStep (CountdownLab.js, the looping
-// preview) so the two can't drift apart on how this is computed. Floored well above 0 regardless of
-// how negative gapMs goes, so it can't schedule the next tick immediately (or in the past) and spawn
-// glyphs faster than they can ever finish painting.
+// negative, an overlap into the next digit's own fade-in) before the next digit starts. Purely
+// cosmetic pacing for the digit sequence itself (see countDown's comment in Overlay.js for what
+// actually governs when a round goes live). Shared by countdownDigitCycle (Overlay.js, real
+// gameplay) and countdownLabDigitCycle (CountdownLab.js, the looping preview) so the two can't drift
+// apart on how this is computed. Floored well above 0 regardless of how negative gapMs goes, so it
+// can't schedule the next tick immediately (or in the past) and spawn glyphs faster than they can
+// ever finish painting.
 function countdownTickMs() {
 	return Math.max(50, COUNTDOWN_STYLE.fadeInMs + COUNTDOWN_STYLE.holdMs + COUNTDOWN_STYLE.fadeOutMs + COUNTDOWN_STYLE.gapMs);
 }
@@ -397,6 +401,14 @@ function startBoardGoAnimation(boardRows, boardCols) {
 // same reasoning as countdownTickMs above.
 function boardGoTotalMs() {
 	return Math.max(0, BOARD_GO_STYLE.durationMs) + Math.max(0, BOARD_GO_STYLE.pauseAfterMs);
+}
+
+// The full "ready to start" sequence's natural length: the go sweep + its pause, then three digit
+// ticks (3, 2, 1). Used where there's no server-side deadline to defer to (solo, and the
+// /admin/countdown lab's own preview) — countDown's delayMs is set to exactly this, so those places
+// don't have to invent their own round-start timing.
+function naturalCountdownTotalMs() {
+	return boardGoTotalMs() + 3 * countdownTickMs();
 }
 
 // How far cell (r,c) sits along `mode`'s sweep axis, and that axis's max extent on a

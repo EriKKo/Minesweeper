@@ -320,16 +320,10 @@ function territoryStart(data) {
 	if (typeof hideReadyButton === "function") hideReadyButton();
 	territoryEnsureHud();
 	territoryRenderHud();
-	// Same "ready to start, before the countdown" trigger as a racing match's start_game handler
-	// (Main.js) — see startBoardGoAnimation in Animations.js. Then a beat of plain blue
-	// (boardGoTotalMs) before the countdown actually starts, so the digit doesn't pop in over the
-	// sweep or cut it off.
-	if (typeof startBoardGoAnimation === "function") {
-		startBoardGoAnimation(R, C);
-		setTimeout(function() { countDown(data.time || 3); }, boardGoTotalMs());
-	} else {
-		countDown(data.time || 3);
-	}
+	// startDelayMs is the server's own ROUND_START_DELAY_MS, echoed back so both sides start their
+	// timers from the same territory_start event — countDown's sweep/digit animations are purely
+	// decorative on top of it, see the comment on countDown in Overlay.js for why.
+	countDown(data.startDelayMs || (typeof naturalCountdownTotalMs === "function" ? naturalCountdownTotalMs() : 3000));
 	// Re-fit the board now that the .territory single-column layout is applied (applyBoardDims
 	// sized it against the racing layout / may have early-returned on unchanged dims).
 	requestAnimationFrame(sizeTerritoryBoard);

@@ -131,20 +131,12 @@ function hideSoloStart() {
 function beginSolo() {
 	if (!soloSession || soloSession.started) return;
 	hideSoloStart();
-	var session = soloSession; // guard against a new board replacing it mid-countdown/pause
-	// Same "ready to start, before the countdown" trigger as a real match's start_game handler
-	// (Main.js) — see startBoardGoAnimation in Animations.js. Then a beat of plain blue
-	// (boardGoTotalMs) before the countdown actually starts, so the digit doesn't pop in over the
-	// sweep or cut it off.
-	if (typeof startBoardGoAnimation === "function") {
-		startBoardGoAnimation(rows, cols);
-		setTimeout(function() {
-			if (soloSession !== session) return;
-			countDown(3, function() { if (soloSession === session) soloSession.started = true; });
-		}, boardGoTotalMs());
-	} else {
-		countDown(3, function() { if (soloSession === session) soloSession.started = true; });
-	}
+	var session = soloSession; // guard against a new board replacing it mid-countdown
+	// Solo has no server round-trip to defer to, so its "ready to start" budget is just the sweep +
+	// digit sequence's own natural length (naturalCountdownTotalMs, Animations.js) rather than a
+	// server-provided startDelayMs like a real match (Main.js) or territory (Territory.js) uses.
+	var delayMs = (typeof naturalCountdownTotalMs === "function") ? naturalCountdownTotalMs() : 3000;
+	countDown(delayMs, function() { if (soloSession === session) soloSession.started = true; });
 }
 
 function exitSolo() {

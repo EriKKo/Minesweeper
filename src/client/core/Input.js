@@ -101,10 +101,11 @@ function performAction(r, c, asFlag) {
 	if (mode === "solo" && soloSession && !soloSession.started) return;
 	// Racing/casual multiplayer and territory are locked the same way — currentRoom.phase flips to
 	// "playing" once at series start and stays there for every round, so on its own it doesn't tell
-	// us this SPECIFIC round has gone live yet. roundStartTime is only stamped at "GO" (see
-	// countDownStep in Overlay.js) and reset to 0 at the top of every round (start_game in Main.js /
-	// territoryStart in Territory.js), so it's the right signal — matches what the server itself
-	// gates on (game.playing only flips true after the same countdown, server-side), which already
+	// us this SPECIFIC round has gone live yet. roundStartTime is only stamped at GO (see countDown's
+	// single authoritative timer in Overlay.js, scheduled from the server's own startDelayMs) and
+	// reset to 0 at the top of every round (start_game in Main.js / territoryStart in Territory.js),
+	// so it's the right signal — matches what the server itself gates on (game.playing flips true
+	// after that same server-side delay, ROUND_START_DELAY_MS in minesweeperServer.js), which already
 	// silently drops clicks sent before then; this just stops the client from predicting a move
 	// locally that the server was always going to ignore.
 	if ((mode === "multiplayer" || mode === "territory") && !roundStartTime) return;

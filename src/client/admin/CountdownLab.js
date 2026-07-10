@@ -16,7 +16,9 @@ var countdownLabTab = "digit"; // remembered across re-renders within a session,
 var countdownLabGlyphs = []; // oldest first — a negative gapMs can leave more than one alive at once
 var countdownLabCells = {}; // "r,c" -> {number,litSince,fadeOutStart} — used when persistUnchanged is on
 var countdownLabGoAnim = null; // { start } | null — the lab's own "go" sweep, independent of boardGoAnim
-var countdownLabSeqTimer = null;
+var countdownLabSeqTimer = null;   // the digit-cycle chain, and each loop's own repeat-after-breather timer
+var countdownLabSweepTimer = null; // countdownLabDigitLoop's "sweep pause -> start the digit cycle" timer
+var countdownLabGoTimer = null;    // countdownLabDigitLoop's single authoritative "cycle repeats now" timer
 var countdownLabRAF = null;
 
 function renderCountdownLab() {
@@ -321,23 +323,30 @@ function selectCountdownLabTab(id) {
 // stops it (see hideAllViews in Router.js).
 function countdownLabStart() {
 	teardownCountdownLab();
-	if (countdownLabTab === "digit") countdownLabDigitCycle();
+	if (countdownLabTab === "digit") countdownLabDigitLoop();
 	else if (countdownLabTab === "go") countdownLabGoLoop();
 	else if (countdownLabTab === "idle" && !countdownLabRAF) countdownLabDrawLoop();
 }
 
-// Digit tab loop: the go sweep -> a pause (boardGoTotalMs) -> 3 -> 2 -> 1 -> a short breather ->
-// repeat — matching the real order (Main.js's start_game handler plays the sweep, waits
-// boardGoTotalMs, then starts the countdown; see the comment there for why).
-function countdownLabDigitCycle() {
+// Digit tab loop: mirrors countDown/countdownDigitCycle in Overlay.js — the SAME architecture (one
+// authoritative timer sized to the sequence's natural length, decorative sweep+digits layered on
+// top and cut off if they'd run long) — but with the lab's own state instead of the real game's, and
+// looping forever instead of firing once. naturalCountdownTotalMs (Animations.js) is exactly what
+// solo uses too, since neither has a server deadline to defer to.
+function countdownLabDigitLoop() {
 	countdownLabGoAnim = buildBoardGoAnimState();
 	if (!countdownLabRAF) countdownLabDrawLoop();
-	countdownLabSeqTimer = setTimeout(function() { countdownLabStep(3); }, boardGoTotalMs());
+	countdownLabSweepTimer = setTimeout(function() { countdownLabDigitCycle(3); }, boardGoTotalMs());
+	countdownLabGoTimer = setTimeout(function() {
+		countdownLabSeqTimer = setTimeout(countdownLabDigitLoop, 700); // breather, then repeat
+	}, naturalCountdownTotalMs());
 }
 
-// Mirrors countDownStep in Overlay.js — both read countdownTickMs() (Animations.js) each time, so a
-// slider change mid-loop takes effect on the next tick, here and in a real match alike.
-function countdownLabStep(number) {
+// Purely decorative — mirrors countdownDigitCycle in Overlay.js. Doesn't determine when the cycle
+// repeats (countdownLabDigitLoop's own timer above does that); if tuned to run longer than
+// naturalCountdownTotalMs(), it simply gets cut off, same as a real round would.
+function countdownLabDigitCycle(number) {
+	if (number <= 0) return;
 	if (COUNTDOWN_STYLE.persistUnchanged) {
 		advanceCountdownCells(countdownLabCells, number, COUNTDOWN_LAB_ROWS, COUNTDOWN_LAB_COLS);
 	} else {
@@ -350,14 +359,7 @@ function countdownLabStep(number) {
 	// concurrent chain that never gets cancelled.
 	if (!countdownLabRAF) countdownLabDrawLoop();
 	var tickMs = countdownTickMs();
-	countdownLabSeqTimer = setTimeout(function() {
-		if (number > 1) {
-			countdownLabStep(number - 1);
-			return;
-		}
-		// The countdown just finished — pause a beat, then loop back to the sweep.
-		countdownLabSeqTimer = setTimeout(countdownLabDigitCycle, 700);
-	}, tickMs);
+	countdownLabSeqTimer = setTimeout(function() { countdownLabDigitCycle(number - 1); }, tickMs);
 }
 
 // Repeats the go sweep on its own (no digits) for the "Go sweep" tab, so tuning it doesn't require
@@ -407,12 +409,17 @@ function countdownLabDrawLoop() {
 }
 
 // Called from hideAllViews (Router.js) whenever any view changes, same convention as
-// teardownReplay — stops both the digit sequence timer and the per-frame draw loop so they don't
-// keep running (and logging to a canvas nobody sees) after navigating away. Also called at the start
-// of every countdownLabStart (tab switches, checkbox toggles) so leftover state from whichever
-// system was previously driving the canvas doesn't linger into the new one.
+// teardownReplay — stops every pending timer and the per-frame draw loop so they don't keep running
+// (and logging to a canvas nobody sees) after navigating away. Also called at the start of every
+// countdownLabStart (tab switches, checkbox toggles) so leftover state from whichever system was
+// previously driving the canvas doesn't linger into the new one. Three separate timer variables
+// because countdownLabDigitLoop schedules two independent ones each cycle (see its comment) plus
+// the digit-cycle chain itself — a single shared variable would only ever let the last-assigned one
+// be cancelled, leaking the other(s).
 function teardownCountdownLab() {
 	if (countdownLabSeqTimer) { clearTimeout(countdownLabSeqTimer); countdownLabSeqTimer = null; }
+	if (countdownLabSweepTimer) { clearTimeout(countdownLabSweepTimer); countdownLabSweepTimer = null; }
+	if (countdownLabGoTimer) { clearTimeout(countdownLabGoTimer); countdownLabGoTimer = null; }
 	if (countdownLabRAF) { cancelAnimationFrame(countdownLabRAF); countdownLabRAF = null; }
 	countdownLabGlyphs = [];
 	countdownLabCells = {};

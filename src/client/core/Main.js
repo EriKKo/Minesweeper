@@ -1743,19 +1743,12 @@ socket.on("start_game", function(data) {
 	gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
 	showRoundCutPreview(data);
 	// Paint the board as a full grid of covered cells so the countdown plays over the board
-	// instead of a black canvas; the first draw_board (after GO) reveals the centre.
+	// instead of a black canvas; the round's real reveal happens exactly at GO.
 	setCoveredBoard();
-	// The "go" board sweep plays right here — the instant the game is ready to start and the
-	// covered board is up, before the countdown even begins (not at the countdown's end, where it
-	// used to fire from countDownStep's number<=0 branch in Overlay.js) — then a beat of plain blue
-	// (boardGoTotalMs, Animations.js) before the countdown actually starts, so the digit doesn't pop
-	// in over the sweep or cut it off.
-	if (typeof startBoardGoAnimation === "function") {
-		startBoardGoAnimation(rows, cols);
-		setTimeout(function() { countDown(data.time); }, boardGoTotalMs());
-	} else {
-		countDown(data.time);
-	}
+	// startDelayMs is the server's own ROUND_START_DELAY_MS, echoed back so both sides start their
+	// timers from the same start_game event — countDown's sweep/digit animations are purely
+	// decorative on top of it, see the comment on countDown in Overlay.js for why.
+	countDown(data.startDelayMs);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
 });
