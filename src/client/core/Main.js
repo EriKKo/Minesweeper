@@ -1476,7 +1476,7 @@ function startBattleSearch(mode) {
 	currentRoom = null;
 	inRoom = false;
 	roundResultShown = false; // fresh search — clear the previous result so the new field re-covers
-	applyBoardDims(15, 20);   // ranked race boards are the medium preset — covered-placeholder size
+	applyBoardDims(16, 20);   // ranked race boards are the medium preset — covered-placeholder size
 	showGameView();
 	resetGameUI();
 	readyButton.style.display = "none";   // nothing to ready while searching

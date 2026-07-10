@@ -19,7 +19,11 @@ var COUNTDOWN_GLYPHS = {
 	"2": ["111", "001", "111", "100", "111"],
 	"1": ["010", "110", "010", "010", "111"]
 };
-var COUNTDOWN_GLYPH_FADE_MS = 900;
+// Held at full strength before fading, so the digit reads clearly before it starts dissolving —
+// the tick itself is ~1000ms (see countDownStep), so hold + fade leaves a short beat of plain
+// blue before the next digit lands.
+var COUNTDOWN_GLYPH_HOLD_MS = 500;
+var COUNTDOWN_GLYPH_FADE_MS = 400;
 var countdownGlyph = null; // { glyph, scale, start } | null
 
 // scale maps each glyph "pixel" to an NxN patch of real cells so the digit reads at a consistent
@@ -36,15 +40,19 @@ function startCountdownGlyph(number) {
 function drawCountdownGlyph(ctx, sw, sh) {
 	if (!countdownGlyph || !myState) return;
 	var elapsed = performance.now() - countdownGlyph.start;
-	var alpha = Math.max(0, 1 - elapsed / COUNTDOWN_GLYPH_FADE_MS);
+	var alpha = elapsed < COUNTDOWN_GLYPH_HOLD_MS ? 1
+		: Math.max(0, 1 - (elapsed - COUNTDOWN_GLYPH_HOLD_MS) / COUNTDOWN_GLYPH_FADE_MS);
 	if (alpha <= 0) { countdownGlyph = null; return; }
 	var glyph = countdownGlyph.glyph, scale = countdownGlyph.scale;
 	var glyphRows = glyph.length * scale;
 	var glyphCols = glyph[0].length * scale;
 	var startRow = Math.floor((rows - glyphRows) / 2);
 	var startCol = Math.floor((cols - glyphCols) / 2);
-	ctx.save();
-	ctx.fillStyle = "rgba(4, 8, 20, " + (alpha * 0.62).toFixed(3) + ")";
+	// Same inset/rounding every normal cell uses (see drawCell in BoardRender.js) so a lit glyph
+	// cell reads as a distinct cell being pressed, not a borderless dark blob.
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
 	// Only tint still-covered cells — a board can already show its pre-opened cascade during the
 	// countdown (solo does; ranked stays fully covered until GO), and washing over an already-
 	// revealed clue cell just muddies the number instead of reading as part of the digit.
@@ -57,11 +65,42 @@ function drawCountdownGlyph(ctx, sw, sh) {
 					var c = startCol + gc * scale + sc;
 					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
 					if (myState[r][c] === KNOWN) continue;
-					ctx.fillRect(c * sw, r * sh, sw, sh);
+					drawPressedGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
 				}
 			}
 		}
 	}
+}
+
+// The normal covered cell (drawUnknown in BoardRender.js) reads as raised: light gradient top to
+// dark bottom, plus a bright top hairline and a dark bottom edge — light hitting a bump. This is
+// that same treatment inverted — dark pooling at the top like the recess's shadow, a touch lighter
+// at the bottom where light catches the inner lip — so the glyph cells read as pressed IN rather
+// than just darker.
+function drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = alpha;
+	var g = ctx.createLinearGradient(0, 0, 0, h);
+	g.addColorStop(0, "rgba(2, 5, 14, 0.90)");
+	g.addColorStop(1, "rgba(16, 24, 48, 0.55)");
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = g;
+	ctx.fill();
+	// shadow hugging the top inner edge — the recess's deepest point
+	ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+	ctx.lineWidth = Math.max(1, h * 0.10);
+	ctx.beginPath();
+	ctx.moveTo(rad, ctx.lineWidth / 2);
+	ctx.lineTo(w - rad, ctx.lineWidth / 2);
+	ctx.stroke();
+	// faint highlight catching the bottom inner lip
+	ctx.strokeStyle = "rgba(148, 176, 255, 0.20)";
+	ctx.lineWidth = Math.max(1, h * 0.06);
+	ctx.beginPath();
+	ctx.moveTo(rad, h - ctx.lineWidth / 2);
+	ctx.lineTo(w - rad, h - ctx.lineWidth / 2);
+	ctx.stroke();
 	ctx.restore();
 }
 

@@ -14,7 +14,7 @@ var MINE_DENSITY_MAX_PCT = 30;
 var MINE_DENSITY_OPTIONS = [0.10, 0.15, 0.20];
 var BOARD_SIZES = {
 	small: { rows: 10, cols: 13 },
-	medium: { rows: 15, cols: 20 },
+	medium: { rows: 16, cols: 20 },
 	large: { rows: 16, cols: 30 }
 };
 var BOARD_SIZE_OPTIONS = ["small", "medium", "large"];
