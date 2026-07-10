@@ -2,12 +2,9 @@
 //
 // showOverlay / hideOverlay paint the centered text card over the player's
 // own board (Cleared, Frozen, Eliminated, …). countDown / countDownStep play
-// the GO\! sequence and recurse until 0.
+// the countdown and recurse until 0 (see Animations.js for the on-board digit itself).
 //
 // Plus a couple of tiny shared helpers (clearCanvas, hideReadyButton).
-
-// Countdown overlay colours.
-var COUNT_DOWN_COLORS = ["#facc15", "#fb923c", "#f87171"];
 
 function showOverlay(text, kind, autoHideMs) {
 	boardOverlay.style.display = "";
@@ -102,24 +99,23 @@ function hideReadyButton() {
 	readyButton.style.display = "none";
 }
 
-// onDone (optional) fires the moment "GO" shows — used by solo to unlock the board.
+// onDone (optional) fires the moment the round goes live — used by solo to unlock the board.
+// The countdown itself is drawn ON the board (see startCountdownGlyph in Animations.js) rather
+// than as a text overlay on top of it — hideOverlay() here just clears any leftover overlay
+// (a "Cleared"/"Frozen" card) from before this round started.
 function countDown(time, onDone) {
+	hideOverlay();
 	countDownStep(time, onDone);
 }
 
 function countDownStep(number, onDone) {
 	if (number <= 0) {
-		showOverlay("GO", "go");
 		sound.go();
 		roundStartTime = Date.now(); // danger-warning grace period starts here
 		if (typeof onDone === "function") onDone();
-		setTimeout(function() {
-			if (boardOverlay.textContent === "GO") hideOverlay();
-		}, 700);
 		return;
 	}
-	showOverlay(String(number), "count");
-	boardOverlay.style.color = number <= COUNT_DOWN_COLORS.length ? COUNT_DOWN_COLORS[number - 1] : "#94a3b8";
+	if (typeof startCountdownGlyph === "function") startCountdownGlyph(number);
 	sound.beep(392 + (3 - Math.min(number, 3)) * 110);
 	setTimeout(function() { countDownStep(number - 1, onDone); }, 1000);
 }

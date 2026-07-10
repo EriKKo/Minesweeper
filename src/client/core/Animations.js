@@ -9,6 +9,62 @@ var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:
 var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
 
+// Round-start countdown, drawn ON the board itself instead of a text overlay on top of it: a
+// blocky digit (3/2/1) formed from a patch of cells near the board's centre, filled dark and
+// fading back to the normal covered colour before the next digit. No "GO" glyph — the round's
+// opening cascade (the first draw_board once the countdown finishes) is itself the go signal.
+// See startCountdownGlyph (called from countDownStep in Overlay.js).
+var COUNTDOWN_GLYPHS = {
+	"3": ["111", "001", "111", "001", "111"],
+	"2": ["111", "001", "111", "100", "111"],
+	"1": ["010", "110", "010", "010", "111"]
+};
+var COUNTDOWN_GLYPH_FADE_MS = 900;
+var countdownGlyph = null; // { glyph, scale, start } | null
+
+// scale maps each glyph "pixel" to an NxN patch of real cells so the digit reads at a consistent
+// size whether the board is small (10 rows) or large (16 rows), rather than the glyph shrinking
+// to a sliver of a big board or overflowing a small one.
+function startCountdownGlyph(number) {
+	var glyph = COUNTDOWN_GLYPHS[String(number)];
+	if (!glyph || !rows || !cols) { countdownGlyph = null; return; }
+	var scale = Math.max(1, Math.round(rows / 10));
+	countdownGlyph = { glyph: glyph, scale: scale, start: performance.now() };
+	startAnimLoop();
+}
+
+function drawCountdownGlyph(ctx, sw, sh) {
+	if (!countdownGlyph || !myState) return;
+	var elapsed = performance.now() - countdownGlyph.start;
+	var alpha = Math.max(0, 1 - elapsed / COUNTDOWN_GLYPH_FADE_MS);
+	if (alpha <= 0) { countdownGlyph = null; return; }
+	var glyph = countdownGlyph.glyph, scale = countdownGlyph.scale;
+	var glyphRows = glyph.length * scale;
+	var glyphCols = glyph[0].length * scale;
+	var startRow = Math.floor((rows - glyphRows) / 2);
+	var startCol = Math.floor((cols - glyphCols) / 2);
+	ctx.save();
+	ctx.fillStyle = "rgba(4, 8, 20, " + (alpha * 0.62).toFixed(3) + ")";
+	// Only tint still-covered cells — a board can already show its pre-opened cascade during the
+	// countdown (solo does; ranked stays fully covered until GO), and washing over an already-
+	// revealed clue cell just muddies the number instead of reading as part of the digit.
+	for (var gr = 0; gr < glyph.length; gr++) {
+		for (var gc = 0; gc < glyph[gr].length; gc++) {
+			if (glyph[gr].charAt(gc) !== "1") continue;
+			for (var sr = 0; sr < scale; sr++) {
+				for (var sc = 0; sc < scale; sc++) {
+					var r = startRow + gr * scale + sr;
+					var c = startCol + gc * scale + sc;
+					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+					if (myState[r][c] === KNOWN) continue;
+					ctx.fillRect(c * sw, r * sh, sw, sh);
+				}
+			}
+		}
+	}
+	ctx.restore();
+}
+
 function drawPressedHighlight() {
 	if (!pressedCell || !myState) return;
 	if (!currentActionMode()) return;
@@ -119,6 +175,7 @@ function renderPlayerBoard() {
 			if (typeof drawTerritoryEnergyLines === "function") drawTerritoryEnergyLines(ctx, sw, sh); // territory: power grid
 			if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
 			if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
+			drawCountdownGlyph(ctx, sw, sh); // round-start countdown digit
 		});
 		bv.draw();
 	} else {
@@ -246,6 +303,7 @@ function startAnimLoop() {
 		}
 		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks
 		if (typeof territoryInfraAnimating === "function" && territoryInfraAnimating()) alive = true; // animate extractor/line construction
+		if (countdownGlyph) alive = true; // keep fading the countdown digit
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }
