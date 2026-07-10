@@ -1589,7 +1589,7 @@ socket.on("left_room", function(data) {
 });
 
 socket.on("join_failed", function(data) {
-	showLobbyMessage(data && data.reason ? data.reason : "Couldn't join room");
+	showLobbyMessage(data && data.reason ? data.reason : "Couldn't join lobby");
 });
 
 socket.on("room_state", function(state) {

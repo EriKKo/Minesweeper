@@ -233,7 +233,7 @@ function renderRoomList(rooms) {
 
 	openRoomList.innerHTML = "";
 	if (openRooms.length === 0) {
-		openRoomList.appendChild(emptyRow("No open rooms. Create one to get started."));
+		openRoomList.appendChild(emptyRow("No open lobbies. Create one to get started."));
 	} else {
 		openRooms.forEach(function(r) { openRoomList.appendChild(roomRow(r, true)); });
 	}
@@ -264,7 +264,7 @@ function renderHomeRooms(rooms) {
 	if (ordered.length === 0) {
 		var empty = document.createElement("li");
 		empty.className = "room-empty";
-		empty.textContent = "No active rooms right now.";
+		empty.textContent = "No active lobbies right now.";
 		list.appendChild(empty);
 		return;
 	}
@@ -290,7 +290,7 @@ function homeRoomRow(room) {
 	info.className = "dash-room-info";
 	var title = document.createElement("span");
 	title.className = "dash-room-title";
-	title.textContent = room.ownerName + "'s room";
+	title.textContent = room.ownerName + "'s lobby";
 	info.appendChild(title);
 	var meta = document.createElement("span");
 	meta.className = "dash-room-meta";
@@ -338,7 +338,7 @@ function roomRow(room, joinable) {
 
 	var title = document.createElement("div");
 	title.className = "room-title";
-	title.textContent = room.ownerName + "'s room";
+	title.textContent = room.ownerName + "'s lobby";
 	info.appendChild(title);
 
 	// At-a-glance ruleset chips: how full it is, then the board/density/timer/series options.

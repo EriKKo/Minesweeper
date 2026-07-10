@@ -213,7 +213,7 @@
 						</div>
 
 						<div class="dash-card dash-rooms">
-							<h3 class="dash-card-title">Active rooms</h3>
+							<h3 class="dash-card-title">Active lobbies</h3>
 							<!-- Only the room list itself is fetched — the title above and the browse button
 							     below are static and already shown. -->
 							<div class="dash-rooms-body">
@@ -275,17 +275,17 @@
 			<div class="custom-head">
 				<div class="custom-head-text">
 					<h1 class="section-page-title">Custom lobby</h1>
-					<p class="section-page-sub">Casual rooms — pick the ruleset and play with friends or against bots. No rating change.</p>
+					<p class="section-page-sub">Casual lobbies — pick the ruleset and play with friends or against bots. No rating change.</p>
 				</div>
 				<div class="custom-head-actions">
-					<button id="refresh_button" class="btn btn-ghost custom-refresh" type="button" title="Refresh rooms" aria-label="Refresh rooms">↻</button>
-					<button id="create_room_button" class="btn btn-primary custom-create-btn" type="button">+ Create room</button>
+					<button id="refresh_button" class="btn btn-ghost custom-refresh" type="button" title="Refresh lobbies" aria-label="Refresh lobbies">↻</button>
+					<button id="create_room_button" class="btn btn-primary custom-create-btn" type="button">+ Create lobby</button>
 				</div>
 			</div>
 
-			<h2 class="section-title">Open rooms</h2>
+			<h2 class="section-title">Open lobbies</h2>
 			<ul id="open_room_list" class="room-list">
-				<li class="room-empty" data-empty-open>No open rooms. Create one to get started.</li>
+				<li class="room-empty" data-empty-open>No open lobbies. Create one to get started.</li>
 			</ul>
 
 			<h2 class="section-title section-title-spaced">In progress</h2>
@@ -298,10 +298,10 @@
 				<div class="cr-backdrop" data-cr-close></div>
 				<div class="cr-dialog" role="dialog" aria-modal="true" aria-labelledby="cr_title">
 					<div class="cr-dialog-head">
-						<h2 id="cr_title">Create a room</h2>
+						<h2 id="cr_title">Create a lobby</h2>
 						<button class="cr-close" data-cr-close type="button" aria-label="Close">×</button>
 					</div>
-					<p class="cr-dialog-sub">Casual race · no rating change. Share the room or add bots once you're in.</p>
+					<p class="cr-dialog-sub">Casual race · no rating change. Share the lobby or add bots once you're in.</p>
 					<div class="cr-fields">
 						<div class="cr-field">
 							<span class="cr-field-label">Players</span>
@@ -369,7 +369,7 @@
 					</div>
 					<div class="cr-dialog-actions">
 						<button class="btn btn-ghost" data-cr-close type="button">Cancel</button>
-						<button id="cr_create" class="btn btn-primary" type="button">Create room</button>
+						<button id="cr_create" class="btn btn-primary" type="button">Create lobby</button>
 					</div>
 				</div>
 			</div>

@@ -241,7 +241,7 @@ function renderRoomState(state) {
 		if (state.botCount === 0) {
 			botStatus.textContent = isOwner ? "Add a bot to practice solo." : "";
 		} else {
-			botStatus.textContent = state.botCount + " bot" + (state.botCount === 1 ? "" : "s") + " in this room.";
+			botStatus.textContent = state.botCount + " bot" + (state.botCount === 1 ? "" : "s") + " in this lobby.";
 		}
 		renderBotList(state, isOwner);
 	}

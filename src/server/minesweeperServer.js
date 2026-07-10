@@ -1104,11 +1104,11 @@ io.on("connection", function (socket) {
 		if (roomMapping[playerID]) return;
 		var room = rooms[data && data.roomId];
 		if (!room) {
-			socket.emit("join_failed", { reason: "Room no longer exists" });
+			socket.emit("join_failed", { reason: "Lobby no longer exists" });
 			return;
 		}
 		if (room.isFull()) {
-			socket.emit("join_failed", { reason: "Room is full" });
+			socket.emit("join_failed", { reason: "Lobby is full" });
 			return;
 		}
 		if (room.phase !== "planning") {
