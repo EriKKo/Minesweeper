@@ -26,7 +26,14 @@ var keybindings = (function() {
 		var raw = localStorage.getItem("ms_keybinds");
 		if (raw) {
 			var parsed = JSON.parse(raw);
-			for (var a in DEFAULTS) if (typeof parsed[a] === "string" && parsed[a]) binds[a] = parsed[a];
+			// A saved action the player never touched isn't in `parsed` at all — keep its default.
+			// One that IS present but holds something other than a real key string was explicitly
+			// unassigned (see set() below) — that has to stick, not silently fall back to the
+			// default, or a reload would "un-unassign" it.
+			for (var a in DEFAULTS) {
+				if (!parsed.hasOwnProperty(a)) continue;
+				binds[a] = (typeof parsed[a] === "string" && parsed[a]) ? parsed[a] : null;
+			}
 		}
 	} catch (e) {}
 
@@ -43,12 +50,12 @@ var keybindings = (function() {
 		return null;
 	}
 
-	// Bind `action` to `key`; if another action already uses that key, swap them so
-	// every action stays bound and no two share a key.
+	// Bind `action` to `key`. If another action already uses that key, unassign it (rather than
+	// swapping the two, which used to silently reassign a second control the player never touched)
+	// — the freed-up action shows "—" (see label() below) until explicitly given a new key.
 	function set(action, key) {
 		if (!binds.hasOwnProperty(action)) return;
-		var old = binds[action];
-		for (var b in binds) if (b !== action && norm(binds[b]) === norm(key)) binds[b] = old;
+		for (var b in binds) if (b !== action && binds[b] && norm(binds[b]) === norm(key)) binds[b] = null;
 		binds[action] = key;
 		save();
 	}

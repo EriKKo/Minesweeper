@@ -4992,8 +4992,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 	.puzzles-stats-body { grid-template-columns: 1fr; }
 }
 
-/* Audio settings (Settings page): a volume slider on the right of a .setting-row. */
-.setting-row-slider {
+/* Audio settings (Settings page): a volume slider on the right of a .setting-row. Matches
+   input[type="range"].cr-slider's own specificity (element+attribute+class) so this width actually
+   wins over that rule's width:100% instead of losing to it despite coming later in the file — a
+   plain .setting-row-slider selector is weaker and was losing outright, stretching the slider full
+   width across the row and over the label text. */
+input[type="range"].setting-row-slider {
 	width: 140px;
 	flex: 0 0 auto;
 }
