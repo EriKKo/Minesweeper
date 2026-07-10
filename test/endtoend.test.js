@@ -99,9 +99,13 @@ test("a fast win on the game server reports a real ratingDelta back through seri
 		const start = await once(gameSock, "start_game", 45000);
 		const board = decodeBoard(start.boardData, start.boardMask, start.rows, start.cols);
 
-		// Win as fast as possible: reveal every non-mine cell right after the countdown, well before
-		// the filler bot can finish, so the series always ends with THIS client as the winner.
-		await new Promise(r => setTimeout(r, (start.time + 0.5) * 1000));
+		// Win as fast as possible: reveal every non-mine cell right after the round actually goes
+		// live, well before the filler bot can finish, so the series always ends with THIS client as
+		// the winner. Waits on startDelayMs (the server's real round-start delay) rather than
+		// deriving a guess from `time` (just the digit count shown to the client, "3, 2, 1") -- the
+		// two are deliberately decoupled since the client's pre-round animation sequence is
+		// independently tunable and no longer takes a fixed 3 seconds.
+		await new Promise(r => setTimeout(r, start.startDelayMs + 500));
 		for (let r = 0; r < start.rows; r++) {
 			for (let c = 0; c < start.cols; c++) {
 				if (board[r][c] !== -1) gameSock.emit("left_click", { r, c, id: "1" });

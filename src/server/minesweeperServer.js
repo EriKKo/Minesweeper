@@ -41,7 +41,17 @@ var obfuscateBoard = gameUtil.obfuscateBoard, gameForBroadcast = gameUtil.gameFo
 try { process.loadEnvFile(); } catch (e) { /* no .env file — fine */ }
 
 
-var COUNT_DOWN_TIME = 3;
+var COUNT_DOWN_TIME = 3; // digits shown to the client ("3, 2, 1") — NOT the server's actual wait time, see below
+// How long the server actually waits before flipping a round live (game.playing = true, real
+// draw_board data starts flowing, bots start ticking) — decoupled from COUNT_DOWN_TIME because the
+// client's pre-round sequence (the "go" board sweep, then a pause, then the 3/2/1 digits, each
+// digit's own fade-in/hold/fade-out/gap) is fully tunable from /admin/countdown
+// (COUNTDOWN_STYLE/BOARD_GO_STYLE in Animations.js) and no longer takes a fixed 3 seconds. Sized to
+// comfortably cover their current defaults (go sweep 700+300=1000ms, then 3 digits at 1100ms each
+// =3300ms, total 4300ms) with room to spare — if that default sequence is ever tuned to run longer
+// than this, the round will go live while the client is still mid-animation again, same symptom as
+// the bug this constant fixes.
+var ROUND_START_DELAY_MS = 5000;
 var BETWEEN_GAMES_DELAY = 3000;
 // Tournament rounds run the elimination sequence (scrim → reorder → cut flashes
 // → survivor pulse → fade) over the same gap. The reveal lives in roughly
@@ -76,6 +86,7 @@ appState.io = io; // share the socket.io server with the handler modules
 territory.init({
 	io: io,
 	COUNT_DOWN_TIME: COUNT_DOWN_TIME,
+	ROUND_START_DELAY_MS: ROUND_START_DELAY_MS,
 	clearRoundTimer: clearRoundTimer,
 	applyRankedElo: elo.applyRankedElo,
 	broadcastRoomState: roomState.broadcastRoomState,
@@ -570,6 +581,12 @@ function startGame(room) {
 	function startPayload(forSpectator) {
 		return {
 			time: COUNT_DOWN_TIME,
+			// The actual server-side delay (ms) before this round goes live -- decoupled from
+			// time/COUNT_DOWN_TIME (see its definition above), since the client's own pre-round
+			// animation sequence is independently tunable. Anything that needs to know when input
+			// will really be accepted (rather than just how many digits to show) should read this,
+			// not derive a guess from `time`.
+			startDelayMs: ROUND_START_DELAY_MS,
 			gameNumber: room.gamesPlayed + 1,
 			gameCount: room.gameCount,
 			roundSeconds: room.roundSeconds,
@@ -620,7 +637,7 @@ function startGame(room) {
 		roomState.broadcastRoomState(room);
 		updateDraw(room);
 		botMgr.startBotTicksForRoom(room);
-	}, COUNT_DOWN_TIME * 1000);
+	}, ROUND_START_DELAY_MS);
 }
 
 function startSeries(room) {

@@ -31,10 +31,11 @@ function territoryDims(players) { return players === 4 ? { rows: TERRITORY_ROWS_
 
 var obfuscateBoard = gameUtil.obfuscateBoard, isBot = gameUtil.isBot;
 // Core helpers + shared values injected at boot to avoid a circular require on the server.
-var io, COUNT_DOWN_TIME, clearRoundTimer, applyRankedElo, broadcastRoomState, broadcastRoomList;
+var io, COUNT_DOWN_TIME, ROUND_START_DELAY_MS, clearRoundTimer, applyRankedElo, broadcastRoomState, broadcastRoomList;
 function init(deps) {
 	io = deps.io;
 	COUNT_DOWN_TIME = deps.COUNT_DOWN_TIME;
+	ROUND_START_DELAY_MS = deps.ROUND_START_DELAY_MS;
 	clearRoundTimer = deps.clearRoundTimer;
 	applyRankedElo = deps.applyRankedElo;
 	broadcastRoomState = deps.broadcastRoomState;
@@ -61,7 +62,7 @@ function startTerritoryGame(room) {
 		var pid = room.players[i];
 		if (!sockets[pid]) continue;
 		sockets[pid].emit("territory_start", {
-			time: COUNT_DOWN_TIME, rows: gen.rows, cols: gen.cols,
+			time: COUNT_DOWN_TIME, startDelayMs: ROUND_START_DELAY_MS, rows: gen.rows, cols: gen.cols,
 			boardData: obf.data, boardMask: obf.mask,
 			players: meta, you: pid, starts: gen.starts,
 			roundSeconds: room.roundSeconds
@@ -80,7 +81,7 @@ function startTerritoryGame(room) {
 		broadcastTerritory(room);
 		startTerritoryBots(room, tg);
 		startTerritoryWorldTick(room, tg);
-	}, COUNT_DOWN_TIME * 1000);
+	}, ROUND_START_DELAY_MS);
 }
 
 // Drive any bot players in a territory game with the SAME bot AI the racing modes use
