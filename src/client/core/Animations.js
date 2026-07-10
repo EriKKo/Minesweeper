@@ -372,7 +372,8 @@ var BOARD_GO_STYLE = {
 	durationMs: 700,
 	width: 3,          // how many cells wide the wave band is
 	brightness: 0.7,
-	color: "#bfdbfe"
+	color: "#bfdbfe",
+	pauseAfterMs: 300  // beat of plain blue between the sweep finishing and the countdown starting
 };
 var boardGoAnim = null; // { start } | null — the live game's current sweep
 
@@ -387,6 +388,15 @@ function startBoardGoAnimation(boardRows, boardCols) {
 	if (!boardRows || !boardCols) { boardGoAnim = null; return; }
 	boardGoAnim = buildBoardGoAnimState();
 	startAnimLoop();
+}
+
+// How long to wait after startBoardGoAnimation before starting the countdown that follows it — the
+// sweep's own duration plus a beat of plain blue, so the countdown doesn't start over the sweep or
+// cut it off. Shared by every startBoardGoAnimation call site (Main.js's start_game handler,
+// Solo.js's beginSolo, Territory.js's territoryStart) so they can't drift on how it's computed —
+// same reasoning as countdownTickMs above.
+function boardGoTotalMs() {
+	return Math.max(0, BOARD_GO_STYLE.durationMs) + Math.max(0, BOARD_GO_STYLE.pauseAfterMs);
 }
 
 // How far cell (r,c) sits along `mode`'s sweep axis, and that axis's max extent on a
@@ -664,6 +674,25 @@ function renderPlayerBoard() {
 	} else {
 		var ctx = playerCanvas.getContext("2d");
 		ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
+		// The idle animation can be active before any board exists yet — waiting for players means
+		// myState isn't set up until a round is actually dealt, but rows/cols are already known this
+		// early (see applyBoardDims in the room_state handler, Main.js). Paint a plain covered grid +
+		// the idle animation directly rather than leaving the canvas blank/black.
+		if (boardIdleActive && rows && cols) {
+			var isw = playerCanvas.width / cols, ish = playerCanvas.height / rows;
+			var igap = Math.max(1, Math.round(Math.min(isw, ish) * 0.08));
+			var iw = isw - igap, ih = ish - igap;
+			var irad = Math.min(iw, ih) * 0.2;
+			for (var ir = 0; ir < rows; ir++) {
+				for (var ic = 0; ic < cols; ic++) {
+					ctx.save();
+					ctx.translate(ic * isw + igap / 2, ir * ish + igap / 2);
+					drawUnknown(ctx, iw, ih, irad);
+					ctx.restore();
+				}
+			}
+			paintBoardIdleAnimation(ctx, isw, ish, rows, cols, null);
+		}
 	}
 	drawPressedHighlight();
 	drawFocusHighlight();

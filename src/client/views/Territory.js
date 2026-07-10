@@ -321,9 +321,15 @@ function territoryStart(data) {
 	territoryEnsureHud();
 	territoryRenderHud();
 	// Same "ready to start, before the countdown" trigger as a racing match's start_game handler
-	// (Main.js) — see startBoardGoAnimation in Animations.js.
-	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(R, C);
-	countDown(data.time || 3);
+	// (Main.js) — see startBoardGoAnimation in Animations.js. Then a beat of plain blue
+	// (boardGoTotalMs) before the countdown actually starts, so the digit doesn't pop in over the
+	// sweep or cut it off.
+	if (typeof startBoardGoAnimation === "function") {
+		startBoardGoAnimation(R, C);
+		setTimeout(function() { countDown(data.time || 3); }, boardGoTotalMs());
+	} else {
+		countDown(data.time || 3);
+	}
 	// Re-fit the board now that the .territory single-column layout is applied (applyBoardDims
 	// sized it against the racing layout / may have early-returned on unchanged dims).
 	requestAnimationFrame(sizeTerritoryBoard);

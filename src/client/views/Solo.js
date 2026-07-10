@@ -131,11 +131,20 @@ function hideSoloStart() {
 function beginSolo() {
 	if (!soloSession || soloSession.started) return;
 	hideSoloStart();
+	var session = soloSession; // guard against a new board replacing it mid-countdown/pause
 	// Same "ready to start, before the countdown" trigger as a real match's start_game handler
-	// (Main.js) — see startBoardGoAnimation in Animations.js.
-	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
-	var session = soloSession; // guard against a new board replacing it mid-countdown
-	countDown(3, function() { if (soloSession === session) soloSession.started = true; });
+	// (Main.js) — see startBoardGoAnimation in Animations.js. Then a beat of plain blue
+	// (boardGoTotalMs) before the countdown actually starts, so the digit doesn't pop in over the
+	// sweep or cut it off.
+	if (typeof startBoardGoAnimation === "function") {
+		startBoardGoAnimation(rows, cols);
+		setTimeout(function() {
+			if (soloSession !== session) return;
+			countDown(3, function() { if (soloSession === session) soloSession.started = true; });
+		}, boardGoTotalMs());
+	} else {
+		countDown(3, function() { if (soloSession === session) soloSession.started = true; });
+	}
 }
 
 function exitSolo() {

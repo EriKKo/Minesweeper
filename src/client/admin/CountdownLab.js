@@ -222,6 +222,7 @@ function renderCountdownLab() {
 	addSlider(goPanel, BOARD_GO_STYLE, "Duration", "durationMs", 150, 2000, 50, function(v) { return Math.round(v) + "ms"; });
 	addSlider(goPanel, BOARD_GO_STYLE, "Width", "width", 0.5, 10, 0.5, function(v) { return v.toFixed(1) + " cells"; });
 	addSlider(goPanel, BOARD_GO_STYLE, "Brightness", "brightness", 0.2, 2, 0.05, function(v) { return v.toFixed(2) + "×"; });
+	addSlider(goPanel, BOARD_GO_STYLE, "Pause after (before the countdown starts)", "pauseAfterMs", 0, 1500, 50, function(v) { return Math.round(v) + "ms"; });
 
 	var playGoBtn = document.createElement("button");
 	playGoBtn.type = "button";
@@ -280,6 +281,7 @@ function renderCountdownLab() {
 		BOARD_GO_STYLE.width = 3;
 		BOARD_GO_STYLE.brightness = 0.7;
 		BOARD_GO_STYLE.color = "#bfdbfe";
+		BOARD_GO_STYLE.pauseAfterMs = 300;
 		BOARD_IDLE_STYLE.mode = "twinkle";
 		BOARD_IDLE_STYLE.speed = 3;
 		BOARD_IDLE_STYLE.brightness = 0.7;
@@ -319,14 +321,22 @@ function selectCountdownLabTab(id) {
 // stops it (see hideAllViews in Router.js).
 function countdownLabStart() {
 	teardownCountdownLab();
-	if (countdownLabTab === "digit") countdownLabStep(3);
+	if (countdownLabTab === "digit") countdownLabDigitCycle();
 	else if (countdownLabTab === "go") countdownLabGoLoop();
 	else if (countdownLabTab === "idle" && !countdownLabRAF) countdownLabDrawLoop();
 }
 
-// Loops 3 -> 2 -> 1 -> the go sweep -> a short pause -> repeat. Mirrors countDownStep in Overlay.js
-// — both read countdownTickMs() (Animations.js) each time, so a slider change mid-loop takes effect
-// on the next tick, here and in a real match alike.
+// Digit tab loop: the go sweep -> a pause (boardGoTotalMs) -> 3 -> 2 -> 1 -> a short breather ->
+// repeat — matching the real order (Main.js's start_game handler plays the sweep, waits
+// boardGoTotalMs, then starts the countdown; see the comment there for why).
+function countdownLabDigitCycle() {
+	countdownLabGoAnim = buildBoardGoAnimState();
+	if (!countdownLabRAF) countdownLabDrawLoop();
+	countdownLabSeqTimer = setTimeout(function() { countdownLabStep(3); }, boardGoTotalMs());
+}
+
+// Mirrors countDownStep in Overlay.js — both read countdownTickMs() (Animations.js) each time, so a
+// slider change mid-loop takes effect on the next tick, here and in a real match alike.
 function countdownLabStep(number) {
 	if (COUNTDOWN_STYLE.persistUnchanged) {
 		advanceCountdownCells(countdownLabCells, number, COUNTDOWN_LAB_ROWS, COUNTDOWN_LAB_COLS);
@@ -345,12 +355,8 @@ function countdownLabStep(number) {
 			countdownLabStep(number - 1);
 			return;
 		}
-		// The countdown just finished — play the "go" sweep (same trigger point as
-		// countDownStep's number<=0 branch in Overlay.js), then pause a beat before looping back
-		// to "3". The pause is at least the sweep's own duration so it isn't cut off mid-play.
-		countdownLabGoAnim = buildBoardGoAnimState();
-		if (!countdownLabRAF) countdownLabDrawLoop();
-		countdownLabSeqTimer = setTimeout(function() { countdownLabStep(3); }, Math.max(700, BOARD_GO_STYLE.durationMs + 300));
+		// The countdown just finished — pause a beat, then loop back to the sweep.
+		countdownLabSeqTimer = setTimeout(countdownLabDigitCycle, 700);
 	}, tickMs);
 }
 
