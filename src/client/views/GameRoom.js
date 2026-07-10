@@ -272,16 +272,19 @@ function renderRoomState(state) {
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;
 	document.getElementById("player_name0").textContent = ownName;
-	// player_div is shared with puzzle play AND territory. Only toggle the "Waiting for series to
-	// start" idle overlay when we're actually viewing the multiplayer lobby — otherwise room_state
-	// ticks would fade out the puzzle board mid-play, or fade the territory board after a match
-	// (territory has no series, so it should never go idle).
+	// player_div is shared with puzzle play AND territory. Only toggle the idle state (the board
+	// animation from Animations.js, plus the .idle class other CSS still keys off — e.g. hiding the
+	// find-next-cell arrow) when we're actually viewing the multiplayer lobby — otherwise room_state
+	// ticks would touch the puzzle board mid-play, or the territory board after a match (territory
+	// has no series, so it should never go idle).
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
 	var inMpView = (location.pathname === "/");
 	if (inMpView && !inTerritory) {
 		document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
+		if (typeof setBoardIdleActive === "function") setBoardIdleActive(state.phase === "planning");
 	} else if (inTerritory) {
 		document.getElementById("player_div").classList.remove("idle");
+		if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
 	}
 
 	if (state.phase === "playing" && me && me.finished && !roundResultShown) {

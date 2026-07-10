@@ -369,7 +369,7 @@ var BOARD_GO_STYLE = {
 	mode: "diagonal", // "diagonal" | "radial" | "rowWipe" | "colWipe"
 	durationMs: 700,
 	width: 3,          // how many cells wide the wave band is
-	brightness: 1,
+	brightness: 0.7,
 	color: "#bfdbfe"
 };
 var boardGoAnim = null; // { start } | null — the live game's current sweep
@@ -453,6 +453,94 @@ function drawGoAnimCell(ctx, x, y, w, h, rad, alpha, base) {
 	ctx.fillStyle = g;
 	ctx.fill();
 	ctx.shadowBlur = 0;
+	ctx.restore();
+}
+
+// Idle board animation, played continuously (no fixed duration, unlike the go sweep above) while
+// waiting for a casual series to start — replaces the old static dim + "Waiting for series to
+// start" text (see the .idle rules removed from style.css) with something that reads as "alive"
+// rather than "disabled". Toggled from GameRoom.js's existing .idle class logic (setBoardIdleActive
+// alongside the classList.toggle, not instead of it — .idle still drives other CSS, like hiding the
+// find-next-cell arrow). Tunable from the "Board animations" admin lab (CountdownLab.js) alongside
+// the countdown digit and go sweep.
+var BOARD_IDLE_STYLE = {
+	mode: "twinkle", // "breathe" | "shimmer" | "twinkle"
+	speed: 3,
+	brightness: 0.7,
+	color: "#bfdbfe"
+};
+var boardIdleActive = false;
+
+function setBoardIdleActive(active) {
+	active = !!active;
+	if (active === boardIdleActive) return;
+	boardIdleActive = active;
+	if (active) startAnimLoop();
+}
+
+// Unlike buildCountdownGlyphState/buildBoardGoAnimState, there's no per-instance state to build —
+// idle just reads performance.now() directly each frame, forever, for as long as boardIdleActive
+// (or, for the lab's own preview, its own local flag) says to keep going.
+function paintBoardIdleAnimation(ctx, sw, sh, boardRows, boardCols, isRevealed) {
+	var now = performance.now();
+	var mode = BOARD_IDLE_STYLE.mode;
+	var speed = Math.max(0.05, BOARD_IDLE_STYLE.speed);
+	var brightness = BOARD_IDLE_STYLE.brightness;
+	var base = hexToRgb(BOARD_IDLE_STYLE.color);
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
+
+	if (mode === "shimmer") {
+		// A soft diagonal band that loops continuously (unlike the one-shot go sweep it reuses the
+		// axis math from), slow and low-brightness so it reads as ambient, not attention-grabbing.
+		var maxP = boardGoAxisMax("diagonal", boardRows, boardCols);
+		var periodMs = 2600 / speed;
+		var frontP = ((now % periodMs) / periodMs) * (maxP + 6) - 3;
+		var width = 2.5;
+		for (var r = 0; r < boardRows; r++) {
+			for (var c = 0; c < boardCols; c++) {
+				if (isRevealed && isRevealed(r, c)) continue;
+				var dist = Math.abs(boardGoAxisPos("diagonal", r, c, boardRows, boardCols) - frontP);
+				if (dist > width) continue;
+				drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, (1 - dist / width) * 0.30 * brightness, base);
+			}
+		}
+	} else if (mode === "twinkle") {
+		// Each cell's own sine wave, phase-offset by a cheap position hash so they twinkle out of
+		// sync — only the positive half of the wave actually lights up, so most cells sit dark at
+		// any moment and a few softly glow, like a slow starfield.
+		for (var r2 = 0; r2 < boardRows; r2++) {
+			for (var c2 = 0; c2 < boardCols; c2++) {
+				if (isRevealed && isRevealed(r2, c2)) continue;
+				var seed = ((r2 * 928371 + c2 * 123457) % 1000) / 1000;
+				var wave = Math.sin((now / 1000) * speed * (0.4 + seed * 0.6) + seed * Math.PI * 2);
+				var tw = Math.max(0, wave) * 0.28 * brightness;
+				if (tw <= 0.015) continue;
+				drawIdleCell(ctx, c2 * sw + gap / 2, r2 * sh + gap / 2, w, h, rad, tw, base);
+			}
+		}
+	} else {
+		// "breathe": the whole board pulses together, gently, like a slow held breath.
+		var t = (now / 1000) * speed;
+		var intensity = (Math.sin(t * Math.PI * 0.6) + 1) / 2; // 0..1
+		var alpha = (0.08 + 0.16 * intensity) * brightness;
+		for (var r3 = 0; r3 < boardRows; r3++) {
+			for (var c3 = 0; c3 < boardCols; c3++) {
+				if (isRevealed && isRevealed(r3, c3)) continue;
+				drawIdleCell(ctx, c3 * sw + gap / 2, r3 * sh + gap / 2, w, h, rad, alpha, base);
+			}
+		}
+	}
+}
+
+function drawIdleCell(ctx, x, y, w, h, rad, alpha, base) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = rgbaStr(lightenRgb(base, 0.5), 1);
+	ctx.fill();
 	ctx.restore();
 }
 
@@ -568,6 +656,7 @@ function renderPlayerBoard() {
 			if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
 			drawCountdownGlyph(ctx, sw, sh); // round-start countdown digit
 			if (boardGoAnim && !paintBoardGoAnimation(ctx, sw, sh, rows, cols, boardGoAnim, function(r, c) { return myState[r][c] === KNOWN; })) boardGoAnim = null; // "go" sweep
+			if (boardIdleActive) paintBoardIdleAnimation(ctx, sw, sh, rows, cols, function(r, c) { return myState[r][c] === KNOWN; }); // idle (waiting for series)
 		});
 		bv.draw();
 	} else {
@@ -700,6 +789,7 @@ function startAnimLoop() {
 		if (typeof territoryInfraAnimating === "function" && territoryInfraAnimating()) alive = true; // animate extractor/line construction
 		if (countdownGlyphs.length || Object.keys(countdownCells).length) alive = true; // keep fading the countdown digit(s)
 		if (boardGoAnim) alive = true; // keep sweeping the "go" animation
+		if (boardIdleActive) alive = true; // keep looping the idle animation
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }

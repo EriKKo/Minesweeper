@@ -2824,25 +2824,6 @@ body.ranked-game .game-grid { padding: 1.25rem 1.5rem 1.5rem; }
 	40%, 60% { transform: translateX(5px); }
 }
 
-.player-board.idle #game0 { opacity: 0.35; }
-
-.player-board.idle::after {
-	content: "Waiting for series to start";
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	transform: translate(-50%, -50%);
-	color: var(--muted);
-	font-size: 0.95rem;
-	pointer-events: none;
-	z-index: 2;
-}
-
-/* In the duel both boards show a covered grid through planning/countdown, so don't dim/label only
-   the player's side — that asymmetry (your board shaded, opponent's not) looks off. */
-.game-view.duo .player-board.idle #game0 { opacity: 1; }
-.game-view.duo .player-board.idle::after { content: none; }
-
 .board-overlay {
 	position: absolute;
 	inset: 0;
@@ -3979,8 +3960,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 .game-view.lobby #flag_mode_button,
 .game-view.lobby #ready_status,
 .game-view.lobby #bots_card { display: none; }
-/* No "Waiting for series to start" board placeholder — there's no board in the lobby. */
-.game-view.lobby .player-board.idle::after { content: none; }
 /* The board card collapses to a transparent wrapper that just holds the Ready button. */
 .game-view.lobby .player-board {
 	background: none; border: 0; box-shadow: none; padding: 0; display: block; width: 100%;
@@ -5002,8 +4981,10 @@ input[type="range"].setting-row-slider {
 	flex: 0 0 auto;
 }
 
-/* Countdown lab (/admin/countdown) — live preview + tuning sliders for the round-start countdown
-   glyph (see CountdownLab.js / COUNTDOWN_STYLE in Animations.js). */
+/* Board animations lab (/admin/countdown) — live preview + tuning sliders for the countdown digit,
+   go sweep, and idle animations (see CountdownLab.js / COUNTDOWN_STYLE / BOARD_GO_STYLE /
+   BOARD_IDLE_STYLE in Animations.js). */
+.countdown-lab-tabs { margin-top: 1.25rem; }
 .countdown-lab-layout {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) 320px;
