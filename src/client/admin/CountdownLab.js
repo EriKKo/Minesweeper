@@ -45,8 +45,8 @@ function renderCountdownLab() {
 	controls.appendChild(modeHead);
 	var seg = document.createElement("div");
 	seg.className = "cr-seg";
-	var MODE_LABELS = { glow: "Glow", pressed: "Pressed in", flat: "Flat colour" };
-	["glow", "pressed", "flat"].forEach(function(mode) {
+	var MODE_LABELS = { glow: "Glow", pressed: "Pressed in", flat: "Flat colour", reveal: "Reveal numbers" };
+	["glow", "pressed", "flat", "reveal"].forEach(function(mode) {
 		var btn = document.createElement("button");
 		btn.type = "button";
 		btn.textContent = MODE_LABELS[mode];

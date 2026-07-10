@@ -31,7 +31,7 @@ var COUNTDOWN_GLYPHS = {
 // highlight/flat-tint are derived from (see hexToRgb/lighten/darken below) — the pressed
 // treatment's top shadow stays neutral black regardless, since that's a depth cue, not a colour.
 var COUNTDOWN_STYLE = {
-	mode: "glow", // "glow" | "pressed" | "flat"
+	mode: "glow", // "glow" | "pressed" | "flat" | "reveal"
 	fadeInMs: 0,
 	holdMs: 500,
 	fadeOutMs: 400,
@@ -74,7 +74,7 @@ function buildCountdownGlyphState(number, boardRows) {
 	var glyph = COUNTDOWN_GLYPHS[String(number)];
 	if (!glyph || !boardRows) return null;
 	var scale = Math.max(1, Math.round(boardRows / 10));
-	return { glyph: glyph, scale: scale, start: performance.now() };
+	return { glyph: glyph, scale: scale, start: performance.now(), number: number };
 }
 
 function startCountdownGlyph(number) {
@@ -124,7 +124,7 @@ function paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphState, isRe
 					var c = startCol + gc * scale + sc;
 					if (r < 0 || r >= boardRows || c < 0 || c >= boardCols) continue;
 					if (isRevealed && isRevealed(r, c)) continue;
-					drawCountdownGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
+					drawCountdownGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha, glyphState.number);
 				}
 			}
 		}
@@ -132,10 +132,26 @@ function paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphState, isRe
 	return true;
 }
 
-function drawCountdownGlyphCell(ctx, x, y, w, h, rad, alpha) {
+function drawCountdownGlyphCell(ctx, x, y, w, h, rad, alpha, number) {
 	if (COUNTDOWN_STYLE.mode === "pressed") drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha);
 	else if (COUNTDOWN_STYLE.mode === "flat") drawFlatGlyphCell(ctx, x, y, w, h, rad, alpha);
+	else if (COUNTDOWN_STYLE.mode === "reveal") drawRevealGlyphCell(ctx, x, y, w, h, rad, alpha, number);
 	else drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha);
+}
+
+// The "funny" treatment: the glyph's cells actually reveal, each showing the current countdown
+// digit as an ordinary clue number — reusing the real board's own drawKnownBase/drawNumber
+// (BoardRender.js), so this is a patch of the board briefly and literally spelling out "3" using a
+// crowd of little 3s (then a crowd of 2s, then 1s). Fades the same as every other style: drawNumber
+// takes its own alpha/pop-scale from `t`, so passing alpha through as `t` fades the number in place
+// rather than needing a second alpha layer on top.
+function drawRevealGlyphCell(ctx, x, y, w, h, rad, alpha, number) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = alpha;
+	drawKnownBase(ctx, w, h, rad);
+	drawNumber(ctx, number, w, h, alpha);
+	ctx.restore();
 }
 
 // Simplest treatment: no depth cue at all, just the cell's colour changing to the base colour and
