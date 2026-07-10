@@ -5002,6 +5002,59 @@ input[type="range"].setting-row-slider {
 	flex: 0 0 auto;
 }
 
+/* Countdown lab (/admin/countdown) — live preview + tuning sliders for the round-start countdown
+   glyph (see CountdownLab.js / COUNTDOWN_STYLE in Animations.js). */
+.countdown-lab-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	gap: 1.25rem;
+	align-items: start;
+}
+.countdown-lab-canvas-card { display: flex; justify-content: center; }
+.countdown-lab-canvas {
+	width: 100%;
+	max-width: 600px;
+	height: auto;
+	aspect-ratio: 600 / 480;
+	background: var(--bg);
+	border-radius: 10px;
+}
+.countdown-lab-controls .cr-seg { margin-bottom: 1.1rem; }
+.countdown-lab-tune-title { margin-top: 1.4rem; }
+.countdown-lab-row {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+	margin-bottom: 0.65rem;
+}
+.countdown-lab-row .setting-row-text { grid-column: 1; grid-row: 1; }
+.countdown-lab-val {
+	grid-column: 2; grid-row: 1; justify-self: end;
+	font-weight: 700; color: var(--accent-hover); font-size: 0.9rem;
+	font-variant-numeric: tabular-nums;
+}
+input[type="range"].countdown-lab-slider { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+.countdown-lab-color-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+}
+input[type="color"].countdown-lab-color {
+	width: 44px;
+	height: 32px;
+	padding: 2px;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	cursor: pointer;
+	flex: 0 0 auto;
+}
+@media (max-width: 860px) {
+	.countdown-lab-layout { grid-template-columns: 1fr; }
+}
+
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the
    actual board rendered. */

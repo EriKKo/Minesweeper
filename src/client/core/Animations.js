@@ -19,43 +19,93 @@ var COUNTDOWN_GLYPHS = {
 	"2": ["111", "001", "111", "100", "111"],
 	"1": ["010", "110", "010", "010", "111"]
 };
-// Held at full strength before fading, so the digit reads clearly before it starts dissolving —
-// the tick itself is ~1000ms (see countDownStep), so hold + fade leaves a short beat of plain
-// blue before the next digit lands.
-var COUNTDOWN_GLYPH_HOLD_MS = 500;
-var COUNTDOWN_GLYPH_FADE_MS = 400;
-var countdownGlyph = null; // { glyph, scale, start } | null
+// Tunable knobs, shared by real gameplay and the /admin/countdown lab (CountdownLab.js) — the lab's
+// sliders mutate this object directly, so what it previews is the exact code path a real round
+// uses, not a copy of it. fadeInMs/holdMs/fadeOutMs: the tick is ~1000ms (see countDownStep), so
+// the three together should leave a short beat of plain blue before the next digit lands.
+// fadeInMs defaults to 0 (the digit pops straight to full strength, the original behaviour) — set
+// it to actually fade in. brightness/indent: read by drawPressedGlyphCell/drawGlowGlyphCell below —
+// brightness scales the fill, indent scales the depth cue (pressed: shadow/highlight strength;
+// glow: bloom size). color: the base hue the fill/glow/highlight are derived from (see
+// hexToRgb/lighten/darken below) — the shadow side of the pressed treatment stays neutral black
+// regardless, since that's a depth cue, not a material colour.
+var COUNTDOWN_STYLE = {
+	mode: "glow", // "glow" | "pressed"
+	fadeInMs: 0,
+	holdMs: 500,
+	fadeOutMs: 400,
+	brightness: 1,
+	indent: 1,
+	color: "#bfdbfe"
+};
+var countdownGlyph = null; // { glyph, scale, start } | null — the live game's current glyph
 
-// scale maps each glyph "pixel" to an NxN patch of real cells so the digit reads at a consistent
-// size whether the board is small (10 rows) or large (16 rows), rather than the glyph shrinking
-// to a sliver of a big board or overflowing a small one.
-function startCountdownGlyph(number) {
+function hexToRgb(hex) {
+	hex = (hex || "#bfdbfe").replace("#", "");
+	if (hex.length === 3) hex = hex.split("").map(function(ch) { return ch + ch; }).join("");
+	var num = parseInt(hex, 16) || 0;
+	return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+function rgbaStr(rgb, a) {
+	return "rgba(" + rgb.r + ", " + rgb.g + ", " + rgb.b + ", " + Math.max(0, Math.min(1, a)).toFixed(3) + ")";
+}
+function lightenRgb(rgb, amt) {
+	return { r: Math.round(rgb.r + (255 - rgb.r) * amt), g: Math.round(rgb.g + (255 - rgb.g) * amt), b: Math.round(rgb.b + (255 - rgb.b) * amt) };
+}
+function darkenRgb(rgb, amt) {
+	return { r: Math.round(rgb.r * (1 - amt)), g: Math.round(rgb.g * (1 - amt)), b: Math.round(rgb.b * (1 - amt)) };
+}
+
+// Pure: glyph shape + placement scale for `number`, sized to a board boardRows tall. No
+// dependency on live-game globals, so the same call works for the real board and for
+// /admin/countdown's own preview board alike. scale maps each glyph "pixel" to an NxN patch of
+// real cells so the digit reads at a consistent size whether the board is small (10 rows) or
+// large (16 rows), rather than shrinking to a sliver of a big board or overflowing a small one.
+function buildCountdownGlyphState(number, boardRows) {
 	var glyph = COUNTDOWN_GLYPHS[String(number)];
-	if (!glyph || !rows || !cols) { countdownGlyph = null; return; }
-	var scale = Math.max(1, Math.round(rows / 10));
-	countdownGlyph = { glyph: glyph, scale: scale, start: performance.now() };
-	startAnimLoop();
+	if (!glyph || !boardRows) return null;
+	var scale = Math.max(1, Math.round(boardRows / 10));
+	return { glyph: glyph, scale: scale, start: performance.now() };
+}
+
+function startCountdownGlyph(number) {
+	countdownGlyph = buildCountdownGlyphState(number, rows);
+	if (countdownGlyph) startAnimLoop();
 }
 
 function drawCountdownGlyph(ctx, sw, sh) {
-	if (!countdownGlyph || !myState) return;
-	var elapsed = performance.now() - countdownGlyph.start;
-	var alpha = elapsed < COUNTDOWN_GLYPH_HOLD_MS ? 1
-		: Math.max(0, 1 - (elapsed - COUNTDOWN_GLYPH_HOLD_MS) / COUNTDOWN_GLYPH_FADE_MS);
-	if (alpha <= 0) { countdownGlyph = null; return; }
-	var glyph = countdownGlyph.glyph, scale = countdownGlyph.scale;
+	if (!myState) return;
+	var stillGoing = paintCountdownGlyph(ctx, sw, sh, rows, cols, countdownGlyph, function(r, c) {
+		return myState[r][c] === KNOWN;
+	});
+	if (!stillGoing) countdownGlyph = null;
+}
+
+// Renders glyphState (from buildCountdownGlyphState) onto ctx at boardRows x boardCols cell
+// geometry. isRevealed(r,c), if given, skips cells that shouldn't be tinted — a board can already
+// show its pre-opened cascade during the countdown (solo does; ranked stays fully covered until
+// GO), and washing over an already-revealed clue cell just muddies the number instead of reading
+// as part of the digit. Returns false once fully faded — callers should drop their glyph reference
+// then (and, if driving their own loop, stop it).
+function paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphState, isRevealed) {
+	if (!glyphState) return false;
+	var elapsed = performance.now() - glyphState.start;
+	var fadeInMs = COUNTDOWN_STYLE.fadeInMs, holdMs = COUNTDOWN_STYLE.holdMs, fadeOutMs = COUNTDOWN_STYLE.fadeOutMs;
+	var alpha;
+	if (elapsed < fadeInMs) alpha = fadeInMs > 0 ? elapsed / fadeInMs : 1;
+	else if (elapsed < fadeInMs + holdMs) alpha = 1;
+	else alpha = Math.max(0, 1 - (elapsed - fadeInMs - holdMs) / fadeOutMs);
+	if (alpha <= 0) return false;
+	var glyph = glyphState.glyph, scale = glyphState.scale;
 	var glyphRows = glyph.length * scale;
 	var glyphCols = glyph[0].length * scale;
-	var startRow = Math.floor((rows - glyphRows) / 2);
-	var startCol = Math.floor((cols - glyphCols) / 2);
+	var startRow = Math.floor((boardRows - glyphRows) / 2);
+	var startCol = Math.floor((boardCols - glyphCols) / 2);
 	// Same inset/rounding every normal cell uses (see drawCell in BoardRender.js) so a lit glyph
 	// cell reads as a distinct cell being pressed, not a borderless dark blob.
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	var w = sw - gap, h = sh - gap;
 	var rad = Math.min(w, h) * 0.2;
-	// Only tint still-covered cells — a board can already show its pre-opened cascade during the
-	// countdown (solo does; ranked stays fully covered until GO), and washing over an already-
-	// revealed clue cell just muddies the number instead of reading as part of the digit.
 	for (var gr = 0; gr < glyph.length; gr++) {
 		for (var gc = 0; gc < glyph[gr].length; gc++) {
 			if (glyph[gr].charAt(gc) !== "1") continue;
@@ -63,13 +113,19 @@ function drawCountdownGlyph(ctx, sw, sh) {
 				for (var sc = 0; sc < scale; sc++) {
 					var r = startRow + gr * scale + sr;
 					var c = startCol + gc * scale + sc;
-					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					if (myState[r][c] === KNOWN) continue;
-					drawGlowGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
+					if (r < 0 || r >= boardRows || c < 0 || c >= boardCols) continue;
+					if (isRevealed && isRevealed(r, c)) continue;
+					drawCountdownGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
 				}
 			}
 		}
 	}
+	return true;
+}
+
+function drawCountdownGlyphCell(ctx, x, y, w, h, rad, alpha) {
+	if (COUNTDOWN_STYLE.mode === "pressed") drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha);
+	else drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha);
 }
 
 // The normal covered cell (drawUnknown in BoardRender.js) reads as raised: light gradient top to
@@ -81,22 +137,30 @@ function drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.save();
 	ctx.translate(x, y);
 	ctx.globalAlpha = alpha;
+	var b = COUNTDOWN_STYLE.brightness, ind = COUNTDOWN_STYLE.indent;
+	var base = hexToRgb(COUNTDOWN_STYLE.color);
+	// The fill is a darkened version of the base colour (a lit material would still read dark in a
+	// shadowed recess); the top/bottom strokes below stay their own thing (see comments there).
+	var fillTop = darkenRgb(base, 0.90), fillBottom = darkenRgb(base, 0.74);
 	var g = ctx.createLinearGradient(0, 0, 0, h);
-	g.addColorStop(0, "rgba(10, 18, 38, 0.62)");
-	g.addColorStop(1, "rgba(24, 36, 66, 0.34)");
+	g.addColorStop(0, rgbaStr(fillTop, 0.62 * b));
+	g.addColorStop(1, rgbaStr(fillBottom, 0.34 * b));
 	roundRectPath(ctx, 0, 0, w, h, rad);
 	ctx.fillStyle = g;
 	ctx.fill();
-	// shadow hugging the top inner edge — the recess's deepest point
-	ctx.strokeStyle = "rgba(0, 0, 0, 0.38)";
-	ctx.lineWidth = Math.max(1, h * 0.10);
+	// shadow hugging the top inner edge — the recess's deepest point, always neutral black (a
+	// shadow has no material colour). indent scales how deep it reads: a thin, faint line barely
+	// dents the cell; thick and dark reads as a real pocket.
+	ctx.strokeStyle = "rgba(0, 0, 0, " + Math.min(1, 0.38 * ind).toFixed(3) + ")";
+	ctx.lineWidth = Math.max(1, h * 0.10 * ind);
 	ctx.beginPath();
 	ctx.moveTo(rad, ctx.lineWidth / 2);
 	ctx.lineTo(w - rad, ctx.lineWidth / 2);
 	ctx.stroke();
-	// faint highlight catching the bottom inner lip
-	ctx.strokeStyle = "rgba(148, 176, 255, 0.20)";
-	ctx.lineWidth = Math.max(1, h * 0.06);
+	// faint highlight catching the bottom inner lip — tinted toward the base colour, like light
+	// bouncing off the pocket's floor.
+	ctx.strokeStyle = rgbaStr(lightenRgb(base, 0.35), 0.20 * ind);
+	ctx.lineWidth = Math.max(1, h * 0.06 * ind);
 	ctx.beginPath();
 	ctx.moveTo(rad, h - ctx.lineWidth / 2);
 	ctx.lineTo(w - rad, h - ctx.lineWidth / 2);
@@ -112,16 +176,22 @@ function drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.save();
 	ctx.translate(x, y);
 	ctx.globalAlpha = alpha;
-	ctx.shadowBlur = Math.max(6, w * 0.6);
-	ctx.shadowColor = "rgba(191, 219, 254, 0.85)";
+	var b = COUNTDOWN_STYLE.brightness, ind = COUNTDOWN_STYLE.indent;
+	var base = hexToRgb(COUNTDOWN_STYLE.color);
+	var fillTop = lightenRgb(base, 0.82), fillBottom = lightenRgb(base, 0.30);
+	var rim = lightenRgb(base, 0.92);
+	// indent doubles here as "how far the glow puffs out" — glow has no literal depth, but it's
+	// the same "how pronounced is the dimensional effect" knob as the pressed style's shadow depth.
+	ctx.shadowBlur = Math.max(0, w * 0.6 * ind);
+	ctx.shadowColor = rgbaStr(base, 0.85 * b);
 	var g = ctx.createLinearGradient(0, 0, 0, h);
-	g.addColorStop(0, "rgba(235, 245, 255, 0.95)");
-	g.addColorStop(1, "rgba(147, 197, 253, 0.80)");
+	g.addColorStop(0, rgbaStr(fillTop, 0.95 * b));
+	g.addColorStop(1, rgbaStr(fillBottom, 0.80 * b));
 	roundRectPath(ctx, 0, 0, w, h, rad);
 	ctx.fillStyle = g;
 	ctx.fill();
 	ctx.shadowBlur = 0;
-	ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+	ctx.strokeStyle = rgbaStr(rim, 0.75 * b);
 	ctx.lineWidth = Math.max(1, h * 0.08);
 	roundRectPath(ctx, 0, 0, w, h, rad);
 	ctx.stroke();

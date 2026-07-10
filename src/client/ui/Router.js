@@ -41,6 +41,7 @@ var ROUTE_VIEWS = {
 	"/admin/combined-puzzles": { view: "combined_puzzles_view", nav: "admin", fn: "showCombinedPuzzlesView" },
 	"/admin/marathon-boards": { view: "marathon_boards_view", nav: "admin", fn: "showMarathonBoardsView" },
 	"/admin/design": { view: "design_view", nav: "admin", fn: "showDesignView" },
+	"/admin/countdown": { view: "countdown_lab_view", nav: "admin", fn: "showCountdownLabView" },
 	"/leaderboard": { view: "leaderboard_view", nav: "leaderboard", fn: "showLeaderboardView" },
 	"/profile": { view: "profile_view", nav: "profile", fn: "showProfileView" },
 	"/settings": { view: "settings_view", nav: "settings", fn: "showSettingsView" }
@@ -65,6 +66,8 @@ function hideAllViews() {
 	if (soloStart) soloStart.style.display = "none";
 	// Stop any running replay playback loop when leaving the replay view.
 	if (typeof teardownReplay === "function") teardownReplay();
+	// Stop the countdown lab's looping preview when leaving /admin/countdown.
+	if (typeof teardownCountdownLab === "function") teardownCountdownLab();
 }
 
 function showNameView() {
@@ -345,6 +348,13 @@ function showDesignView() {
 	document.getElementById("design_view").style.display = "";
 	setSiteNavActive("admin");
 	renderDesign();
+}
+
+function showCountdownLabView() {
+	hideAllViews();
+	document.getElementById("countdown_lab_view").style.display = "";
+	setSiteNavActive("admin");
+	renderCountdownLab();
 }
 
 function showPuzzlePlayView() {

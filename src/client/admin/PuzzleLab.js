@@ -118,6 +118,12 @@ function renderAdminLanding() {
 		"Open design",
 		"/admin/design"
 	));
+	cards.appendChild(makeAdminCard(
+		"Countdown",
+		"Live preview of the round-start countdown glyph, looping 3-2-1 forever, with sliders for style, brightness, depth, hold, and fade timing.",
+		"Open lab",
+		"/admin/countdown"
+	));
 	// Unfinished game modes parked off the home page until they're ready to ship.
 	cards.appendChild(makeAdminCard(
 		"Tournament (preview)",
