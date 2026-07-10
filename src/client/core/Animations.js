@@ -65,7 +65,7 @@ function drawCountdownGlyph(ctx, sw, sh) {
 					var c = startCol + gc * scale + sc;
 					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
 					if (myState[r][c] === KNOWN) continue;
-					drawPressedGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
+					drawGlowGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha);
 				}
 			}
 		}
@@ -100,6 +100,30 @@ function drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.beginPath();
 	ctx.moveTo(rad, h - ctx.lineWidth / 2);
 	ctx.lineTo(w - rad, h - ctx.lineWidth / 2);
+	ctx.stroke();
+	ctx.restore();
+}
+
+// Alternate treatment being tried alongside drawPressedGlyphCell: cells glow UP instead of
+// pressing in — a bright fill plus an actual bloom (shadowBlur bleeding past the cell's own
+// edges, the signature of glowing rather than just being lighter) and a bright rim amplifying
+// the raised highlight every normal cell already has.
+function drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.globalAlpha = alpha;
+	ctx.shadowBlur = Math.max(6, w * 0.6);
+	ctx.shadowColor = "rgba(191, 219, 254, 0.85)";
+	var g = ctx.createLinearGradient(0, 0, 0, h);
+	g.addColorStop(0, "rgba(235, 245, 255, 0.95)");
+	g.addColorStop(1, "rgba(147, 197, 253, 0.80)");
+	roundRectPath(ctx, 0, 0, w, h, rad);
+	ctx.fillStyle = g;
+	ctx.fill();
+	ctx.shadowBlur = 0;
+	ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+	ctx.lineWidth = Math.max(1, h * 0.08);
+	roundRectPath(ctx, 0, 0, w, h, rad);
 	ctx.stroke();
 	ctx.restore();
 }
