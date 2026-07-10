@@ -82,13 +82,13 @@ function drawPressedGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.translate(x, y);
 	ctx.globalAlpha = alpha;
 	var g = ctx.createLinearGradient(0, 0, 0, h);
-	g.addColorStop(0, "rgba(2, 5, 14, 0.90)");
-	g.addColorStop(1, "rgba(16, 24, 48, 0.55)");
+	g.addColorStop(0, "rgba(10, 18, 38, 0.62)");
+	g.addColorStop(1, "rgba(24, 36, 66, 0.34)");
 	roundRectPath(ctx, 0, 0, w, h, rad);
 	ctx.fillStyle = g;
 	ctx.fill();
 	// shadow hugging the top inner edge — the recess's deepest point
-	ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+	ctx.strokeStyle = "rgba(0, 0, 0, 0.38)";
 	ctx.lineWidth = Math.max(1, h * 0.10);
 	ctx.beginPath();
 	ctx.moveTo(rad, ctx.lineWidth / 2);
