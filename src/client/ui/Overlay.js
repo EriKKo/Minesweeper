@@ -109,9 +109,9 @@ function hideReadyButton() {
 // live — drifting the client out of sync with the server's own fixed-duration timer. Now there's
 // exactly one authoritative timer, sized directly from the server's real delay; the sweep + digit
 // cycle are just decoration layered on top of it and can be tuned freely without touching gameplay
-// timing. If they're tuned to run longer than delayMs, they simply get cut off when GO fires — this
-// is the one function every "ready to start" call site should schedule through, not multiple
-// separately-chained setTimeouts (see startBoardGoAnimation's call sites for what that looked like).
+// timing. If they're tuned to run longer than delayMs, they simply get cut off when GO fires. This
+// is the one function every "ready to start" call site (Main.js, Solo.js, Territory.js) should
+// schedule everything through — none of them call startBoardGoAnimation themselves anymore.
 function countDown(delayMs, onDone) {
 	hideOverlay();
 	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
