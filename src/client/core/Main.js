@@ -2065,7 +2065,14 @@ socket.on("draw_board", function(data) {
 		var opp = i <= oppShown ? opponents[i - 1] : null;
 		if (opp) {
 			setOppIdentity(i, opp);
-			drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+			// Don't paint an opponent's real state until the round has actually gone live client-side
+			// (roundStartTime, stamped at "GO" — the same signal Input.js already gates local moves on).
+			// The server builds each round's board — centre pre-revealed, so it's playable — well before
+			// the countdown finishes, so a stray draw_board broadcast during the countdown (an unrelated
+			// skin/avatar change or reconnect elsewhere in the room, say) would otherwise leak an
+			// opponent's pre-revealed cells before everyone's boards are meant to open together. Leaves
+			// whatever paintOpponentCovered() already painted at start_game untouched until then.
+			if (roundStartTime) drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";
