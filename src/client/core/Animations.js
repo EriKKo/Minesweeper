@@ -21,32 +21,55 @@ var COUNTDOWN_GLYPHS = {
 };
 // Tunable knobs, shared by real gameplay and the /admin/countdown lab (CountdownLab.js) — the lab's
 // sliders mutate this object directly, so what it previews is the exact code path a real round
-// uses, not a copy of it. fadeInMs/holdMs/fadeOutMs/gapMs together are the length of one digit's
-// tick (see countDownStep in Overlay.js, which reads this instead of a fixed 1000ms): fade in,
-// hold, fade out, then gapMs of plain blue before the next digit starts fading in. Defaults
-// (0+500+400+100 = 1000ms) match the original fixed-1000ms behaviour exactly. brightness/indent:
-// read by drawPressedGlyphCell/drawGlowGlyphCell below — brightness scales the fill, indent scales
-// the depth cue (pressed: shadow/highlight strength; glow: bloom size) — drawFlatGlyphCell ignores
+// uses, not a copy of it. fadeInMs/holdMs/fadeOutMs/gapMs together set the length of one digit's
+// tick — the interval between one digit STARTING and the next one starting (see countDownStep in
+// Overlay.js, which reads this instead of a fixed 1000ms): fade in, hold, fade out, then gapMs of
+// plain blue before the next digit starts fading in. gapMs can go NEGATIVE — the next digit then
+// starts (and begins fading in) before the previous one has finished fading out, so both are
+// visible and crossfading at once; see countdownGlyphs below. brightness/indent: read by
+// drawPressedGlyphCell/drawGlowGlyphCell below — brightness scales the fill, indent scales the
+// depth cue (pressed: shadow/highlight strength; glow: bloom size) — drawFlatGlyphCell ignores
 // indent, since a flat colour swap has no depth to speak of. color: the base hue the fill/glow/
 // highlight/flat-tint are derived from (see hexToRgb/lighten/darken below) — the pressed
 // treatment's top shadow stays neutral black regardless, since that's a depth cue, not a colour.
+// Chosen via /admin/countdown: "reveal" (a patch of the board spells out the digit using real,
+// numbered clue cells — see drawRevealGlyphCell) at fade-in 200ms, hold 300ms, fade-out 500ms, gap
+// 100ms (tick = 1100ms/digit).
 var COUNTDOWN_STYLE = {
-	mode: "glow", // "glow" | "pressed" | "flat" | "reveal"
-	fadeInMs: 0,
-	holdMs: 500,
-	fadeOutMs: 400,
+	mode: "reveal", // "glow" | "pressed" | "flat" | "reveal"
+	fadeInMs: 200,
+	holdMs: 300,
+	fadeOutMs: 500,
 	gapMs: 100,
 	brightness: 1,
 	indent: 1,
-	color: "#bfdbfe"
+	color: "#bfdbfe",
+	persistUnchanged: false
 };
-var countdownGlyph = null; // { glyph, scale, start } | null — the live game's current glyph
+// Every currently-fading-or-held digit for the live game, oldest first — usually just one, but a
+// negative gapMs means the next digit's cycle can start while the previous one is still fading out,
+// so more than one can be live at once. Painted oldest-to-newest so a newer digit layers on top of
+// an older one in any cells they share. Used only when COUNTDOWN_STYLE.persistUnchanged is false —
+// see countdownCells below for the alternative.
+var countdownGlyphs = [];
 
-// One digit's full cycle length: fade in, hold, fade out, then a gap of plain blue before the next
-// digit starts. Shared by countDownStep (Overlay.js, real gameplay) and countdownLabStep
-// (CountdownLab.js, the looping preview) so the two can't drift apart on how this is computed.
+// Alternative to countdownGlyphs, used when COUNTDOWN_STYLE.persistUnchanged is true: "r,c" ->
+// { number, litSince, fadeOutStart }, one entry per currently-lit cell rather than one entry per
+// digit. A cell that's part of two consecutive digits' shapes (e.g. "3" and "2" share their whole
+// top row) just keeps its existing litSince and stays fully visible across the transition instead
+// of fading out and immediately back in — only cells that actually stop being needed get a
+// fadeOutStart, and only cells that are newly needed get a fresh litSince. See
+// advanceCountdownCells/paintCountdownCells below.
+var countdownCells = {};
+
+// One digit's full cycle length: fade in, hold, fade out, then a gap of plain blue (or, if gapMs is
+// negative, an overlap into the next digit's own fade-in) before the next digit starts. Shared by
+// countDownStep (Overlay.js, real gameplay) and countdownLabStep (CountdownLab.js, the looping
+// preview) so the two can't drift apart on how this is computed. Floored well above 0 regardless of
+// how negative gapMs goes, so it can't schedule the next tick immediately (or in the past) and spawn
+// glyphs faster than they can ever finish painting.
 function countdownTickMs() {
-	return COUNTDOWN_STYLE.fadeInMs + COUNTDOWN_STYLE.holdMs + COUNTDOWN_STYLE.fadeOutMs + COUNTDOWN_STYLE.gapMs;
+	return Math.max(50, COUNTDOWN_STYLE.fadeInMs + COUNTDOWN_STYLE.holdMs + COUNTDOWN_STYLE.fadeOutMs + COUNTDOWN_STYLE.gapMs);
 }
 
 function hexToRgb(hex) {
@@ -77,17 +100,116 @@ function buildCountdownGlyphState(number, boardRows) {
 	return { glyph: glyph, scale: scale, start: performance.now(), number: number };
 }
 
+// Pure: which [r,c] cells `number`'s glyph lights up on a boardRows x boardCols board — the same
+// placement math buildCountdownGlyphState's caller (paintCountdownGlyph) uses, factored out so
+// advanceCountdownCells (persistUnchanged mode) can diff one digit's cells against the next's.
+function countdownGlyphCells(number, boardRows, boardCols) {
+	var glyph = COUNTDOWN_GLYPHS[String(number)];
+	if (!glyph || !boardRows) return [];
+	var scale = Math.max(1, Math.round(boardRows / 10));
+	var glyphRows = glyph.length * scale, glyphCols = glyph[0].length * scale;
+	var startRow = Math.floor((boardRows - glyphRows) / 2);
+	var startCol = Math.floor((boardCols - glyphCols) / 2);
+	var out = [];
+	for (var gr = 0; gr < glyph.length; gr++) {
+		for (var gc = 0; gc < glyph[gr].length; gc++) {
+			if (glyph[gr].charAt(gc) !== "1") continue;
+			for (var sr = 0; sr < scale; sr++) {
+				for (var sc = 0; sc < scale; sc++) {
+					var r = startRow + gr * scale + sr, c = startCol + gc * scale + sc;
+					if (r < 0 || r >= boardRows || c < 0 || c >= boardCols) continue;
+					out.push([r, c]);
+				}
+			}
+		}
+	}
+	return out;
+}
+
 function startCountdownGlyph(number) {
-	countdownGlyph = buildCountdownGlyphState(number, rows);
-	if (countdownGlyph) startAnimLoop();
+	if (COUNTDOWN_STYLE.persistUnchanged) {
+		advanceCountdownCells(countdownCells, number, rows, cols);
+		startAnimLoop();
+		return;
+	}
+	var g = buildCountdownGlyphState(number, rows);
+	if (!g) return;
+	countdownGlyphs.push(g);
+	startAnimLoop();
 }
 
 function drawCountdownGlyph(ctx, sw, sh) {
 	if (!myState) return;
-	var stillGoing = paintCountdownGlyph(ctx, sw, sh, rows, cols, countdownGlyph, function(r, c) {
-		return myState[r][c] === KNOWN;
-	});
-	if (!stillGoing) countdownGlyph = null;
+	var isRevealed = function(r, c) { return myState[r][c] === KNOWN; };
+	if (COUNTDOWN_STYLE.persistUnchanged) { paintCountdownCells(ctx, sw, sh, countdownCells, isRevealed); return; }
+	countdownGlyphs = paintCountdownGlyphs(ctx, sw, sh, rows, cols, countdownGlyphs, isRevealed);
+}
+
+// Paints every glyph in glyphStates (oldest first, so a newer digit layers on top of an older one
+// in shared cells — see countdownGlyphs above) and returns the subset still alive, for the caller to
+// keep as its new list.
+function paintCountdownGlyphs(ctx, sw, sh, boardRows, boardCols, glyphStates, isRevealed) {
+	var alive = [];
+	for (var i = 0; i < glyphStates.length; i++) {
+		if (paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphStates[i], isRevealed)) alive.push(glyphStates[i]);
+	}
+	return alive;
+}
+
+// persistUnchanged mode: move countdownCells to `number`'s shape. A cell the new digit still wants
+// just has any pending fade-out cancelled (it was never actually removed, so it stays exactly as
+// visible as it already was — no re-fade). A cell the new digit drops gets fadeOutStart stamped now
+// (if it isn't already fading). A cell the new digit newly wants gets a fresh litSince so it fades
+// in from scratch. Geometry-only — actual painting/fading/removal happens in paintCountdownCells.
+// Mutates cellsMap in place (like queueRevealAnimations does to cellAnims) rather than
+// returning a new one — takes the map as a parameter (not the countdownCells global directly) so
+// the live game and the /admin/countdown lab can each keep their own independent instance, the same
+// separation countdownGlyphs/countdownLabGlyphs already have.
+function advanceCountdownCells(cellsMap, number, boardRows, boardCols) {
+	var cells = countdownGlyphCells(number, boardRows, boardCols);
+	var wanted = {};
+	for (var i = 0; i < cells.length; i++) wanted[cells[i][0] + "," + cells[i][1]] = true;
+	var now = performance.now();
+	for (var key in cellsMap) {
+		if (wanted[key]) cellsMap[key].fadeOutStart = null;
+		else if (cellsMap[key].fadeOutStart === null) cellsMap[key].fadeOutStart = now;
+	}
+	for (var k in wanted) {
+		if (cellsMap[k]) cellsMap[k].number = number; // still lit — just relabel for reveal mode
+		else cellsMap[k] = { number: number, litSince: now, fadeOutStart: null };
+	}
+}
+
+// persistUnchanged mode: paints every cell tracked in cellsMap — steady ones (no fadeOutStart) fade
+// in once from litSince then hold indefinitely (the next advanceCountdownCells call, driven by
+// countdownTickMs, decides when they actually need to start leaving); cells with a fadeOutStart
+// fade out from that moment and are deleted from cellsMap once fully gone. Returns whether anything
+// is still tracked (including cells skipped this frame by isRevealed), so callers know whether to
+// keep animating.
+function paintCountdownCells(ctx, sw, sh, cellsMap, isRevealed) {
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
+	var now = performance.now();
+	var any = false;
+	for (var key in cellsMap) {
+		var cell = cellsMap[key];
+		var alpha;
+		if (cell.fadeOutStart !== null) {
+			var fo = COUNTDOWN_STYLE.fadeOutMs;
+			alpha = fo > 0 ? Math.max(0, 1 - (now - cell.fadeOutStart) / fo) : 0;
+			if (alpha <= 0) { delete cellsMap[key]; continue; }
+		} else {
+			var fi = COUNTDOWN_STYLE.fadeInMs;
+			var elapsed = now - cell.litSince;
+			alpha = (fi > 0 && elapsed < fi) ? elapsed / fi : 1;
+		}
+		any = true;
+		var parts = key.split(","), r = parseInt(parts[0], 10), c = parseInt(parts[1], 10);
+		if (isRevealed && isRevealed(r, c)) continue;
+		drawCountdownGlyphCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha, cell.number);
+	}
+	return any;
 }
 
 // Renders glyphState (from buildCountdownGlyphState) onto ctx at boardRows x boardCols cell
@@ -103,7 +225,7 @@ function paintCountdownGlyph(ctx, sw, sh, boardRows, boardCols, glyphState, isRe
 	var alpha;
 	if (elapsed < fadeInMs) alpha = fadeInMs > 0 ? elapsed / fadeInMs : 1;
 	else if (elapsed < fadeInMs + holdMs) alpha = 1;
-	else alpha = Math.max(0, 1 - (elapsed - fadeInMs - holdMs) / fadeOutMs);
+	else alpha = fadeOutMs > 0 ? Math.max(0, 1 - (elapsed - fadeInMs - holdMs) / fadeOutMs) : 0;
 	if (alpha <= 0) return false;
 	var glyph = glyphState.glyph, scale = glyphState.scale;
 	var glyphRows = glyph.length * scale;
@@ -407,6 +529,8 @@ function resetBoardAnimations() {
 	prevPlayerState = null;
 	cellAnims = {};
 	lastActionCell = null;
+	countdownGlyphs = [];
+	countdownCells = {};
 	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
 }
 
@@ -476,7 +600,7 @@ function startAnimLoop() {
 		}
 		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks
 		if (typeof territoryInfraAnimating === "function" && territoryInfraAnimating()) alive = true; // animate extractor/line construction
-		if (countdownGlyph) alive = true; // keep fading the countdown digit
+		if (countdownGlyphs.length || Object.keys(countdownCells).length) alive = true; // keep fading the countdown digit(s)
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }

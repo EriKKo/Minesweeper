@@ -5,7 +5,8 @@
 // the actual game, not a copy of it.
 
 var COUNTDOWN_LAB_ROWS = 16, COUNTDOWN_LAB_COLS = 20; // ranked's actual medium board
-var countdownLabGlyph = null;
+var countdownLabGlyphs = []; // oldest first — a negative gapMs can leave more than one alive at once
+var countdownLabCells = {}; // "r,c" -> {number,litSince,fadeOutStart} — used when persistUnchanged is on
 var countdownLabSeqTimer = null;
 var countdownLabRAF = null;
 
@@ -117,6 +118,30 @@ function renderCountdownLab() {
 	colorRow.appendChild(colorInput);
 	controls.appendChild(colorRow);
 
+	var persistRow = document.createElement("label");
+	persistRow.className = "setting-row countdown-lab-checkbox-row";
+	var persistText = document.createElement("div");
+	persistText.className = "setting-row-text";
+	var persistLbl = document.createElement("span");
+	persistLbl.className = "setting-row-label";
+	persistLbl.textContent = "Keep unchanged cells";
+	var persistNote = document.createElement("span");
+	persistNote.className = "setting-row-note";
+	persistNote.textContent = "A cell lit by two digits in a row (e.g. 3 and 2 share their top row) stays put instead of fading out and back in. Hold no longer applies per-cell — a shared cell just holds until a digit drops it.";
+	persistText.appendChild(persistLbl);
+	persistText.appendChild(persistNote);
+	persistRow.appendChild(persistText);
+	var persistCheckbox = document.createElement("input");
+	persistCheckbox.type = "checkbox";
+	persistCheckbox.className = "countdown-lab-checkbox";
+	persistCheckbox.checked = COUNTDOWN_STYLE.persistUnchanged;
+	persistCheckbox.addEventListener("change", function() {
+		COUNTDOWN_STYLE.persistUnchanged = persistCheckbox.checked;
+		countdownLabStart(); // switches which state (glyph list vs cell map) is live — start clean
+	});
+	persistRow.appendChild(persistCheckbox);
+	controls.appendChild(persistRow);
+
 	var tuneHead = document.createElement("h2");
 	tuneHead.className = "controls-title countdown-lab-tune-title";
 	tuneHead.textContent = "Tuning";
@@ -126,22 +151,23 @@ function renderCountdownLab() {
 	addSlider("Depth (indent / bloom)", "indent", 0.2, 2, 0.05, function(v) { return v.toFixed(2) + "×"; });
 	addSlider("Fade-in", "fadeInMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
 	addSlider("Hold", "holdMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
-	addSlider("Fade-out", "fadeOutMs", 100, 1000, 50, function(v) { return Math.round(v) + "ms"; });
-	addSlider("Delay between numbers", "gapMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
+	addSlider("Fade-out", "fadeOutMs", 0, 1000, 50, function(v) { return Math.round(v) + "ms"; });
+	addSlider("Delay between numbers", "gapMs", -900, 1000, 50, function(v) { return Math.round(v) + "ms"; });
 
 	var reset = document.createElement("button");
 	reset.type = "button";
 	reset.className = "btn btn-secondary keybind-reset";
 	reset.textContent = "Reset to defaults";
 	reset.addEventListener("click", function() {
-		COUNTDOWN_STYLE.mode = "glow";
-		COUNTDOWN_STYLE.fadeInMs = 0;
-		COUNTDOWN_STYLE.holdMs = 500;
-		COUNTDOWN_STYLE.fadeOutMs = 400;
+		COUNTDOWN_STYLE.mode = "reveal";
+		COUNTDOWN_STYLE.fadeInMs = 200;
+		COUNTDOWN_STYLE.holdMs = 300;
+		COUNTDOWN_STYLE.fadeOutMs = 500;
 		COUNTDOWN_STYLE.gapMs = 100;
 		COUNTDOWN_STYLE.brightness = 1;
 		COUNTDOWN_STYLE.indent = 1;
 		COUNTDOWN_STYLE.color = "#bfdbfe";
+		COUNTDOWN_STYLE.persistUnchanged = false;
 		renderCountdownLab();
 	});
 	controls.appendChild(reset);
@@ -157,8 +183,17 @@ function renderCountdownLab() {
 // (Animations.js) each time, so a slider change mid-loop takes effect on the next tick, here and in
 // a real match alike — but this one never terminates.
 function countdownLabStep(number) {
-	countdownLabGlyph = buildCountdownGlyphState(number, COUNTDOWN_LAB_ROWS);
-	countdownLabDrawLoop();
+	if (COUNTDOWN_STYLE.persistUnchanged) {
+		advanceCountdownCells(countdownLabCells, number, COUNTDOWN_LAB_ROWS, COUNTDOWN_LAB_COLS);
+	} else {
+		var g = buildCountdownGlyphState(number, COUNTDOWN_LAB_ROWS);
+		if (g) countdownLabGlyphs.push(g);
+	}
+	// A negative gapMs means this can fire while the PREVIOUS digit's own draw loop is still
+	// running (its glyph hasn't finished fading) — only kick a fresh rAF chain if one isn't already
+	// live, same guard startAnimLoop uses for the real game, or every digit would start its own
+	// concurrent chain that never gets cancelled.
+	if (!countdownLabRAF) countdownLabDrawLoop();
 	var tickMs = countdownTickMs();
 	countdownLabSeqTimer = setTimeout(function() {
 		if (number > 1) countdownLabStep(number - 1);
@@ -188,7 +223,13 @@ function countdownLabDrawLoop() {
 			ctx.restore();
 		}
 	}
-	var stillGoing = paintCountdownGlyph(ctx, sw, sh, COUNTDOWN_LAB_ROWS, COUNTDOWN_LAB_COLS, countdownLabGlyph, null);
+	var stillGoing;
+	if (COUNTDOWN_STYLE.persistUnchanged) {
+		stillGoing = paintCountdownCells(ctx, sw, sh, countdownLabCells, null);
+	} else {
+		countdownLabGlyphs = paintCountdownGlyphs(ctx, sw, sh, COUNTDOWN_LAB_ROWS, COUNTDOWN_LAB_COLS, countdownLabGlyphs, null);
+		stillGoing = countdownLabGlyphs.length > 0;
+	}
 	if (stillGoing) countdownLabRAF = requestAnimationFrame(countdownLabDrawLoop);
 	else countdownLabRAF = null;
 }
@@ -199,5 +240,6 @@ function countdownLabDrawLoop() {
 function teardownCountdownLab() {
 	if (countdownLabSeqTimer) { clearTimeout(countdownLabSeqTimer); countdownLabSeqTimer = null; }
 	if (countdownLabRAF) { cancelAnimationFrame(countdownLabRAF); countdownLabRAF = null; }
-	countdownLabGlyph = null;
+	countdownLabGlyphs = [];
+	countdownLabCells = {};
 }

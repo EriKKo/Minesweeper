@@ -5051,6 +5051,22 @@ input[type="color"].countdown-lab-color {
 	cursor: pointer;
 	flex: 0 0 auto;
 }
+.countdown-lab-checkbox-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.8rem;
+	cursor: pointer;
+	margin-bottom: 0.65rem;
+}
+.countdown-lab-checkbox-row .setting-row-note { max-width: 30ch; }
+input.countdown-lab-checkbox {
+	width: 20px;
+	height: 20px;
+	flex: 0 0 auto;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
 @media (max-width: 860px) {
 	.countdown-lab-layout { grid-template-columns: 1fr; }
 }
