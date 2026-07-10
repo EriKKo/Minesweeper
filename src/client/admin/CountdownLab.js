@@ -205,7 +205,7 @@ function renderCountdownLab() {
 	goPanel.appendChild(goHead);
 	var goSub = document.createElement("p");
 	goSub.className = "countdown-lab-go-sub";
-	goSub.textContent = "Plays once, the instant the countdown finishes — purely decorative, doesn't affect when input actually unlocks.";
+	goSub.textContent = "Plays once, the instant the game is ready to start — right before the countdown begins, not after it finishes. Purely decorative, doesn't affect when input actually unlocks.";
 	goPanel.appendChild(goSub);
 	addSeg(goPanel, BOARD_GO_STYLE, "Style", [
 		{ id: "diagonal", label: "Diagonal" },

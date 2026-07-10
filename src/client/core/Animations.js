@@ -360,11 +360,13 @@ function drawGlowGlyphCell(ctx, x, y, w, h, rad, alpha) {
 	ctx.restore();
 }
 
-// "Go" board animation: a single wave that sweeps across the board once, the instant the round
-// goes live (see startBoardGoAnimation, called from countDownStep's number<=0 branch in
-// Overlay.js) — a different, one-shot thing from the countdown digit above, tunable separately
-// from the same "Board animations" admin lab (CountdownLab.js). Purely decorative: roundStartTime,
-// not this, is what actually unlocks input (Input.js), so nothing here affects gameplay timing.
+// "Go" board animation: a single wave that sweeps across the board once, the instant the game is
+// ready to start — right before the countdown begins, not after it finishes (see
+// startBoardGoAnimation's call sites: Main.js's start_game handler, Solo.js's beginSolo,
+// Territory.js's territoryStart) — a different, one-shot thing from the countdown digit above,
+// tunable separately from the same "Board animations" admin lab (CountdownLab.js). Purely
+// decorative: roundStartTime, not this, is what actually unlocks input (Input.js), so nothing here
+// affects gameplay timing.
 var BOARD_GO_STYLE = {
 	mode: "diagonal", // "diagonal" | "radial" | "rowWipe" | "colWipe"
 	durationMs: 700,

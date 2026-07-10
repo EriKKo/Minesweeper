@@ -1745,6 +1745,10 @@ socket.on("start_game", function(data) {
 	// Paint the board as a full grid of covered cells so the countdown plays over the board
 	// instead of a black canvas; the first draw_board (after GO) reveals the centre.
 	setCoveredBoard();
+	// The "go" board sweep plays right here — the instant the game is ready to start and the
+	// covered board is up, before the countdown even begins (not at the countdown's end, where it
+	// used to fire from countDownStep's number<=0 branch in Overlay.js).
+	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
 	countDown(data.time);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();

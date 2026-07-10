@@ -102,7 +102,9 @@ function hideReadyButton() {
 // onDone (optional) fires the moment the round goes live — used by solo to unlock the board.
 // The countdown itself is drawn ON the board (see startCountdownGlyph in Animations.js) rather
 // than as a text overlay on top of it — hideOverlay() here just clears any leftover overlay
-// (a "Cleared"/"Frozen" card) from before this round started.
+// (a "Cleared"/"Frozen" card) from before this round started. The "go" board sweep plays BEFORE
+// this — the instant the game is ready to start, not at the end of the countdown — see
+// startBoardGoAnimation's call site in Main.js's start_game handler.
 function countDown(time, onDone) {
 	hideOverlay();
 	countDownStep(time, onDone);
@@ -112,7 +114,6 @@ function countDownStep(number, onDone) {
 	if (number <= 0) {
 		sound.go();
 		roundStartTime = Date.now(); // danger-warning grace period starts here
-		if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
 		if (typeof onDone === "function") onDone();
 		return;
 	}

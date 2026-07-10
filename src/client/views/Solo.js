@@ -131,6 +131,9 @@ function hideSoloStart() {
 function beginSolo() {
 	if (!soloSession || soloSession.started) return;
 	hideSoloStart();
+	// Same "ready to start, before the countdown" trigger as a real match's start_game handler
+	// (Main.js) — see startBoardGoAnimation in Animations.js.
+	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
 	var session = soloSession; // guard against a new board replacing it mid-countdown
 	countDown(3, function() { if (soloSession === session) soloSession.started = true; });
 }

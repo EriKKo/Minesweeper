@@ -276,12 +276,16 @@ function renderRoomState(state) {
 	// animation from Animations.js, plus the .idle class other CSS still keys off — e.g. hiding the
 	// find-next-cell arrow) when we're actually viewing the multiplayer lobby — otherwise room_state
 	// ticks would touch the puzzle board mid-play, or the territory board after a match (territory
-	// has no series, so it should never go idle).
+	// has no series, so it should never go idle). Specifically while waiting for players to JOIN
+	// (same threshold as the "Waiting for more players to join…" status text below), not the whole
+	// planning phase — once there are enough players, the room is just waiting on Ready clicks,
+	// which isn't "idle" the same way an under-filled room is.
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
 	var inMpView = (location.pathname === "/");
+	var waitingForPlayers = state.phase === "planning" && state.players.length < 2;
 	if (inMpView && !inTerritory) {
-		document.getElementById("player_div").classList.toggle("idle", state.phase === "planning");
-		if (typeof setBoardIdleActive === "function") setBoardIdleActive(state.phase === "planning");
+		document.getElementById("player_div").classList.toggle("idle", waitingForPlayers);
+		if (typeof setBoardIdleActive === "function") setBoardIdleActive(waitingForPlayers);
 	} else if (inTerritory) {
 		document.getElementById("player_div").classList.remove("idle");
 		if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
