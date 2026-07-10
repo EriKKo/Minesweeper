@@ -1625,7 +1625,19 @@ function setCoveredBoard() {
 	}
 	prevPlayerState = cloneState(myState);
 	renderPlayerBoard();
-	if (isBattleRacing()) paintOpponentCovered(); // battle: show the opponents' boards covered too
+	if (isBattleRacing()) {
+		paintOpponentCovered(); // battle: show the opponents' boards covered too
+	} else {
+		// Tournament/other non-battle layouts show opponent thumbnails (game1/game2, see the
+		// oppShown logic in the draw_board handler) driven entirely by live draw_board data —
+		// nothing repaints them between rounds, so without this they'd keep showing the previous
+		// round's final (often exploded) board for a beat until the new round's first draw_board
+		// frame arrives. Clear all 5 defensively; only 1-2 are ever actually shown in this layout.
+		for (var oi = 1; oi <= 5; oi++) {
+			var oc = document.getElementById("game" + oi);
+			if (oc) clearCanvas(oc);
+		}
+	}
 }
 
 // Paint the opponent's board (game1) as a full grid of covered cells, and make sure its card is
@@ -1695,10 +1707,12 @@ socket.on("start_game", function(data) {
 		// the first draw_board.  Leaving the previous round's target in
 		// place would briefly render a player who hasn't started yet.
 		spectatorTarget = null;
-		// Wipe slot-0 to avoid a one-frame flash of the previous round's
-		// final state while we wait for the first draw_board.
-		var pc = document.getElementById("game0");
-		if (pc) clearCanvas(pc);
+		// Wipe slot-0 plus the leader thumbnails (game1/game2) to avoid a one-frame flash of the
+		// previous round's final state while we wait for the first draw_board.
+		for (var si = 0; si <= 2; si++) {
+			var sc = document.getElementById("game" + si);
+			if (sc) clearCanvas(sc);
+		}
 		gameProgressText.textContent = formatGameProgress(data.gameNumber, data.gameCount, (currentRoom && currentRoom.scoreTarget) || data.scoreTarget);
 		showRoundCutPreview(data);
 		if (elimPanelDismissed) hideOverlay();
