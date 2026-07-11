@@ -511,6 +511,49 @@ function teardownMatchSocket() {
 	// Back to the main connection's identity for lobby/leaderboard/etc.
 	if (mainPlayerId != null) id = mainPlayerId;
 }
+// --- Clock sync -------------------------------------------------------------------------------
+// A round-start "GO" needs to land on every player's screen at the same instant, but each client
+// only knows the round's absolute server deadline (start_game/territory_start's startAt) —
+// converting that into "wait N ms" using the receiving client's own Date.now() at whatever moment
+// the event happened to arrive bakes in that client's one-way network latency (which varies per
+// player), so a laggier player would see the round start visibly later than everyone else.
+// Instead we estimate this connection's offset from the server's clock with a small burst of
+// round-trip pings (NTP-style: offset = serverTime + rtt/2 − localTimeAtReceipt) and keep the
+// lowest-RTT sample (least likely to be skewed by a one-off queuing delay). Stashed directly on
+// the socket so the main connection and a split-mode match socket (see below) each carry their
+// own — they can be different physical servers with different clocks.
+function syncClockOffset(sock, sampleCount) {
+	var remaining = sampleCount || 5;
+	var results = [];
+	function ping() { sock.emit("time_sync", { t: Date.now() }); }
+	function onAck(data) {
+		var t1 = Date.now();
+		var rtt = t1 - (data && data.t);
+		var serverNow = (data && data.serverTime) + rtt / 2;
+		results.push({ rtt: rtt, offset: serverNow - t1 });
+		remaining--;
+		if (remaining > 0) { ping(); return; }
+		sock.off("time_sync_ack", onAck);
+		results.sort(function(a, b) { return a.rtt - b.rtt; });
+		sock._clockOffset = results[0].offset;
+	}
+	sock.on("time_sync_ack", onAck);
+	ping();
+}
+// Converts a server-absolute deadline (payload.startAt) into a local "wait this many ms" using the
+// active connection's synced offset — falling back to the server-relative startDelayMs (untouched
+// by clock sync, so still correct on its own, just not immune to arrival-latency skew) if no offset
+// has been measured yet, e.g. a just-handed-off match socket that hasn't had time to sync.
+function startDelayFor(payload) {
+	if (!payload) return 0;
+	var sock = activeGameSocket();
+	if (typeof payload.startAt === "number" && sock && typeof sock._clockOffset === "number") {
+		return Math.max(0, payload.startAt - (Date.now() + sock._clockOffset));
+	}
+	return payload.startDelayMs || 0;
+}
+socket.on("connect", function() { syncClockOffset(socket); });
+
 socket.on("match_handoff", function(d) {
 	if (!d || !d.gameUrl || !d.token) return;
 	teardownMatchSocket();
@@ -521,7 +564,7 @@ socket.on("match_handoff", function(d) {
 	// socket.id). Adopt it for the match so all in-game id comparisons — which board is mine, winnerId,
 	// standings — line up; otherwise the client would always read its own result as a loss. Restored to
 	// the main id on teardown.
-	gs.on("connect", function() { id = gs.id; });
+	gs.on("connect", function() { id = gs.id; syncClockOffset(gs); });
 	// Bridge: deliver every event the game server sends into the SAME handlers registered on the main
 	// socket, so all the live-game client code is reused unchanged — it doesn't care which connection a
 	// frame arrived on. (connected/authenticated are lobby-only and never come from the game socket.)
@@ -1674,9 +1717,16 @@ function paintOpponentCovered() {
 			// A searching seat keeps the same layout (placeholder avatar + label) as a filled card, so the
 			// card doesn't resize when a player arrives.
 			setOppIdentity(i, p || { searching: true, name: "Searching…", avatar: "anon" });
-		} else if (slot) {
-			slot.style.display = "none";
-			slot.classList.remove("opponent-searching");
+		} else {
+			// Wipe the canvas, not just hide the slot — this id is reused across matches (a
+			// duel's game1 is a 6-player match's game1 too), so a hidden-but-unpainted canvas
+			// would show whatever the LAST match drew there the next time this slot becomes
+			// visible, until that opponent's own first real frame happens to overwrite it.
+			if (cv) clearCanvas(cv);
+			if (slot) {
+				slot.style.display = "none";
+				slot.classList.remove("opponent-searching");
+			}
 			setOppIdentity(i, null);
 		}
 	}
@@ -1745,10 +1795,12 @@ socket.on("start_game", function(data) {
 	// Paint the board as a full grid of covered cells so the countdown plays over the board
 	// instead of a black canvas; the round's real reveal happens exactly at GO.
 	setCoveredBoard();
-	// startDelayMs is the server's own ROUND_START_DELAY_MS, echoed back so both sides start their
-	// timers from the same start_game event — countDown's sweep/digit animations are purely
-	// decorative on top of it, see the comment on countDown in Overlay.js for why.
-	countDown(data.startDelayMs);
+	// startAt is the server's own absolute clock deadline for this round, converted to a local
+	// delay via the synced clock offset (startDelayFor, above) so every player's GO lands at the
+	// same instant regardless of when their own copy of this event happened to arrive over the
+	// network — countDown's sweep/digit animations are purely decorative on top of it, see the
+	// comment on countDown in Overlay.js for why.
+	countDown(startDelayFor(data));
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
 });

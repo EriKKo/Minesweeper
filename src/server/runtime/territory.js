@@ -58,11 +58,15 @@ function startTerritoryGame(room) {
 
 	var obf = obfuscateBoard(gen.board, gen.rows, gen.cols);
 	var meta = territoryPlayerMeta(room);
+	// Captured once so every player's payload carries the literal same absolute deadline — see the
+	// matching comment in minesweeperServer.js's startPayload (racing modes) for why.
+	var startAt = Date.now() + ROUND_START_DELAY_MS;
 	for (var i = 0; i < room.players.length; i++) {
 		var pid = room.players[i];
 		if (!sockets[pid]) continue;
 		sockets[pid].emit("territory_start", {
-			time: COUNT_DOWN_TIME, startDelayMs: ROUND_START_DELAY_MS, rows: gen.rows, cols: gen.cols,
+			time: COUNT_DOWN_TIME, startDelayMs: ROUND_START_DELAY_MS, startAt: startAt,
+			rows: gen.rows, cols: gen.cols,
 			boardData: obf.data, boardMask: obf.mask,
 			players: meta, you: pid, starts: gen.starts,
 			roundSeconds: room.roundSeconds

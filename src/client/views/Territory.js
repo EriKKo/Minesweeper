@@ -320,10 +320,11 @@ function territoryStart(data) {
 	if (typeof hideReadyButton === "function") hideReadyButton();
 	territoryEnsureHud();
 	territoryRenderHud();
-	// startDelayMs is the server's own ROUND_START_DELAY_MS, echoed back so both sides start their
-	// timers from the same territory_start event — countDown's sweep/digit animations are purely
-	// decorative on top of it, see the comment on countDown in Overlay.js for why.
-	countDown(data.startDelayMs || (typeof naturalCountdownTotalMs === "function" ? naturalCountdownTotalMs() : 3000));
+	// startAt is the server's own absolute clock deadline, converted to a local delay via the
+	// synced clock offset (startDelayFor, Main.js) so every player's GO lands at the same instant —
+	// see the comment on startDelayFor and on countDown in Overlay.js for why.
+	var territoryDelay = (typeof startDelayFor === "function") ? startDelayFor(data) : (data.startDelayMs || 0);
+	countDown(territoryDelay || (typeof naturalCountdownTotalMs === "function" ? naturalCountdownTotalMs() : 3000));
 	// Re-fit the board now that the .territory single-column layout is applied (applyBoardDims
 	// sized it against the racing layout / may have early-returned on unchanged dims).
 	requestAnimationFrame(sizeTerritoryBoard);

@@ -578,6 +578,13 @@ function startGame(room) {
 	// Players share one shared no-guess map this round — obfuscate it once and
 	// hand the same blob to every client so reveals can be resolved locally.
 	var obf = obfuscateBoard(template.board, room.rows, room.cols);
+	// Captured ONCE, outside startPayload, so every player gets the literal same absolute
+	// timestamp (a per-call Date.now() inside startPayload would drift by however long the
+	// per-player emit loop below takes to run — normally microseconds, but this way it's exactly
+	// zero by construction). Paired with clock sync (see time_sync above) so each client converts
+	// it to a local delay against ITS OWN clock rather than trusting startDelayMs against whenever
+	// its own copy of this event happened to arrive over the network.
+	var startAt = Date.now() + ROUND_START_DELAY_MS;
 	function startPayload(forSpectator) {
 		return {
 			time: COUNT_DOWN_TIME,
@@ -587,6 +594,11 @@ function startGame(room) {
 			// will really be accepted (rather than just how many digits to show) should read this,
 			// not derive a guess from `time`.
 			startDelayMs: ROUND_START_DELAY_MS,
+			// Absolute server wall-clock time this round goes live — see the comment on `startAt`
+			// above the client should prefer this (converted via its synced clock offset) over
+			// startDelayMs whenever it has one, so every player's countdown lands on GO together
+			// regardless of when their own copy of this event happened to arrive.
+			startAt: startAt,
 			gameNumber: room.gamesPlayed + 1,
 			gameCount: room.gameCount,
 			roundSeconds: room.roundSeconds,
@@ -975,6 +987,17 @@ io.on("connection", function (socket) {
 	var playerID = socket.id;
 	installSocketErrorWrapper(socket);
 	sockets[playerID] = socket;
+
+	// Clock sync (P1-6 aware): a round-start "GO" needs to land on every client's screen at the
+	// same instant, but each client only knows the round's own wall-clock deadline (startAt) —
+	// its local Date.now() can be off from this server's by however much its system clock drifts.
+	// A cheap NTP-style echo lets the client estimate that offset (see syncClockOffset in
+	// Main.js) and convert startAt into an accurate local delay. Registered unconditionally, ahead
+	// of the game/lobby role branch below, since a split-mode match socket needs this against the
+	// GAME server's clock (the one that actually owns startAt), not just the lobby's.
+	socket.on("time_sync", function(data) {
+		socket.emit("time_sync_ack", { t: data && data.t, serverTime: Date.now() });
+	});
 
 	// Game-server role: this socket is a match player. Bind it to its seat via the join token, register
 	// only the in-game handlers, and skip all the lobby/auth machinery (that lives on main).
