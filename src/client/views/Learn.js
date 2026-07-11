@@ -56,13 +56,16 @@ var LEARN_COURSES = [
 		title: "Simple deductions",
 		steps: [
 		{
-			board: { rows: 3, cols: 4, mines: [[1,1]], revealAll: true, covered: [[0,2]] },
+			// Mine sits one row in from the top edge, away from the side edges — the two cells right
+			// above it (its only 0-free neighbours) never get an automatic 0-neighbour, so a real
+			// cascade from anywhere else leaves exactly them covered: the mine, and one safe cell.
+			board: { rows: 5, cols: 9, mines: [[1,4]], revealStart: [4,0] },
 			intro: [
 				"A number counts the mines touching it. Two cells are covered — find the safe one."
 			],
 			hints: [
-				"The left '1' touches only one covered cell — that's the mine.",
-				"The top '1' is already satisfied by that mine.",
+				"The '1' directly below the mine touches only one covered cell — that's the mine.",
+				"The '1' diagonally above it is already satisfied by that same mine.",
 				"So its other covered neighbour is safe. Click it."
 			],
 			mistakes: {
@@ -71,34 +74,42 @@ var LEARN_COURSES = [
 			outro: "That's reading the board — no guessing."
 		},
 		{
-			board: { rows: 5, cols: 7, mines: [[1,1], [3,5]], revealAll: true, mustFlag: true },
-			intro: [ "Two mines. Flag them both." ],
+			// Two mines diagonally touching — a real cascade from the corner opens everything else,
+			// leaving a symmetric ring of 1s and 2s around the pair. Each mine has its own exclusive
+			// '1', so both are forced independently; the 2s are just confirmation.
+			board: { rows: 6, cols: 9, mines: [[2,3], [3,4]], revealStart: [5,0], mustFlag: true },
+			intro: [ "Two mines, touching corner to corner. Flag them both." ],
 			hints: [
-				"Solve each ring of 1s separately."
+				"Each mine has its own '1' that touches only it — find those two.",
+				"The 2s just confirm what the 1s already told you."
 			],
 			mistakes: {
 				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "Two down."
+			outro: "Two mines, read straight off their own 1s."
 		},
 		{
-			board: { rows: 5, cols: 9, mines: [[2,2], [2,6], [2,7]], revealAll: true, mustFlag: true },
-			intro: [ "Three mines — two side by side." ],
+			// Three mines in a row. The middle clue (3) touches all three covered cells at once —
+			// clue value equals covered count, so all three are forced in a single read.
+			board: { rows: 6, cols: 9, mines: [[2,3], [2,4], [2,5]], revealStart: [5,0], mustFlag: true },
+			intro: [ "Three mines in a row. Flag them all." ],
 			hints: [
-				"The lone mine on the left is the same as before.",
-				"For the pair, find a '1' touching only one of them — that pins it."
+				"The '3' above the middle mine touches all three covered cells at once.",
+				"When a number equals its covered neighbours, every one of them is a mine."
 			],
 			mistakes: {
 				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "Nice — two mines from one shared ring."
+			outro: "One number, three mines — the count did all the work."
 		},
 		{
-			board: { rows: 6, cols: 9, mines: [[1,1], [1,7], [4,3], [4,5]], revealAll: true, mustFlag: true },
-			intro: [ "Four mines. The bottom two share their numbers." ],
+			// A 2x2 block of mines. Each corner '1' pins the one mine touching it, independently —
+			// four separate trivial reads instead of one big one.
+			board: { rows: 7, cols: 9, mines: [[2,3], [2,4], [3,3], [3,4]], revealStart: [6,0], mustFlag: true },
+			intro: [ "Four mines in a block. Flag them all." ],
 			hints: [
-				"The top two are lone mines, same as before.",
-				"For the bottom pair, try placements until every number checks out."
+				"Each mine has its own corner '1' — find all four.",
+				"The 2s along the edges just confirm it."
 			],
 			mistakes: {
 				wrongFlag: "Not a mine — check the numbers around it."
