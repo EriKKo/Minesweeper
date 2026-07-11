@@ -1653,6 +1653,21 @@ socket.on("territory_start", function(data) { if (typeof territoryStart === "fun
 socket.on("territory_board", function(data) { if (typeof territoryBoard === "function") territoryBoard(data); });
 socket.on("territory_result", function(data) { if (typeof territoryResult === "function") territoryResult(data); });
 
+// Set by setCoveredBoard() whenever the board resets to fully covered ahead of a round — consumed
+// by the very next draw_board, which is always that round's opening reveal. Our own board's reveal
+// ripples outward from the cascade origin over real time (queueRevealAnimations' stagger — kept, on
+// purpose, it's a nice effect for a cascade the player triggers mid-round too), while an opponent's
+// thumbnail (drawBoardStatic) just paints their revealed state instantly with no animation. Both
+// arrive in the very same draw_board packet, so without this an opponent's board would visibly snap
+// open while ours is still mid-ripple, reading as "they started before us" even though the data
+// landed at the same instant. Deferring the opponent paint by one animation frame — just long enough
+// for our own reveal to have actually started painting — fixes the ordering without touching our
+// own animation at all.
+var deferOpponentReveal = false;
+function deferOpponentDraw(canvasEl, state, skin) {
+	requestAnimationFrame(function() { drawBoardStatic(state, canvasEl, skin); });
+}
+
 // Paint the board as a full grid of covered cells. Shown during the ranked match-reveal
 // window and the pre-round countdown so the player sees the board taking shape, not a black
 // canvas. Covered cells don't read the board decoder, so this works before it's installed.
@@ -1667,6 +1682,7 @@ function setCoveredBoard() {
 		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
 	}
 	prevPlayerState = cloneState(myState);
+	deferOpponentReveal = true;
 	renderPlayerBoard();
 	if (isBattleRacing()) {
 		paintOpponentCovered(); // battle: show the opponents' boards covered too
@@ -1997,6 +2013,11 @@ function repaintSpectatorView(games) {
 }
 
 socket.on("draw_board", function(data) {
+	// Captured once per packet, before any rendering below — see deferOpponentReveal's own comment
+	// (above setCoveredBoard) for why only the very first draw_board after a round resets to covered
+	// gets this treatment.
+	var deferThisOpponentReveal = deferOpponentReveal;
+	deferOpponentReveal = false;
 	var games = data.games;
 	lastGames = games;
 	if (iAmEliminated) latestSpectatorGames = games;
@@ -2134,7 +2155,10 @@ socket.on("draw_board", function(data) {
 			// authoritative signal and can't desync from itself. A finished-round opponent
 			// (opp.playing false but their board isn't changing anymore either) just keeps showing
 			// whatever their last live frame painted, which is already correct.
-			if (opp.playing) drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+			if (opp.playing) {
+				if (deferThisOpponentReveal) deferOpponentDraw(canvasEl, opp.state, opp.skin || "classic");
+				else drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+			}
 			if (slot) {
 				slot.style.display = "";
 				slot.dataset.pid = opp.id || "";
