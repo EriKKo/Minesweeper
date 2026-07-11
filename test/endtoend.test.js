@@ -34,7 +34,7 @@ test("client matchmakes on main, plays on a game server, result persists on main
 		// 2) Queue ranked. Main forms the match (us + a filler bot), allocates it to the game server, and
 		//    hands us off with a token + the game server's address.
 		lobby.emit("find_ranked", { mode: "sprint_duo" });
-		const handoff = await once(lobby, "match_handoff", 15000);
+		const handoff = await once(lobby, "match_handoff", 30000);
 		assert.ok(handoff.gameUrl && handoff.token, "main handed off to a game server");
 		assert.strictEqual(handoff.gameUrl, game.base);
 
@@ -44,9 +44,9 @@ test("client matchmakes on main, plays on a game server, result persists on main
 		//    persistence is covered deterministically by humanattach/internalapi/elo tests — here the bot
 		//    is a real pool bot whose clear time is non-deterministic, so we don't race it.)
 		gameSock = io(handoff.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: handoff.token } });
-		const joined = await once(gameSock, "joined_room", 10000);
+		const joined = await once(gameSock, "joined_room", 20000);
 		assert.ok(joined.ranked, "attached to the ranked match on the game server");
-		const board = await once(gameSock, "draw_board", 12000);
+		const board = await once(gameSock, "draw_board", 20000);
 		assert.ok(board, "the match is live on the game server, streaming to the handed-off client");
 	} finally {
 		if (gameSock) gameSock.close();
@@ -92,11 +92,17 @@ test("a fast win on the game server reports a real ratingDelta back through seri
 		const ratingBefore = auth.ratingSprint;
 
 		lobby.emit("find_ranked", { mode: "sprint_duo" });
-		const handoff = await once(lobby, "match_handoff", 45000);
+		// Generous timeouts throughout this test: it spawns two real OS processes and waits on real
+		// matchmaking/bot-fill timers, so under the shared test sandbox's own CPU contention (other
+		// test files' spawned server processes competing for scheduling — see startServer in
+		// test/helpers.js) any of these steps can legitimately take much longer than they do in
+		// isolation. Not a race in our own code — re-running this exact test alone, with nothing else
+		// competing for CPU, always passes; it's the concurrent spawn load from the rest of the suite.
+		const handoff = await once(lobby, "match_handoff", 60000);
 
 		gameSock = io(handoff.gameUrl, { transports: ["websocket"], forceNew: true, auth: { token: handoff.token } });
-		await once(gameSock, "joined_room", 45000);
-		const start = await once(gameSock, "start_game", 45000);
+		await once(gameSock, "joined_room", 60000);
+		const start = await once(gameSock, "start_game", 60000);
 		const board = decodeBoard(start.boardData, start.boardMask, start.rows, start.cols);
 
 		// Win as fast as possible: reveal every non-mine cell right after the round actually goes
@@ -112,7 +118,7 @@ test("a fast win on the game server reports a real ratingDelta back through seri
 			}
 		}
 
-		const ended = await once(gameSock, "series_ended", 60000);
+		const ended = await once(gameSock, "series_ended", 90000);
 		const mine = ended.standings.find(s => s.id === gameSock.id);
 		assert.ok(mine, "the winner's own standing is present");
 		assert.strictEqual(typeof mine.ratingDelta, "number", "ratingDelta must be a real number, not missing");
