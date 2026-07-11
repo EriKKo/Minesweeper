@@ -285,8 +285,15 @@ function renderRoomState(state) {
 	// static gap between "idle stops" and "the go sweep starts" instead of one continuous transition.
 	// The sweep (Animations.js, paintBoardGoWithIdle) is what actually turns it off now, by settling
 	// into it as the round starts. Actually leaving the room is handled by teardownRoomUI, not here.
+	// EXCEPT while a result is showing (!roundResultShown): the room flips back to "planning" the
+	// moment a series ends (waiting on Play another / Leave), which would otherwise restart idle —
+	// a continuous RAF loop repainting every cell of both boards, every frame, forever — for the
+	// entire time the result modal sits on screen fully covering them. Pointless work with no visual
+	// payoff, and a real source of jank on a weak machine. roundResultShown is reset the moment a new
+	// round/search actually begins (start_game, startBattleSearch), so this doesn't affect the
+	// legitimate wait-for-players/ready cases at all.
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
-	var stillPlanning = state.phase === "planning";
+	var stillPlanning = state.phase === "planning" && !roundResultShown;
 	if (!inTerritory) {
 		document.getElementById("player_div").classList.toggle("idle", stillPlanning);
 		if (typeof setBoardIdleActive === "function") setBoardIdleActive(stillPlanning);
