@@ -4720,12 +4720,14 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-title { margin: 0 0 0.9rem; font-size: 1.05rem; color: var(--text); }
 
 /* Duolingo-style coach: a small mascot (buildCoachAvatar) beside a speech bubble that always shows
-   exactly ONE message, swapped out by say() rather than appended to a log. */
+   exactly ONE message, swapped out by say() rather than appended to a log. Capped width — messages
+   are short by design, so there's no reason for the bubble to stretch across a wide card. */
 .learn-mentor-coach {
 	display: flex;
 	align-items: flex-start;
 	gap: 0.75rem;
-	margin-bottom: 1rem;
+	margin: 0 auto 1rem;
+	max-width: 480px;
 }
 .learn-mentor-avatar { flex: 0 0 auto; }
 .learn-mentor-bubble-col {
@@ -4804,6 +4806,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 	min-height: 2.6rem;
 }
 .learn-mentor-continue-btn, .learn-mentor-tryagain-btn { min-width: 140px; }
+.learn-mentor-continue-btn { background: var(--success); border-color: var(--success); }
+.learn-mentor-continue-btn:hover:not(:disabled) { background: #16a34a; border-color: #16a34a; }
 
 .learn-courses-list {
 	display: grid;

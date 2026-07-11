@@ -31,10 +31,9 @@ var LEARN_COURSES = [
 			// cascade, the new skill applied to it.
 			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], clickMine: true },
 			intro: [
-				"Left-click a covered cell to reveal what's underneath.",
-				"This board's already opened up — except for one cell. That's a mine. Click it to see what happens."
+				"Left-click the cell to see what's inside."
 			],
-			outro: "That's a mine. Click one of these in a real game and it's over — the rest of this course is about spotting them before you do."
+			outro: "That's a mine. Hit one in a real game and it's over."
 		}
 		]
 	},
@@ -47,10 +46,9 @@ var LEARN_COURSES = [
 			// left to do is flag the one covered cell instead of clicking it.
 			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], mustFlag: true },
 			intro: [
-				"Right-click a covered cell to flag it — a mark for a mine you've found, so you don't open it by accident. Right-click again to remove a flag.",
-				"Same board as last time, already opened up. Flag the one cell that's still covered."
+				"Right-click a cell to flag it. Right-click again to unflag."
 			],
-			outro: "Flagged — that's your second basic move. Now let's put revealing and flagging together."
+			outro: "Flagged. Next: reading the numbers to know where mines are."
 		}
 		]
 	},
@@ -60,53 +58,52 @@ var LEARN_COURSES = [
 		{
 			board: { rows: 3, cols: 4, mines: [[1,1]], revealAll: true, covered: [[0,2]] },
 			intro: [
-				"Every number counts the mines in the 8 cells touching it — that's how you tell safe from dangerous without guessing.",
-				"Two cells are still covered here — one's a mine, one's safe. Work out which is which, then open the safe one."
+				"A number counts the mines touching it. Two cells are covered — find the safe one."
 			],
 			hints: [
-				"Look at the '1' in the middle row, on the far left — how many covered cells does it actually touch?",
-				"Just one — so that covered cell, in the middle row, has to be the mine.",
-				"Now look at the '1' in the top row — it's already explained by that same mine, so ITS remaining covered neighbour has to be safe. Click the covered cell in the top row."
+				"The left '1' touches only one covered cell — that's the mine.",
+				"The top '1' is already satisfied by that mine.",
+				"So its other covered neighbour is safe. Click it."
 			],
 			mistakes: {
-				mine: "That was the mine. Reset and check the '1's around both covered cells again."
+				mine: "That was the mine. Check the '1's again."
 			},
-			outro: "That's reading the board — no guessing, the numbers already told you everything."
+			outro: "That's reading the board — no guessing."
 		},
 		{
 			board: { rows: 5, cols: 7, mines: [[1,1], [3,5]], revealAll: true, mustFlag: true },
-			intro: [ "Two mines this time. Flag them both." ],
+			intro: [ "Two mines. Flag them both." ],
 			hints: [
-				"They're independent — solve the top-left ring of 1s first, then the bottom-right one the same way."
+				"Solve each ring of 1s separately."
 			],
 			mistakes: {
-				wrongFlag: "Check that cell against its nearest numbers again — it isn't one of the two mines."
+				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "Two down. One more step up."
+			outro: "Two down."
 		},
 		{
 			board: { rows: 5, cols: 9, mines: [[2,2], [2,6], [2,7]], revealAll: true, mustFlag: true },
-			intro: [ "Three mines now — two of them side by side." ],
+			intro: [ "Three mines — two side by side." ],
 			hints: [
-				"The lone mine on the left is just like the ones you've already flagged.",
-				"For the two on the right, find a '1' that only touches ONE of them — that pins the first, and the rest follow."
+				"The lone mine on the left is the same as before.",
+				"For the pair, find a '1' touching only one of them — that pins it."
 			],
 			mistakes: {
-				wrongFlag: "That cell isn't one of the three mines — check the numbers bordering it again."
+				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "Nice — reading two mines out of a shared ring of numbers instead of one at a time."
+			outro: "Nice — two mines from one shared ring."
 		},
 		{
 			board: { rows: 6, cols: 9, mines: [[1,1], [1,7], [4,3], [4,5]], revealAll: true, mustFlag: true },
-			intro: [ "Four mines. The bottom two share their numbers — the top two don't." ],
+			intro: [ "Four mines. The bottom two share their numbers." ],
 			hints: [
-				"Start with the two lone mines at the top — same trick as always.",
-				"For the bottom two: the middle column of 2s is explained once you place BOTH of them — try one at a time and see which placement makes every number work out."
+				"The top two are lone mines, same as before.",
+				"For the bottom pair, try placements until every number checks out."
 			],
 			mistakes: {
-				wrongFlag: "That cell isn't one of the four mines — check the numbers bordering it again."
+				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "That's the whole toolkit so far: read a number, find what it's missing, flag it — however many mines are on the board. Next up: a shortcut for opening cells faster."
+			outro: "That's the toolkit: read a number, flag what's missing. Next: a faster way to open cells."
 		}
 		]
 	},
@@ -123,15 +120,14 @@ var LEARN_COURSES = [
 				chordOnly: true
 			},
 			intro: [
-				"When a number's flags already match its value, click the NUMBER itself to open all its other neighbours in one move — a chord.",
-				"All three numbers here are already satisfied by their flags. Chord each one."
+				"Click a satisfied number to chord — it opens all its other neighbours at once."
 			],
 			hints: [
-				"Click directly on a revealed number, not on a covered cell.",
-				"Left- or right-click both chord — either works the same way.",
-				"Click each of the three revealed numbers in the middle row."
+				"Click the number itself, not a covered cell.",
+				"Left- or right-click both work.",
+				"Chord each of the three numbers in the middle row."
 			],
-			outro: "Three chords, board cleared — the fastest way to open cells you've already worked out."
+			outro: "Chording: the fastest way to open cells you've already worked out."
 		}
 		]
 	}
@@ -681,6 +677,24 @@ function renderLearnCourse(course) {
 			if (courseIsComplete(course.id) && !learnState.completedAt[course.id]) {
 				learnState.completedAt[course.id] = Date.now();
 			}
+		}
+		if (lesson.steps) {
+			// Mentor lessons: Continue on the final step should always visibly go somewhere — straight
+			// to the next lesson, or the course-complete screen — the same as clicking Next lesson
+			// would, rather than leaving the player on a finished board with nothing obviously left to
+			// click (this was the actual "Continue doesn't do anything" bug: on a lesson with only one
+			// or two steps, most Continue clicks land on the LAST step, where the old behaviour was
+			// just a quiet stepper/nav refresh with no visible change at all). Older-format lessons
+			// (buildLearnLesson) keep their original behaviour — stay put so the player can review
+			// their solved puzzles, advancing only when they click Next lesson themselves.
+			if (learnState.currentLesson < lessons.length - 1) {
+				learnState.currentLesson++;
+			} else {
+				learnState.currentLesson = lessons.length;
+			}
+			saveLearnState();
+			renderLearn();
+		} else {
 			saveLearnState();
 			renderStepper();
 			renderNav();

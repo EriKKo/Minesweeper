@@ -250,7 +250,10 @@ function showLearnView() {
 	hideAllViews();
 	document.getElementById("learn_view").style.display = "";
 	setSiteNavActive("learn");
-	renderLearn();
+	// Always land on the course list — never resume mid-course. Progress
+	// (completed/completedAt) is untouched; only the "which course am I in" pointer resets.
+	if (typeof exitToCourseList === "function") exitToCourseList();
+	else renderLearn();
 }
 
 // Solo drops you straight into a free-play board (size/density are changed from the
