@@ -1529,6 +1529,12 @@ function startBattleSearch(mode) {
 	document.body.classList.add("ranked-game");
 	applyDuoClass();
 	setCoveredBoard();        // paints your own board + the opponent slots covered
+	// Searching is its own "waiting for players to join" — GameRoom.js's renderRoomState only drives
+	// this off an actual room's state.players, which doesn't exist yet here (no room until the match
+	// forms), so this is the one spot that has to turn it on for the search phase itself.
+	var playerDiv = document.getElementById("player_div");
+	if (playerDiv) playerDiv.classList.add("idle");
+	if (typeof setBoardIdleActive === "function") setBoardIdleActive(true);
 	updateBattleSearch();
 }
 function updateBattleSearch() {
@@ -1544,6 +1550,12 @@ function updateBattleSearch() {
 function endBattleSearch() {
 	rankedSearch = null;
 	if (battleSearchStatus) battleSearchStatus.style.display = "none";
+	// The match has formed (or the search was cancelled) — either way we're no longer "waiting for
+	// players to join". room_state's own renderRoomState takes over the idle decision from here for
+	// an actual room; territory/tournament roster overlays never turned this on in the first place.
+	var playerDiv = document.getElementById("player_div");
+	if (playerDiv) playerDiv.classList.remove("idle");
+	if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
 }
 // Leave an in-battle search (the "Exit game" button while still searching): cancel the queue and bail.
 function cancelBattleSearch() {
