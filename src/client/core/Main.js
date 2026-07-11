@@ -2298,7 +2298,15 @@ function resetGameUI() {
 		clearCanvas(document.getElementById("game" + i));
 	}
 	var slots = document.querySelectorAll('[data-slot]');
-	for (var j = 0; j < slots.length; j++) slots[j].style.display = "none";
+	for (var j = 0; j < slots.length; j++) {
+		slots[j].style.display = "none";
+		// Same staleness bug as lastGames above: updateDuelHud/updateMultiHud only ever toggle these
+		// on a draw_board frame, so the last match's leader glow / finished ribbon otherwise rides
+		// straight through a fresh search or a newly joined room until this match's own first frame
+		// eventually overwrites it.
+		slots[j].classList.remove("leading", "finished");
+	}
+	document.getElementById("player_div").classList.remove("leading");
 }
 
 // overlay + countdown moved to Overlay.js

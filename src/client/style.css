@@ -3767,9 +3767,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 	box-shadow: 0 0 0 1px var(--duel-opp), 0 0 24px -4px var(--duel-opp);
 }
 
-/* Identity panel: rank badge + name + tier. Opponent side mirrored (badge on the right). */
+/* Identity panel: rank badge + name + tier. Opponent side mirrored (badge on the right).
+   min-height reserves the avatar's own height (buildAvatarChip is called at 52px, Main.js) so the
+   panel doesn't collapse to nothing while empty (fillDuelId does el.innerHTML = "" with no opponent
+   yet) and then shove the board down the instant they join — same space whether filled or not. */
 .duel-id { display: none; }
-.game-view.duo .duel-id { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; }
+.game-view.duo .duel-id { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; min-height: 52px; }
 .game-view.duo #duel_id_opp { flex-direction: row-reverse; text-align: right; }
 .duel-id .rank-badge { flex: 0 0 auto; font-size: 10px; }
 .duel-id-name { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
