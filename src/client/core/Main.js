@@ -1668,6 +1668,56 @@ function deferOpponentDraw(canvasEl, state, skin) {
 	requestAnimationFrame(function() { drawBoardStatic(state, canvasEl, skin); });
 }
 
+// The one-frame defer above still helps the tournament-thumbnail layout (opponent identity there is
+// picked by live progress, so there's no fixed roster to predict against before the first real
+// packet). For the battle layouts (duo/multi) the roster IS already known ahead of time, so we don't
+// need to wait on the network at all: every player in the round shares the exact same board layout
+// ("Players share one shared no-guess map this round"), so the opening cascade — the patch of cells
+// the centre reveal floods open — is the SAME deterministic set of cells for every board. Compute it
+// locally with the same BoardLogic.cascadeReveal Input.js already uses for click prediction (proven
+// to match the server's own dfs exactly, from the same decoded board), and paint every board — ours
+// AND every opponent's — from that ONE shared computation, at the exact instant our own synced GO
+// timer fires. This is the actual fix for "opponent revealed before/after us": both reveals are now
+// driven by the same local trigger instead of one being a network round trip away from the other.
+// Passed as countDown's onDone (start_game handler) so it fires exactly at GO, same moment
+// roundStartTime is stamped. The eventual real draw_board still arrives and is harmless — for our
+// own board it's a no-op merge (see the draw_board handler's monotonic-reveal logic), and for
+// opponents it just repaints the identical cells (correcting the skin, which we don't know yet here
+// and default to classic — purely cosmetic, self-corrects invisibly).
+function localRoundStartReveal() {
+	if (!rows || !cols || !boardDecoder || !myState) return;
+	var centerR = Math.floor(rows / 2), centerC = Math.floor(cols / 2);
+	var initialState = new Array(rows);
+	for (var r = 0; r < rows; r++) {
+		initialState[r] = new Array(cols);
+		for (var c = 0; c < cols; c++) initialState[r][c] = UNKNOWN;
+	}
+	BoardLogic.cascadeReveal(centerR, centerC, rows, cols,
+		function(rr, cc) { return initialState[rr][cc] === UNKNOWN; },
+		function(rr, cc) { initialState[rr][cc] = KNOWN; return boardCell(rr, cc) === MINE; },
+		function(rr, cc) { return boardCell(rr, cc); }
+	);
+	queueRevealAnimations(initialState); // our own board still ripples in — see queueRevealAnimations
+	myState = initialState;
+	prevPlayerState = cloneState(initialState);
+	renderPlayerBoard();
+	revealOpponentsLocally(initialState);
+}
+
+// Paint every opponent board (battle layout only — see localRoundStartReveal) with the shared
+// opening-cascade state, instantly, mirroring paintOpponentCovered's own slot assignment so
+// opponents land in the same cards they were shown covered in.
+function revealOpponentsLocally(initialState) {
+	if (!isBattleRacing()) return;
+	var oppPlayers = battleRoster().filter(function(p) { return !(p.id === id || p.isYou); });
+	for (var i = 1; i <= 5; i++) {
+		var p = oppPlayers[i - 1];
+		if (!p) continue;
+		var cv = document.getElementById("game" + i);
+		if (cv) drawBoardStatic(initialState, cv, p.skin || "classic");
+	}
+}
+
 // Paint the board as a full grid of covered cells. Shown during the ranked match-reveal
 // window and the pre-round countdown so the player sees the board taking shape, not a black
 // canvas. Covered cells don't read the board decoder, so this works before it's installed.
@@ -1815,8 +1865,10 @@ socket.on("start_game", function(data) {
 	// delay via the synced clock offset (startDelayFor, above) so every player's GO lands at the
 	// same instant regardless of when their own copy of this event happened to arrive over the
 	// network — countDown's sweep/digit animations are purely decorative on top of it, see the
-	// comment on countDown in Overlay.js for why.
-	countDown(startDelayFor(data));
+	// comment on countDown in Overlay.js for why. onDone (localRoundStartReveal) is what actually
+	// reveals the opening cascade, for our board AND every opponent's, from local data — see its
+	// own comment for why that's no longer left to the server's draw_board broadcast.
+	countDown(startDelayFor(data), localRoundStartReveal);
 	if (mobileLayout) scrollToCell(Math.floor(rows / 2), Math.floor(cols / 2), false);
 	updateMobileFindNextHint();
 });
