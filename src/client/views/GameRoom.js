@@ -272,21 +272,23 @@ function renderRoomState(state) {
 	var me = state.players.find(function(p) { return p.id === id; });
 	var ownName = (me || {}).name || myName;
 	document.getElementById("player_name0").textContent = ownName;
-	// player_div is shared with puzzle play AND territory. Only toggle the idle state (the board
-	// animation from Animations.js, plus the .idle class other CSS still keys off — e.g. hiding the
-	// find-next-cell arrow) when we're actually viewing the multiplayer lobby — otherwise room_state
-	// ticks would touch the puzzle board mid-play, or the territory board after a match (territory
-	// has no series, so it should never go idle). Specifically while waiting for players to JOIN
+	// player_div is shared with puzzle play AND territory, but this function only ever runs off a
+	// room_state broadcast — which only reaches sockets actually seated in a room, never during
+	// solo/puzzle play — so no separate "are we really looking at the mp lobby" check is needed
+	// beyond excluding territory (territory rooms broadcast room_state too, but have no series and
+	// should never go idle). Was previously also gated on `location.pathname === "/"`, which broke
+	// idle for every custom room joined from /custom (the whole custom-lobby flow never navigates the
+	// URL to "/" — showGameView() just swaps which view is visible) — that gate never matched, so
+	// idle silently never activated for casual custom rooms. Toggle while waiting for players to JOIN
 	// (same threshold as the "Waiting for more players to join…" status text below), not the whole
 	// planning phase — once there are enough players, the room is just waiting on Ready clicks,
 	// which isn't "idle" the same way an under-filled room is.
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
-	var inMpView = (location.pathname === "/");
 	var waitingForPlayers = state.phase === "planning" && state.players.length < 2;
-	if (inMpView && !inTerritory) {
+	if (!inTerritory) {
 		document.getElementById("player_div").classList.toggle("idle", waitingForPlayers);
 		if (typeof setBoardIdleActive === "function") setBoardIdleActive(waitingForPlayers);
-	} else if (inTerritory) {
+	} else {
 		document.getElementById("player_div").classList.remove("idle");
 		if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
 	}
