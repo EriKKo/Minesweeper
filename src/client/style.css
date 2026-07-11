@@ -4742,45 +4742,74 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-panel {
 	flex: 1 1 340px;
 	min-width: 300px;
-	height: 560px;
+	height: 420px;
 	display: flex;
 	flex-direction: column;
-	gap: 0.7rem;
+	gap: 1rem;
 	background: var(--surface-2);
 	border: 1px solid var(--border);
 	border-radius: 10px;
-	padding: 1rem 1.1rem;
+	padding: 1.1rem 1.2rem;
 }
 .learn-mentor-title { margin: 0; font-size: 1.05rem; color: var(--text); flex: 0 0 auto; }
-.learn-mentor-feed {
+
+/* Duolingo-style coach: a mascot (buildCoachAvatar) above a speech bubble that always shows exactly
+   ONE message, swapped out by say() rather than appended to a log. */
+.learn-mentor-coach {
 	flex: 1 1 auto;
-	min-height: 0; /* let the flex child actually shrink to the panel's fixed height, not overflow it */
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 0.6rem;
-	overflow-y: auto;
-	padding-right: 0.2rem;
+	align-items: center;
+	gap: 0.9rem;
 }
-.learn-mentor-msg {
-	flex: 0 0 auto;
-	font-size: 0.9rem;
-	line-height: 1.55;
-	color: var(--text);
+.learn-mentor-avatar { flex: 0 0 auto; }
+.learn-mentor-bubble {
+	position: relative;
+	width: 100%;
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
 	background: var(--surface);
 	border: 1px solid var(--border);
-	border-radius: 8px;
-	padding: 0.6rem 0.75rem;
+	border-radius: 14px;
+	padding: 0.9rem 1.1rem;
 }
-.learn-mentor-msg-hint { border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); }
-.learn-mentor-msg-mistake { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
-.learn-mentor-msg-outro { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); color: var(--text); font-weight: 600; }
-.learn-mentor-hint-btn { flex: 0 0 auto; align-self: flex-start; }
+/* The tail: a rotated square clipped to its own top-left border+background, positioned to poke up
+   out of the bubble toward the avatar above it. inherit (not a repeated color) so it always matches
+   whichever -hint/-mistake/-outro tint is active without restating the colour a third time. */
+.learn-mentor-bubble::before {
+	content: "";
+	position: absolute;
+	top: -8px;
+	left: 50%;
+	margin-left: -8px;
+	width: 16px;
+	height: 16px;
+	background: inherit;
+	border-left: inherit;
+	border-top: inherit;
+	transform: rotate(45deg);
+	border-top-left-radius: 3px;
+}
+.learn-mentor-bubble-text {
+	width: 100%;
+	overflow-y: auto;
+	font-size: 0.95rem;
+	line-height: 1.6;
+	color: var(--text);
+}
+.learn-mentor-bubble-hint { background: rgba(250, 204, 21, 0.08); border-color: rgba(250, 204, 21, 0.45); }
+.learn-mentor-bubble-mistake { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.45); }
+.learn-mentor-bubble-outro { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.45); }
+.learn-mentor-bubble-outro .learn-mentor-bubble-text { font-weight: 600; }
+.learn-mentor-hint-btn { flex: 0 0 auto; align-self: center; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 @media (max-width: 700px) {
 	.learn-mentor-layout { flex-direction: column; }
 	.learn-mentor-board-col { flex-basis: auto; width: 100%; min-height: 260px; }
-	.learn-mentor-panel { width: 100%; height: 340px; }
+	.learn-mentor-panel { width: 100%; height: 360px; }
 }
 
 .learn-courses-list {

@@ -20,17 +20,19 @@ var LEARN_COURSES = [
 		title: "Revealing cells",
 		steps: [
 		{
-			// One mine dead centre on a 5x5 board: any corner cascades open the ENTIRE rest of the
-			// board in one click (verified — a single click leaves only the mine covered), so this one
-			// board demonstrates both a cascade AND a mine in the same puzzle. Deliberately backwards
-			// on the mine itself: before explaining "avoid mines," let the player click it on purpose,
-			// risk-free, so "mine" is a concrete thing they've seen rather than an abstract warning.
-			// Reused (see the "Flagging cells" lesson below) with the objective swapped to mustFlag
-			// instead of clickMine — same board, same cascade, the new skill applied to it.
-			board: { rows: 5, cols: 5, mines: [[2,2]], clickMine: true },
+			// One mine dead centre on a 5x5 board: a corner cascade (pre-applied here via revealStart,
+			// so the player isn't asked to find/click it themselves) opens the ENTIRE rest of the board
+			// in one go (verified — leaves only the mine covered), so this one board demonstrates both
+			// a cascade AND a mine without the player needing to do anything but look, then click the
+			// one cell left. Deliberately backwards on the mine itself: before explaining "avoid
+			// mines," let the player click it on purpose, risk-free, so "mine" is a concrete thing
+			// they've seen rather than an abstract warning. Reused (see the "Flagging cells" lesson
+			// below) with the objective swapped to mustFlag instead of clickMine — same board, same
+			// cascade, the new skill applied to it.
+			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], clickMine: true },
 			intro: [
-				"Left-click a covered cell to reveal what's underneath. Try one of the corners.",
-				"That opened up the whole board except one cell — that's a mine. Click it to see what happens."
+				"Left-click a covered cell to reveal what's underneath.",
+				"This board's already opened up — except for one cell. That's a mine. Click it to see what happens."
 			],
 			outro: "That's a mine. Click one of these in a real game and it's over — the rest of this course is about spotting them before you do."
 		}
@@ -770,20 +772,76 @@ function buildLearnLesson(lesson, idx, total, onLessonComplete) {
 	return card;
 }
 
+// A small friendly "coach" mascot for the mentor lesson panel — the game's own iconic spiky mine
+// (see buildAvatarCanvas's "mine" case, BoardRender.js), drawn bigger and given a face, so the
+// character teaching you about mines is, fittingly, one. Same sphere/spike/shine construction as
+// that avatar, just larger and with two eyes + a smile it doesn't have there.
+function buildCoachAvatar(px) {
+	px = px || 96;
+	var dpr = window.devicePixelRatio || 1;
+	var c = document.createElement("canvas");
+	c.className = "learn-mentor-avatar";
+	c.width = Math.round(px * dpr);
+	c.height = Math.round(px * dpr);
+	c.style.width = px + "px";
+	c.style.height = px + "px";
+	var ctx = c.getContext("2d");
+	ctx.scale(dpr, dpr);
+
+	var cx = px * 0.5, cy = px * 0.52, rad = px * 0.34;
+	ctx.strokeStyle = "#475569";
+	ctx.lineWidth = Math.max(1.5, rad * 0.22);
+	ctx.lineCap = "round";
+	for (var i = 0; i < 8; i++) {
+		var a = i * Math.PI / 4 + Math.PI / 8;
+		ctx.beginPath();
+		ctx.moveTo(cx + Math.cos(a) * rad * 0.88, cy + Math.sin(a) * rad * 0.88);
+		ctx.lineTo(cx + Math.cos(a) * rad * 1.4, cy + Math.sin(a) * rad * 1.4);
+		ctx.stroke();
+	}
+	var g = ctx.createLinearGradient(0, cy - rad, 0, cy + rad);
+	g.addColorStop(0, "#3b4a68"); g.addColorStop(1, "#0b1220");
+	ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+	ctx.fillStyle = g; ctx.fill();
+	ctx.lineWidth = Math.max(1, px * 0.015);
+	ctx.strokeStyle = "rgba(148,163,184,0.45)"; ctx.stroke();
+	ctx.beginPath(); ctx.arc(cx - rad * 0.34, cy - rad * 0.36, rad * 0.26, 0, Math.PI * 2);
+	ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fill();
+
+	// Face: two round eyes + a curved smile — this is the only thing that distinguishes it from
+	// the plain in-game mine icon, so it carries all of the "friendly" reading.
+	var eyeY = cy - rad * 0.05, eyeDx = rad * 0.32, eyeR = rad * 0.14;
+	ctx.fillStyle = "#e6e9f5";
+	ctx.beginPath(); ctx.arc(cx - eyeDx, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+	ctx.beginPath(); ctx.arc(cx + eyeDx, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+	ctx.fillStyle = "#0b1020";
+	var pupilR = eyeR * 0.5;
+	ctx.beginPath(); ctx.arc(cx - eyeDx, eyeY, pupilR, 0, Math.PI * 2); ctx.fill();
+	ctx.beginPath(); ctx.arc(cx + eyeDx, eyeY, pupilR, 0, Math.PI * 2); ctx.fill();
+	ctx.strokeStyle = "#e6e9f5";
+	ctx.lineWidth = Math.max(1.2, rad * 0.07);
+	ctx.lineCap = "round";
+	ctx.beginPath();
+	ctx.arc(cx, cy + rad * 0.24, rad * 0.3, 0.15 * Math.PI, 0.85 * Math.PI);
+	ctx.stroke();
+	return c;
+}
+
 // Mentor-guided lesson: a SEQUENCE of interactive boards (each built with the exact same
 // buildLearnPuzzle every other real board on the site uses — chord/cascade/flag all behave
-// identically, nothing here reimplements them), coached from one continuous text feed instead of
-// surrounded by prose and static demo boards. Solving a step advances straight to the next one —
-// same feed, same panel, just a new board — so a whole lesson reads as one conversation with
+// identically, nothing here reimplements them), coached by a mascot in a speech bubble
+// Duolingo-style — one message on screen at a time, replaced by whatever's relevant next, rather
+// than a running transcript. Solving a step advances straight to the next one — same panel, just a
+// new board and a new thing to say — so a whole lesson reads as one continuous coaching session with
 // increasingly-many puzzles, not a wall of separate lesson cards to click through. A lesson object:
 //   steps: [ {...}, {...} ]  — one entry per board, in order; each entry:
 //     board: {...}             — a normal buildLearnPuzzle board spec (rows/cols/mines/revealStart/
 //                                 mustFlag/chordOnly/clickMine/guess/goodGuessCells/...)
 //     requirements: {...}      — optional extra win condition, see buildLearnPuzzle's own comment
-//     intro: "..." | ["...", ...]  — message(s) appended to the feed when this step loads
+//     intro: "..." | ["...", ...]  — what the coach says when this step loads (joined into one bubble)
 //     hints: ["...", ...]      — revealed one at a time by the Hint button, most specific last
 //     mistakes: { mine: "...", wrongFlag: "..." }  — shown when that mistake happens
-//     outro: "..."             — appended once this step is solved, before advancing
+//     outro: "..."             — shown once this step is solved, before advancing
 function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 	var card = document.createElement("div");
 	card.className = "section-card learn-mentor";
@@ -805,19 +863,27 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 	title.textContent = lesson.title;
 	panel.appendChild(title);
 
-	var feed = document.createElement("div");
-	feed.className = "learn-mentor-feed";
-	panel.appendChild(feed);
+	var coach = document.createElement("div");
+	coach.className = "learn-mentor-coach";
+	panel.appendChild(coach);
 
-	// Appends one message bubble and scrolls it into view — the feed reads top-to-bottom like a
-	// running conversation, oldest first, so a player can scroll back up to see what they missed.
+	coach.appendChild(buildCoachAvatar(96));
+
+	var bubble = document.createElement("div");
+	bubble.className = "learn-mentor-bubble";
+	coach.appendChild(bubble);
+
+	var bubbleText = document.createElement("div");
+	bubbleText.className = "learn-mentor-bubble-text";
+	bubble.appendChild(bubbleText);
+
+	// Replaces whatever the coach was saying — Duolingo-style, one thing on screen at a time — rather
+	// than appending to a running transcript. `kind` re-tints the bubble (see the CSS) so a hint,
+	// a mistake, and an outro each read a little differently even though it's the same one bubble.
 	function say(text, kind) {
 		if (!text) return;
-		var msg = document.createElement("div");
-		msg.className = "learn-mentor-msg" + (kind ? " learn-mentor-msg-" + kind : "");
-		msg.textContent = text;
-		feed.appendChild(msg);
-		feed.scrollTop = feed.scrollHeight;
+		bubbleText.textContent = text;
+		bubble.className = "learn-mentor-bubble" + (kind ? " learn-mentor-bubble-" + kind : "");
 	}
 
 	var steps = lesson.steps || [];
@@ -829,7 +895,7 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 		var step = steps[i];
 
 		var introLines = Array.isArray(step.intro) ? step.intro : (step.intro ? [step.intro] : []);
-		introLines.forEach(function(line) { say(line, "intro"); });
+		say(introLines.join(" "), "intro");
 
 		if (hintBtn) { hintBtn.remove(); hintBtn = null; }
 		var hints = step.hints || [];
