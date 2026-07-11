@@ -480,6 +480,52 @@ function drawGoAnimCell(ctx, x, y, w, h, rad, alpha, base) {
 	ctx.restore();
 }
 
+// Same wave math as paintBoardGoAnimation, but a cell the wave hasn't reached YET also gets the idle
+// animation painted on it (instead of sitting flat/dark) — so the effect reads as the sweep settling
+// the idle board into stillness as it passes, rather than two independent effects layered on top of
+// each other: ahead of the wave the board is still idling, right at the wave it flashes bright, and
+// behind the wave it's plain and still — "ready for play". Used only by the real game
+// (renderPlayerBoard); the admin lab's own Go sweep tab keeps using the bare paintBoardGoAnimation so
+// it previews the sweep's own motion in isolation, unblended with idle. Returns false once the sweep
+// has fully passed — same contract as paintBoardGoAnimation, and the caller should treat that as "the
+// whole board is now settled" (see its own call site for why that also means turning idle off there).
+function paintBoardGoWithIdle(ctx, sw, sh, boardRows, boardCols, animState, isRevealed) {
+	if (!animState) return false;
+	var duration = Math.max(50, BOARD_GO_STYLE.durationMs);
+	var elapsed = performance.now() - animState.start;
+	if (elapsed >= duration) return false;
+	var mode = BOARD_GO_STYLE.mode;
+	var width = Math.max(0.5, BOARD_GO_STYLE.width);
+	var maxP = boardGoAxisMax(mode, boardRows, boardCols);
+	var frontP = (elapsed / duration) * (maxP + width * 2) - width;
+	var base = hexToRgb(BOARD_GO_STYLE.color);
+	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+	var w = sw - gap, h = sh - gap;
+	var rad = Math.min(w, h) * 0.2;
+	var now = performance.now();
+	var idleMode = BOARD_IDLE_STYLE.mode;
+	var idleSpeed = Math.max(0.05, BOARD_IDLE_STYLE.speed);
+	var idleBrightness = BOARD_IDLE_STYLE.brightness;
+	var idleBase = hexToRgb(BOARD_IDLE_STYLE.color);
+	for (var r = 0; r < boardRows; r++) {
+		for (var c = 0; c < boardCols; c++) {
+			if (isRevealed && isRevealed(r, c)) continue;
+			var pos = boardGoAxisPos(mode, r, c, boardRows, boardCols);
+			var dist = Math.abs(pos - frontP);
+			if (dist <= width) {
+				var strength = 1 - dist / width; // 1 at the front's centre, 0 at the band's edge
+				drawGoAnimCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, strength * BOARD_GO_STYLE.brightness, base);
+			} else if (pos > frontP) {
+				// Ahead of the wave — still idling, waiting its turn to be cleared.
+				var idleAlpha = boardIdleCellAlpha(idleMode, r, c, boardRows, boardCols, now, idleSpeed, idleBrightness);
+				if (idleAlpha > 0.015) drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, idleAlpha, idleBase);
+			}
+			// pos < frontP - width: the wave has fully passed — settled, plain, nothing drawn.
+		}
+	}
+	return true;
+}
+
 // Idle board animation, played continuously (no fixed duration, unlike the go sweep above) while
 // waiting for a casual series to start — replaces the old static dim + "Waiting for series to
 // start" text (see the .idle rules removed from style.css) with something that reads as "alive"
@@ -502,6 +548,35 @@ function setBoardIdleActive(active) {
 	if (active) startAnimLoop();
 }
 
+// Per-cell idle brightness (0 = not glowing this frame) for BOARD_IDLE_STYLE's current mode at time
+// `now` — factored out of paintBoardIdleAnimation so paintBoardGoWithIdle (below) can paint idle on a
+// cell-by-cell basis too, for just the cells its sweep hasn't reached yet.
+function boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness) {
+	if (mode === "shimmer") {
+		// A soft diagonal band that loops continuously (unlike the one-shot go sweep it reuses the
+		// axis math from), slow and low-brightness so it reads as ambient, not attention-grabbing.
+		var maxP = boardGoAxisMax("diagonal", boardRows, boardCols);
+		var periodMs = 2600 / speed;
+		var frontP = ((now % periodMs) / periodMs) * (maxP + 6) - 3;
+		var width = 2.5;
+		var dist = Math.abs(boardGoAxisPos("diagonal", r, c, boardRows, boardCols) - frontP);
+		if (dist > width) return 0;
+		return (1 - dist / width) * 0.30 * brightness;
+	}
+	if (mode === "twinkle") {
+		// Each cell's own sine wave, phase-offset by a cheap position hash so they twinkle out of
+		// sync — only the positive half of the wave actually lights up, so most cells sit dark at
+		// any moment and a few softly glow, like a slow starfield.
+		var seed = ((r * 928371 + c * 123457) % 1000) / 1000;
+		var wave = Math.sin((now / 1000) * speed * (0.4 + seed * 0.6) + seed * Math.PI * 2);
+		return Math.max(0, wave) * 0.28 * brightness;
+	}
+	// "breathe": the whole board pulses together, gently, like a slow held breath.
+	var t = (now / 1000) * speed;
+	var intensity = (Math.sin(t * Math.PI * 0.6) + 1) / 2; // 0..1
+	return (0.08 + 0.16 * intensity) * brightness;
+}
+
 // Unlike buildCountdownGlyphState/buildBoardGoAnimState, there's no per-instance state to build —
 // idle just reads performance.now() directly each frame, forever, for as long as boardIdleActive
 // (or, for the lab's own preview, its own local flag) says to keep going.
@@ -514,46 +589,12 @@ function paintBoardIdleAnimation(ctx, sw, sh, boardRows, boardCols, isRevealed) 
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	var w = sw - gap, h = sh - gap;
 	var rad = Math.min(w, h) * 0.2;
-
-	if (mode === "shimmer") {
-		// A soft diagonal band that loops continuously (unlike the one-shot go sweep it reuses the
-		// axis math from), slow and low-brightness so it reads as ambient, not attention-grabbing.
-		var maxP = boardGoAxisMax("diagonal", boardRows, boardCols);
-		var periodMs = 2600 / speed;
-		var frontP = ((now % periodMs) / periodMs) * (maxP + 6) - 3;
-		var width = 2.5;
-		for (var r = 0; r < boardRows; r++) {
-			for (var c = 0; c < boardCols; c++) {
-				if (isRevealed && isRevealed(r, c)) continue;
-				var dist = Math.abs(boardGoAxisPos("diagonal", r, c, boardRows, boardCols) - frontP);
-				if (dist > width) continue;
-				drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, (1 - dist / width) * 0.30 * brightness, base);
-			}
-		}
-	} else if (mode === "twinkle") {
-		// Each cell's own sine wave, phase-offset by a cheap position hash so they twinkle out of
-		// sync — only the positive half of the wave actually lights up, so most cells sit dark at
-		// any moment and a few softly glow, like a slow starfield.
-		for (var r2 = 0; r2 < boardRows; r2++) {
-			for (var c2 = 0; c2 < boardCols; c2++) {
-				if (isRevealed && isRevealed(r2, c2)) continue;
-				var seed = ((r2 * 928371 + c2 * 123457) % 1000) / 1000;
-				var wave = Math.sin((now / 1000) * speed * (0.4 + seed * 0.6) + seed * Math.PI * 2);
-				var tw = Math.max(0, wave) * 0.28 * brightness;
-				if (tw <= 0.015) continue;
-				drawIdleCell(ctx, c2 * sw + gap / 2, r2 * sh + gap / 2, w, h, rad, tw, base);
-			}
-		}
-	} else {
-		// "breathe": the whole board pulses together, gently, like a slow held breath.
-		var t = (now / 1000) * speed;
-		var intensity = (Math.sin(t * Math.PI * 0.6) + 1) / 2; // 0..1
-		var alpha = (0.08 + 0.16 * intensity) * brightness;
-		for (var r3 = 0; r3 < boardRows; r3++) {
-			for (var c3 = 0; c3 < boardCols; c3++) {
-				if (isRevealed && isRevealed(r3, c3)) continue;
-				drawIdleCell(ctx, c3 * sw + gap / 2, r3 * sh + gap / 2, w, h, rad, alpha, base);
-			}
+	for (var r = 0; r < boardRows; r++) {
+		for (var c = 0; c < boardCols; c++) {
+			if (isRevealed && isRevealed(r, c)) continue;
+			var alpha = boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness);
+			if (alpha <= 0.015) continue;
+			drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha, base);
 		}
 	}
 }
@@ -679,8 +720,21 @@ function renderPlayerBoard() {
 			if (typeof drawTerritoryBeams === "function") drawTerritoryBeams(ctx, sw, sh); // territory: offensive beam streaks
 			if (typeof drawTerritoryMissiles === "function") drawTerritoryMissiles(ctx, sw, sh); // territory: bombs in flight
 			drawCountdownGlyph(ctx, sw, sh); // round-start countdown digit
-			if (boardGoAnim && !paintBoardGoAnimation(ctx, sw, sh, rows, cols, boardGoAnim, function(r, c) { return myState[r][c] === KNOWN; })) boardGoAnim = null; // "go" sweep
-			if (boardIdleActive) paintBoardIdleAnimation(ctx, sw, sh, rows, cols, function(r, c) { return myState[r][c] === KNOWN; }); // idle (waiting for series)
+			var isRevealedFn = function(r, c) { return myState[r][c] === KNOWN; };
+			if (boardGoAnim) {
+				// While the sweep is running it OWNS the idle-vs-settled call per cell (see
+				// paintBoardGoWithIdle) regardless of boardIdleActive's own external timing — the sweep
+				// IS the idle-to-ready transition, so it doesn't matter whether whatever toggled idle on
+				// in the first place has already flipped it off by now. Once the sweep finishes, force
+				// idle off too: "the sweep clears the board" should always mean fully settled, everywhere,
+				// not just up to wherever the wave happened to reach.
+				if (!paintBoardGoWithIdle(ctx, sw, sh, rows, cols, boardGoAnim, isRevealedFn)) {
+					boardGoAnim = null;
+					setBoardIdleActive(false);
+				}
+			} else if (boardIdleActive) {
+				paintBoardIdleAnimation(ctx, sw, sh, rows, cols, isRevealedFn); // idle (waiting for series)
+			}
 		});
 		bv.draw();
 	} else {
