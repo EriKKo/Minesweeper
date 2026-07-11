@@ -267,16 +267,6 @@ button.site-nav-link { background: none; border: 0; font-family: inherit; cursor
 	.section-grid { grid-template-columns: 1fr; }
 }
 
-.section-rules {
-	margin: 0;
-	padding-left: 1.2rem;
-	color: var(--muted);
-	line-height: 1.6;
-}
-
-.section-rules li { margin-bottom: 0.35rem; }
-.section-rules strong { color: var(--text); }
-
 /* Profile-specific small bits */
 .profile-summary {
 	display: flex;
@@ -4608,7 +4598,6 @@ body.touch .find-next-arrow { display: inline-flex; }
 	margin-top: 1rem;
 }
 
-.learn-rules { margin-top: 1rem; }
 .learn-lesson { margin-bottom: 1rem; }
 .learn-lesson > summary {
 	cursor: pointer;
@@ -4720,6 +4709,64 @@ body.touch .find-next-arrow { display: inline-flex; }
 	color: var(--muted);
 	font-weight: 700;
 }
+
+/* Mentor-guided lesson: board on the left, an instructor feed on the right — see
+   buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it. */
+.learn-mentor { padding: 1.4rem; }
+.learn-mentor-layout {
+	display: flex;
+	align-items: flex-start;
+	gap: 1.4rem;
+	flex-wrap: wrap;
+}
+.learn-mentor-board-col {
+	flex: 0 0 auto;
+	margin: 0 auto;
+}
+/* The board's own title chip is redundant here — the lesson title lives in the panel instead. */
+.learn-mentor-board-col .learn-puzzle-title { display: none; }
+.learn-mentor-panel {
+	flex: 1 1 300px;
+	min-width: 260px;
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 1rem 1.1rem;
+	align-self: stretch;
+}
+.learn-mentor-title { margin: 0; font-size: 1.05rem; color: var(--text); }
+.learn-mentor-feed {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	overflow-y: auto;
+	max-height: 380px;
+	padding-right: 0.2rem;
+}
+.learn-mentor-msg {
+	font-size: 0.9rem;
+	line-height: 1.55;
+	color: var(--text);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 0.6rem 0.75rem;
+}
+.learn-mentor-msg-hint { border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); }
+.learn-mentor-msg-mistake { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
+.learn-mentor-msg-outro { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); color: var(--text); font-weight: 600; }
+.learn-mentor-hint-btn { align-self: flex-start; }
+.learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 700px) {
+	.learn-mentor-layout { flex-direction: column; }
+	.learn-mentor-panel { width: 100%; }
+	.learn-mentor-feed { max-height: 220px; }
+}
+
 .learn-courses-list {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

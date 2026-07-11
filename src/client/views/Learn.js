@@ -18,104 +18,91 @@ var LEARN_COURSES = [
 	lessons: [
 	{
 		title: "Reading the numbers",
-		idea: "Every number counts the mines in the 8 cells touching it.",
-		how: "Left-click a covered cell to open it. Use the numbers around a cell to tell if it's safe.",
-		demo: {
-			title: "What each number means",
+		board: {
 			rows: 7,
-			cols: 9,
-			mines: [[1,1], [1,2], [1,3], [1,4], [1,5], [2,1], [2,2], [2,5], [3,1], [3,2], [3,3], [3,5], [3,6], [3,7], [4,1], [4,5], [4,7], [5,1], [5,2], [5,3], [5,4], [5,5], [5,6], [5,7]],
+			cols: 13,
+			mines: [[2,2], [2,6], [2,10], [2,11], [5,2], [5,4]],
 			revealAll: true,
-			xray: true,
-			why: "A 1 has one mine next to it. An 8 has eight — every neighbour."
+			covered: [[5,3]]
 		},
-		puzzles: [
-			{
-				title: "Open the only safe cell",
-				rows: 7,
-				cols: 13,
-				mines: [[2,2], [2,6], [2,10], [2,11], [5,2], [5,4]],
-				revealAll: true,
-				covered: [[5,3]],
-				why: "Each ring of 1s circles one mine. The 2s at top-right say two mines sit next to each other. At the bottom, the two 2s above and below the gap mean two mines flank the centre cell — so that centre cell is safe to open. Click it and it reveals a 2."
-			}
-		]
+		intro: [
+			"Every number counts the mines in the 8 cells touching it.",
+			"Only one covered cell on this board is safe. Left-click it to open it."
+		],
+		hints: [
+			"Look at the two 2s directly above and below the covered cell.",
+			"Each of those 2s already touches the mines to its left and right — that's 2 mines accounted for, before you even count the cell between them.",
+			"Neither 2 needs the covered cell — both are already satisfied by a mine elsewhere. That makes it safe. Click it."
+		],
+		mistakes: {
+			mine: "That was one of the mines. Reset and look at the numbers around the covered cell again."
+		},
+		outro: "That's reading the board: every number is a promise about exactly what's around it."
 	},
 	{
 		title: "Flagging mines",
-		idea: "Mark mines with a flag so you don't open them by mistake.",
-		how: "Right-click a covered cell to flag it. Right-click again to remove.",
-		demo: {
-			title: "Marking a mine",
-			rows: 3,
-			cols: 3,
-			mines: [[1,1]],
-			flagged: [[1,1]],
+		board: {
+			rows: 5,
+			cols: 9,
+			mines: [[2,2], [2,6], [2,7]],
 			revealAll: true,
-			xray: true,
-			why: "Every 1 points at the same mine. Right-click to flag it (🚩)."
+			mustFlag: true
 		},
-		puzzles: [
-			{
-				title: "Flag every mine you see",
-				rows: 5,
-				cols: 9,
-				mines: [[2,2], [2,6], [2,7]],
-				revealAll: true,
-				mustFlag: true
-			}
-		]
+		intro: [
+			"Right-click a covered cell to flag it — a mark for a mine you've found, so you don't open it by accident.",
+			"Flag every mine on this board."
+		],
+		hints: [
+			"Every revealed number points at exactly one covered neighbour — that neighbour is the mine it's counting.",
+			"Right-click each covered cell in turn. If you flag the wrong one by mistake, right-click it again to clear it."
+		],
+		mistakes: {
+			wrongFlag: "That covered cell isn't actually a mine — check which cell each number next to it is really pointing at."
+		},
+		outro: "All flagged. Now none of these can catch you by accident."
 	},
 	{
 		title: "Cascades",
-		idea: "Opening an empty cell auto-opens its neighbours. Empty neighbours cascade onward — one click can clear half the board.",
-		how: "Click somewhere far from any number. Empty cells cascade until they hit a clue.",
-		demo: {
-			title: "One click, big reveal",
-			rows: 5,
+		board: {
+			rows: 7,
 			cols: 7,
-			mines: [[0,4], [0,5], [1,4], [1,5]],
-			revealAll: true,
-			covered: [[0,0]],
-			xray: true,
-			why: "One click on the empty corner opened the whole left side."
+			mines: [[0,3], [3,3], [6,2]]
 		},
-		puzzles: [
-			{
-				title: "Clear every safe cell",
-				rows: 7,
-				cols: 7,
-				mines: [[0,3], [3,3], [6,2]],
-				revealStart: [6,0]
-			}
-		]
+		requirements: { minCascades: 1 },
+		intro: [
+			"Opening a cell with no mines touching it auto-opens its neighbours too — and if THEY have no mines touching them either, it keeps going. One click can clear half a board.",
+			"Click somewhere away from the middle of the board and see what happens."
+		],
+		hints: [
+			"The mines are all clustered toward the middle and right — try a corner instead.",
+			"The bottom-left corner is far from every mine here.",
+			"Click the cell in the very bottom-left corner."
+		],
+		mistakes: {
+			mine: "That was a mine. Reset and try a spot further from the middle of the board."
+		},
+		outro: "That's a cascade — one click, and every cell in that whole region had nothing to do with a mine."
 	},
 	{
 		title: "Chord click",
-		idea: "When a number's mines are all flagged, click the number itself to open the rest in one move.",
-		how: "Click any number whose flag count matches its value. Left- or right-click both chord.",
-		demo: {
-			title: "Worked example",
-			rows: 5,
-			cols: 5,
-			mines: [[1,1], [1,3], [3,2]],
-			flagged: [[1,1], [1,3], [3,2]],
-			revealAll: true,
-			covered: [[2,1], [2,3], [3,1], [3,3]],
-			xray: true,
-			why: "The 3 sees three flags. Clicking it opens the other four cells at once."
+		board: {
+			rows: 3,
+			cols: 9,
+			mines: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
+			flagged: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
+			revealed: [[1,1], [1,4], [1,7]],
+			chordOnly: true
 		},
-		puzzles: [
-			{
-				title: "Chord all three",
-				rows: 3,
-				cols: 9,
-				mines: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
-				flagged: [[0,1], [0,4], [0,7], [1,3], [1,6], [1,8]],
-				revealed: [[1,1], [1,4], [1,7]],
-				chordOnly: true
-			}
-		]
+		intro: [
+			"When a number's flags already match its value, click the NUMBER itself to open all its other neighbours in one move — a chord.",
+			"All three numbers here are already satisfied by their flags. Chord each one."
+		],
+		hints: [
+			"Click directly on a revealed number, not on a covered cell.",
+			"Left- or right-click both chord — either works the same way.",
+			"Click each of the three revealed numbers in the middle row."
+		],
+		outro: "Three chords, board cleared — the fastest way to open cells you've already worked out."
 	}
 	]
 },
@@ -650,9 +637,14 @@ function renderLearnCourse(course) {
 
 	// Lesson content. On puzzle-completion we only refresh the stepper + nav so
 	// the lesson card (and its solved puzzle state) stays intact.
+	// Dispatches on lesson shape: `board` means the new mentor-guided format (a single interactive
+	// board coached by an instructor panel — see buildMentorLesson); `puzzles` means the older
+	// prose-plus-practice-puzzles format (buildLearnLesson) that courses not yet ported still use.
+	// Both take the same (lesson, idx, total, onLessonComplete) signature.
 	container.innerHTML = "";
 	var lesson = lessons[learnState.currentLesson];
-	container.appendChild(buildLearnLesson(lesson, learnState.currentLesson, lessons.length, function() {
+	var buildLesson = lesson.board ? buildMentorLesson : buildLearnLesson;
+	container.appendChild(buildLesson(lesson, learnState.currentLesson, lessons.length, function() {
 		if (!completed[learnState.currentLesson]) {
 			completed[learnState.currentLesson] = true;
 			if (courseIsComplete(course.id) && !learnState.completedAt[course.id]) {
@@ -746,6 +738,95 @@ function buildLearnLesson(lesson, idx, total, onLessonComplete) {
 		})(p);
 	}
 	card.appendChild(body);
+	return card;
+}
+
+// Mentor-guided lesson: one interactive board (built with the exact same buildLearnPuzzle every
+// other real board on the site uses — chord/cascade/flag all behave identically, nothing here
+// reimplements them) coached from a text feed instead of surrounded by prose and static demo
+// boards. A lesson object looks like:
+//   board: {...}             — a normal buildLearnPuzzle board spec (rows/cols/mines/revealStart/
+//                               mustFlag/chordOnly/guess/goodGuessCells/...)
+//   requirements: {...}      — optional extra win condition beyond the board's base objective, see
+//                               buildLearnPuzzle's own comment (minCascades/minChords)
+//   intro: "..." | ["...", ...]  — opening message(s), shown immediately
+//   hints: ["...", ...]      — revealed one at a time by the Hint button, most specific last
+//   mistakes: { mine: "...", wrongFlag: "..." }  — shown when that mistake happens (see onMistake)
+//   outro: "..."             — shown once solved
+function buildMentorLesson(lesson, idx, total, onLessonComplete) {
+	var card = document.createElement("div");
+	card.className = "section-card learn-mentor";
+
+	var layout = document.createElement("div");
+	layout.className = "learn-mentor-layout";
+	card.appendChild(layout);
+
+	var boardCol = document.createElement("div");
+	boardCol.className = "learn-mentor-board-col";
+	layout.appendChild(boardCol);
+
+	var panel = document.createElement("div");
+	panel.className = "learn-mentor-panel";
+	layout.appendChild(panel);
+
+	var title = document.createElement("h2");
+	title.className = "learn-mentor-title";
+	title.textContent = lesson.title;
+	panel.appendChild(title);
+
+	var feed = document.createElement("div");
+	feed.className = "learn-mentor-feed";
+	panel.appendChild(feed);
+
+	// Appends one message bubble and scrolls it into view — the feed reads top-to-bottom like a
+	// running conversation, oldest first, so a player can scroll back up to see what they missed.
+	function say(text, kind) {
+		if (!text) return;
+		var msg = document.createElement("div");
+		msg.className = "learn-mentor-msg" + (kind ? " learn-mentor-msg-" + kind : "");
+		msg.textContent = text;
+		feed.appendChild(msg);
+		feed.scrollTop = feed.scrollHeight;
+	}
+
+	var introLines = Array.isArray(lesson.intro) ? lesson.intro : (lesson.intro ? [lesson.intro] : []);
+	introLines.forEach(function(line) { say(line, "intro"); });
+
+	// Hints are opt-in and progressive: each click reveals the next, most specific last. Never
+	// triggered automatically — the player asks for help rather than being interrupted by it.
+	var hints = lesson.hints || [];
+	var hintIdx = 0;
+	var hintBtn = null;
+	if (hints.length) {
+		hintBtn = document.createElement("button");
+		hintBtn.type = "button";
+		hintBtn.className = "btn btn-ghost learn-mentor-hint-btn";
+		hintBtn.textContent = "Hint";
+		hintBtn.addEventListener("click", function() {
+			if (hintIdx >= hints.length) return;
+			say(hints[hintIdx], "hint");
+			hintIdx++;
+			if (hintIdx >= hints.length) hintBtn.disabled = true;
+		});
+		panel.appendChild(hintBtn);
+	}
+
+	var solved = false;
+	function onSolved() {
+		if (solved) return;
+		solved = true;
+		say(lesson.outro, "outro");
+		if (hintBtn) hintBtn.disabled = true;
+		if (typeof onLessonComplete === "function") onLessonComplete();
+	}
+
+	function onMistake(kind, info) {
+		say(lesson.mistakes && lesson.mistakes[kind], "mistake");
+	}
+
+	var puzzle = Object.assign({ title: lesson.title }, lesson.board, { requirements: lesson.requirements });
+	boardCol.appendChild(buildLearnPuzzle(puzzle, !!lesson.guess, onSolved, null, onMistake));
+
 	return card;
 }
 
@@ -861,7 +942,12 @@ function buildLearnDemo(demo) {
 // Interactive puzzle. Mouse + right-click on the canvas drive standard
 // minesweeper interactions through cellFromCanvas (defined in Input.js).
 // Objective is "open all safe cells" by default; mustFlag/guess change it.
-function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
+// Optional puzzle.requirements ({ minCascades, minChords }) adds an extra condition on top of that
+// base objective — e.g. the board must be cleared using at least one real cascade, not just clicked
+// open cell by cell. Optional onMistake(kind, info) — "mine" | "wrongFlag" — is called alongside
+// onFailed (mine hit only) so a caller can react to specific error types, not just "you lost";
+// existing callers that don't pass it are unaffected.
+function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-puzzle";
 	var title = document.createElement("span");
@@ -933,10 +1019,22 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	status.className = "learn-status";
 
 	var puzzleSolved = false, gameOver = false;
+	// Tallies for puzzle.requirements — see the function's own comment above.
+	var cascadeCount = 0, chordCount = 0;
 
 	function setStatus(text, cls) {
 		status.textContent = text;
 		status.className = "learn-status" + (cls ? " " + cls : "");
+	}
+
+	// True once every requirement in puzzle.requirements is met (vacuously true with none set) —
+	// checked ON TOP OF the base clear/flag condition in checkSolved, never instead of it.
+	function requirementsMet() {
+		var req = puzzle.requirements;
+		if (!req) return true;
+		if (typeof req.minCascades === "number" && cascadeCount < req.minCascades) return false;
+		if (typeof req.minChords === "number" && chordCount < req.minChords) return false;
+		return true;
 	}
 
 	function notifySolved() {
@@ -988,6 +1086,7 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 				if (!isMineArr[r][c] && state[r][c] !== REVEALED) allOk = false;
 			}
 		}
+		if (allOk && !requirementsMet()) allOk = false; // cleared, but not the way this lesson asks for
 		if (allOk) {
 			setStatus("Solved! ✓", "ok");
 			notifySolved();
@@ -997,20 +1096,28 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 	}
 
 	function revealCell(r, c) {
+		var openedCount = 0, hitMine = false;
 		BoardLogic.cascadeReveal(r, c, R, C,
 			function(rr, cc) { return state[rr][cc] === COVERED; },
 			function(rr, cc) {
 				state[rr][cc] = REVEALED;
+				openedCount++;
 				if (isMineArr[rr][cc]) {
 					gameOver = true;
+					hitMine = true;
 					setStatus(isGuess ? "Bad guess — the other group has better odds. Reset to try again." : "You hit a mine. Reset to try again.", "warn");
 					if (typeof onFailed === "function") onFailed();
+					if (typeof onMistake === "function") onMistake("mine", { r: rr, c: cc });
 					return true;
 				}
 				return false;
 			},
 			function(rr, cc) { return clueValue[rr][cc]; }
 		);
+		// A cascade is a SINGLE origin click flooding open more than one cell (the 0-clue chain
+		// reaction) — a chord opening several individually-satisfied neighbours calls revealCell once
+		// per cell below, so each of those calls sees openedCount 1 and correctly doesn't count.
+		if (!hitMine && openedCount > 1) cascadeCount++;
 		renderAll();
 	}
 
@@ -1024,11 +1131,15 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 			function(rr, cc) { return state[rr][cc] === COVERED; }
 		);
 		if (cctx.flagCount !== v) return;
+		chordCount++;
 		for (var i = 0; i < cctx.covered.length; i++) revealCell(cctx.covered[i][0], cctx.covered[i][1]);
 	}
 
 	function toggleFlag(r, c) {
-		if (state[r][c] === COVERED) state[r][c] = FLAGGED;
+		if (state[r][c] === COVERED) {
+			state[r][c] = FLAGGED;
+			if (!isMineArr[r][c] && typeof onMistake === "function") onMistake("wrongFlag", { r: r, c: c });
+		}
 		else if (state[r][c] === FLAGGED) state[r][c] = COVERED;
 		else return;
 		renderAll();
@@ -1068,6 +1179,8 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 		buildBoardRenderer();   // rebind the renderer to the fresh state matrix
 		gameOver = false;
 		puzzleSolved = false;
+		cascadeCount = 0;
+		chordCount = 0;
 		solvedTick.textContent = "";
 		setStatus("", "");
 		renderAll();
@@ -1095,7 +1208,9 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed) {
 		flagCell: function(r, c) {
 			if (state[r][c] === COVERED) { state[r][c] = FLAGGED; renderAll(); }
 		},
-		highlight: function(cells) { highlightedCells = cells || null; renderAll(); }
+		highlight: function(cells) { highlightedCells = cells || null; renderAll(); },
+		cascadeCount: function() { return cascadeCount; },
+		chordCount: function() { return chordCount; }
 	};
 
 	return wrap;
