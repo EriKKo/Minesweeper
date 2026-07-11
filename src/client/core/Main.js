@@ -2071,6 +2071,15 @@ function repaintSpectatorView(games) {
 }
 
 socket.on("draw_board", function(data) {
+	// While actively searching for a new ranked match (between startBattleSearch and endBattleSearch)
+	// we're not seated in any room — inRoom is false, currentRoom is null — so a draw_board that still
+	// arrives here can only be a straggler from the room we just left (its leave_room hadn't been
+	// processed server-side yet when that broadcast went out). Painting it would land the PREVIOUS
+	// opponent's real, revealed board onto the game1-5 canvases the new search is about to reuse —
+	// visible for a frame as the new opponent's slot fills, before their own real draw_board (much
+	// later, once a round actually starts) ever arrives. There's nothing legitimate for this handler
+	// to do with a packet that isn't for a room we're actually in, so just drop it.
+	if (rankedSearch) return;
 	var games = data.games;
 	lastGames = games;
 	if (iAmEliminated) latestSpectatorGames = games;
