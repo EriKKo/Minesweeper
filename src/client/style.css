@@ -4712,12 +4712,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 /* Mentor-guided lesson: board on the left, an instructor feed on the right — see
    buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it.
-   Both columns are FIXED size, deliberately: lesson boards range from 3x9 to 7x13, and the feed
-   grows as intro/hint/mistake messages arrive — if either column sized itself to its own content
-   the whole card would jump every time you moved between lessons or the instructor said something
-   new. Instead the board sits in a fixed-height slot (centered — small boards just have breathing
-   room above/below) and the panel is a fixed-height chat window that scrolls internally once its
-   messages overflow. Nothing about the page around the lesson ever moves once it's on screen. */
+   Both columns are FIXED size in BOTH dimensions, deliberately: lesson boards range from 3x9 to
+   7x13 (so their rendered width AND height both vary a lot lesson to lesson), and the feed grows as
+   intro/hint/mistake messages arrive — if either column sized itself to its own content the whole
+   card would jump, vertically or horizontally, every time you moved between lessons or the
+   instructor said something new. Instead the board sits centered in a fixed-size slot (sized to the
+   widest/tallest board across the course, so even the biggest lesson has room and every smaller one
+   just gets breathing space around it) and the panel is a fixed-size chat window that scrolls
+   internally once its messages overflow. Nothing about the page around the lesson ever moves once
+   it's on screen, in either direction. */
 .learn-mentor { padding: 1.4rem; }
 .learn-mentor-layout {
 	display: flex;
@@ -4726,7 +4729,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 	flex-wrap: wrap;
 }
 .learn-mentor-board-col {
-	flex: 0 0 auto;
+	flex: 0 0 460px;
+	max-width: 100%;
 	min-height: 340px;
 	display: flex;
 	align-items: center;
@@ -4775,7 +4779,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 @media (max-width: 700px) {
 	.learn-mentor-layout { flex-direction: column; }
-	.learn-mentor-board-col { min-height: 260px; }
+	.learn-mentor-board-col { flex-basis: auto; width: 100%; min-height: 260px; }
 	.learn-mentor-panel { width: 100%; height: 340px; }
 }
 
