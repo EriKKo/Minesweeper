@@ -4710,89 +4710,65 @@ body.touch .find-next-arrow { display: inline-flex; }
 	font-weight: 700;
 }
 
-/* Mentor-guided lesson: board on the left, a coach + speech bubble on the right — see
-   buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it.
-   Both columns are FIXED size in BOTH dimensions, deliberately: lesson boards range from 3x4 to
-   6x9, so their rendered width AND height both vary lesson to lesson — if the column sized itself
-   to the board's own content the whole card would jump, vertically or horizontally, every time you
-   moved between lessons. Sized to this course's actual widest/tallest board (9 cols, 6 rows) rather
-   than padded out further, and the board is pinned to the RIGHT edge of its slot (not centered) so
-   it sits right up against the panel regardless of its own size, instead of floating in the middle
-   of extra whitespace with the panel further away — the board and the coach explaining it should
-   read as one unit, not two things your eye has to travel between. */
+/* Mentor-guided lesson — see buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these
+   rules are additive to it. Instruction ABOVE the board, not beside it: a side panel splits
+   attention (the board is what you're supposed to be looking at), so the coach + speech bubble sit
+   as a compact strip up top instead. Progress is button-gated (Continue / Try again in
+   .learn-mentor-actions), not automatic, and there's no separate Reset button — see the comment on
+   buildMentorLesson for why. */
 .learn-mentor { padding: 1.4rem; }
-.learn-mentor-layout {
+.learn-mentor-title { margin: 0 0 0.9rem; font-size: 1.05rem; color: var(--text); }
+
+/* Duolingo-style coach: a small mascot (buildCoachAvatar) beside a speech bubble that always shows
+   exactly ONE message, swapped out by say() rather than appended to a log. */
+.learn-mentor-coach {
 	display: flex;
 	align-items: flex-start;
-	gap: 0.6rem;
-	flex-wrap: wrap;
-}
-.learn-mentor-board-col {
-	flex: 0 0 320px;
-	max-width: 100%;
-	min-height: 220px;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	margin: 0 auto;
-}
-/* The board's own title chip is redundant here — the lesson title lives in the panel instead. */
-.learn-mentor-board-col .learn-puzzle-title { display: none; }
-.learn-mentor-panel {
-	flex: 1 1 340px;
-	min-width: 300px;
-	height: 420px;
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	background: var(--surface-2);
-	border: 1px solid var(--border);
-	border-radius: 10px;
-	padding: 1.1rem 1.2rem;
-}
-.learn-mentor-title { margin: 0; font-size: 1.05rem; color: var(--text); flex: 0 0 auto; }
-
-/* Duolingo-style coach: a mascot (buildCoachAvatar) above a speech bubble that always shows exactly
-   ONE message, swapped out by say() rather than appended to a log. */
-.learn-mentor-coach {
-	flex: 1 1 auto;
-	min-height: 0;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.9rem;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
 }
 .learn-mentor-avatar { flex: 0 0 auto; }
+.learn-mentor-bubble-col {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.5rem;
+}
 .learn-mentor-bubble {
 	position: relative;
 	width: 100%;
-	flex: 1 1 auto;
-	min-height: 0;
+	/* Reserves room for a typical 2-3 line message so the common case doesn't shift the board below
+	   it; unusually long text still has somewhere to go (see .learn-mentor-bubble-text's own scroll)
+	   rather than being cut off. */
+	min-height: 4.6rem;
 	display: flex;
+	align-items: center;
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: 14px;
-	padding: 0.9rem 1.1rem;
+	padding: 0.75rem 1rem;
 }
-/* The tail: a rotated square clipped to its own top-left border+background, positioned to poke up
-   out of the bubble toward the avatar above it. inherit (not a repeated color) so it always matches
-   whichever -hint/-mistake/-outro tint is active without restating the colour a third time. */
+/* The tail: a rotated square clipped to its own border+background, poking out toward the avatar to
+   its left. inherit (not a repeated colour) so it always matches whichever -hint/-mistake/-outro
+   tint is active without restating the colour a third time. */
 .learn-mentor-bubble::before {
 	content: "";
 	position: absolute;
-	top: -8px;
-	left: 50%;
-	margin-left: -8px;
-	width: 16px;
-	height: 16px;
+	left: -7px;
+	top: 18px;
+	width: 14px;
+	height: 14px;
 	background: inherit;
 	border-left: inherit;
-	border-top: inherit;
+	border-bottom: inherit;
 	transform: rotate(45deg);
-	border-top-left-radius: 3px;
+	border-bottom-left-radius: 3px;
 }
 .learn-mentor-bubble-text {
 	width: 100%;
+	max-height: 8rem;
 	overflow-y: auto;
 	font-size: 0.95rem;
 	line-height: 1.6;
@@ -4802,15 +4778,32 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-bubble-mistake { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.45); }
 .learn-mentor-bubble-outro { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.45); }
 .learn-mentor-bubble-outro .learn-mentor-bubble-text { font-weight: 600; }
-.learn-mentor-hint-btn { flex: 0 0 auto; align-self: center; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-@media (max-width: 700px) {
-	.learn-mentor-layout { flex-direction: column; }
-	/* Stacked, not side-by-side — nothing to sit flush against, so centre the board like normal. */
-	.learn-mentor-board-col { flex-basis: auto; width: 100%; min-height: 200px; justify-content: center; }
-	.learn-mentor-panel { width: 100%; height: 360px; }
+/* Board sits centred below the coach. Fixed min-height, sized to this course's tallest board (6
+   rows), so switching between lessons with very different board sizes doesn't shift the actions row
+   below it. */
+.learn-mentor-board-col {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 220px;
 }
+/* The board's own title chip and controls (Reset button + status text) are redundant here — the
+   lesson title and the coach bubble already cover both, and this flow has no Reset (see
+   buildMentorLesson's comment — a hard failure shows Try again in .learn-mentor-actions instead). */
+.learn-mentor-board-col .learn-puzzle-title,
+.learn-mentor-board-col .learn-controls { display: none; }
+
+/* Continue / Try again. Reserves its own height even when empty, so a button popping in doesn't
+   visibly resize the card. */
+.learn-mentor-actions {
+	display: flex;
+	justify-content: center;
+	margin-top: 1rem;
+	min-height: 2.6rem;
+}
+.learn-mentor-continue-btn, .learn-mentor-tryagain-btn { min-width: 140px; }
 
 .learn-courses-list {
 	display: grid;

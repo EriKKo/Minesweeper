@@ -827,11 +827,16 @@ function buildCoachAvatar(px) {
 
 // Mentor-guided lesson: a SEQUENCE of interactive boards (each built with the exact same
 // buildLearnPuzzle every other real board on the site uses — chord/cascade/flag all behave
-// identically, nothing here reimplements them), coached by a mascot in a speech bubble
-// Duolingo-style — one message on screen at a time, replaced by whatever's relevant next, rather
-// than a running transcript. Solving a step advances straight to the next one — same panel, just a
-// new board and a new thing to say — so a whole lesson reads as one continuous coaching session with
-// increasingly-many puzzles, not a wall of separate lesson cards to click through. A lesson object:
+// identically, nothing here reimplements them), coached by a mascot in a speech bubble ABOVE the
+// board, Duolingo-style — one message on screen at a time, replaced by whatever's relevant next,
+// rather than a running transcript. Instruction-then-board top-to-bottom, not side by side: with the
+// coach off to the side, attention naturally stays on the board and the text goes unread. Progress
+// is button-gated, not automatic — solving a step shows a Continue button (advancing only stays a
+// deliberate act the player takes, not something that happens mid-click), and a hard failure (a mine
+// hit outside a clickMine step) shows Try again instead of leaving a dead board with no way back in.
+// There's no separate Reset — Try again (on failure) and re-entering a lesson (via the stepper) are
+// the only ways back to a clean board, so there's exactly one way to redo something, not two. A
+// lesson object:
 //   steps: [ {...}, {...} ]  — one entry per board, in order; each entry:
 //     board: {...}             — a normal buildLearnPuzzle board spec (rows/cols/mines/revealStart/
 //                                 mustFlag/chordOnly/clickMine/guess/goodGuessCells/...)
@@ -839,37 +844,29 @@ function buildCoachAvatar(px) {
 //     intro: "..." | ["...", ...]  — what the coach says when this step loads (joined into one bubble)
 //     hints: ["...", ...]      — revealed one at a time by the Hint button, most specific last
 //     mistakes: { mine: "...", wrongFlag: "..." }  — shown when that mistake happens
-//     outro: "..."             — shown once this step is solved, before advancing
+//     outro: "..."             — shown once this step is solved, before Continue advances
 function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 	var card = document.createElement("div");
 	card.className = "section-card learn-mentor";
 
-	var layout = document.createElement("div");
-	layout.className = "learn-mentor-layout";
-	card.appendChild(layout);
-
-	var boardCol = document.createElement("div");
-	boardCol.className = "learn-mentor-board-col";
-	layout.appendChild(boardCol);
-
-	var panel = document.createElement("div");
-	panel.className = "learn-mentor-panel";
-	layout.appendChild(panel);
-
 	var title = document.createElement("h2");
 	title.className = "learn-mentor-title";
 	title.textContent = lesson.title;
-	panel.appendChild(title);
+	card.appendChild(title);
 
 	var coach = document.createElement("div");
 	coach.className = "learn-mentor-coach";
-	panel.appendChild(coach);
+	card.appendChild(coach);
 
-	coach.appendChild(buildCoachAvatar(96));
+	coach.appendChild(buildCoachAvatar(64));
+
+	var bubbleCol = document.createElement("div");
+	bubbleCol.className = "learn-mentor-bubble-col";
+	coach.appendChild(bubbleCol);
 
 	var bubble = document.createElement("div");
 	bubble.className = "learn-mentor-bubble";
-	coach.appendChild(bubble);
+	bubbleCol.appendChild(bubble);
 
 	var bubbleText = document.createElement("div");
 	bubbleText.className = "learn-mentor-bubble-text";
@@ -884,6 +881,14 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 		bubble.className = "learn-mentor-bubble" + (kind ? " learn-mentor-bubble-" + kind : "");
 	}
 
+	var boardCol = document.createElement("div");
+	boardCol.className = "learn-mentor-board-col";
+	card.appendChild(boardCol);
+
+	var actions = document.createElement("div");
+	actions.className = "learn-mentor-actions";
+	card.appendChild(actions);
+
 	var steps = lesson.steps || [];
 	var stepIdx = 0;
 	var hintBtn = null; // rebuilt fresh per step, since each step has its own hints[]
@@ -891,6 +896,7 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 	function loadStep(i) {
 		stepIdx = i;
 		var step = steps[i];
+		actions.innerHTML = "";
 
 		var introLines = Array.isArray(step.intro) ? step.intro : (step.intro ? [step.intro] : []);
 		say(introLines.join(" "), "intro");
@@ -909,17 +915,40 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 				hintIdx++;
 				if (hintIdx >= hints.length) hintBtn.disabled = true;
 			});
-			panel.appendChild(hintBtn);
+			bubbleCol.appendChild(hintBtn);
 		}
 
 		function onStepSolved() {
 			say(step.outro, "outro");
 			if (hintBtn) hintBtn.disabled = true;
-			if (i + 1 < steps.length) {
-				loadStep(i + 1);
-			} else if (typeof onLessonComplete === "function") {
-				onLessonComplete();
-			}
+			var btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "btn btn-primary learn-mentor-continue-btn";
+			btn.textContent = "Continue";
+			btn.addEventListener("click", function() {
+				if (i + 1 < steps.length) {
+					loadStep(i + 1);
+				} else {
+					actions.innerHTML = "";
+					if (typeof onLessonComplete === "function") onLessonComplete();
+				}
+			});
+			actions.innerHTML = "";
+			actions.appendChild(btn);
+			btn.focus();
+		}
+		function onStepFailed() {
+			var btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "btn btn-secondary learn-mentor-tryagain-btn";
+			btn.textContent = "Try again";
+			// Simplest correct reset: reload this exact step from scratch — a fresh buildLearnPuzzle
+			// instance, fresh hint progress, the intro said again — rather than trying to surgically
+			// rewind the old one's internal state.
+			btn.addEventListener("click", function() { loadStep(i); });
+			actions.innerHTML = "";
+			actions.appendChild(btn);
+			btn.focus();
 		}
 		function onStepMistake(kind, info) {
 			say(step.mistakes && step.mistakes[kind], "mistake");
@@ -927,7 +956,7 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 
 		boardCol.innerHTML = "";
 		var puzzle = Object.assign({ title: lesson.title }, step.board, { requirements: step.requirements });
-		boardCol.appendChild(buildLearnPuzzle(puzzle, !!step.guess, onStepSolved, null, onStepMistake));
+		boardCol.appendChild(buildLearnPuzzle(puzzle, !!step.guess, onStepSolved, onStepFailed, onStepMistake));
 	}
 
 	if (steps.length) loadStep(0);
