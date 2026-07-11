@@ -805,8 +805,6 @@ function buildCoachAvatar(px) {
 	ctx.fillStyle = g; ctx.fill();
 	ctx.lineWidth = Math.max(1, px * 0.015);
 	ctx.strokeStyle = "rgba(148,163,184,0.45)"; ctx.stroke();
-	ctx.beginPath(); ctx.arc(cx - rad * 0.34, cy - rad * 0.36, rad * 0.26, 0, Math.PI * 2);
-	ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fill();
 
 	// Face: two round eyes + a curved smile — this is the only thing that distinguishes it from
 	// the plain in-game mine icon, so it carries all of the "friendly" reading.

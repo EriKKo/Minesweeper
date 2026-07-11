@@ -4710,31 +4710,30 @@ body.touch .find-next-arrow { display: inline-flex; }
 	font-weight: 700;
 }
 
-/* Mentor-guided lesson: board on the left, an instructor feed on the right — see
+/* Mentor-guided lesson: board on the left, a coach + speech bubble on the right — see
    buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it.
-   Both columns are FIXED size in BOTH dimensions, deliberately: lesson boards range from 3x9 to
-   7x13 (so their rendered width AND height both vary a lot lesson to lesson), and the feed grows as
-   intro/hint/mistake messages arrive — if either column sized itself to its own content the whole
-   card would jump, vertically or horizontally, every time you moved between lessons or the
-   instructor said something new. Instead the board sits centered in a fixed-size slot (sized to the
-   widest/tallest board across the course, so even the biggest lesson has room and every smaller one
-   just gets breathing space around it) and the panel is a fixed-size chat window that scrolls
-   internally once its messages overflow. Nothing about the page around the lesson ever moves once
-   it's on screen, in either direction. */
+   Both columns are FIXED size in BOTH dimensions, deliberately: lesson boards range from 3x4 to
+   6x9, so their rendered width AND height both vary lesson to lesson — if the column sized itself
+   to the board's own content the whole card would jump, vertically or horizontally, every time you
+   moved between lessons. Sized to this course's actual widest/tallest board (9 cols, 6 rows) rather
+   than padded out further, and the board is pinned to the RIGHT edge of its slot (not centered) so
+   it sits right up against the panel regardless of its own size, instead of floating in the middle
+   of extra whitespace with the panel further away — the board and the coach explaining it should
+   read as one unit, not two things your eye has to travel between. */
 .learn-mentor { padding: 1.4rem; }
 .learn-mentor-layout {
 	display: flex;
 	align-items: flex-start;
-	gap: 1.4rem;
+	gap: 0.6rem;
 	flex-wrap: wrap;
 }
 .learn-mentor-board-col {
-	flex: 0 0 460px;
+	flex: 0 0 320px;
 	max-width: 100%;
-	min-height: 340px;
+	min-height: 220px;
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-end;
 	margin: 0 auto;
 }
 /* The board's own title chip is redundant here — the lesson title lives in the panel instead. */
@@ -4808,7 +4807,8 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 @media (max-width: 700px) {
 	.learn-mentor-layout { flex-direction: column; }
-	.learn-mentor-board-col { flex-basis: auto; width: 100%; min-height: 260px; }
+	/* Stacked, not side-by-side — nothing to sit flush against, so centre the board like normal. */
+	.learn-mentor-board-col { flex-basis: auto; width: 100%; min-height: 200px; justify-content: center; }
 	.learn-mentor-panel { width: 100%; height: 360px; }
 }
 
