@@ -20,13 +20,17 @@ var LEARN_COURSES = [
 		title: "Revealing cells",
 		steps: [
 		{
-			// Deliberately backwards: before explaining "avoid mines," let the player see one and
-			// click it on purpose, risk-free, so "mine" is a concrete thing they've seen rather than
-			// an abstract warning.
-			board: { rows: 3, cols: 3, mines: [[1,1]], clickMine: true },
+			// One mine dead centre on a 5x5 board: any corner cascades open the ENTIRE rest of the
+			// board in one click (verified — a single click leaves only the mine covered), so this one
+			// board demonstrates both a cascade AND a mine in the same puzzle. Deliberately backwards
+			// on the mine itself: before explaining "avoid mines," let the player click it on purpose,
+			// risk-free, so "mine" is a concrete thing they've seen rather than an abstract warning.
+			// Reused (see the "Flagging cells" lesson below) with the objective swapped to mustFlag
+			// instead of clickMine — same board, same cascade, the new skill applied to it.
+			board: { rows: 5, cols: 5, mines: [[2,2]], clickMine: true },
 			intro: [
-				"Left-click a covered cell to reveal what's underneath.",
-				"This one's a mine. Click the middle cell to see what happens."
+				"Left-click a covered cell to reveal what's underneath. Try one of the corners.",
+				"That opened up the whole board except one cell — that's a mine. Click it to see what happens."
 			],
 			outro: "That's a mine. Click one of these in a real game and it's over — the rest of this course is about spotting them before you do."
 		}
@@ -36,17 +40,14 @@ var LEARN_COURSES = [
 		title: "Flagging cells",
 		steps: [
 		{
-			board: { rows: 3, cols: 5, mines: [[1,2]], revealAll: true, mustFlag: true },
+			// Same 5x5 board as "Revealing cells" — the cascade is already applied (revealStart)
+			// since that lesson already covered clicking a corner to open it; here the only thing
+			// left to do is flag the one covered cell instead of clicking it.
+			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], mustFlag: true },
 			intro: [
 				"Right-click a covered cell to flag it — a mark for a mine you've found, so you don't open it by accident. Right-click again to remove a flag.",
-				"Flag the mine."
+				"Same board as last time, already opened up. Flag the one cell that's still covered."
 			],
-			hints: [
-				"Every revealed number here points at the same one covered cell — that's your mine."
-			],
-			mistakes: {
-				wrongFlag: "That cell isn't the mine — check which covered cell the numbers are actually pointing at."
-			},
 			outro: "Flagged — that's your second basic move. Now let's put revealing and flagging together."
 		}
 		]
