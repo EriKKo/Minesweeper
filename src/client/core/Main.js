@@ -2275,36 +2275,38 @@ function showLobbyMessage(text) {
 	}, 4000);
 }
 
+// The single place that resets every piece of battle-layout UI a live match frame (draw_board /
+// room_state) can paint, but never itself un-paints — canvases, names, progress bars, the leader
+// glow, finish stamps. All of that is written incrementally, frame over frame, keyed by DOM element
+// (game1-5, player_div, .opponent_div) or plain module state (lastGames) that a NEW match's client
+// code just reuses rather than recreating — nothing about receiving draw_board ever asks "is this
+// still the same match as last frame's?", so anything it sets just rides silently into whatever
+// shows up next unless something explicitly clears it first. That's the actual shape every one of
+// the "stale opponent board / stale leader glow / stale progress bar" bugs turned out to be: not a
+// missing clear at the SPECIFIC moment each symptom was noticed, but this whole category of frame-
+// painted state having no single reset point. This is that point — called at the start of both a
+// fresh search (startBattleSearch) and a newly joined room (joined_room), the two moments a new
+// match's UI begins, before its own first live frame has arrived to overwrite anything.
 function resetGameUI() {
 	readyButton.style.display = "";
 	hideOverlay();
 	clearFreeze();
 	stopRoundTimer();
 	resetBoardAnimations();
+	clearPlaceBadges(); // finish-place stamps (1st/2nd/…) from the last round/match
 	lastScores = {};
 	lastFinished = {};
-	// The actual source of the "flashes with the previous opponent's board" bug: lastGames is only
-	// ever written by draw_board, never cleared, so it silently outlives the match it came from. It's
-	// mostly harmless while nothing reads it — but MobileLayout.js's refreshPlayerBoardSize repaints
-	// game1 straight from lastGames[1].state on any resize-triggered layout pass, with no check that
-	// it's still THIS match's data. resetGameUI runs at the start of both a fresh search
-	// (startBattleSearch) and a newly joined room (joined_room) — exactly the window where a duel
-	// canvas can be live (myState already covered, isDuoRacing() already true) while lastGames still
-	// holds the last opponent's real, revealed board. Clearing it here means that repaint has nothing
-	// stale to fall back on until this match's own draw_board actually arrives.
-	lastGames = null;
+	lastGames = null; // see MobileLayout.js's refreshPlayerBoardSize — repaints game1 straight from this
+	setDuelBar("duel_bar_you", 0);
+	setDuelBar("duel_bar_opp", 0);
 	for (var i = 0; i < 6; i++) {
-		document.getElementById("player_name" + i).textContent = "";
+		setHudName(document.getElementById("player_name" + i), null);
 		clearCanvas(document.getElementById("game" + i));
 	}
 	var slots = document.querySelectorAll('[data-slot]');
 	for (var j = 0; j < slots.length; j++) {
 		slots[j].style.display = "none";
-		// Same staleness bug as lastGames above: updateDuelHud/updateMultiHud only ever toggle these
-		// on a draw_board frame, so the last match's leader glow / finished ribbon otherwise rides
-		// straight through a fresh search or a newly joined room until this match's own first frame
-		// eventually overwrites it.
-		slots[j].classList.remove("leading", "finished");
+		slots[j].classList.remove("leading", "finished"); // set by updateDuelHud/updateMultiHud, never unset
 	}
 	document.getElementById("player_div").classList.remove("leading");
 }
