@@ -62,28 +62,6 @@ var LEARN_COURSES = [
 		outro: "All flagged. Now none of these can catch you by accident."
 	},
 	{
-		title: "Cascades",
-		board: {
-			rows: 7,
-			cols: 7,
-			mines: [[0,3], [3,3], [6,2]]
-		},
-		requirements: { minCascades: 1 },
-		intro: [
-			"Opening a cell with no mines touching it auto-opens its neighbours too — and if THEY have no mines touching them either, it keeps going. One click can clear half a board.",
-			"Click somewhere away from the middle of the board and see what happens."
-		],
-		hints: [
-			"The mines are all clustered toward the middle and right — try a corner instead.",
-			"The bottom-left corner is far from every mine here.",
-			"Click the cell in the very bottom-left corner."
-		],
-		mistakes: {
-			mine: "That was a mine. Reset and try a spot further from the middle of the board."
-		},
-		outro: "That's a cascade — one click, and every cell in that whole region had nothing to do with a mine."
-	},
-	{
 		title: "Chord click",
 		board: {
 			rows: 3,
