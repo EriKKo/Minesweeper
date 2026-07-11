@@ -329,17 +329,21 @@ function countdownLabStart() {
 }
 
 // Digit tab loop: mirrors countDown/countdownDigitCycle in Overlay.js — the SAME architecture (one
-// authoritative timer sized to the sequence's natural length, decorative sweep+digits layered on
-// top and cut off if they'd run long) — but with the lab's own state instead of the real game's, and
-// looping forever instead of firing once. naturalCountdownTotalMs (Animations.js) is exactly what
-// solo uses too, since neither has a server deadline to defer to.
+// authoritative timer sized to the sequence's natural length; the sweep plays immediately, the
+// digit cycle is timed backwards from the deadline so it lands exactly on it) — but with the lab's
+// own state instead of the real game's, and looping forever instead of firing once.
+// naturalCountdownTotalMs (Animations.js) is exactly what solo uses too, since neither has a server
+// deadline to defer to.
 function countdownLabDigitLoop() {
-	countdownLabGoAnim = buildBoardGoAnimState();
+	countdownLabGoAnim = buildBoardGoAnimState(); // sweep starts right away, same as the real countDown
 	if (!countdownLabRAF) countdownLabDrawLoop();
-	countdownLabSweepTimer = setTimeout(function() { countdownLabDigitCycle(3); }, boardGoTotalMs());
+	var totalMs = naturalCountdownTotalMs();
+	var digitsMs = countdownTickMs() * 3;
+	var digitLeadDelay = Math.max(0, totalMs - digitsMs);
+	countdownLabSweepTimer = setTimeout(function() { countdownLabDigitCycle(3); }, digitLeadDelay);
 	countdownLabGoTimer = setTimeout(function() {
 		countdownLabSeqTimer = setTimeout(countdownLabDigitLoop, 700); // breather, then repeat
-	}, naturalCountdownTotalMs());
+	}, totalMs);
 }
 
 // Purely decorative — mirrors countdownDigitCycle in Overlay.js. Doesn't determine when the cycle
