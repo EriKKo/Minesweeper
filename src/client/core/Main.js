@@ -1667,9 +1667,6 @@ function setCoveredBoard() {
 		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
 	}
 	prevPlayerState = cloneState(myState);
-	// Flag this round's opening cascade (the next draw_board that actually reveals cells) to skip
-	// its ripple stagger — see pendingRoundStartReveal's comment in Animations.js.
-	if (typeof pendingRoundStartReveal !== "undefined") pendingRoundStartReveal = true;
 	renderPlayerBoard();
 	if (isBattleRacing()) {
 		paintOpponentCovered(); // battle: show the opponents' boards covered too

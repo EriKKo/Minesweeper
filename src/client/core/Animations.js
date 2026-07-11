@@ -8,14 +8,6 @@ var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
 var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
 var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
-// Set by setCoveredBoard() (Main.js) whenever the board resets to fully covered ahead of a round —
-// consumed by the very next queueRevealAnimations call, which is always that round's opening
-// cascade landing over draw_board. Opponent thumbnails paint their revealed state instantly
-// (drawBoardStatic has no animation), so staggering our OWN copy of that same reveal — the ripple
-// effect queueRevealAnimations normally gives an in-game cascade — made it look like the opponent's
-// board opened first, even though both arrive in the exact same packet. Skipped only for this one
-// reveal; a cascade the player triggers themselves mid-round still ripples normally.
-var pendingRoundStartReveal = false;
 
 // Round-start countdown, drawn ON the board itself instead of a text overlay on top of it: a
 // blocky digit (3/2/1) formed from a patch of cells near the board's centre, filled dark and
@@ -800,20 +792,16 @@ function queueRevealAnimations(newState) {
 			for (var i = 0; i < revealed.length; i++) { sr += revealed[i][0]; sc += revealed[i][1]; }
 			origin = { r: sr / revealed.length, c: sc / revealed.length };
 		}
-		// See pendingRoundStartReveal's own comment (top of file) for why this one reveal skips the
-		// ripple stagger.
-		var stagger = pendingRoundStartReveal ? 0 : STAGGER_MS;
 		for (var j = 0; j < revealed.length; j++) {
 			var rr = revealed[j][0], cc = revealed[j][1];
 			var d = Math.hypot(rr - origin.r, cc - origin.c);
-			var delay = Math.min(d * stagger, STAGGER_CAP);
+			var delay = Math.min(d * STAGGER_MS, STAGGER_CAP);
 			var isMine = boardCell(rr, cc) === MINE;
 			if (isMine) hitMine = true; else safeRevealed++;
 			cellAnims[rr + "," + cc] = { type: isMine ? "mine" : "reveal", start: now + delay };
 		}
 		if (hitMine) triggerShake();
 	}
-	pendingRoundStartReveal = false;
 	if (safeRevealed > 0) sound.cascade(safeRevealed);
 	if (hitMine) sound.mine();
 	if (newlyFlagged > 0) sound.flag();
