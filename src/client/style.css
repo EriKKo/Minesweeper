@@ -4711,7 +4711,13 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 
 /* Mentor-guided lesson: board on the left, an instructor feed on the right — see
-   buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it. */
+   buildMentorLesson in Learn.js. .learn-mentor is a .section-card; these rules are additive to it.
+   Both columns are FIXED size, deliberately: lesson boards range from 3x9 to 7x13, and the feed
+   grows as intro/hint/mistake messages arrive — if either column sized itself to its own content
+   the whole card would jump every time you moved between lessons or the instructor said something
+   new. Instead the board sits in a fixed-height slot (centered — small boards just have breathing
+   room above/below) and the panel is a fixed-height chat window that scrolls internally once its
+   messages overflow. Nothing about the page around the lesson ever moves once it's on screen. */
 .learn-mentor { padding: 1.4rem; }
 .learn-mentor-layout {
 	display: flex;
@@ -4721,13 +4727,18 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .learn-mentor-board-col {
 	flex: 0 0 auto;
+	min-height: 340px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	margin: 0 auto;
 }
 /* The board's own title chip is redundant here — the lesson title lives in the panel instead. */
 .learn-mentor-board-col .learn-puzzle-title { display: none; }
 .learn-mentor-panel {
-	flex: 1 1 300px;
-	min-width: 260px;
+	flex: 1 1 340px;
+	min-width: 300px;
+	height: 560px;
 	display: flex;
 	flex-direction: column;
 	gap: 0.7rem;
@@ -4735,18 +4746,19 @@ body.touch .find-next-arrow { display: inline-flex; }
 	border: 1px solid var(--border);
 	border-radius: 10px;
 	padding: 1rem 1.1rem;
-	align-self: stretch;
 }
-.learn-mentor-title { margin: 0; font-size: 1.05rem; color: var(--text); }
+.learn-mentor-title { margin: 0; font-size: 1.05rem; color: var(--text); flex: 0 0 auto; }
 .learn-mentor-feed {
+	flex: 1 1 auto;
+	min-height: 0; /* let the flex child actually shrink to the panel's fixed height, not overflow it */
 	display: flex;
 	flex-direction: column;
 	gap: 0.6rem;
 	overflow-y: auto;
-	max-height: 380px;
 	padding-right: 0.2rem;
 }
 .learn-mentor-msg {
+	flex: 0 0 auto;
 	font-size: 0.9rem;
 	line-height: 1.55;
 	color: var(--text);
@@ -4758,13 +4770,13 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-msg-hint { border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); }
 .learn-mentor-msg-mistake { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
 .learn-mentor-msg-outro { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); color: var(--text); font-weight: 600; }
-.learn-mentor-hint-btn { align-self: flex-start; }
+.learn-mentor-hint-btn { flex: 0 0 auto; align-self: flex-start; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 @media (max-width: 700px) {
 	.learn-mentor-layout { flex-direction: column; }
-	.learn-mentor-panel { width: 100%; }
-	.learn-mentor-feed { max-height: 220px; }
+	.learn-mentor-board-col { min-height: 260px; }
+	.learn-mentor-panel { width: 100%; height: 340px; }
 }
 
 .learn-courses-list {
