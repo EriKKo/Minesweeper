@@ -1550,12 +1550,12 @@ function updateBattleSearch() {
 function endBattleSearch() {
 	rankedSearch = null;
 	if (battleSearchStatus) battleSearchStatus.style.display = "none";
-	// The match has formed (or the search was cancelled) — either way we're no longer "waiting for
-	// players to join". room_state's own renderRoomState takes over the idle decision from here for
-	// an actual room; territory/tournament roster overlays never turned this on in the first place.
-	var playerDiv = document.getElementById("player_div");
-	if (playerDiv) playerDiv.classList.remove("idle");
-	if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
+	// Deliberately does NOT touch idle here. When the match has just formed, room_state's own
+	// renderRoomState is about to take over the idle decision for the real room — and it now stays on
+	// straight through the room's own planning phase (see its comment), so turning it off here first
+	// would just be an off-then-immediately-back-on flicker instead of one continuous animation right
+	// up to the go sweep. When the search was cancelled instead, the caller (cancelBattleSearch) always
+	// follows this with teardownRoomUI, which is the one place that actually turns idle off for good.
 }
 // Leave an in-battle search (the "Exit game" button while still searching): cancel the queue and bail.
 function cancelBattleSearch() {
@@ -1612,6 +1612,13 @@ function teardownRoomUI(toHome) {
 	elimPanelDismissed = false;
 	roundStartTime = 0;
 	setDanger(false);
+	// The one place that actually stops idle for good: renderRoomState (GameRoom.js) and
+	// startBattleSearch both leave it running right up to the go sweep taking over, on the assumption
+	// a round really is coming — but if we're leaving instead (room, search, or match), no sweep is
+	// ever going to arrive to hand off from, so it has to be turned off directly here.
+	var playerDiv = document.getElementById("player_div");
+	if (playerDiv) playerDiv.classList.remove("idle");
+	if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
 	teardownMatchSocket(); // close any per-match game-server connection (split); no-op in the monolith
 	if (toHome) navigate("/"); else applyRouteFromHash();
 }

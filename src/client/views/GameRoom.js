@@ -279,15 +279,17 @@ function renderRoomState(state) {
 	// should never go idle). Was previously also gated on `location.pathname === "/"`, which broke
 	// idle for every custom room joined from /custom (the whole custom-lobby flow never navigates the
 	// URL to "/" — showGameView() just swaps which view is visible) — that gate never matched, so
-	// idle silently never activated for casual custom rooms. Toggle while waiting for players to JOIN
-	// (same threshold as the "Waiting for more players to join…" status text below), not the whole
-	// planning phase — once there are enough players, the room is just waiting on Ready clicks,
-	// which isn't "idle" the same way an under-filled room is.
+	// idle silently never activated for casual custom rooms. Stays on through the WHOLE planning
+	// phase now, not just the under-filled stretch — waiting on players to join and waiting on Ready
+	// clicks read the same visually, and cutting it off the moment enough players show up left a dead,
+	// static gap between "idle stops" and "the go sweep starts" instead of one continuous transition.
+	// The sweep (Animations.js, paintBoardGoWithIdle) is what actually turns it off now, by settling
+	// into it as the round starts. Actually leaving the room is handled by teardownRoomUI, not here.
 	var inTerritory = (typeof territoryActive !== "undefined" && territoryActive);
-	var waitingForPlayers = state.phase === "planning" && state.players.length < 2;
+	var stillPlanning = state.phase === "planning";
 	if (!inTerritory) {
-		document.getElementById("player_div").classList.toggle("idle", waitingForPlayers);
-		if (typeof setBoardIdleActive === "function") setBoardIdleActive(waitingForPlayers);
+		document.getElementById("player_div").classList.toggle("idle", stillPlanning);
+		if (typeof setBoardIdleActive === "function") setBoardIdleActive(stillPlanning);
 	} else {
 		document.getElementById("player_div").classList.remove("idle");
 		if (typeof setBoardIdleActive === "function") setBoardIdleActive(false);
