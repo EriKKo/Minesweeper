@@ -12,12 +12,12 @@
 // by this technique). Guess puzzles use G (lower-risk guess) / B (higher-risk).
 var LEARN_COURSES = [
 {
-	id: "rules",
-	title: "Rules of the game",
+	id: "basics",
+	title: "The Basics",
 	sub: "How to play. Every move you can make.",
 	lessons: [
 	{
-		title: "The basics",
+		title: "Revealing cells",
 		steps: [
 		{
 			// Deliberately backwards: before explaining "avoid mines," let the player see one and
@@ -25,26 +25,16 @@ var LEARN_COURSES = [
 			// an abstract warning.
 			board: { rows: 3, cols: 3, mines: [[1,1]], clickMine: true },
 			intro: [
-				"This is a mine. Click the middle cell to see what happens."
+				"Left-click a covered cell to reveal what's underneath.",
+				"This one's a mine. Click the middle cell to see what happens."
 			],
 			outro: "That's a mine. Click one of these in a real game and it's over — the rest of this course is about spotting them before you do."
-		},
-		{
-			board: { rows: 3, cols: 4, mines: [[1,1]], revealAll: true, covered: [[0,2]] },
-			intro: [
-				"Every number counts the mines in the 8 cells touching it.",
-				"Two cells are still covered — one's the mine, one's safe. Work out which is which, then open the safe one."
-			],
-			hints: [
-				"Look at the '1' in the middle row, on the far left — how many covered cells does it actually touch?",
-				"Just one — so that covered cell, in the middle row, has to be the mine.",
-				"Now look at the '1' in the top row — it's already explained by that same mine, so ITS remaining covered neighbour has to be safe. Click the covered cell in the top row."
-			],
-			mistakes: {
-				mine: "That was the mine. Reset and check the '1's around both covered cells again."
-			},
-			outro: "That's reading the board — no guessing, the numbers already told you everything."
-		},
+		}
+		]
+	},
+	{
+		title: "Flagging cells",
+		steps: [
 		{
 			board: { rows: 3, cols: 5, mines: [[1,2]], revealAll: true, mustFlag: true },
 			intro: [
@@ -57,7 +47,28 @@ var LEARN_COURSES = [
 			mistakes: {
 				wrongFlag: "That cell isn't the mine — check which covered cell the numbers are actually pointing at."
 			},
-			outro: "Flagged. Now let's try that with more than one mine."
+			outro: "Flagged — that's your second basic move. Now let's put revealing and flagging together."
+		}
+		]
+	},
+	{
+		title: "Simple deductions",
+		steps: [
+		{
+			board: { rows: 3, cols: 4, mines: [[1,1]], revealAll: true, covered: [[0,2]] },
+			intro: [
+				"Every number counts the mines in the 8 cells touching it — that's how you tell safe from dangerous without guessing.",
+				"Two cells are still covered here — one's a mine, one's safe. Work out which is which, then open the safe one."
+			],
+			hints: [
+				"Look at the '1' in the middle row, on the far left — how many covered cells does it actually touch?",
+				"Just one — so that covered cell, in the middle row, has to be the mine.",
+				"Now look at the '1' in the top row — it's already explained by that same mine, so ITS remaining covered neighbour has to be safe. Click the covered cell in the top row."
+			],
+			mistakes: {
+				mine: "That was the mine. Reset and check the '1's around both covered cells again."
+			},
+			outro: "That's reading the board — no guessing, the numbers already told you everything."
 		},
 		{
 			board: { rows: 5, cols: 7, mines: [[1,1], [3,5]], revealAll: true, mustFlag: true },
@@ -92,12 +103,12 @@ var LEARN_COURSES = [
 			mistakes: {
 				wrongFlag: "That cell isn't one of the four mines — check the numbers bordering it again."
 			},
-			outro: "That's the whole toolkit so far: read a number, find what it's missing, flag it — however many mines are on the board."
+			outro: "That's the whole toolkit so far: read a number, find what it's missing, flag it — however many mines are on the board. Next up: a shortcut for opening cells faster."
 		}
 		]
 	},
 	{
-		title: "Chord click",
+		title: "Chord clicks",
 		steps: [
 		{
 			board: {
