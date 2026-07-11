@@ -1653,38 +1653,58 @@ socket.on("territory_start", function(data) { if (typeof territoryStart === "fun
 socket.on("territory_board", function(data) { if (typeof territoryBoard === "function") territoryBoard(data); });
 socket.on("territory_result", function(data) { if (typeof territoryResult === "function") territoryResult(data); });
 
-// Set by setCoveredBoard() whenever the board resets to fully covered ahead of a round — consumed
-// by the very next draw_board, which is always that round's opening reveal. Our own board's reveal
-// ripples outward from the cascade origin over real time (queueRevealAnimations' stagger — kept, on
-// purpose, it's a nice effect for a cascade the player triggers mid-round too), while an opponent's
-// thumbnail (drawBoardStatic) just paints their revealed state instantly with no animation. Both
-// arrive in the very same draw_board packet, so without this an opponent's board would visibly snap
-// open while ours is still mid-ripple, reading as "they started before us" even though the data
-// landed at the same instant. Deferring the opponent paint by one animation frame — just long enough
-// for our own reveal to have actually started painting — fixes the ordering without touching our
-// own animation at all.
+// Tournament-thumbnail fallback: opponent identity there is picked by live progress, so unlike the
+// battle layout (see pendingLocalRoundReveal below) there's no fixed roster to predict a reveal
+// against ahead of time — the reveal has to wait for the real draw_board regardless. Deferring the
+// opponent's paint by one animation frame at least guarantees it doesn't land in an EARLIER frame
+// than our own board's (which the pendingLocalRoundReveal path below already painted, win or lose the
+// race), even though it still can't get our own board's ripple.
 var deferOpponentReveal = false;
 function deferOpponentDraw(canvasEl, state, skin) {
 	requestAnimationFrame(function() { drawBoardStatic(state, canvasEl, skin); });
 }
 
-// The one-frame defer above still helps the tournament-thumbnail layout (opponent identity there is
-// picked by live progress, so there's no fixed roster to predict against before the first real
-// packet). For the battle layouts (duo/multi) the roster IS already known ahead of time, so we don't
-// need to wait on the network at all: every player in the round shares the exact same board layout
-// ("Players share one shared no-guess map this round"), so the opening cascade — the patch of cells
-// the centre reveal floods open — is the SAME deterministic set of cells for every board. Compute it
-// locally with the same BoardLogic.cascadeReveal Input.js already uses for click prediction (proven
-// to match the server's own dfs exactly, from the same decoded board), and paint every board — ours
-// AND every opponent's — from that ONE shared computation, at the exact instant our own synced GO
-// timer fires. This is the actual fix for "opponent revealed before/after us": both reveals are now
-// driven by the same local trigger instead of one being a network round trip away from the other.
-// Passed as countDown's onDone (start_game handler) so it fires exactly at GO, same moment
-// roundStartTime is stamped. The eventual real draw_board still arrives and is harmless — for our
-// own board it's a no-op merge (see the draw_board handler's monotonic-reveal logic), and for
-// opponents it just repaints the identical cells (correcting the skin, which we don't know yet here
-// and default to classic — purely cosmetic, self-corrects invisibly).
+// Set true by setCoveredBoard() whenever the board resets to fully covered ahead of a round —
+// whichever of TWO paths reaches this round's opening reveal first consumes it (sets it back to
+// false) and performs the reveal for every board in the room (see performRoundStartReveal): our own
+// locally scheduled, clock-synced GO timer (localRoundStartReveal, countDown's onDone in the
+// start_game handler) computes the reveal itself with no network involved at all, OR — if the real
+// draw_board broadcast happens to land first (plain JS timer scheduling jitter means either can
+// legitimately win by a few ms on any given round; there's no way to guarantee our local timer always
+// wins) — the draw_board handler below performs the exact same synchronized reveal using the packet's
+// own data instead of falling through to its normal per-board paint. Whichever fires second is then
+// just a content-already-matching reconciliation with nothing left to do. This is what actually fixes
+// "opponent revealed before/after us": previously only the LOCAL path got this treatment, so whenever
+// the network happened to win the race (which turned out to be most of the time — a busy main thread
+// finishing off the countdown/sweep animations delays our local timer's actual callback more than the
+// same-machine network round trip), the reveal fell straight through to the OLD instant-paint-for-
+// opponents / rippled-paint-for-us codepath, i.e. the original bug, completely undoing the fix.
+var pendingLocalRoundReveal = false;
+
+// Applies the round's opening reveal to our own board (still rippling in — queueRevealAnimations'
+// stagger is kept, it's a nice effect for a cascade the player triggers mid-round too) and to every
+// opponent target with the exact same ripple (see startOpponentRevealAnim, Animations.js) — shared by
+// both paths described above so they can't diverge in how the reveal actually plays out.
+function performRoundStartReveal(newMyState, opponentTargets) {
+	queueRevealAnimations(newMyState);
+	myState = newMyState;
+	prevPlayerState = cloneState(newMyState);
+	renderPlayerBoard();
+	if (opponentTargets.length && typeof startOpponentRevealAnim === "function") startOpponentRevealAnim(opponentTargets);
+}
+
+// Path 1: our own locally scheduled, clock-synced GO timer. Every player in the round shares the
+// exact same board layout ("Players share one shared no-guess map this round"), so the opening
+// cascade — the patch of cells the centre reveal floods open — is the SAME deterministic set of cells
+// for every board; compute it with the same BoardLogic.cascadeReveal Input.js already uses for click
+// prediction (proven to match the server's own dfs exactly, from the same decoded board) rather than
+// wait on the network for it. Passed as countDown's onDone (start_game handler) so it fires exactly
+// at GO, the same moment roundStartTime is stamped. Skin isn't known yet at this point (no packet has
+// arrived), so opponents default to classic — purely cosmetic, self-corrects invisibly whenever the
+// real draw_board does land.
 function localRoundStartReveal() {
+	if (!pendingLocalRoundReveal) return; // draw_board's own reveal already won the race — nothing to do
+	pendingLocalRoundReveal = false;
 	if (!rows || !cols || !boardDecoder || !myState) return;
 	var centerR = Math.floor(rows / 2), centerC = Math.floor(cols / 2);
 	var initialState = new Array(rows);
@@ -1697,28 +1717,17 @@ function localRoundStartReveal() {
 		function(rr, cc) { initialState[rr][cc] = KNOWN; return boardCell(rr, cc) === MINE; },
 		function(rr, cc) { return boardCell(rr, cc); }
 	);
-	queueRevealAnimations(initialState); // our own board still ripples in — see queueRevealAnimations
-	myState = initialState;
-	prevPlayerState = cloneState(initialState);
-	renderPlayerBoard();
-	revealOpponentsLocally(initialState);
-}
-
-// Paint every opponent board (battle layout only — see localRoundStartReveal) with the shared
-// opening-cascade state, mirroring paintOpponentCovered's own slot assignment so opponents land in
-// the same cards they were shown covered in. Ripples in exactly like our own board — see
-// startOpponentRevealAnim (Animations.js) — since it's the SAME cells revealing at the SAME instant.
-function revealOpponentsLocally(initialState) {
-	if (!isBattleRacing()) return;
-	var oppPlayers = battleRoster().filter(function(p) { return !(p.id === id || p.isYou); });
 	var targets = [];
-	for (var i = 1; i <= 5; i++) {
-		var p = oppPlayers[i - 1];
-		if (!p) continue;
-		var cv = document.getElementById("game" + i);
-		if (cv) targets.push({ canvas: cv, skin: p.skin || "classic" });
+	if (isBattleRacing()) {
+		var oppPlayers = battleRoster().filter(function(p) { return !(p.id === id || p.isYou); });
+		for (var i = 1; i <= 5; i++) {
+			var p = oppPlayers[i - 1];
+			if (!p) continue;
+			var cv = document.getElementById("game" + i);
+			if (cv) targets.push({ canvas: cv, skin: p.skin || "classic", state: initialState });
+		}
 	}
-	if (typeof startOpponentRevealAnim === "function") startOpponentRevealAnim(initialState, targets);
+	performRoundStartReveal(initialState, targets);
 }
 
 // Paint the board as a full grid of covered cells. Shown during the ranked match-reveal
@@ -1735,7 +1744,8 @@ function setCoveredBoard() {
 		for (var c = 0; c < cols; c++) myState[r][c] = UNKNOWN;
 	}
 	prevPlayerState = cloneState(myState);
-	deferOpponentReveal = true;
+	pendingLocalRoundReveal = true;
+	deferOpponentReveal = true; // tournament-thumbnail fallback only — see its own comment
 	renderPlayerBoard();
 	if (isBattleRacing()) {
 		paintOpponentCovered(); // battle: show the opponents' boards covered too
@@ -2100,6 +2110,69 @@ socket.on("draw_board", function(data) {
 	if (!me && iAmEliminated) {
 		paintSpectatorBigBoard(games);
 	}
+
+	// Slots 1-2 = top two opponents by live progress (finished outranks playing,
+	// then by % cleared). Other opponents stay hidden — large lobbies would be
+	// unreadable otherwise; the scoreboard surfaces everyone with progress bars.
+	// When spectating, skip the target player here since they're already on
+	// the big board (showing the same player in both slots would be wasteful).
+	// Computed up here (moved ahead of the "me" block below) so the round-start reveal race check
+	// right after it can use the SAME sorted opponents/oppShown the paint loop further down uses —
+	// otherwise the two could disagree on which opponent belongs in which slot.
+	var opponents = games.slice(1).filter(function(g) {
+		return g && (!iAmEliminated || !spectatorTarget || g.id !== spectatorTarget);
+	});
+	if (isMultiRacing()) {
+		// 6-player battle: lock the opponent grid to a fixed order by starting rating (stable through
+		// the match) so the boards don't jump around as the lead changes. Rating is constant during a
+		// series, so this order never shifts; ties break by id for determinism.
+		var ratingById = {};
+		if (currentRoom && currentRoom.players) {
+			for (var rp = 0; rp < currentRoom.players.length; rp++) {
+				var pl = currentRoom.players[rp];
+				ratingById[pl.id] = (typeof pl.rating === "number") ? pl.rating : 0;
+			}
+		}
+		opponents.sort(function(a, b) {
+			var ra = ratingById[a.id] || 0, rb = ratingById[b.id] || 0;
+			if (rb !== ra) return rb - ra;
+			return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+		});
+	} else {
+		// Other layouts (tournament thumbnails) show the current leaders, by live progress.
+		opponents.sort(function(a, b) {
+			if (a.finished !== b.finished) return a.finished ? -1 : 1;
+			if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
+			return (b.progress || 0) - (a.progress || 0);
+		});
+	}
+	// The battle layouts show every opponent (duel = 1, 6-player = up to 5); other lobbies
+	// (tournament) stay capped at the top 2 thumbnails — the scoreboard surfaces the rest.
+	var oppShown = isMultiRacing() ? 5 : (isDuoRacing() ? 1 : 2);
+
+	// Path 2 of the round-start reveal race (see pendingLocalRoundReveal's own comment, above
+	// setCoveredBoard): our own local GO timer hasn't fired yet, but the real broadcast just landed
+	// with the round genuinely live (me.playing) — perform the exact same synchronized reveal here,
+	// using the packet's own state for every board, instead of falling through to the normal
+	// per-board handling below. justRevealedIds records who was just painted this way so the
+	// opponent loop further down knows to leave their ripple alone rather than repaint over it.
+	var justRevealedIds = null;
+	if (pendingLocalRoundReveal && me && me.playing && isBattleRacing()) {
+		pendingLocalRoundReveal = false;
+		var oppTargets = [];
+		justRevealedIds = {};
+		for (var ri = 1; ri <= oppShown; ri++) {
+			var rp2 = opponents[ri - 1];
+			if (!rp2 || !rp2.playing) continue;
+			var rcv = document.getElementById("game" + ri);
+			if (rcv) {
+				oppTargets.push({ canvas: rcv, skin: rp2.skin || "classic", state: rp2.state });
+				justRevealedIds[rp2.id] = true;
+			}
+		}
+		performRoundStartReveal(me.state, oppTargets);
+	}
+
 	if (me) {
 		setHudName(document.getElementById("player_name0"), me);
 		if (me.totalSafe > 0) myTotalSafe = me.totalSafe;
@@ -2153,42 +2226,8 @@ socket.on("draw_board", function(data) {
 		if (me.finished && me.totalSafe > 0 && (me.safeCount || 0) >= me.totalSafe) reportClear();
 	}
 
-	// Slots 1-2 = top two opponents by live progress (finished outranks playing,
-	// then by % cleared). Other opponents stay hidden — large lobbies would be
-	// unreadable otherwise; the scoreboard surfaces everyone with progress bars.
-	// When spectating, skip the target player here since they're already on
-	// the big board (showing the same player in both slots would be wasteful).
-	var opponents = games.slice(1).filter(function(g) {
-		return g && (!iAmEliminated || !spectatorTarget || g.id !== spectatorTarget);
-	});
-	if (isMultiRacing()) {
-		// 6-player battle: lock the opponent grid to a fixed order by starting rating (stable through
-		// the match) so the boards don't jump around as the lead changes. Rating is constant during a
-		// series, so this order never shifts; ties break by id for determinism.
-		var ratingById = {};
-		if (currentRoom && currentRoom.players) {
-			for (var rp = 0; rp < currentRoom.players.length; rp++) {
-				var pl = currentRoom.players[rp];
-				ratingById[pl.id] = (typeof pl.rating === "number") ? pl.rating : 0;
-			}
-		}
-		opponents.sort(function(a, b) {
-			var ra = ratingById[a.id] || 0, rb = ratingById[b.id] || 0;
-			if (rb !== ra) return rb - ra;
-			return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
-		});
-	} else {
-		// Other layouts (tournament thumbnails) show the current leaders, by live progress.
-		opponents.sort(function(a, b) {
-			if (a.finished !== b.finished) return a.finished ? -1 : 1;
-			if (a.finished && b.finished) return (a.finishedAt || 0) - (b.finishedAt || 0);
-			return (b.progress || 0) - (a.progress || 0);
-		});
-	}
-
-	// The battle layouts show every opponent (duel = 1, 6-player = up to 5); other lobbies
-	// (tournament) stay capped at the top 2 thumbnails — the scoreboard surfaces the rest.
-	var oppShown = isMultiRacing() ? 5 : (isDuoRacing() ? 1 : 2);
+	// opponents/oppShown were computed earlier, right before the round-start reveal race check —
+	// see the comment up there for why.
 	for (var i = 1; i <= 5; i++) {
 		var nameEl = document.getElementById("player_name" + i);
 		var canvasEl = document.getElementById("game" + i);
@@ -2211,8 +2250,15 @@ socket.on("draw_board", function(data) {
 			// (opp.playing false but their board isn't changing anymore either) just keeps showing
 			// whatever their last live frame painted, which is already correct.
 			if (opp.playing) {
-				if (deferThisOpponentReveal) deferOpponentDraw(canvasEl, opp.state, opp.skin || "classic");
-				else drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+				if (justRevealedIds && justRevealedIds[opp.id]) {
+					// Already painted above by the round-start reveal race check (performRoundStartReveal) —
+					// it's mid-ripple via the shared RAF loop; repainting here would stomp that with a flat,
+					// unanimated frame.
+				} else if (deferThisOpponentReveal) {
+					deferOpponentDraw(canvasEl, opp.state, opp.skin || "classic");
+				} else {
+					drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+				}
 			}
 			if (slot) {
 				slot.style.display = "";

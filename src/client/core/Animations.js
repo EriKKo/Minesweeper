@@ -762,7 +762,6 @@ function resetBoardAnimations() {
 	countdownCells = {};
 	boardGoAnim = null;
 	opponentRevealAnims = null;
-	opponentRevealState = null;
 	opponentRevealTargets = null;
 	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
 }
@@ -772,19 +771,19 @@ function resetBoardAnimations() {
 // (those aren't something we want to visually stage). Every board shares this round's layout, so the
 // opening reveal is the exact same cells with the exact same distances-from-origin on every board —
 // the schedule cellAnims just got populated with (queueRevealAnimations, called right before this)
-// applies unchanged to every opponent target. Snapshotted into a separate map rather than read live
-// off cellAnims, since cellAnims keeps accumulating the PLAYER'S OWN later moves for the rest of the
-// round and those must never bleed onto an opponent's board. See localRoundStartReveal/
-// revealOpponentsLocally in Main.js for the caller.
+// applies unchanged to every opponent target, regardless of whether each target's own state array
+// came from our local deterministic computation or from the real draw_board packet (both are the
+// same content — see performRoundStartReveal in Main.js, which calls this from either race path).
+// Snapshotted into a separate map rather than read live off cellAnims, since cellAnims keeps
+// accumulating the PLAYER'S OWN later moves for the rest of the round and those must never bleed onto
+// an opponent's board.
 var opponentRevealAnims = null;   // "r,c" -> {type,start}, a snapshot of cellAnims — null when idle
-var opponentRevealState = null;   // the shared revealed-state matrix every target below paints
-var opponentRevealTargets = null; // [{canvas, skin}, ...]
+var opponentRevealTargets = null; // [{canvas, skin, state}, ...] — each target paints its OWN state
 
-function startOpponentRevealAnim(state, targets) {
+function startOpponentRevealAnim(targets) {
 	if (!targets.length) return;
 	opponentRevealAnims = {};
 	for (var key in cellAnims) opponentRevealAnims[key] = cellAnims[key];
-	opponentRevealState = state;
 	opponentRevealTargets = targets;
 	startAnimLoop();
 }
@@ -810,11 +809,11 @@ function paintOpponentRevealFrame() {
 	}
 	for (var i = 0; i < opponentRevealTargets.length; i++) {
 		var target = opponentRevealTargets[i];
-		var bv = liveBoardView(target.canvas, opponentRevealState, target.skin);
+		var bv = liveBoardView(target.canvas, target.state, target.skin);
 		bv.animAt = opponentRevealAnimAt;
 		bv.draw();
 	}
-	if (!alive) { opponentRevealAnims = null; opponentRevealState = null; opponentRevealTargets = null; }
+	if (!alive) { opponentRevealAnims = null; opponentRevealTargets = null; }
 	return alive;
 }
 
