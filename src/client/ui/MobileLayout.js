@@ -335,8 +335,14 @@ function refreshPlayerBoardSize() {
 	// Duel: keep the opponent board matched to the (resized) player board and repaint it from
 	// the last frame, since resizing a canvas clears it and the opponent may not be moving.
 	if (typeof sizeOpponentCanvases === "function") sizeOpponentCanvases();
-	if (typeof isDuoRacing === "function" && isDuoRacing() && lastGames && lastGames[1]) {
-		drawBoardStatic(lastGames[1].state, document.getElementById("game1"), lastGames[1].skin || "classic");
+	if (typeof isDuoRacing === "function" && isDuoRacing()) {
+		if (lastGames && lastGames[1]) {
+			drawBoardStatic(lastGames[1].state, document.getElementById("game1"), lastGames[1].skin || "classic");
+		} else if (typeof paintOpponentCovered === "function") {
+			// No live frame yet for THIS match/search (lastGames is reset in resetGameUI at the start
+			// of both) — repaint covered instead of leaving the just-cleared canvas blank.
+			paintOpponentCovered();
+		}
 	}
 }
 var playerBoardResizeRaf = null;

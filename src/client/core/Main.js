@@ -2283,8 +2283,16 @@ function resetGameUI() {
 	resetBoardAnimations();
 	lastScores = {};
 	lastFinished = {};
-	gameProgressText.textContent = "";
-	roundTimer.textContent = "";
+	// The actual source of the "flashes with the previous opponent's board" bug: lastGames is only
+	// ever written by draw_board, never cleared, so it silently outlives the match it came from. It's
+	// mostly harmless while nothing reads it — but MobileLayout.js's refreshPlayerBoardSize repaints
+	// game1 straight from lastGames[1].state on any resize-triggered layout pass, with no check that
+	// it's still THIS match's data. resetGameUI runs at the start of both a fresh search
+	// (startBattleSearch) and a newly joined room (joined_room) — exactly the window where a duel
+	// canvas can be live (myState already covered, isDuoRacing() already true) while lastGames still
+	// holds the last opponent's real, revealed board. Clearing it here means that repaint has nothing
+	// stale to fall back on until this match's own draw_board actually arrives.
+	lastGames = null;
 	for (var i = 0; i < 6; i++) {
 		document.getElementById("player_name" + i).textContent = "";
 		clearCanvas(document.getElementById("game" + i));
