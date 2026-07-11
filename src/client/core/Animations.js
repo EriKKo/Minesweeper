@@ -761,7 +761,61 @@ function resetBoardAnimations() {
 	countdownGlyphs = [];
 	countdownCells = {};
 	boardGoAnim = null;
+	opponentRevealAnims = null;
+	opponentRevealState = null;
+	opponentRevealTargets = null;
 	if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+}
+
+// Opponent boards ripple in on the round's OPENING reveal too, mirroring our own board's
+// queueRevealAnimations — but only for that one reveal, never for an opponent's own later moves
+// (those aren't something we want to visually stage). Every board shares this round's layout, so the
+// opening reveal is the exact same cells with the exact same distances-from-origin on every board —
+// the schedule cellAnims just got populated with (queueRevealAnimations, called right before this)
+// applies unchanged to every opponent target. Snapshotted into a separate map rather than read live
+// off cellAnims, since cellAnims keeps accumulating the PLAYER'S OWN later moves for the rest of the
+// round and those must never bleed onto an opponent's board. See localRoundStartReveal/
+// revealOpponentsLocally in Main.js for the caller.
+var opponentRevealAnims = null;   // "r,c" -> {type,start}, a snapshot of cellAnims — null when idle
+var opponentRevealState = null;   // the shared revealed-state matrix every target below paints
+var opponentRevealTargets = null; // [{canvas, skin}, ...]
+
+function startOpponentRevealAnim(state, targets) {
+	if (!targets.length) return;
+	opponentRevealAnims = {};
+	for (var key in cellAnims) opponentRevealAnims[key] = cellAnims[key];
+	opponentRevealState = state;
+	opponentRevealTargets = targets;
+	startAnimLoop();
+}
+
+function opponentRevealAnimAt(r, c) {
+	var a = opponentRevealAnims[r + "," + c];
+	if (!a) return null;
+	var dur = a.type === "mine" ? MINE_DUR : REVEAL_DUR;
+	return { type: a.type, t: (performance.now() - a.start) / dur };
+}
+
+// Repaints every opponent reveal target for the current frame; returns whether any of them still
+// has a cell mid-animation (so the caller's RAF loop knows whether to keep going). Always paints —
+// including the terminal frame where it flips to "not alive" and clears its own state — so the last
+// frame lands on the fully-settled board, same as cellAnims/renderPlayerBoard's own pattern.
+function paintOpponentRevealFrame() {
+	var now = performance.now();
+	var alive = false;
+	for (var key in opponentRevealAnims) {
+		var a = opponentRevealAnims[key];
+		var dur = a.type === "mine" ? MINE_DUR : REVEAL_DUR;
+		if (now < a.start + dur) alive = true;
+	}
+	for (var i = 0; i < opponentRevealTargets.length; i++) {
+		var target = opponentRevealTargets[i];
+		var bv = liveBoardView(target.canvas, opponentRevealState, target.skin);
+		bv.animAt = opponentRevealAnimAt;
+		bv.draw();
+	}
+	if (!alive) { opponentRevealAnims = null; opponentRevealState = null; opponentRevealTargets = null; }
+	return alive;
 }
 
 function queueRevealAnimations(newState) {
@@ -833,6 +887,7 @@ function startAnimLoop() {
 		if (countdownGlyphs.length || Object.keys(countdownCells).length) alive = true; // keep fading the countdown digit(s)
 		if (boardGoAnim) alive = true; // keep sweeping the "go" animation
 		if (boardIdleActive) alive = true; // keep looping the idle animation
+		if (opponentRevealTargets && paintOpponentRevealFrame()) alive = true; // ripple the opponents' opening reveal
 		renderPlayerBoard();
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }

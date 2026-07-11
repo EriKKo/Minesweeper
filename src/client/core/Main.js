@@ -1705,17 +1705,20 @@ function localRoundStartReveal() {
 }
 
 // Paint every opponent board (battle layout only — see localRoundStartReveal) with the shared
-// opening-cascade state, instantly, mirroring paintOpponentCovered's own slot assignment so
-// opponents land in the same cards they were shown covered in.
+// opening-cascade state, mirroring paintOpponentCovered's own slot assignment so opponents land in
+// the same cards they were shown covered in. Ripples in exactly like our own board — see
+// startOpponentRevealAnim (Animations.js) — since it's the SAME cells revealing at the SAME instant.
 function revealOpponentsLocally(initialState) {
 	if (!isBattleRacing()) return;
 	var oppPlayers = battleRoster().filter(function(p) { return !(p.id === id || p.isYou); });
+	var targets = [];
 	for (var i = 1; i <= 5; i++) {
 		var p = oppPlayers[i - 1];
 		if (!p) continue;
 		var cv = document.getElementById("game" + i);
-		if (cv) drawBoardStatic(initialState, cv, p.skin || "classic");
+		if (cv) targets.push({ canvas: cv, skin: p.skin || "classic" });
 	}
+	if (typeof startOpponentRevealAnim === "function") startOpponentRevealAnim(initialState, targets);
 }
 
 // Paint the board as a full grid of covered cells. Shown during the ranked match-reveal
