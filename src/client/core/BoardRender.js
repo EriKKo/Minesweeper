@@ -87,8 +87,14 @@ applyBoardSkin((function () { try { return localStorage.getItem("ms_board_skin")
 
 // Device pixel ratio — every canvas on the site renders at this multiple so
 // it's crisp on HiDPI displays. Used by sizeBoardCanvas/sizePlayerCanvas in
-// the live game and the Learn page's canvas factory.
-var DPR = window.devicePixelRatio || 1;
+// the live game and the Learn page's canvas factory. Capped at 2: beyond that
+// a flat-colour board with modest text gains nothing visible, but the pixel
+// count (and so the cost of every fill/gradient/shadow, repeated per cell,
+// every animated frame, across up to 6 boards at once in a 6-player match)
+// keeps scaling with the square of the ratio — a real, needless cost on the
+// 3x-4x displays some phones/tablets report, and on any HiDPI display paired
+// with modest graphics hardware.
+var DPR = Math.min(2, window.devicePixelRatio || 1);
 
 // ---- animation timing -------------------------------------------------
 var REVEAL_DUR = 230;

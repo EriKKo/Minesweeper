@@ -507,6 +507,7 @@ function paintBoardGoWithIdle(ctx, sw, sh, boardRows, boardCols, animState, isRe
 	var idleSpeed = Math.max(0.05, BOARD_IDLE_STYLE.speed);
 	var idleBrightness = BOARD_IDLE_STYLE.brightness;
 	var idleBase = hexToRgb(BOARD_IDLE_STYLE.color);
+	var idleFrameCtx = boardIdleFrameContext(idleMode, boardRows, boardCols, now, idleSpeed);
 	for (var r = 0; r < boardRows; r++) {
 		for (var c = 0; c < boardCols; c++) {
 			if (isRevealed && isRevealed(r, c)) continue;
@@ -517,7 +518,7 @@ function paintBoardGoWithIdle(ctx, sw, sh, boardRows, boardCols, animState, isRe
 				drawGoAnimCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, strength * BOARD_GO_STYLE.brightness, base);
 			} else if (pos > frontP) {
 				// Ahead of the wave — still idling, waiting its turn to be cleared.
-				var idleAlpha = boardIdleCellAlpha(idleMode, r, c, boardRows, boardCols, now, idleSpeed, idleBrightness);
+				var idleAlpha = boardIdleCellAlpha(idleMode, r, c, boardRows, boardCols, now, idleSpeed, idleBrightness, idleFrameCtx);
 				if (idleAlpha > 0.015) drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, idleAlpha, idleBase);
 			}
 			// pos < frontP - width: the wave has fully passed — settled, plain, nothing drawn.
@@ -551,17 +552,24 @@ function setBoardIdleActive(active) {
 // Per-cell idle brightness (0 = not glowing this frame) for BOARD_IDLE_STYLE's current mode at time
 // `now` — factored out of paintBoardIdleAnimation so paintBoardGoWithIdle (below) can paint idle on a
 // cell-by-cell basis too, for just the cells its sweep hasn't reached yet.
-function boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness) {
+// Per-frame setup for idle modes whose math has a part that's constant across every cell (shimmer's
+// sweep position depends only on boardRows/boardCols/now/speed, never r/c) — computed once per paint
+// call and threaded through boardIdleCellAlpha below instead of recomputed on every one of a board's
+// cells, every frame, for as long as idle is active.
+function boardIdleFrameContext(mode, boardRows, boardCols, now, speed) {
+	if (mode !== "shimmer") return null;
+	var maxP = boardGoAxisMax("diagonal", boardRows, boardCols);
+	var periodMs = 2600 / speed;
+	return { frontP: ((now % periodMs) / periodMs) * (maxP + 6) - 3, width: 2.5 };
+}
+
+function boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness, frameCtx) {
 	if (mode === "shimmer") {
 		// A soft diagonal band that loops continuously (unlike the one-shot go sweep it reuses the
 		// axis math from), slow and low-brightness so it reads as ambient, not attention-grabbing.
-		var maxP = boardGoAxisMax("diagonal", boardRows, boardCols);
-		var periodMs = 2600 / speed;
-		var frontP = ((now % periodMs) / periodMs) * (maxP + 6) - 3;
-		var width = 2.5;
-		var dist = Math.abs(boardGoAxisPos("diagonal", r, c, boardRows, boardCols) - frontP);
-		if (dist > width) return 0;
-		return (1 - dist / width) * 0.30 * brightness;
+		var dist = Math.abs(boardGoAxisPos("diagonal", r, c, boardRows, boardCols) - frameCtx.frontP);
+		if (dist > frameCtx.width) return 0;
+		return (1 - dist / frameCtx.width) * 0.30 * brightness;
 	}
 	if (mode === "twinkle") {
 		// Each cell's own sine wave, phase-offset by a cheap position hash so they twinkle out of
@@ -589,10 +597,11 @@ function paintBoardIdleAnimation(ctx, sw, sh, boardRows, boardCols, isRevealed) 
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
 	var w = sw - gap, h = sh - gap;
 	var rad = Math.min(w, h) * 0.2;
+	var frameCtx = boardIdleFrameContext(mode, boardRows, boardCols, now, speed);
 	for (var r = 0; r < boardRows; r++) {
 		for (var c = 0; c < boardCols; c++) {
 			if (isRevealed && isRevealed(r, c)) continue;
-			var alpha = boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness);
+			var alpha = boardIdleCellAlpha(mode, r, c, boardRows, boardCols, now, speed, brightness, frameCtx);
 			if (alpha <= 0.015) continue;
 			drawIdleCell(ctx, c * sw + gap / 2, r * sh + gap / 2, w, h, rad, alpha, base);
 		}
