@@ -89,7 +89,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "That's the flagging half of the toolkit. Next: reading the numbers to know where mines are."
+			outro: "That's the flagging half of the toolkit. Next: reading numbers to work out more than one mine at a time."
 		}
 		]
 	},
@@ -102,7 +102,7 @@ var LEARN_COURSES = [
 			// the two cells flanking it, and the true corner beyond them, freed only once one
 			// flanking cell is revealed and its own (now-satisfied) number frees the next.
 			board: { rows: 6, cols: 9, mines: [[1,1]], revealStart: [5,8] },
-			intro: [ "A single mine, tucked one step off the corner this time. Three safe cells to find." ],
+			intro: [ "This mine sits one step off the corner instead of the edge — three safe cells to find, not one." ],
 			hints: [
 				"The '1' past the mine, away from the corner, touches only one covered cell — that's the mine.",
 				"That satisfies the numbers next to it — the two cells flanking the mine are safe.",
@@ -139,7 +139,7 @@ var LEARN_COURSES = [
 				mines: [[2,2], [3,2]],
 				revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[3,0],[3,1]]
 			},
-			intro: [ "Two mines this time, tucked in a corner. Find both safe cells." ],
+			intro: [ "Same two-mine idea, but tucked into a corner this time. Find both safe cells." ],
 			hints: [
 				"A '2' touches both covered cells next to it — exactly its count, so both are mines.",
 				"The 1s beside them are already satisfied by those two mines — the third covered cell is safe.",
@@ -172,7 +172,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check the numbers around it again."
 			},
-			outro: "That's the toolkit: read a number, work out what's forced. Next: a faster way to open cells."
+			outro: "That's the toolkit: read a number, work out what's forced. One more board to go."
 		},
 		{
 			// Real puzzle pool, id 41 — three mines run along the left edge, an L rather than a chain,
@@ -191,7 +191,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check the numbers around it again."
 			},
-			outro: "Same idea, just more numbers to read before it clicks."
+			outro: "Same idea, just more numbers to read before it clicks. Next: a faster way to open cells."
 		}
 		]
 	},
