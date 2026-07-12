@@ -1300,20 +1300,19 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 
 // One scene of a rule demo: highlight a clue cell, then flag or reveal its covered neighbours
 // one at a time, hold, reset, and loop — on its own, independent of any other scene. A rule with
-// multiple examples (see buildRuleDemo) shows them side by side, each running this loop, rather
-// than cycling one board through several examples.
+// cycles through every scene on one shared board (see buildRuleDemo) rather than each scene
+// getting its own canvas — building a BoardView bound to a caller-supplied canvas instead of
+// creating its own, so buildRuleDemo can sweep between two scenes' views on the same surface.
 // spec: { rows, cols, mines, revealed, flagged, clueCell: [r,c], targets: [[r,c]...],
 //         action: "flag" | "reveal" }
-function buildRuleDemoScene(spec) {
+// Returns { bv, play } — nothing is drawn or animated until the caller calls play(); the
+// caller decides when this scene's board is actually visible on the canvas (mid-sweep, its
+// content is composited alongside another scene's, so drawing early would race that).
+function buildRuleDemoScene(canvas, spec, onDone) {
 	var R = spec.rows, C = spec.cols;
 	var isMineArr = buildMineGrid(spec);
 	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
 	var state = buildBoardState(spec, isMineArr, clueValue);
-
-	var wrap = document.createElement("div");
-	wrap.className = "learn-board learn-rule-demo-board";
-	var canvas = buildBoardCanvas(R, C);
-	wrap.appendChild(canvas);
 
 	var highlightCell = null;
 	var bv = learnBoardView(canvas, spec, isMineArr, clueValue, state);
@@ -1329,9 +1328,7 @@ function buildRuleDemoScene(spec) {
 		ctx.strokeRect(hx, hy, sw * 0.84, sh * 0.84);
 		ctx.restore();
 	});
-	bv.draw();
 
-	var initialState = state.map(function(row) { return row.slice(); });
 	var targets = spec.targets || [];
 	var targetState = spec.action === "flag" ? FLAGGED : KNOWN;
 
@@ -1355,33 +1352,95 @@ function buildRuleDemoScene(spec) {
 		}
 		setTimeout(function() {
 			if (!canvas.isConnected) return;
-			highlightCell = null;
-			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) state[r][c] = initialState[r][c];
-			bv.draw();
-			setTimeout(function() { playFrom(0); }, 550);
+			if (typeof onDone === "function") onDone();
 		}, 1500);
 	}
-	// Deferred, not called directly: this function returns wrap before the caller inserts it into
+
+	return { bv: bv, play: function() { playFrom(0); } };
+}
+
+// Wipes a shared demo canvas from one scene's board to another, reusing the same "go" sweep the
+// live board plays when a countdown starts (paintBoardGoAnimation/BOARD_GO_STYLE, normally seen
+// transitioning a board from idle to ready): a glowing band sweeps top to bottom, and rows it has
+// already passed show the new scene while rows still ahead show the old one — so the board reads
+// as wiping from the old example (below the band) to the new one (above it), not cutting instantly.
+// oldBv/newBv are BoardViews already bound to `canvas` (see buildRuleDemoScene); both scenes must
+// share canvas's rows/cols, since a single sweep frame draws both onto the same cell grid.
+function sweepRuleDemo(canvas, rows, cols, oldBv, newBv, onDone) {
+	var ctx = canvas.getContext("2d");
+	var sw = canvas.width / cols, sh = canvas.height / rows;
+	var start = performance.now();
+	var duration = Math.max(50, BOARD_GO_STYLE.durationMs);
+	var width = Math.max(0.5, BOARD_GO_STYLE.width);
+	var maxP = boardGoAxisMax("rowWipe", rows, cols);
+
+	function paintSplit(frontP) {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		setPaletteVars(localBoardSkin);
+		for (var r = 0; r < rows; r++) {
+			var view = r < frontP ? newBv : oldBv;
+			for (var c = 0; c < cols; c++) drawCell(ctx, r, c, view, sw, sh, null);
+		}
+	}
+
+	function frame() {
+		if (!canvas.isConnected) return;
+		var elapsed = performance.now() - start;
+		if (elapsed >= duration) {
+			paintSplit(maxP + width + 1); // past every row: the whole board now reads as "new"
+			if (typeof onDone === "function") onDone();
+			return;
+		}
+		var frontP = (elapsed / duration) * (maxP + width * 2) - width;
+		paintSplit(frontP);
+		paintBoardGoAnimation(ctx, sw, sh, rows, cols, { start: start }, null);
+		requestAnimationFrame(frame);
+	}
+	frame();
+}
+
+// Cycles a rule's demo scenes one after another on a single shared board, sweeping between them
+// (sweepRuleDemo) instead of cutting instantly. All of a rule's scenes must share one rows/cols —
+// a sweep frame composites two scenes' views onto the same cell grid, so they can't differ in size.
+function buildRuleDemo(scenes) {
+	var wrap = document.createElement("div");
+	wrap.className = "learn-board learn-rule-demo-board";
+	var R = scenes[0].rows, C = scenes[0].cols;
+	var canvas = buildBoardCanvas(R, C);
+	wrap.appendChild(canvas);
+
+	var current = null;
+
+	function showScene(idx) {
+		current = buildRuleDemoScene(canvas, scenes[idx], function() { advance(idx); });
+		current.bv.draw();
+		current.play();
+	}
+
+	function advance(idx) {
+		setTimeout(function() {
+			if (!canvas.isConnected) return;
+			var nextIdx = (idx + 1) % scenes.length;
+			if (scenes.length < 2) { showScene(nextIdx); return; }
+			var next = buildRuleDemoScene(canvas, scenes[nextIdx], function() { advance(nextIdx); });
+			sweepRuleDemo(canvas, R, C, current.bv, next.bv, function() {
+				current = next;
+				current.play();
+			});
+		}, 550);
+	}
+
+	// Deferred, not called directly: buildRuleDemo returns wrap before the caller inserts it into
 	// the document, so canvas.isConnected would still be false on an immediate call — the very
 	// guard meant to stop the loop once torn down would instead stop it before it ever started.
-	setTimeout(function() { playFrom(0); }, 50);
+	setTimeout(function() { showScene(0); }, 50);
 
 	return wrap;
 }
 
-// A rule's demo scenes, laid out side by side — each one loops on its own (buildRuleDemoScene),
-// so a rule with two examples shows both at once rather than cycling one board between them.
-function buildRuleDemo(scenes, layout) {
-	var container = document.createElement("div");
-	container.className = "learn-rule-demo-row";
-	if (layout === "stack") container.className += " learn-rule-demo-row--stack";
-	scenes.forEach(function(spec) { container.appendChild(buildRuleDemoScene(spec)); });
-	return container;
-}
-
 // The "two rules" reference panel — a rulesPanel step's board area. Two cards side by side (each
-// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each showing its own example
-// board(s) looping through a flag/reveal animation so the rule is something you watch happen, not
+// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each cycling through its
+// example(s) on one shared board (buildRuleDemo) so the rule is something you watch happen, not
 // just a sentence to read.
 function buildRulesPanel(spec) {
 	var wrap = document.createElement("div");
@@ -1397,7 +1456,7 @@ function buildRulesPanel(spec) {
 		desc.className = "learn-rule-card-desc";
 		desc.textContent = rule.desc;
 		card.appendChild(desc);
-		card.appendChild(buildRuleDemo(rule.demos, rule.demoLayout));
+		card.appendChild(buildRuleDemo(rule.demos));
 		wrap.appendChild(card);
 	});
 	return wrap;
