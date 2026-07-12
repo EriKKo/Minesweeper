@@ -152,20 +152,22 @@ var LEARN_COURSES = [
 		},
 		{
 			// Real puzzle pool, id 52 — plus one extra mine added at the bottom-left corner (4,0),
-			// paired with the pool's original lone mine at (3,1). The rest of the board (and its
-			// revealed set) is untouched — adding a mine only ever covers a cell, never reveals one,
-			// so the original opening still applies exactly as-is.
+			// paired with the pool's original lone mine at (3,1); and the board widened by one
+			// column with the bottom-right mine shifted from (4,6) to (4,7), opening a one-cell gap
+			// at (4,6) that no cascade can reach (all three of its neighbours border a mine). Reading
+			// the row above that gap: 1-1-2-1 — each mine pinned by its own exclusive '1', then the
+			// '2' between them (now satisfied by both) frees the gap cell itself.
 			board: {
-				rows: 5, cols: 7,
-				mines: [[0,4], [3,1], [4,0], [4,5], [4,6]],
-				revealed: [[0,0],[0,1],[0,2],[0,3],[0,5],[0,6],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],
-					[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[3,2],[3,3],[3,4],[3,5],[3,6],[4,2],[4,3],[4,4]]
+				rows: 5, cols: 8,
+				mines: [[0,4], [3,1], [4,0], [4,5], [4,7]],
+				revealed: [[0,0],[0,1],[0,2],[0,3],[0,5],[0,6],[0,7],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],
+					[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[2,7],[3,2],[3,3],[3,4],[3,5],[3,6],[3,7],[4,2],[4,3],[4,4]]
 			},
 			intro: [ "Five mines scattered around the board. Find the safe cells." ],
 			hints: [
 				"Treat each cluster on its own — the lone mine at the top pins the same way as always.",
-				"The corner pair in the bottom-left and the pair in the bottom-right both work like the two-mine boards before.",
-				"The rest fall out once every number nearby is satisfied."
+				"The corner pair in the bottom-left, and each mine in the bottom-right pair, still get their own exclusive '1'.",
+				"Once both bottom-right mines are pinned, the '2' between them is satisfied — the gap cell is safe."
 			],
 			mistakes: {
 				mine: "That was a mine. Check the numbers around it again."
