@@ -4722,12 +4722,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Duolingo-style coach: a small mascot (buildCoachAvatar) beside a speech bubble that always shows
    exactly ONE message, swapped out by say() rather than appended to a log. Capped width — messages
    are short by design, so there's no reason for the bubble to stretch across a wide card. */
+/* min-height reserves room for a bubble PLUS a hint button below it, whether or not the current
+   step actually has one — otherwise a step with no hints renders a shorter coach row than a step
+   with hints, shifting the board and everything below it. */
 .learn-mentor-coach {
 	display: flex;
 	align-items: flex-start;
 	gap: 0.75rem;
 	margin: 0 auto 1rem;
 	max-width: 480px;
+	min-height: 120px;
 }
 .learn-mentor-avatar { flex: 0 0 auto; }
 .learn-mentor-bubble-col {
@@ -4785,14 +4789,18 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-bubble-outro .learn-mentor-bubble-text { font-weight: 600; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Board sits centred below the coach. Fixed min-height, sized to this course's tallest board (6
-   rows), so switching between lessons with very different board sizes doesn't shift the actions row
-   below it. */
+/* Board sits centred below the coach. Fixed min-height, sized to this course's tallest board (7
+   rows, LEARN_CELL_PX=32 → 224px canvas) PLUS the fixed chrome every buildLearnPuzzle instance
+   carries even with its title/controls hidden (.learn-puzzle's own padding+margin-top and
+   .learn-board's padding, ~60px measured) — undercounting that chrome is what let this drift
+   before. So switching between lessons/steps with very different board sizes never changes the
+   height of this box — and so never shifts the actions row or the Previous/Next lesson footer
+   below it. Bump this if a taller board is ever added. */
 .learn-mentor-board-col {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 220px;
+	min-height: 288px;
 }
 /* The board's own title chip and controls (Reset button + status text) are redundant here — the
    lesson title and the coach bubble already cover both, and this flow has no Reset (see

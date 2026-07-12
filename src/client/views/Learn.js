@@ -74,18 +74,20 @@ var LEARN_COURSES = [
 			outro: "That's reading the board — no guessing."
 		},
 		{
-			// Pulled from the real puzzle pool (id 100) — an actual generated no-guess opening, not a
-			// hand-built shape. Two mines tucked diagonally into a corner, two safe cells beside them.
+			// Adapted from the real puzzle pool (id 100), shifted one cell so the true corner (3,3)
+			// is safe rather than a mine. The '2' pins both mines in one read; the corner itself only
+			// has covered/mine neighbours to start, so it isn't freed until the cell beside it is
+			// revealed and contributes its own (now-satisfied) number — a real two-hop chain.
 			board: {
 				rows: 4, cols: 4,
-				mines: [[2,2], [3,3]],
+				mines: [[2,2], [3,2]],
 				revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[3,0],[3,1]]
 			},
 			intro: [ "Two mines this time, tucked in a corner. Find both safe cells." ],
 			hints: [
-				"One of the 1s touches only one covered cell — that's a mine.",
-				"The 1s beside it are already satisfied by that same mine, so the cells next to them are safe.",
-				"Click both safe cells — the mines can stay covered."
+				"A '2' touches both covered cells next to it — exactly its count, so both are mines.",
+				"The 1s beside them are already satisfied by those two mines — the third covered cell is safe.",
+				"Click it — revealing it uncovers its own number, which frees the last cell in the corner."
 			],
 			mistakes: {
 				mine: "That was a mine. Check the 1s around it again."
@@ -97,7 +99,7 @@ var LEARN_COURSES = [
 			// the classic 1-2-2-1 wall run. The far '2' touches only the two mines and forces both at
 			// once; the near '1' is then already satisfied, freeing the corner cell.
 			board: { rows: 6, cols: 9, mines: [[0,1], [0,2]], revealStart: [5,8] },
-			intro: [ "Two mines side by side against the wall. Find the safe corner cell." ],
+			intro: [ "Two mines side by side against the wall. Which cell is safe?" ],
 			hints: [
 				"The second '2' (away from the corner) touches only the two mines and nothing else — both are forced.",
 				"Once both mines are known, the '1' nearest the corner is already satisfied.",
@@ -109,18 +111,20 @@ var LEARN_COURSES = [
 			outro: "The classic 1-2-2-1 wall pattern — two mines confirmed from one number, the corner falls out."
 		},
 		{
-			// Real puzzle pool, id 52 — four mines in three separate clusters (a lone one, a lone one,
-			// and a pair) scattered across a wider board, not one connected shape at all.
+			// Real puzzle pool, id 52 — plus one extra mine added at the bottom-left corner (4,0),
+			// paired with the pool's original lone mine at (3,1). The rest of the board (and its
+			// revealed set) is untouched — adding a mine only ever covers a cell, never reveals one,
+			// so the original opening still applies exactly as-is.
 			board: {
 				rows: 5, cols: 7,
-				mines: [[0,4], [3,1], [4,5], [4,6]],
+				mines: [[0,4], [3,1], [4,0], [4,5], [4,6]],
 				revealed: [[0,0],[0,1],[0,2],[0,3],[0,5],[0,6],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],
 					[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[3,2],[3,3],[3,4],[3,5],[3,6],[4,2],[4,3],[4,4]]
 			},
-			intro: [ "Four mines scattered around the board. Find the safe cells." ],
+			intro: [ "Five mines scattered around the board. Find the safe cells." ],
 			hints: [
 				"Treat each cluster on its own — the lone mine at the top pins the same way as always.",
-				"The pair in the bottom-right corner works just like the two-mine board before.",
+				"The corner pair in the bottom-left and the pair in the bottom-right both work like the two-mine boards before.",
 				"The rest fall out once every number nearby is satisfied."
 			],
 			mistakes: {
