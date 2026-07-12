@@ -297,14 +297,15 @@ var LEARN_COURSES = [
 						demoLayout: "stack",
 						demos: [
 							{
-								// Three mines across the top row plus a covered target between the
-								// first two: the '2's directly below force the left pair, the '1' to
-								// the right forces the third mine on its own. Once all three are
-								// flagged, the middle '1' is satisfied and frees the target next to it.
+								// Top row: four covered cells (two mines, a target, then a third
+								// mine), then a revealed '1' and an empty cell. The '2' below the
+								// pair forces them, the '1' below the lone mine forces it too — once
+								// all three are flagged, the '2' between them is satisfied and frees
+								// the target sitting right in the middle of the row.
 								rows: 4, cols: 6,
-								mines: [[0,0], [0,1], [0,4]],
-								flagged: [[0,0], [0,1], [0,4]],
-								revealed: [[0,3],[0,5],
+								mines: [[0,0], [0,1], [0,3]],
+								flagged: [[0,0], [0,1], [0,3]],
+								revealed: [[0,4],[0,5],
 									[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
 									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],
 									[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
