@@ -255,14 +255,16 @@ var LEARN_COURSES = [
 								action: "flag"
 							},
 							{
-								// A '3' on the top edge with exactly three covered cells beneath it —
-								// same rule, a bigger match (edges only have 5 neighbours, and here
-								// 3 of them are the covered ones the count is asking about).
+								// A '3' with exactly three covered cells beneath it: empty row on
+								// top (cascaded context, far enough from the mines to read as plain
+								// 0s), the clue row itself (2-3-2 — each side cell only touches two
+								// of the three mines, the middle one touches all three), then the
+								// covered row of mines along the bottom.
 								rows: 3, cols: 3,
-								mines: [[1,0], [1,1], [1,2]],
-								revealed: [[0,0],[0,2],[2,0],[2,1],[2,2]],
-								clueCell: [0,1],
-								targets: [[1,0], [1,1], [1,2]],
+								mines: [[2,0], [2,1], [2,2]],
+								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
+								clueCell: [1,1],
+								targets: [[2,0], [2,1], [2,2]],
 								action: "flag"
 							}
 						]
@@ -272,15 +274,18 @@ var LEARN_COURSES = [
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
 						demos: [
 							{
-								// Two mines pre-flagged at opposite corners of the bottom row; the '1'
-								// directly above them is satisfied by either one, freeing both middle
-								// cells at once. A row of cascaded context sits above, same as Rule #1.
-								rows: 3, cols: 4,
-								mines: [[2,0], [2,3]],
-								flagged: [[2,0], [2,3]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3]],
+								// A real reachable position (verified: revealed cells never border a
+								// covered cell with nothing between them, the way a real cascade
+								// would leave it). Two mines diagonally adjacent near the left edge;
+								// the '2' between them is satisfied once both are flagged, freeing
+								// the two safe cells trapped on either side of the pair.
+								rows: 5, cols: 4,
+								mines: [[1,0], [2,1]],
+								flagged: [[1,0], [2,1]],
+								revealed: [[0,1],[0,2],[0,3],[1,1],[1,2],[1,3],[2,2],[2,3],
+									[3,0],[3,1],[3,2],[3,3],[4,0],[4,1],[4,2],[4,3]],
 								clueCell: [1,1],
-								targets: [[2,1], [2,2]],
+								targets: [[0,0], [2,0]],
 								action: "reveal"
 							}
 						]
@@ -1256,11 +1261,12 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 }
 
 // One scene of a rule demo: highlight a clue cell, then flag or reveal its covered neighbours
-// one at a time, hold, then hand back to the caller instead of looping itself — buildRuleDemo
-// (below) drives the loop, since a rule can cycle through more than one scene.
+// one at a time, hold, reset, and loop — on its own, independent of any other scene. A rule with
+// multiple examples (see buildRuleDemo) shows them side by side, each running this loop, rather
+// than cycling one board through several examples.
 // spec: { rows, cols, mines, revealed, flagged, clueCell: [r,c], targets: [[r,c]...],
 //         action: "flag" | "reveal" }
-function buildRuleDemoScene(spec, onDone) {
+function buildRuleDemoScene(spec) {
 	var R = spec.rows, C = spec.cols;
 	var isMineArr = buildMineGrid(spec);
 	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
@@ -1287,11 +1293,12 @@ function buildRuleDemoScene(spec, onDone) {
 	});
 	bv.draw();
 
+	var initialState = state.map(function(row) { return row.slice(); });
 	var targets = spec.targets || [];
 	var targetState = spec.action === "flag" ? FLAGGED : KNOWN;
 
-	// Stops once this canvas is no longer on the page (the player moved on, or buildRuleDemo
-	// swapped in the next scene) instead of ticking forever in the background.
+	// Stops once this canvas is no longer on the page (the player moved on to another step)
+	// instead of ticking forever in the background.
 	function playFrom(i) {
 		if (!canvas.isConnected) return;
 		if (i === 0) {
@@ -1310,7 +1317,10 @@ function buildRuleDemoScene(spec, onDone) {
 		}
 		setTimeout(function() {
 			if (!canvas.isConnected) return;
-			if (typeof onDone === "function") onDone();
+			highlightCell = null;
+			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) state[r][c] = initialState[r][c];
+			bv.draw();
+			setTimeout(function() { playFrom(0); }, 550);
 		}, 1500);
 	}
 	// Deferred, not called directly: this function returns wrap before the caller inserts it into
@@ -1321,29 +1331,19 @@ function buildRuleDemoScene(spec, onDone) {
 	return wrap;
 }
 
-// Cycles a rule's demo scenes one after another (a single-scene rule just replays the same one).
-// Rebuilds the board between scenes rather than mutating in place, since scenes can differ in
-// size (Rule #1 pairs a plain corner example with a wider edge-of-3 example).
+// A rule's demo scenes, laid out side by side — each one loops on its own (buildRuleDemoScene),
+// so a rule with two examples shows both at once rather than cycling one board between them.
 function buildRuleDemo(scenes) {
 	var container = document.createElement("div");
-	container.className = "learn-rule-demo-cycle";
-	function playScene(idx) {
-		container.innerHTML = "";
-		container.appendChild(buildRuleDemoScene(scenes[idx], function() {
-			setTimeout(function() {
-				if (!container.isConnected) return;
-				playScene((idx + 1) % scenes.length);
-			}, 550);
-		}));
-	}
-	playScene(0);
+	container.className = "learn-rule-demo-row";
+	scenes.forEach(function(spec) { container.appendChild(buildRuleDemoScene(spec)); });
 	return container;
 }
 
 // The "two rules" reference panel — a rulesPanel step's board area. Two cards side by side (each
-// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each cycling through one or
-// more tiny looping buildRuleDemo scenes so the rule is something you watch happen, not just a
-// sentence to read.
+// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each showing its own example
+// board(s) looping through a flag/reveal animation so the rule is something you watch happen, not
+// just a sentence to read.
 function buildRulesPanel(spec) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-rules-panel";

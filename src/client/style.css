@@ -4825,7 +4825,7 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .learn-rule-card {
 	flex: 1 1 200px;
-	max-width: 260px;
+	max-width: 300px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -4847,6 +4847,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 	font-size: 0.88rem;
 	line-height: 1.5;
 	color: var(--text);
+}
+/* A rule's example boards side by side (buildRuleDemo) — most rules show just one, Rule #1 shows
+   two, each looping its own flag animation independently rather than cycling one board between
+   them. */
+.learn-rule-demo-row {
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 0.5rem;
 }
 .learn-rule-demo-board { margin: 0; }
 
