@@ -53,7 +53,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was the mine. Check the '1's again."
 			},
-			outro: "That's reading the board — no guessing. Next: marking mines instead of clicking them."
+			outro: "That's reading the board — no guessing."
 		}
 		]
 	},
@@ -89,7 +89,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				wrongFlag: "Not a mine — check the numbers around it."
 			},
-			outro: "That's the flagging half of the toolkit. Next: reading numbers to work out more than one mine at a time."
+			outro: "In a real game, flagging is optional — nothing forces you to place one. But it's a great tool for keeping track of what you've already worked out."
 		}
 		]
 	},
@@ -191,7 +191,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check the numbers around it again."
 			},
-			outro: "Same idea, just more numbers to read before it clicks. Next: a faster way to open cells."
+			outro: "Same idea, just more numbers to read before it clicks."
 		}
 		]
 	},
