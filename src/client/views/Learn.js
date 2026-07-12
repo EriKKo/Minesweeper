@@ -231,9 +231,8 @@ var LEARN_COURSES = [
 		steps: [
 		{
 			// A pure reference step, no puzzle to solve — see the rulesPanel branch in loadStep.
-			// Both mini-boards below are tiny, verified real positions (2x2 and 2x4) that loop a
-			// flag/reveal animation on their own; the exact same rules get practiced for real on
-			// the next step's 3x3 board.
+			// Lesson has just this one step: watch the two rules happen, then go practice them for
+			// real on the first puzzle of the next lesson.
 			intro: [
 				"Just two rules solve almost every board. Watch them below, then try them yourself."
 			],
@@ -366,24 +365,7 @@ var LEARN_COURSES = [
 						]
 					}
 				]
-			},
-			outro: "That's the whole toolkit. Keep applying those two moves and you can clear a board of any size."
-		},
-		{
-			// Smallest possible real board: two mines side by side at a corner, one safe cell.
-			// The same two rules from the panel above, now for real — flag one, reveal the other.
-			board: { rows: 3, cols: 3, mines: [[1,0], [1,1]], revealed: [[0,0],[0,1],[0,2]] },
-			intro: [
-				"Now you try. Same two rules — find a match to flag, find a satisfied number to reveal."
-			],
-			hints: [
-				"The '2' on the left touches exactly two covered cells — rule one: both are mines. Flag them.",
-				"Once they're flagged, the '1' next to it is already satisfied — rule two: its last covered cell is safe. Reveal it."
-			],
-			mistakes: {
-				mine: "That was a mine. Check whether the number touching it is already fully explained by its neighbours."
-			},
-			outro: "Rule one to flag, rule two to reveal — that's the whole toolkit. Keep applying those two moves and you can clear a board of any size."
+			}
 		}
 		]
 	},
@@ -397,8 +379,7 @@ var LEARN_COURSES = [
 			// real board never leaves a whole row guaranteed mine-free.
 			board: { rows: 5, cols: 5, mines: [[3,3], [3,4], [4,0]], revealStart: [0,0] },
 			intro: [
-				"Start from a corner when you can — fewer neighbours means its number is easiest to trust completely.",
-				"Reveal the first covered row with the two rules, and the second row opens up right behind it."
+				"Start from a corner when you can — fewer neighbours means its number is easiest to trust completely."
 			],
 			hints: [
 				"Work along the border row first — each number either matches its covered neighbours (flag) or is already satisfied (reveal).",
@@ -483,6 +464,65 @@ var LEARN_COURSES = [
 				mine: "That was a mine. Check a number you haven't tried yet."
 			},
 			outro: "If you get stuck in one section of the board, move over and look for opportunities somewhere else."
+		},
+		{
+			// Real puzzle pool, id 163 — one mine more than the last board, still fully clearable
+			// with only the two rules (verified by simulating trivial-only flag/reveal to
+			// completion before wiring it in).
+			board: {
+				rows: 6, cols: 5,
+				mines: [[2,0], [2,4], [3,1], [4,0], [5,4]],
+				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[1,4],[2,1],[2,2],[2,3]]
+			},
+			intro: [ "Bigger now — five mines instead of four, spread across more of the board." ],
+			hints: [
+				"Same approach: find a number whose covered cells already match its count, or one whose mines are already flagged.",
+				"Work outward from whichever number is easiest, in any direction."
+			],
+			mistakes: {
+				mine: "That was a mine. Look for a number that's already fully explained, and work outward from it."
+			},
+			outro: "Same two rules, just more of the board — size doesn't change the method."
+		},
+		{
+			// Real puzzle pool, id 195 — wider still, six mines spread across the full width of
+			// the board. Also verified fully trivial-solvable before wiring it in.
+			board: {
+				rows: 6, cols: 8,
+				mines: [[2,3], [2,7], [3,3], [3,7], [4,5], [5,7]],
+				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],
+					[2,0],[2,1],[2,2],[2,4],[2,5],[2,6],[3,0],[3,1],[3,2],[3,4],[3,5],[3,6],
+					[4,0],[4,1],[4,2],[4,3],[4,4],[5,0],[5,1],[5,2],[5,3],[5,4]]
+			},
+			intro: [ "Wider still, and the mines are spread across the whole width of the board." ],
+			hints: [
+				"Nothing new here — just more numbers to work through with the same two rules.",
+				"If one area stalls, move to another part of the board and come back to it after."
+			],
+			mistakes: {
+				mine: "That was a mine. Move to a number you haven't worked yet, and come back to this area after."
+			},
+			outro: "Same two rules cover a board this size just as easily as a small one."
+		},
+		{
+			// Real puzzle pool, id 88 — the biggest and busiest board in the course, 7x7 with six
+			// mines. Still fully trivial-solvable (verified the same way as the other three), so
+			// even at this size, nothing here needs more than the two rules.
+			board: {
+				rows: 7, cols: 7,
+				mines: [[0,0], [2,1], [2,5], [4,1], [5,6], [6,4]],
+				revealed: [[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],
+					[2,2],[2,3],[2,4],[3,2],[3,3],[3,4],[3,5],[4,2],[4,3],[4,4],[4,5],[5,2],[5,3],[5,4],[5,5]]
+			},
+			intro: [ "The biggest board yet — six mines, no shortcuts, still just the two rules." ],
+			hints: [
+				"Work through it the same way as every board before this one: match the count to flag, satisfy the count to reveal.",
+				"There's no trick here — just more of the board to cover."
+			],
+			mistakes: {
+				mine: "That was a mine. Every mine on this board is findable with the two rules — check what's already explained."
+			},
+			outro: "That's the whole course: two simple rules, patiently applied, clear a board of any size."
 		}
 		]
 	}
