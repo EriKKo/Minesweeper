@@ -253,59 +253,74 @@ var LEARN_COURSES = [
 		title: "Row by row",
 		steps: [
 		{
-			// One matching pair, one lone mine, three-column-wide covered band below a single
-			// clue row. Verified: solving starts from the corner where a number's covered cells
-			// match its count exactly (rule one), then rule two clears the rest of that row —
-			// which hands you the numbers to clear the second row the same way.
-			board: { rows: 3, cols: 5, mines: [[1,0], [1,1], [1,4]], revealed: [[0,0],[0,1],[0,2],[0,3],[0,4]] },
+			// A real cascade (revealStart) opens two clean rows above the border, like a real
+			// opening would, before the mines start — instead of the clue row sitting right at the
+			// board's top edge. Mines split across BOTH covered rows (not just the first), since a
+			// real board never leaves a whole row guaranteed mine-free.
+			board: { rows: 5, cols: 5, mines: [[3,3], [3,4], [4,0]], revealStart: [0,0] },
 			intro: [
 				"Start from a corner when you can — fewer neighbours means its number is easiest to trust completely.",
-				"Reveal the first row with the two rules, and the second row opens up right behind it."
+				"Reveal the first covered row with the two rules, and the second row opens up right behind it."
 			],
 			hints: [
-				"The '2' at the left corner touches exactly two covered cells — rule one, flag both.",
-				"Work along the row from there — each number either matches (flag) or is already satisfied (reveal).",
-				"Once the whole top row is sorted, its numbers explain everything below — the second row is fully safe."
+				"Work along the border row first — each number either matches its covered neighbours (flag) or is already satisfied (reveal).",
+				"Once the first covered row is sorted, its own numbers are enough to explain the row behind it too."
 			],
 			mistakes: {
 				mine: "That was a mine. Go back to a number that's fully explained by its flagged neighbours, and work outward from there."
 			},
-			outro: "Same two rules, twice: once to clear the first row, once more for the row behind it."
+			outro: "Same two rules, twice: once to clear the first row, once more for the row behind it — mines and all, in both."
 		},
 		{
-			// Wider still — a lone mine plus two separate pairs across the row.
+			// Wider, more mines, still split across both covered rows.
 			board: {
-				rows: 3, cols: 7,
-				mines: [[1,0], [1,2], [1,3], [1,5], [1,6]],
-				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6]]
+				rows: 5, cols: 6,
+				mines: [[3,1], [3,3], [4,2], [4,3]],
+				revealStart: [0,0]
 			},
-			intro: [ "Wider now — more mines to flag before the second row opens up." ],
+			intro: [ "Wider now — and this time the second row isn't a free pass either." ],
 			hints: [
-				"Start at a corner again — its number matches its covered neighbours exactly.",
+				"Start at a number that already matches its covered neighbours exactly.",
 				"Work across one number at a time. Nothing here needs more than the two rules."
 			],
 			mistakes: {
 				mine: "That was a mine. Find a number that's fully explained already, and work outward from it."
 			},
-			outro: "Same idea, just more of it — the two rules don't care how wide the board is."
+			outro: "Same idea, just more of it — the two rules don't care how wide the board is, or which row the mines are in."
 		},
 		{
-			// Widest of the set — six mines across the row in three groups, 17 forced moves. Still
-			// nothing but rule one and rule two, repeated.
+			// Wider still, mines in both rows again, one board hugging the right edge.
 			board: {
-				rows: 3, cols: 10,
-				mines: [[1,0], [1,3], [1,4], [1,5], [1,8], [1,9]],
-				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,9]]
+				rows: 5, cols: 7,
+				mines: [[3,6], [4,0], [4,1], [4,3], [4,6]],
+				revealStart: [0,0]
 			},
-			intro: [ "The widest one yet. Same two rules, just more mines to work through before the second row is yours." ],
+			intro: [ "Wider again. Same two rules, just more of the board to work through." ],
 			hints: [
-				"Same start as always: a corner where the number matches its covered neighbours exactly.",
-				"Work across the row one number at a time — flag what matches, reveal what's satisfied."
+				"Same start as always: a number that matches its covered neighbours exactly.",
+				"Work across one number at a time — flag what matches, reveal what's satisfied."
 			],
 			mistakes: {
-				mine: "That was a mine. Ten columns or three, the method's the same — find what's already explained and work outward."
+				mine: "That was a mine. Find what's already explained, and work outward from it."
 			},
-			outro: "That's row by row: reveal the top, and the row behind it falls out for free."
+			outro: "That's row by row: work the first covered row with the two rules, and the row behind it falls out the same way."
+		},
+		{
+			// Widest and busiest of the set — six mines split across both rows, 11 forced moves.
+			board: {
+				rows: 5, cols: 8,
+				mines: [[3,0], [3,2], [3,3], [3,4], [4,0], [4,5]],
+				revealStart: [0,0]
+			},
+			intro: [ "The widest one yet. Same two rules — just more of them to chain together." ],
+			hints: [
+				"Start from a number that already matches its covered neighbours exactly.",
+				"Work across the row one number at a time. Every mine here — top row or bottom — comes from the same two rules."
+			],
+			mistakes: {
+				mine: "That was a mine. Eight columns or five, the method's the same — find what's already explained and work outward."
+			},
+			outro: "That's the whole lesson: reveal what you can, and the rest reveals itself, row after row."
 		}
 		]
 	},
