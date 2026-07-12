@@ -4793,18 +4793,19 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-bubble-outro .learn-mentor-bubble-text { font-weight: 600; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Board sits centred below the coach. Fixed min-height, sized to this course's tallest board (7
-   rows, LEARN_CELL_PX=32 → 224px canvas) PLUS the fixed chrome every buildLearnPuzzle instance
-   carries even with its title/controls hidden (.learn-puzzle's own padding+margin-top and
-   .learn-board's padding, ~60px measured) — undercounting that chrome is what let this drift
-   before. So switching between lessons/steps with very different board sizes never changes the
-   height of this box — and so never shifts the actions row or the Previous/Next lesson footer
-   below it. Bump this if a taller board is ever added. */
+/* Board sits centred below the coach. Fixed min-height, sized to the tallest board across EVERY
+   mentor-format course sharing this class (currently Simple moves' 8-row board, LEARN_CELL_PX=32
+   → 256px canvas) PLUS the fixed chrome every buildLearnPuzzle instance carries even with its
+   title/controls hidden (.learn-puzzle's own padding+margin-top and .learn-board's padding, ~60px
+   measured) — undercounting that chrome is what let this drift before. So switching between
+   lessons/steps/COURSES with very different board sizes never changes the height of this box — and
+   so never shifts the actions row or the Previous/Next lesson footer below it. Bump this if a
+   taller board is ever added to any mentor-format course. */
 .learn-mentor-board-col {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 288px;
+	min-height: 320px;
 }
 /* The board's own title chip and controls (Reset button + status text) are redundant here — the
    lesson title and the coach bubble already cover both, and this flow has no Reset (see
