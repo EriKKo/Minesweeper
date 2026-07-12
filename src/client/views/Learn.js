@@ -1371,7 +1371,14 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 			return;
 		}
 		var puzzle = Object.assign({ title: lesson.title }, step.board, { requirements: step.requirements });
-		boardCol.appendChild(buildLearnPuzzle(puzzle, !!step.guess, onStepSolved, onStepFailed, onStepMistake));
+		var puzzleEl = buildLearnPuzzle(puzzle, !!step.guess, onStepSolved, onStepFailed, onStepMistake);
+		boardCol.appendChild(puzzleEl);
+		// Same reasoning as Continue/Try-again calling .focus() on themselves above: land keyboard
+		// focus on the next thing to interact with, rather than leaving it on a button (Try again,
+		// the stepper) that this reload just replaced — otherwise a keyboard-only player is dropped
+		// back to <body> and has to tab through the whole page again to get back to the board.
+		var puzzleCanvas = puzzleEl.querySelector("canvas");
+		if (puzzleCanvas) puzzleCanvas.focus();
 	}
 
 	if (steps.length) loadStep(0);
@@ -1706,8 +1713,23 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 	boardWrap.className = "learn-board";
 	var canvas = buildBoardCanvas(R, C);
 	canvas.style.cursor = "pointer";
+	// Keyboard-focusable so the whole lesson is completable without a mouse — same rebindable
+	// keys as the live game (Keybindings.js), reused as-is rather than a second binding scheme.
+	// "next" (default Tab) is deliberately not wired up here, unlike the live game's board: this
+	// canvas sits inside a normal page with Reset/Hint/Continue buttons before and after it, and
+	// capturing Tab would trap keyboard users on the board instead of letting them move on.
+	canvas.tabIndex = 0;
+	canvas.setAttribute("aria-label", "Minesweeper puzzle, " + R + " by " + C + " cells. Arrow keys move the " +
+		"selected cell, " + keybindings.label(keybindings.get("reveal")) + " reveals it, " +
+		keybindings.label(keybindings.get("flag")) + " flags it.");
 	boardWrap.appendChild(canvas);
 	wrap.appendChild(boardWrap);
+
+	var kbdHint = document.createElement("div");
+	kbdHint.className = "learn-kbd-hint";
+	kbdHint.textContent = "Keyboard: arrows to move, " + keybindings.label(keybindings.get("reveal")) + " to reveal, " +
+		keybindings.label(keybindings.get("flag")) + " to flag.";
+	wrap.appendChild(kbdHint);
 
 	// highlightedCells can be either:
 	//   * an array of [r,c] (single gold-outlined group, the simple case), or
@@ -1730,6 +1752,13 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 		}
 		ctx.restore();
 	}
+	// Keyboard cursor — moved by arrow keys, only drawn while the canvas actually has focus (so
+	// tabbing past it, or clicking elsewhere, doesn't leave a stray ring behind). Same visual
+	// language as the live game's drawFocusHighlight (Animations.js): a yellow rounded-rect
+	// stroke over the focused cell, using the same roundRectPath geometry drawCell itself uses.
+	var focusR = Math.floor(R / 2), focusC = Math.floor(C / 2);
+	var hasFocus = false;
+
 	// The board renders itself; the highlight overlay reads the live `highlightedCells`.
 	var bv;
 	function buildBoardRenderer() {
@@ -1743,6 +1772,17 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 				drawOutlines(ctx, sw, sh, highlightedCells.context, "rgba(96, 165, 250, 0.85)", "rgba(96, 165, 250, 0.5)");
 				drawOutlines(ctx, sw, sh, highlightedCells.primary, "rgba(250, 204, 21, 0.95)", "rgba(250, 204, 21, 0.7)");
 			}
+		});
+		bv.overlay(function(ctx, sw, sh) {
+			if (!hasFocus) return;
+			var x = focusC * sw, y = focusR * sh;
+			var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
+			ctx.save();
+			ctx.strokeStyle = "#facc15";
+			ctx.lineWidth = 2;
+			roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
+			ctx.stroke();
+			ctx.restore();
 		});
 	}
 	buildBoardRenderer();
@@ -1912,6 +1952,36 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 		e.preventDefault();
 		var cell = cellFromEvent(e);
 		if (cell) onRightClick(cell.r, cell.c);
+	});
+
+	// Keyboard play: same rebindable actions as the live game (keybindings.actionFor), scoped to
+	// this canvas's own keydown so it never competes with the live game's document-level listener
+	// or with any other puzzle on the page. Only draws its cursor ring while actually focused.
+	canvas.addEventListener("focus", function() { hasFocus = true; renderAll(); });
+	canvas.addEventListener("blur", function() { hasFocus = false; renderAll(); });
+	canvas.addEventListener("keydown", function(e) {
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		var action = keybindings.actionFor(e);
+		if (!action) return;
+		if (action === "reveal") {
+			e.preventDefault();
+			if (e.repeat) return; // one press, one action — not a spam-while-held key
+			onLeftClick(focusR, focusC);
+			return;
+		}
+		if (action === "flag") {
+			e.preventDefault();
+			if (e.repeat) return;
+			onRightClick(focusR, focusC);
+			return;
+		}
+		var dr = action === "up" ? -1 : action === "down" ? 1 : 0;
+		var dc = action === "left" ? -1 : action === "right" ? 1 : 0;
+		if (!dr && !dc) return; // "next" (Tab) and anything else fall through to native behaviour
+		e.preventDefault();
+		focusR = Math.max(0, Math.min(R - 1, focusR + dr));
+		focusC = Math.max(0, Math.min(C - 1, focusC + dc));
+		renderAll();
 	});
 
 	function resetPuzzle() {

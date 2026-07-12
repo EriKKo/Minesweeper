@@ -1251,7 +1251,8 @@ main:has(.game-view.territory) { max-width: none; }
 .help-examples { display: flex; gap: 1rem; margin-top: 0.9rem; }
 .help-example { margin: 0; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; }
 .help-board { line-height: 0; }
-.help-board .learn-puzzle-title, .help-board .learn-status, .help-board .learn-controls { display: none; }
+.help-board .learn-puzzle-title, .help-board .learn-status, .help-board .learn-controls,
+.help-board .learn-kbd-hint { display: none; }
 .help-board .learn-board { line-height: 0; padding: 0; }
 .help-board .learn-board canvas { display: block; height: 84px !important; width: auto !important; border-radius: 5px; }
 .help-example-cap { font-size: 0.74rem; color: var(--muted); text-align: center; line-height: 1.35; }
@@ -4647,6 +4648,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 .learn-board { display: inline-block; padding: 6px; background: var(--bg); border-radius: 8px; }
 .learn-board canvas { display: block; }
+/* The board itself draws a per-cell focus ring (see buildLearnPuzzle's keydown handler in
+   Learn.js) — that's the real indicator, so the browser's default rectangle-around-the-whole-
+   canvas outline would just be redundant clutter around it. */
+.learn-board canvas:focus { outline: none; }
+.learn-board canvas:focus-visible { outline: none; }
+.learn-kbd-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.4rem; text-align: center; }
 
 .learn-controls { margin-top: 0.65rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .learn-btn {
@@ -5320,7 +5327,8 @@ input.countdown-lab-checkbox {
 /* Mode previews use the real game board renderer (buildLearnPuzzle); scale it down to a fixed
    thumbnail and make it non-interactive. Uniform width so every mode row is the same size. */
 .dash-board-preview { pointer-events: none; padding: 0; gap: 0; min-height: 0; }
-.dash-board-preview .learn-puzzle-title, .dash-board-preview .learn-controls { display: none; }
+.dash-board-preview .learn-puzzle-title, .dash-board-preview .learn-controls,
+.dash-board-preview .learn-kbd-hint { display: none; }
 /* Uniform board HEIGHT (so each mode's grid size controls the zoom — wide racing boards read
    zoomed-out, the small puzzle board zoomed-in); width follows the aspect, capped to the slot. */
 .dash-board-preview .learn-board { line-height: 0; padding: 3px; }
