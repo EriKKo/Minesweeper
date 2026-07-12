@@ -4722,16 +4722,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 /* Duolingo-style coach: a small mascot (buildCoachAvatar) beside a speech bubble that always shows
    exactly ONE message, swapped out by say() rather than appended to a log. Capped width — messages
    are short by design, so there's no reason for the bubble to stretch across a wide card. */
-/* min-height reserves room for a bubble PLUS a hint button below it, whether or not the current
-   step actually has one — otherwise a step with no hints renders a shorter coach row than a step
-   with hints, shifting the board and everything below it. */
+/* A hard height (not min-height) reserving room for a full bubble PLUS a hint button below it,
+   whether or not the current step actually has one and regardless of which text is showing —
+   see .learn-mentor-bubble below for why this has to be a ceiling, not a floor. */
 .learn-mentor-coach {
 	display: flex;
 	align-items: flex-start;
 	gap: 0.75rem;
 	margin: 0 auto 1rem;
 	max-width: 480px;
-	min-height: 120px;
+	height: 150px;
 }
 .learn-mentor-avatar { flex: 0 0 auto; }
 .learn-mentor-bubble-col {
@@ -4745,10 +4745,12 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-bubble {
 	position: relative;
 	width: 100%;
-	/* Reserves room for a typical 2-3 line message so the common case doesn't shift the board below
-	   it; unusually long text still has somewhere to go (see .learn-mentor-bubble-text's own scroll)
-	   rather than being cut off. */
-	min-height: 4.6rem;
+	/* A hard height, not min-height — say() swaps in intro/hint/mistake/outro text of very different
+	   lengths on the same element, and a min-height only reserves the common case, so anything past
+	   it (a 3-line outro, say) used to grow the bubble and shift the board and every step below it.
+	   Fixed at 6.5rem so the bubble — and everything after it — never moves; text past what fits
+	   scrolls inside .learn-mentor-bubble-text instead of growing this box. */
+	height: 6.5rem;
 	display: flex;
 	align-items: center;
 	background: var(--surface);
@@ -4777,7 +4779,9 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 .learn-mentor-bubble-text {
 	width: 100%;
-	max-height: 8rem;
+	/* Matches the bubble's own content-box height (6.5rem outer minus 1.5rem of top+bottom padding) —
+	   any text that doesn't fit scrolls here rather than growing the fixed-height bubble around it. */
+	max-height: 5rem;
 	overflow-y: auto;
 	font-size: 0.95rem;
 	line-height: 1.6;
