@@ -294,8 +294,22 @@ var LEARN_COURSES = [
 					{
 						label: "Rule #2",
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
-						demoLayout: "stack",
 						demos: [
+							{
+								// Three covered cells in a row, all the clues below them reading '1':
+								// only a mine in the middle is consistent with that (an end mine would
+								// leave the far clue at 0, not 1), so the flag is forced by elimination
+								// even though no single clue's count alone proves it. Nothing past the
+								// clue row is revealed — with just one mine, cascading any further
+								// would auto-reveal the two covered cells too, defeating the demo.
+								rows: 4, cols: 6,
+								mines: [[0,1]],
+								flagged: [[0,1]],
+								revealed: [[1,0],[1,1],[1,2]],
+								clueCell: [1,1],
+								targets: [[0,0], [0,2]],
+								action: "reveal"
+							},
 							{
 								// Top row: four covered cells (two mines, a target, then a third
 								// mine), then a revealed '1' and an empty cell. The '2' below the
@@ -1353,7 +1367,7 @@ function buildRuleDemoScene(canvas, spec, onDone) {
 		setTimeout(function() {
 			if (!canvas.isConnected) return;
 			if (typeof onDone === "function") onDone();
-		}, 1500);
+		}, 700);
 	}
 
 	return { bv: bv, play: function() { playFrom(0); } };
@@ -1427,7 +1441,7 @@ function buildRuleDemo(scenes) {
 				current = next;
 				current.play();
 			});
-		}, 550);
+		}, 300);
 	}
 
 	// Deferred, not called directly: buildRuleDemo returns wrap before the caller inserts it into
