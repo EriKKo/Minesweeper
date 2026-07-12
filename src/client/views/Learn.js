@@ -244,53 +244,56 @@ var LEARN_COURSES = [
 						desc: "Find a cell that only has mines left around it, and flag them all.",
 						demos: [
 							{
-								// One covered cell to the bottom-right of a lone '1' — the smallest
-								// possible case, sitting in the bottom-right corner of a much larger
+								// Two covered cells tucked in the top-right corner — one size up from
+								// the smallest possible case, sitting at the top of a much larger
 								// cascaded board (same size as Rule #2's demos) so it reads as one
-								// corner of a real board rather than a bare 2x2 scrap.
+								// corner of a real board rather than a bare scrap.
 								rows: 4, cols: 6,
-								mines: [[3,5]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4]],
-								clueCell: [2,4],
-								targets: [[3,5]],
+								mines: [[0,4], [0,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,4],
+								targets: [[0,4], [0,5]],
 								action: "flag"
 							},
 							{
-								// A '3' with exactly three covered cells beneath it (2-3-2 — each side
-								// cell only touches two of the three mines, the middle one touches all
-								// three), the row of mines centred along the bottom edge with cascaded
-								// context filling the rest of the board.
+								// A '3' with exactly three covered cells beneath it, grown to an
+								// L of four mines — three across the top plus one more hanging down
+								// from the right end — with a single clue cell still touching all
+								// four (a straight run of four is one mine too wide for any one
+								// clue to reach every cell, so the extra mine has to turn a corner).
 								rows: 4, cols: 6,
-								mines: [[3,1], [3,2], [3,3]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,4],[3,5]],
-								clueCell: [2,2],
-								targets: [[3,1], [3,2], [3,3]],
+								mines: [[0,1], [0,2], [0,3], [1,3]],
+								revealed: [[0,0],[0,4],[0,5],[1,0],[1,1],[1,2],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,2],
+								targets: [[0,1], [0,2], [0,3], [1,3]],
 								action: "flag"
 							},
 							{
-								// A '2' on the left edge — same idea as the '3' above, one size down,
-								// and this time bordering the side of the board instead of just the
-								// bottom.
+								// A '2' on the left edge, grown to three mines — same idea, one size
+								// up, and this time bordering the side of the board instead of the
+								// top. The clue cell sits one column in rather than flush against the
+								// edge, since it needs to reach all three mines, not just two.
 								rows: 4, cols: 6,
-								mines: [[3,0], [3,1]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4],[3,5]],
-								clueCell: [2,0],
-								targets: [[3,0], [3,1]],
+								mines: [[0,0], [0,1], [0,2]],
+								revealed: [[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,1],
+								targets: [[0,0], [0,1], [0,2]],
 								action: "flag"
 							},
 							{
-								// A '3' with its three covered cells clustered in the bottom-right
-								// corner — the corner-cluster shape from the first example, scaled up
-								// to three mines instead of one.
+								// Three covered cells clustered in the top-right corner, grown to an
+								// L of four mines running down the right edge instead of a solid
+								// square (a 2x2 block has no single cell close enough to touch all
+								// four — the L keeps every mine within reach of one clue).
 								rows: 4, cols: 6,
-								mines: [[2,5], [3,4], [3,5]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[3,0],[3,1],[3,2],[3,3]],
-								clueCell: [2,4],
-								targets: [[2,5], [3,4], [3,5]],
+								mines: [[0,4], [0,5], [1,5], [2,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3],[1,4],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,4],
+								targets: [[0,4], [0,5], [1,5], [2,5]],
 								action: "flag"
 							}
 						]
@@ -303,19 +306,23 @@ var LEARN_COURSES = [
 								// Three covered cells in a row, mine on the right: the '1' beyond it
 								// touches only that one covered cell, so it's flagged by simple count-
 								// matching (rule #1) — no elimination needed. That satisfies the '1'
-								// below the row, freeing both cells left of the mine plus one more
-								// beneath them the same cascade would really open. A second, unflagged
-								// mine tucked in the bottom-left corner is what lets the rest of the
-								// board cascade open around it without that cascade reaching in and
-								// prematurely revealing the covered cells above it.
+								// below the row, freeing (0,0) — which is itself a '0', so revealing
+								// it really is a cascade (revealFrom, not a hand-picked targets list):
+								// it opens (0,1) and (1,0) too, and (1,0) being also '0' carries it one
+								// step further into (2,0), which is where the actual cascade algorithm
+								// stops, since that cell is nonzero. The entire left column stays
+								// covered until then. A second, unflagged mine tucked in the
+								// bottom-left corner is what lets the rest of the board cascade open
+								// around it without that same cascade reaching in and prematurely
+								// revealing the covered cells above it.
 								rows: 4, cols: 6,
 								mines: [[0,2], [3,0]],
 								flagged: [[0,2]],
 								revealed: [[0,3],[0,4],[0,5],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],
+									[2,1],[2,2],[2,3],[2,4],[2,5],
 									[3,1],[3,2],[3,3],[3,4],[3,5]],
 								clueCell: [1,1],
-								targets: [[0,0], [0,1], [1,0]],
+								revealFrom: [0,0],
 								action: "reveal"
 							},
 							{
@@ -1326,10 +1333,15 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 // getting its own canvas — building a BoardView bound to a caller-supplied canvas instead of
 // creating its own, so buildRuleDemo can sweep between two scenes' views on the same surface.
 // spec: { rows, cols, mines, revealed, flagged, clueCell: [r,c], targets: [[r,c]...],
-//         action: "flag" | "reveal" }
+//         action: "flag" | "reveal", revealFrom: [r,c] }
 // Returns { bv, play } — nothing is drawn or animated until the caller calls play(); the
 // caller decides when this scene's board is actually visible on the canvas (mid-sweep, its
 // content is composited alongside another scene's, so drawing early would race that).
+// revealFrom (reveal scenes only) triggers a real BoardLogic.cascadeReveal from that single
+// cell instead of stepping through `targets` one at a time — for a scene where the reveal is
+// genuinely a cascade (one click opening several 0-cells' worth of neighbours), this reuses the
+// exact algorithm a real click runs rather than a hand-authored stand-in for it. Scenes whose
+// reveal is just "this clue's remaining covered neighbours, not a cascade" keep using `targets`.
 function buildRuleDemoScene(canvas, spec, onDone) {
 	var R = spec.rows, C = spec.cols;
 	var isMineArr = buildMineGrid(spec);
@@ -1362,6 +1374,20 @@ function buildRuleDemoScene(canvas, spec, onDone) {
 			highlightCell = spec.clueCell;
 			bv.draw();
 			setTimeout(function() { playFrom(1); }, 750);
+			return;
+		}
+		if (spec.revealFrom) {
+			if (i === 1) {
+				BoardLogic.cascadeReveal(spec.revealFrom[0], spec.revealFrom[1], R, C,
+					function(rr, cc) { return state[rr][cc] === UNKNOWN && !isMineArr[rr][cc]; },
+					function(rr, cc) { state[rr][cc] = KNOWN; return false; },
+					function(rr, cc) { return clueValue[rr][cc]; });
+				bv.draw();
+			}
+			setTimeout(function() {
+				if (!canvas.isConnected) return;
+				if (typeof onDone === "function") onDone();
+			}, 700);
 			return;
 		}
 		var idx = i - 1;
