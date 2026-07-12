@@ -93,23 +93,20 @@ var LEARN_COURSES = [
 			outro: "Same trick, two mines and two safe cells this time."
 		},
 		{
-			// Real puzzle pool, id 41 — three mines run along the left edge, an L rather than a chain,
-			// with three safe cells clustered in the corner they leave behind.
-			board: {
-				rows: 4, cols: 4,
-				mines: [[0,0], [1,0], [2,1]],
-				revealed: [[0,1],[0,2],[0,3],[1,1],[1,2],[1,3],[2,2],[2,3],[3,2],[3,3]]
-			},
-			intro: [ "Three mines along the edge this time. Find all three safe cells." ],
+			// Two mines side by side, flush against the top wall and one cell in from the corner —
+			// the classic 1-2-2-1 wall run. The far '2' touches only the two mines and forces both at
+			// once; the near '1' is then already satisfied, freeing the corner cell.
+			board: { rows: 6, cols: 9, mines: [[0,1], [0,2]], revealStart: [5,8] },
+			intro: [ "Two mines side by side against the wall. Find the safe corner cell." ],
 			hints: [
-				"The '2' at the top touches two covered cells — exactly its count, so both are mines.",
-				"The '1' next to it has only one covered cell left uncovered by those two — that's the third mine.",
-				"With all three pinned, the numbers below them are already satisfied — those cells are safe."
+				"The second '2' (away from the corner) touches only the two mines and nothing else — both are forced.",
+				"Once both mines are known, the '1' nearest the corner is already satisfied.",
+				"That leaves the corner cell safe. Click it."
 			],
 			mistakes: {
-				mine: "That was a mine. Check the numbers around it again."
+				mine: "That was a mine. Check the numbers along the wall again."
 			},
-			outro: "Same idea, just more numbers to read before it clicks."
+			outro: "The classic 1-2-2-1 wall pattern — two mines confirmed from one number, the corner falls out."
 		},
 		{
 			// Real puzzle pool, id 52 — four mines in three separate clusters (a lone one, a lone one,
@@ -130,6 +127,25 @@ var LEARN_COURSES = [
 				mine: "That was a mine. Check the numbers around it again."
 			},
 			outro: "That's the toolkit: read a number, work out what's forced. Next: a faster way to open cells."
+		},
+		{
+			// Real puzzle pool, id 41 — three mines run along the left edge, an L rather than a chain,
+			// with three safe cells clustered in the corner they leave behind.
+			board: {
+				rows: 4, cols: 4,
+				mines: [[0,0], [1,0], [2,1]],
+				revealed: [[0,1],[0,2],[0,3],[1,1],[1,2],[1,3],[2,2],[2,3],[3,2],[3,3]]
+			},
+			intro: [ "Three mines along the edge this time. Find all three safe cells." ],
+			hints: [
+				"The '2' at the top touches two covered cells — exactly its count, so both are mines.",
+				"The '1' next to it has only one covered cell left uncovered by those two — that's the third mine.",
+				"With all three pinned, the numbers below them are already satisfied — those cells are safe."
+			],
+			mistakes: {
+				mine: "That was a mine. Check the numbers around it again."
+			},
+			outro: "Same idea, just more numbers to read before it clicks."
 		}
 		]
 	},

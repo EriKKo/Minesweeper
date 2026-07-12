@@ -4754,12 +4754,15 @@ body.touch .find-next-arrow { display: inline-flex; }
 }
 /* The tail: a rotated square clipped to its own border+background, poking out toward the avatar to
    its left. inherit (not a repeated colour) so it always matches whichever -hint/-mistake/-outro
-   tint is active without restating the colour a third time. */
+   tint is active without restating the colour a third time. top:26px (not closer to the top) keeps
+   the diamond's rotated bounding box clear of the bubble's own top-left border-radius curve — any
+   closer and the two borders overlap into a visible seam/notch, worst on the -hint/-outro tints
+   where the border colour contrasts most against the bubble's dark fill. */
 .learn-mentor-bubble::before {
 	content: "";
 	position: absolute;
 	left: -7px;
-	top: 18px;
+	top: 26px;
 	width: 14px;
 	height: 14px;
 	background: inherit;
