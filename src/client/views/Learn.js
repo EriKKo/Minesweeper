@@ -297,19 +297,19 @@ var LEARN_COURSES = [
 						demoLayout: "stack",
 						demos: [
 							{
-								// A real reachable position where the flags themselves are provable,
-								// not just asserted: the '2' to the left of the pair touches exactly
-								// two covered cells, so rule #1 alone already forces both of them to
-								// be mines. Once they're flagged, the '1' below is satisfied, freeing
-								// the one safe cell left. Same size as the example below it.
+								// Three mines across the top row plus a covered target between the
+								// first two: the '2's directly below force the left pair, the '1' to
+								// the right forces the third mine on its own. Once all three are
+								// flagged, the middle '1' is satisfied and frees the target next to it.
 								rows: 4, cols: 6,
-								mines: [[1,5], [2,5]],
-								flagged: [[1,5], [2,5]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],
-									[1,0],[1,1],[1,2],[1,3],[1,4],[2,0],[2,1],[2,2],[2,3],[2,4],
-									[3,0],[3,1],[3,2],[3,3],[3,4]],
-								clueCell: [3,4],
-								targets: [[3,5]],
+								mines: [[0,0], [0,1], [0,4]],
+								flagged: [[0,0], [0,1], [0,4]],
+								revealed: [[0,3],[0,5],
+									[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],
+									[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,2],
+								targets: [[0,2]],
 								action: "reveal"
 							},
 							{
