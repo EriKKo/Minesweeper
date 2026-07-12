@@ -245,48 +245,52 @@ var LEARN_COURSES = [
 						demos: [
 							{
 								// One covered cell to the bottom-right of a lone '1' — the smallest
-								// possible case, plus a row and column of cascaded context so it
-								// reads as a corner of a real board rather than a bare 2x2 scrap.
-								rows: 3, cols: 3,
-								mines: [[2,2]],
-								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],
-								clueCell: [1,1],
-								targets: [[2,2]],
+								// possible case, sitting in the bottom-right corner of a much larger
+								// cascaded board (same size as Rule #2's demos) so it reads as one
+								// corner of a real board rather than a bare 2x2 scrap.
+								rows: 4, cols: 6,
+								mines: [[3,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4]],
+								clueCell: [2,4],
+								targets: [[3,5]],
 								action: "flag"
 							},
 							{
-								// A '3' with exactly three covered cells beneath it: empty row on
-								// top (cascaded context, far enough from the mines to read as plain
-								// 0s), the clue row itself (2-3-2 — each side cell only touches two
-								// of the three mines, the middle one touches all three), then the
-								// covered row of mines along the bottom.
-								rows: 3, cols: 3,
-								mines: [[2,0], [2,1], [2,2]],
-								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
-								clueCell: [1,1],
-								targets: [[2,0], [2,1], [2,2]],
+								// A '3' with exactly three covered cells beneath it (2-3-2 — each side
+								// cell only touches two of the three mines, the middle one touches all
+								// three), the row of mines centred along the bottom edge with cascaded
+								// context filling the rest of the board.
+								rows: 4, cols: 6,
+								mines: [[3,1], [3,2], [3,3]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,4],[3,5]],
+								clueCell: [2,2],
+								targets: [[3,1], [3,2], [3,3]],
 								action: "flag"
 							},
 							{
-								// A '2' on the left edge — same idea as the '3' above, one size
-								// down, and this time bordering the side of the board instead of
-								// the top.
-								rows: 3, cols: 3,
-								mines: [[2,0], [2,1]],
-								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,2]],
-								clueCell: [1,0],
-								targets: [[2,0], [2,1]],
+								// A '2' on the left edge — same idea as the '3' above, one size down,
+								// and this time bordering the side of the board instead of just the
+								// bottom.
+								rows: 4, cols: 6,
+								mines: [[3,0], [3,1]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [2,0],
+								targets: [[3,0], [3,1]],
 								action: "flag"
 							},
 							{
-								// A '3' with its three covered cells clustered to the bottom-right —
-								// the corner-cluster shape from the first example, scaled up to
-								// three mines instead of one.
-								rows: 3, cols: 3,
-								mines: [[1,2], [2,1], [2,2]],
-								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[2,0]],
-								clueCell: [1,1],
-								targets: [[1,2], [2,1], [2,2]],
+								// A '3' with its three covered cells clustered in the bottom-right
+								// corner — the corner-cluster shape from the first example, scaled up
+								// to three mines instead of one.
+								rows: 4, cols: 6,
+								mines: [[2,5], [3,4], [3,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[3,0],[3,1],[3,2],[3,3]],
+								clueCell: [2,4],
+								targets: [[2,5], [3,4], [3,5]],
 								action: "flag"
 							}
 						]
@@ -296,18 +300,22 @@ var LEARN_COURSES = [
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
 						demos: [
 							{
-								// Three covered cells in a row, all the clues below them reading '1':
-								// only a mine in the middle is consistent with that (an end mine would
-								// leave the far clue at 0, not 1), so the flag is forced by elimination
-								// even though no single clue's count alone proves it. Nothing past the
-								// clue row is revealed — with just one mine, cascading any further
-								// would auto-reveal the two covered cells too, defeating the demo.
+								// Three covered cells in a row, mine on the right: the '1' beyond it
+								// touches only that one covered cell, so it's flagged by simple count-
+								// matching (rule #1) — no elimination needed. That satisfies the '1'
+								// below the row, freeing both cells left of the mine plus one more
+								// beneath them the same cascade would really open. A second, unflagged
+								// mine tucked in the bottom-left corner is what lets the rest of the
+								// board cascade open around it without that cascade reaching in and
+								// prematurely revealing the covered cells above it.
 								rows: 4, cols: 6,
-								mines: [[0,1]],
-								flagged: [[0,1]],
-								revealed: [[1,0],[1,1],[1,2]],
+								mines: [[0,2], [3,0]],
+								flagged: [[0,2]],
+								revealed: [[0,3],[0,4],[0,5],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],
+									[3,1],[3,2],[3,3],[3,4],[3,5]],
 								clueCell: [1,1],
-								targets: [[0,0], [0,2]],
+								targets: [[0,0], [0,1], [1,0]],
 								action: "reveal"
 							},
 							{
