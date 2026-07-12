@@ -33,30 +33,12 @@ var LEARN_COURSES = [
 			intro: [
 				"Left-click the cell to see what's inside."
 			],
-			outro: "That's a mine. Hit one in a real game and it's over."
-		}
-		]
-	},
-	{
-		title: "Flagging cells",
-		steps: [
+			outro: "That's a mine. Hit one in a real game and it's over. Now let's reveal a cell for real."
+		},
 		{
-			// Same 5x5 board as "Revealing cells" — the cascade is already applied (revealStart)
-			// since that lesson already covered clicking a corner to open it; here the only thing
-			// left to do is flag the one covered cell instead of clicking it.
-			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], mustFlag: true },
-			intro: [
-				"Right-click a cell to flag it. Right-click again to unflag."
-			],
-			outro: "Flagged. Next: reading the numbers to know where mines are."
-		}
-		]
-	},
-	{
-		title: "Simple deductions",
-		steps: [
-		{
-			// Mine sits one cell in from a corner — a real cascade from elsewhere on the board opens
+			// Moved here from "Simple deductions" — it's the same core skill (left-click to reveal)
+			// as this lesson's first puzzle, just requiring one read of the numbers instead of a
+			// free pass. Mine sits one cell in from a corner — a real cascade from elsewhere opens
 			// everything except the mine and the one cell diagonally past it, which never gets an
 			// automatic 0-neighbour of its own. Cleared normally: reveal the safe cell, mine stays covered.
 			board: { rows: 7, cols: 9, mines: [[1,2]], revealStart: [6,8] },
@@ -71,15 +53,56 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was the mine. Check the '1's again."
 			},
-			outro: "That's reading the board — no guessing."
+			outro: "That's reading the board — no guessing. Next: marking mines instead of clicking them."
+		}
+		]
+	},
+	{
+		title: "Flagging cells",
+		steps: [
+		{
+			// Same 5x5 board as "Revealing cells" — the cascade is already applied (revealStart)
+			// since that lesson already covered clicking a corner to open it; here the only thing
+			// left to do is flag the one covered cell instead of clicking it.
+			board: { rows: 5, cols: 5, mines: [[2,2]], revealStart: [0,0], mustFlag: true },
+			intro: [
+				"Right-click a cell to flag it. Right-click again to unflag."
+			],
+			outro: "Flagged. One mine's easy — let's try a few more."
 		},
 		{
-			// Still one mine, but a full step diagonally off the corner instead of straight off an
-			// edge — its 8-neighbourhood now traps THREE cells with no 0-neighbour of their own,
-			// not one: the two cells flanking it, and the true corner beyond them, freed only once
-			// one flanking cell is revealed and its own (now-satisfied) number frees the next.
+			// Two separate groups (a 2-mine pair, a 3-mine L-tromino), spaced far enough apart that
+			// each mine still gets its own exclusive '1' — no chaining needed, just more of them to
+			// find. Real cascade from a corner opens everything except the five mines themselves.
+			board: {
+				rows: 6, cols: 11,
+				mines: [[2,2], [2,3], [2,7], [2,8], [3,7]],
+				revealStart: [5,0],
+				mustFlag: true
+			},
+			intro: [ "Five mines this time — two groups. Flag every one." ],
+			hints: [
+				"The pair on the left each have their own '1' — find both.",
+				"The three on the right work the same way, one '1' per mine.",
+				"Flag all five once every mine is pinned."
+			],
+			mistakes: {
+				wrongFlag: "Not a mine — check the numbers around it."
+			},
+			outro: "That's the flagging half of the toolkit. Next: reading the numbers to know where mines are."
+		}
+		]
+	},
+	{
+		title: "Simple deductions",
+		steps: [
+		{
+			// A single mine a full step diagonally off the corner instead of straight off an edge —
+			// its 8-neighbourhood now traps THREE cells with no 0-neighbour of their own, not one:
+			// the two cells flanking it, and the true corner beyond them, freed only once one
+			// flanking cell is revealed and its own (now-satisfied) number frees the next.
 			board: { rows: 6, cols: 9, mines: [[1,1]], revealStart: [5,8] },
-			intro: [ "One mine again, but tucked one step off the corner. Three safe cells this time." ],
+			intro: [ "A single mine, tucked one step off the corner this time. Three safe cells to find." ],
 			hints: [
 				"The '1' past the mine, away from the corner, touches only one covered cell — that's the mine.",
 				"That satisfies the numbers next to it — the two cells flanking the mine are safe.",
@@ -88,7 +111,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was the mine. Check the '1's again."
 			},
-			outro: "Same trick, just one more hop to reach the corner."
+			outro: "Read a number, chase it to the next one — that's all deduction ever is."
 		},
 		{
 			// Two mines side by side, flush against the top wall and one cell in from the corner —
