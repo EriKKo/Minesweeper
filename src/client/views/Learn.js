@@ -242,27 +242,48 @@ var LEARN_COURSES = [
 					{
 						label: "Rule #1",
 						desc: "Find a cell that only has mines left around it, and flag them all.",
-						demo: {
-							rows: 2, cols: 2,
-							mines: [[1,1]],
-							revealed: [[0,0],[0,1],[1,0]],
-							clueCell: [0,0],
-							targets: [[1,1]],
-							action: "flag"
-						}
+						demos: [
+							{
+								// One covered cell to the bottom-right of a lone '1' — the smallest
+								// possible case, plus a row and column of cascaded context so it
+								// reads as a corner of a real board rather than a bare 2x2 scrap.
+								rows: 3, cols: 3,
+								mines: [[2,2]],
+								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],
+								clueCell: [1,1],
+								targets: [[2,2]],
+								action: "flag"
+							},
+							{
+								// A '3' on the top edge with exactly three covered cells beneath it —
+								// same rule, a bigger match (edges only have 5 neighbours, and here
+								// 3 of them are the covered ones the count is asking about).
+								rows: 3, cols: 3,
+								mines: [[1,0], [1,1], [1,2]],
+								revealed: [[0,0],[0,2],[2,0],[2,1],[2,2]],
+								clueCell: [0,1],
+								targets: [[1,0], [1,1], [1,2]],
+								action: "flag"
+							}
+						]
 					},
 					{
 						label: "Rule #2",
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
-						demo: {
-							rows: 2, cols: 4,
-							mines: [[1,0], [1,1]],
-							flagged: [[1,0], [1,1]],
-							revealed: [[0,0],[0,1],[0,2],[0,3]],
-							clueCell: [0,2],
-							targets: [[1,2], [1,3]],
-							action: "reveal"
-						}
+						demos: [
+							{
+								// Two mines pre-flagged at opposite corners of the bottom row; the '1'
+								// directly above them is satisfied by either one, freeing both middle
+								// cells at once. A row of cascaded context sits above, same as Rule #1.
+								rows: 3, cols: 4,
+								mines: [[2,0], [2,3]],
+								flagged: [[2,0], [2,3]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3]],
+								clueCell: [1,1],
+								targets: [[2,1], [2,2]],
+								action: "reveal"
+							}
+						]
 					}
 				]
 			},
@@ -381,7 +402,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check a number you haven't tried yet."
 			},
-			outro: "That's Simple moves: flag what matches, reveal what's satisfied, and work through the whole board."
+			outro: "If you get stuck in one section of the board, move over and look for opportunities somewhere else."
 		}
 		]
 	}
@@ -1234,18 +1255,16 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 	return card;
 }
 
-// A tiny looping animation: highlight a clue cell, then flag or reveal its covered neighbours
-// one at a time, pause, reset, and repeat. Purely illustrative — nothing here is clickable.
+// One scene of a rule demo: highlight a clue cell, then flag or reveal its covered neighbours
+// one at a time, hold, then hand back to the caller instead of looping itself — buildRuleDemo
+// (below) drives the loop, since a rule can cycle through more than one scene.
 // spec: { rows, cols, mines, revealed, flagged, clueCell: [r,c], targets: [[r,c]...],
 //         action: "flag" | "reveal" }
-function buildRuleDemo(spec) {
+function buildRuleDemoScene(spec, onDone) {
 	var R = spec.rows, C = spec.cols;
 	var isMineArr = buildMineGrid(spec);
 	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
-	var initialState = buildBoardState(spec, isMineArr, clueValue);
-	// A working copy buildRuleDemo mutates frame by frame; kept separate from initialState so the
-	// loop can reset by copying values back rather than reconstructing the board each time.
-	var state = initialState.map(function(row) { return row.slice(); });
+	var state = buildBoardState(spec, isMineArr, clueValue);
 
 	var wrap = document.createElement("div");
 	wrap.className = "learn-board learn-rule-demo-board";
@@ -1271,8 +1290,8 @@ function buildRuleDemo(spec) {
 	var targets = spec.targets || [];
 	var targetState = spec.action === "flag" ? FLAGGED : KNOWN;
 
-	// Stops the loop once this canvas is no longer on the page (the player moved on to another
-	// step) instead of ticking forever in the background.
+	// Stops once this canvas is no longer on the page (the player moved on, or buildRuleDemo
+	// swapped in the next scene) instead of ticking forever in the background.
 	function playFrom(i) {
 		if (!canvas.isConnected) return;
 		if (i === 0) {
@@ -1291,13 +1310,10 @@ function buildRuleDemo(spec) {
 		}
 		setTimeout(function() {
 			if (!canvas.isConnected) return;
-			highlightCell = null;
-			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) state[r][c] = initialState[r][c];
-			bv.draw();
-			setTimeout(function() { playFrom(0); }, 550);
+			if (typeof onDone === "function") onDone();
 		}, 1500);
 	}
-	// Deferred, not called directly: buildRuleDemo returns wrap before the caller inserts it into
+	// Deferred, not called directly: this function returns wrap before the caller inserts it into
 	// the document, so canvas.isConnected would still be false on an immediate call — the very
 	// guard meant to stop the loop once torn down would instead stop it before it ever started.
 	setTimeout(function() { playFrom(0); }, 50);
@@ -1305,9 +1321,29 @@ function buildRuleDemo(spec) {
 	return wrap;
 }
 
+// Cycles a rule's demo scenes one after another (a single-scene rule just replays the same one).
+// Rebuilds the board between scenes rather than mutating in place, since scenes can differ in
+// size (Rule #1 pairs a plain corner example with a wider edge-of-3 example).
+function buildRuleDemo(scenes) {
+	var container = document.createElement("div");
+	container.className = "learn-rule-demo-cycle";
+	function playScene(idx) {
+		container.innerHTML = "";
+		container.appendChild(buildRuleDemoScene(scenes[idx], function() {
+			setTimeout(function() {
+				if (!container.isConnected) return;
+				playScene((idx + 1) % scenes.length);
+			}, 550);
+		}));
+	}
+	playScene(0);
+	return container;
+}
+
 // The "two rules" reference panel — a rulesPanel step's board area. Two cards side by side (each
-// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each with its own tiny looping
-// buildRuleDemo so the rule is something you watch happen, not just a sentence to read.
+// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each cycling through one or
+// more tiny looping buildRuleDemo scenes so the rule is something you watch happen, not just a
+// sentence to read.
 function buildRulesPanel(spec) {
 	var wrap = document.createElement("div");
 	wrap.className = "learn-rules-panel";
@@ -1322,7 +1358,7 @@ function buildRulesPanel(spec) {
 		desc.className = "learn-rule-card-desc";
 		desc.textContent = rule.desc;
 		card.appendChild(desc);
-		card.appendChild(buildRuleDemo(rule.demo));
+		card.appendChild(buildRuleDemo(rule.demos));
 		wrap.appendChild(card);
 	});
 	return wrap;
