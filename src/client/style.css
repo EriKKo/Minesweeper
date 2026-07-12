@@ -4795,15 +4795,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 
 /* Board sits centred below the coach. Fixed min-height, sized to the tallest content across EVERY
    mentor-format course sharing this class — currently Simple moves' "two rules" rulesPanel (its
-   Rule #1 card's 2x2 grid of example boards + label + description is taller than any single puzzle
-   board, chrome included). So switching between lessons/steps/COURSES with very different content
-   never changes the height of this box — and so never shifts the actions row or the Previous/Next
-   lesson footer below it. Bump this if anything taller is ever added to any mentor-format course. */
+   Rule #2 card's two stacked example boards + label + description is taller than any single puzzle
+   board, chrome included, and taller than Rule #1's 2x2 grid). So switching between lessons/steps/
+   COURSES with very different content never changes the height of this box — and so never shifts
+   the actions row or the Previous/Next lesson footer below it. Bump this if anything taller is
+   ever added to any mentor-format course. */
 .learn-mentor-board-col {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 341px;
+	min-height: 406px;
 }
 /* The board's own title chip and controls (Reset button + status text) are redundant here — the
    lesson title and the coach bubble already cover both, and this flow has no Reset (see
@@ -4856,6 +4857,11 @@ body.touch .find-next-arrow { display: inline-flex; }
 	justify-content: center;
 	align-items: end;
 	gap: 0.9rem;
+}
+/* Rule #2: two examples, one below the other, rather than the 2x2 grid Rule #1 uses. */
+.learn-rule-demo-row--stack {
+	grid-template-columns: none;
+	justify-items: center;
 }
 .learn-rule-demo-board { margin: 0; }
 

@@ -294,19 +294,35 @@ var LEARN_COURSES = [
 					{
 						label: "Rule #2",
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
+						demoLayout: "stack",
 						demos: [
 							{
 								// A real reachable position where the flags themselves are provable,
-								// not just asserted: the '2' below the pair touches exactly two
-								// covered cells, so rule #1 alone already forces both of them to be
-								// mines. Once they're flagged, the '1' to their right is satisfied,
-								// freeing the one safe cell left.
-								rows: 3, cols: 3,
-								mines: [[0,0], [0,1]],
-								flagged: [[0,0], [0,1]],
-								revealed: [[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]],
-								clueCell: [1,2],
-								targets: [[0,2]],
+								// not just asserted: the '2' to the left of the pair touches exactly
+								// two covered cells, so rule #1 alone already forces both of them to
+								// be mines. Once they're flagged, the '1' below is satisfied, freeing
+								// the one safe cell left. Same size as the example below it.
+								rows: 4, cols: 6,
+								mines: [[1,5], [2,5]],
+								flagged: [[1,5], [2,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],
+									[1,0],[1,1],[1,2],[1,3],[1,4],[2,0],[2,1],[2,2],[2,3],[2,4],
+									[3,0],[3,1],[3,2],[3,3],[3,4]],
+								clueCell: [3,4],
+								targets: [[3,5]],
+								action: "reveal"
+							},
+							{
+								// Same idea, two mines this time and two cells freed at once. Each
+								// mine is independently provable too — a different '1' elsewhere
+								// touches only one of them apiece — so nothing here is just asserted.
+								rows: 4, cols: 6,
+								mines: [[0,2], [1,0]],
+								flagged: [[0,2], [1,0]],
+								revealed: [[0,3],[0,4],[0,5],[1,1],[1,2],[1,3],[1,4],[1,5],
+									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+								clueCell: [1,1],
+								targets: [[0,0], [0,1]],
 								action: "reveal"
 							}
 						]
@@ -1354,9 +1370,10 @@ function buildRuleDemoScene(spec) {
 
 // A rule's demo scenes, laid out side by side — each one loops on its own (buildRuleDemoScene),
 // so a rule with two examples shows both at once rather than cycling one board between them.
-function buildRuleDemo(scenes) {
+function buildRuleDemo(scenes, layout) {
 	var container = document.createElement("div");
 	container.className = "learn-rule-demo-row";
+	if (layout === "stack") container.className += " learn-rule-demo-row--stack";
 	scenes.forEach(function(spec) { container.appendChild(buildRuleDemoScene(spec)); });
 	return container;
 }
@@ -1379,7 +1396,7 @@ function buildRulesPanel(spec) {
 		desc.className = "learn-rule-card-desc";
 		desc.textContent = rule.desc;
 		card.appendChild(desc);
-		card.appendChild(buildRuleDemo(rule.demos));
+		card.appendChild(buildRuleDemo(rule.demos, rule.demoLayout));
 		wrap.appendChild(card);
 	});
 	return wrap;
