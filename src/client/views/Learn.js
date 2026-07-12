@@ -431,7 +431,10 @@ var LEARN_COURSES = [
 				mines: [[3,0], [3,2], [3,3], [3,4], [4,0], [4,5]],
 				revealStart: [0,0]
 			},
-			intro: [ "The widest one yet. Same two rules — just more of them to chain together." ],
+			intro: [
+				"The widest one yet. Same two rules — just more of them to chain together.",
+				"If you get stuck in one section of the board, move over and look for opportunities somewhere else."
+			],
 			hints: [
 				"Start from a number that already matches its covered neighbours exactly.",
 				"Work across the row one number at a time. Every mine here — top row or bottom — comes from the same two rules."
@@ -463,7 +466,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check a number you haven't tried yet."
 			},
-			outro: "If you get stuck in one section of the board, move over and look for opportunities somewhere else."
+			outro: "That's a real two-dimensional board cleared — the rest of this lesson just makes them bigger."
 		},
 		{
 			// Real puzzle pool, id 163 — one mine more than the last board, still fully clearable
