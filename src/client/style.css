@@ -4813,6 +4813,43 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-board-col .learn-puzzle-title,
 .learn-mentor-board-col .learn-controls { display: none; }
 
+/* rulesPanel step (buildRulesPanel) — two reference cards side by side, each with a label, a short
+   rule statement, and a small looping buildRuleDemo animation. Sits inside .learn-mentor-board-col
+   like a normal puzzle would, so the same fixed-height budget applies with no extra CSS needed. */
+.learn-rules-panel {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 1rem;
+	width: 100%;
+}
+.learn-rule-card {
+	flex: 1 1 200px;
+	max-width: 260px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 1rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	text-align: center;
+}
+.learn-rule-card-label {
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+.learn-rule-card-desc {
+	font-size: 0.88rem;
+	line-height: 1.5;
+	color: var(--text);
+}
+.learn-rule-demo-board { margin: 0; }
+
 /* Continue / Try again. Reserves its own height even when empty, so a button popping in doesn't
    visibly resize the card. */
 .learn-mentor-actions {

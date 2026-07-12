@@ -230,13 +230,50 @@ var LEARN_COURSES = [
 		title: "The two rules",
 		steps: [
 		{
+			// A pure reference step, no puzzle to solve — see the rulesPanel branch in loadStep.
+			// Both mini-boards below are tiny, verified real positions (2x2 and 2x4) that loop a
+			// flag/reveal animation on their own; the exact same rules get practiced for real on
+			// the next step's 3x3 board.
+			intro: [
+				"Just two rules solve almost every board. Watch them below, then try them yourself."
+			],
+			rulesPanel: {
+				rules: [
+					{
+						label: "Rule #1",
+						desc: "Find a cell that only has mines left around it, and flag them all.",
+						demo: {
+							rows: 2, cols: 2,
+							mines: [[1,1]],
+							revealed: [[0,0],[0,1],[1,0]],
+							clueCell: [0,0],
+							targets: [[1,1]],
+							action: "flag"
+						}
+					},
+					{
+						label: "Rule #2",
+						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
+						demo: {
+							rows: 2, cols: 4,
+							mines: [[1,0], [1,1]],
+							flagged: [[1,0], [1,1]],
+							revealed: [[0,0],[0,1],[0,2],[0,3]],
+							clueCell: [0,2],
+							targets: [[1,2], [1,3]],
+							action: "reveal"
+						}
+					}
+				]
+			},
+			outro: "That's the whole toolkit. Keep applying those two moves and you can clear a board of any size."
+		},
+		{
 			// Smallest possible real board: two mines side by side at a corner, one safe cell.
-			// Exists purely to name the two rules explicitly and show both of them fire once each.
+			// The same two rules from the panel above, now for real — flag one, reveal the other.
 			board: { rows: 3, cols: 3, mines: [[1,0], [1,1]], revealed: [[0,0],[0,1],[0,2]] },
 			intro: [
-				"Just two rules solve almost every board.",
-				"Rule one: if a number's covered neighbours exactly match its count, they're all mines — flag them.",
-				"Rule two: once a number's mines are all flagged, every other neighbour is safe — reveal them."
+				"Now you try. Same two rules — find a match to flag, find a satisfied number to reveal."
 			],
 			hints: [
 				"The '2' on the left touches exactly two covered cells — rule one: both are mines. Flag them.",
@@ -245,7 +282,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check whether the number touching it is already fully explained by its neighbours."
 			},
-			outro: "That's the whole toolkit: match the count to flag, satisfy the count to reveal. Keep applying those two moves and you can clear a board of any size."
+			outro: "Rule one to flag, rule two to reveal — that's the whole toolkit. Keep applying those two moves and you can clear a board of any size."
 		}
 		]
 	},
@@ -1167,12 +1204,128 @@ function buildMentorLesson(lesson, idx, total, onLessonComplete) {
 		}
 
 		boardCol.innerHTML = "";
+		// A pure explanation step (no puzzle to solve) — e.g. the "two rules" reference panel.
+		// Continue shows immediately, and — unlike onStepSolved — leaves the intro text alone
+		// instead of overwriting it with an outro the player never got a chance to read.
+		if (step.rulesPanel) {
+			boardCol.appendChild(buildRulesPanel(step.rulesPanel));
+			var contBtn = document.createElement("button");
+			contBtn.type = "button";
+			contBtn.className = "btn btn-primary learn-mentor-continue-btn";
+			contBtn.textContent = "Continue";
+			contBtn.addEventListener("click", function() {
+				if (i + 1 < steps.length) {
+					loadStep(i + 1);
+				} else {
+					actions.innerHTML = "";
+					if (typeof onLessonComplete === "function") onLessonComplete();
+				}
+			});
+			actions.innerHTML = "";
+			actions.appendChild(contBtn);
+			contBtn.focus();
+			return;
+		}
 		var puzzle = Object.assign({ title: lesson.title }, step.board, { requirements: step.requirements });
 		boardCol.appendChild(buildLearnPuzzle(puzzle, !!step.guess, onStepSolved, onStepFailed, onStepMistake));
 	}
 
 	if (steps.length) loadStep(0);
 	return card;
+}
+
+// A tiny looping animation: highlight a clue cell, then flag or reveal its covered neighbours
+// one at a time, pause, reset, and repeat. Purely illustrative — nothing here is clickable.
+// spec: { rows, cols, mines, revealed, flagged, clueCell: [r,c], targets: [[r,c]...],
+//         action: "flag" | "reveal" }
+function buildRuleDemo(spec) {
+	var R = spec.rows, C = spec.cols;
+	var isMineArr = buildMineGrid(spec);
+	var clueValue = BoardLogic.buildClueGrid(R, C, function(r, c) { return isMineArr[r][c]; });
+	var initialState = buildBoardState(spec, isMineArr, clueValue);
+	// A working copy buildRuleDemo mutates frame by frame; kept separate from initialState so the
+	// loop can reset by copying values back rather than reconstructing the board each time.
+	var state = initialState.map(function(row) { return row.slice(); });
+
+	var wrap = document.createElement("div");
+	wrap.className = "learn-board learn-rule-demo-board";
+	var canvas = buildBoardCanvas(R, C);
+	wrap.appendChild(canvas);
+
+	var highlightCell = null;
+	var bv = learnBoardView(canvas, spec, isMineArr, clueValue, state);
+	bv.overlay(function(ctx, sw, sh) {
+		if (!highlightCell) return;
+		var hx = highlightCell[1] * sw + sw * 0.08;
+		var hy = highlightCell[0] * sh + sh * 0.08;
+		ctx.save();
+		ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.08);
+		ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
+		ctx.shadowColor = "rgba(250, 204, 21, 0.7)";
+		ctx.shadowBlur = Math.min(sw, sh) * 0.25;
+		ctx.strokeRect(hx, hy, sw * 0.84, sh * 0.84);
+		ctx.restore();
+	});
+	bv.draw();
+
+	var targets = spec.targets || [];
+	var targetState = spec.action === "flag" ? FLAGGED : KNOWN;
+
+	// Stops the loop once this canvas is no longer on the page (the player moved on to another
+	// step) instead of ticking forever in the background.
+	function playFrom(i) {
+		if (!canvas.isConnected) return;
+		if (i === 0) {
+			highlightCell = spec.clueCell;
+			bv.draw();
+			setTimeout(function() { playFrom(1); }, 750);
+			return;
+		}
+		var idx = i - 1;
+		if (idx < targets.length) {
+			var t = targets[idx];
+			state[t[0]][t[1]] = targetState;
+			bv.draw();
+			setTimeout(function() { playFrom(i + 1); }, 650);
+			return;
+		}
+		setTimeout(function() {
+			if (!canvas.isConnected) return;
+			highlightCell = null;
+			for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) state[r][c] = initialState[r][c];
+			bv.draw();
+			setTimeout(function() { playFrom(0); }, 550);
+		}, 1500);
+	}
+	// Deferred, not called directly: buildRuleDemo returns wrap before the caller inserts it into
+	// the document, so canvas.isConnected would still be false on an immediate call — the very
+	// guard meant to stop the loop once torn down would instead stop it before it ever started.
+	setTimeout(function() { playFrom(0); }, 50);
+
+	return wrap;
+}
+
+// The "two rules" reference panel — a rulesPanel step's board area. Two cards side by side (each
+// labelled Rule #1 / Rule #2, matching the mentor's spoken intro), each with its own tiny looping
+// buildRuleDemo so the rule is something you watch happen, not just a sentence to read.
+function buildRulesPanel(spec) {
+	var wrap = document.createElement("div");
+	wrap.className = "learn-rules-panel";
+	(spec.rules || []).forEach(function(rule) {
+		var card = document.createElement("div");
+		card.className = "learn-rule-card";
+		var label = document.createElement("div");
+		label.className = "learn-rule-card-label";
+		label.textContent = rule.label;
+		card.appendChild(label);
+		var desc = document.createElement("div");
+		desc.className = "learn-rule-card-desc";
+		desc.textContent = rule.desc;
+		card.appendChild(desc);
+		card.appendChild(buildRuleDemo(rule.demo));
+		wrap.appendChild(card);
+	});
+	return wrap;
 }
 
 // Render a demo grid to a canvas. Demos are static — the grid token IS the
