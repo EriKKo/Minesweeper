@@ -266,6 +266,28 @@ var LEARN_COURSES = [
 								clueCell: [1,1],
 								targets: [[2,0], [2,1], [2,2]],
 								action: "flag"
+							},
+							{
+								// A '2' on the left edge — same idea as the '3' above, one size
+								// down, and this time bordering the side of the board instead of
+								// the top.
+								rows: 3, cols: 3,
+								mines: [[2,0], [2,1]],
+								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,2]],
+								clueCell: [1,0],
+								targets: [[2,0], [2,1]],
+								action: "flag"
+							},
+							{
+								// A '3' with its three covered cells clustered to the bottom-right —
+								// the corner-cluster shape from the first example, scaled up to
+								// three mines instead of one.
+								rows: 3, cols: 3,
+								mines: [[1,2], [2,1], [2,2]],
+								revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[2,0]],
+								clueCell: [1,1],
+								targets: [[1,2], [2,1], [2,2]],
+								action: "flag"
 							}
 						]
 					},
@@ -274,18 +296,17 @@ var LEARN_COURSES = [
 						desc: "Find a cell that already has all its mines flagged, and reveal all its other cells.",
 						demos: [
 							{
-								// A real reachable position (verified: revealed cells never border a
-								// covered cell with nothing between them, the way a real cascade
-								// would leave it). Two mines diagonally adjacent near the left edge;
-								// the '2' between them is satisfied once both are flagged, freeing
-								// the two safe cells trapped on either side of the pair.
-								rows: 5, cols: 4,
-								mines: [[1,0], [2,1]],
-								flagged: [[1,0], [2,1]],
-								revealed: [[0,1],[0,2],[0,3],[1,1],[1,2],[1,3],[2,2],[2,3],
-									[3,0],[3,1],[3,2],[3,3],[4,0],[4,1],[4,2],[4,3]],
-								clueCell: [1,1],
-								targets: [[0,0], [2,0]],
+								// A real reachable position where the flags themselves are provable,
+								// not just asserted: the '2' below the pair touches exactly two
+								// covered cells, so rule #1 alone already forces both of them to be
+								// mines. Once they're flagged, the '1' to their right is satisfied,
+								// freeing the one safe cell left.
+								rows: 3, cols: 3,
+								mines: [[0,0], [0,1]],
+								flagged: [[0,0], [0,1]],
+								revealed: [[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]],
+								clueCell: [1,2],
+								targets: [[0,2]],
 								action: "reveal"
 							}
 						]

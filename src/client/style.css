@@ -4793,19 +4793,17 @@ body.touch .find-next-arrow { display: inline-flex; }
 .learn-mentor-bubble-outro .learn-mentor-bubble-text { font-weight: 600; }
 .learn-mentor-hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Board sits centred below the coach. Fixed min-height, sized to the tallest board across EVERY
-   mentor-format course sharing this class (currently Simple moves' 8-row board, LEARN_CELL_PX=32
-   → 256px canvas) PLUS the fixed chrome every buildLearnPuzzle instance carries even with its
-   title/controls hidden (.learn-puzzle's own padding+margin-top and .learn-board's padding, ~60px
-   measured) — undercounting that chrome is what let this drift before. So switching between
-   lessons/steps/COURSES with very different board sizes never changes the height of this box — and
-   so never shifts the actions row or the Previous/Next lesson footer below it. Bump this if a
-   taller board is ever added to any mentor-format course. */
+/* Board sits centred below the coach. Fixed min-height, sized to the tallest content across EVERY
+   mentor-format course sharing this class — currently Simple moves' "two rules" rulesPanel (its
+   Rule #1 card's 2x2 grid of example boards + label + description is taller than any single puzzle
+   board, chrome included). So switching between lessons/steps/COURSES with very different content
+   never changes the height of this box — and so never shifts the actions row or the Previous/Next
+   lesson footer below it. Bump this if anything taller is ever added to any mentor-format course. */
 .learn-mentor-board-col {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 320px;
+	min-height: 341px;
 }
 /* The board's own title chip and controls (Reset button + status text) are redundant here — the
    lesson title and the coach bubble already cover both, and this flow has no Reset (see
@@ -4848,14 +4846,16 @@ body.touch .find-next-arrow { display: inline-flex; }
 	line-height: 1.5;
 	color: var(--text);
 }
-/* A rule's example boards side by side (buildRuleDemo) — most rules show just one, Rule #1 shows
-   two, each looping its own flag animation independently rather than cycling one board between
-   them. */
+/* A rule's example boards (buildRuleDemo) — most rules show just one, Rule #1 shows four in a 2x2
+   grid, each looping its own flag/reveal animation independently rather than cycling one board
+   between them. Grid (not flex-wrap) so a rule with just one example still gets a single cell
+   instead of stretching to fill the row. */
 .learn-rule-demo-row {
-	display: flex;
-	align-items: flex-end;
+	display: grid;
+	grid-template-columns: repeat(2, auto);
 	justify-content: center;
-	gap: 0.5rem;
+	align-items: end;
+	gap: 0.9rem;
 }
 .learn-rule-demo-board { margin: 0; }
 
