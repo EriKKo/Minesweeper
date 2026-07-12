@@ -317,126 +317,162 @@ var LEARN_COURSES = [
 {
 	id: "intermediate",
 	title: "Intermediate moves",
-	sub: "Subset rules, named patterns, and case analysis.",
+	sub: "When one number isn't enough, compare two.",
 	lessons: [
 	{
-		title: "Subset rule — safe cells",
-		idea: "When two clues need the same mines and one's candidates are inside the other's, the extras are safe.",
-		how: "Find clues A ⊆ B with equal numbers. B's extra cells must be safe.",
-		demo: {
-			title: "Worked example",
-			rows: 3,
-			cols: 3,
-			revealAll: true,
-			covered: [[0,0], [0,1], [0,2], [1,2]],
-			xray: true,
-			why: "Both 1s need one mine. The left 1's candidates sit inside the right 1's — the extra right cell is safe."
-		},
-		puzzles: [
-			{
-				title: "Solve the board",
-				rows: 4,
-				cols: 6,
-				mines: [[0,0], [0,3]],
-				revealStart: [3,0]
-			}
-		]
-	},
-	{
-		title: "Subset rule — mines",
-		idea: "When B needs exactly as many more mines as it has extra cells, those extras are all mines.",
-		how: "Find A ⊆ B where B's number is bigger by exactly the extra cell count. Flag the extras.",
-		demo: {
-			title: "Worked example",
-			rows: 3,
-			cols: 3,
-			mines: [[0,2]],
-			revealAll: true,
-			covered: [[0,0], [0,1], [1,2]],
-			xray: true,
-			why: "The 2 needs one more mine than the 1, and it has exactly one extra cell. That cell must be the mine."
-		},
-		puzzles: [
-			{
-				title: "Solve the board",
-				rows: 4,
-				cols: 6,
-				mines: [[0,0], [0,2]],
-				revealStart: [3,0]
-			}
-		]
-	},
-	{
-		title: "Named patterns",
-		idea: "Two shapes repeat all the time: 1-2-1 and 1-2-2-1 along a covered wall.",
-		how: "1-2-1 → mines on the ends. 1-2-2-1 → mines in the middle two.",
-		demo: {
-			title: "1-2-1: mines on the ends",
-			rows: 3,
-			cols: 3,
-			mines: [[0,0], [0,2]],
-			revealed: [[1,0], [1,1], [1,2]],
-			xray: true,
-			why: "The centre 2 forces both ends to be mines. The cell between them is safe."
-		},
-		puzzles: [
-			{
-				title: "Solve the board",
-				rows: 4,
-				cols: 6,
-				mines: [[0,1], [0,2]],
-				revealStart: [3,0]
-			}
-		]
-	},
-	{
-		title: "Chains",
-		idea: "Solve one cell at a time. Each new clue helps you read the next.",
-		how: "Start with the most constrained clue. Solve it, then re-read its neighbours.",
-		demo: {
-			title: "1-1-2-1 cascade",
-			rows: 3,
-			cols: 5,
-			mines: [[0,1], [0,3]],
-			revealed: [[1,0], [1,1], [1,2], [1,3], [1,4]],
-			xray: true,
-			why: "Subset on the left 1-1 frees the third cell. The 2 then forces both adjacent cells as mines. Satisfied clear opens the rest."
-		},
-		puzzles: [
-			{
-				title: "Solve the board",
-				rows: 4,
-				cols: 8,
-				mines: [[0,1], [0,3], [0,5], [0,7]],
-				revealStart: [3,0]
-			}
-		]
-	},
-	{
-		title: "Enumeration",
-		idea: "Assume a cell is a mine. Follow the clues. If something breaks, the cell is actually safe.",
-		how: "Pick a pivotal cell. Try mine, propagate. Try safe, propagate. One option contradicts — the other is forced.",
-		puzzles: [
-			{
-				title: "Find the forced cells",
-				rows: 3,
-				cols: 4,
-				mines: [[0,3]],
-				revealAll: true,
-				covered: [[0,0], [0,1], [0,2]],
-				mustFlag: true,
-				why: "If the right cell were safe the 2 would need both shared cells, but then the 1 sees two mines — impossible. So it's a mine; symmetrically the left cell is safe."
+		title: "Nested numbers — safe cells",
+		steps: [
+		{
+			// Real puzzle pool, id 134 — the cleanest possible nested pair: two mines at the ends
+			// of a row of four covered cells, under four "1"s. The rightmost 1 reaches two covered
+			// cells; the one beside it reaches those same two, plus one more. Same mine count (1
+			// each), so the extra cell the bigger one alone reaches has to be safe.
+			board: {
+				rows: 5, cols: 4,
+				mines: [[1,0], [1,3]],
+				revealed: [[2,0],[2,1],[2,2],[2,3],[3,0],[3,1],[3,2],[3,3],[4,0],[4,1],[4,2],[4,3]]
 			},
-			{
-				title: "The mirror image",
-				rows: 3,
-				cols: 4,
-				mines: [[0,0]],
-				revealAll: true,
-				covered: [[0,1], [0,2], [0,3]],
-				mustFlag: true,
-				why: "Same reasoning flipped: the left cell is forced to a mine and the right cell to safe."
-			}
+			intro: [
+				"New trick: comparing two numbers side by side, not just reading one alone.",
+				"Look at the two rightmost 1s in that row of four covered cells."
+			],
+			hints: [
+				"The rightmost '1' only touches two covered cells. The one beside it touches those same two, plus one more.",
+				"Both need exactly one mine. The smaller one already accounts for it — so the extra cell the bigger one alone reaches must be safe.",
+				"That's the second cell from the left in the covered row. Click it."
+			],
+			mistakes: {
+				mine: "That was a mine. Compare the two 1s again — one of them reaches one extra cell the other doesn't."
+			},
+			outro: "That's a nested pair: one number's reach sits entirely inside another's. Same mine count, so the extra reach is safe."
+		}
+		]
+	},
+	{
+		title: "Nested numbers — forced mines",
+		steps: [
+		{
+			// Real puzzle pool, id 81 — same nested idea, flipped: the bigger number here needs
+			// MORE mines than the smaller one, by exactly its one extra cell.
+			board: {
+				rows: 4, cols: 4,
+				mines: [[1,3], [2,3]],
+				revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2],[3,0],[3,1],[3,2]]
+			},
+			intro: [ "Same trick, flipped: this time the bigger number needs MORE mines than the smaller one." ],
+			hints: [
+				"The '1' near the bottom of that column touches two covered cells. The '2' just above it touches those same two, plus one more.",
+				"The '2' needs one more mine than the '1' — and it only has one extra cell to put it in.",
+				"That extra cell has to be a mine."
+			],
+			mistakes: {
+				mine: "That was a mine. Compare the numbers again — the '2' already told you which extra cell had to be the mine."
+			},
+			outro: "Same trick, opposite outcome: when the bigger number needs more mines than the smaller one, its extra cells are forced mines."
+		}
+		]
+	},
+	{
+		title: "Comparing numbers twice",
+		steps: [
+		{
+			// Real puzzle pool, id 193 — one nested-pair comparison forces a mine; that changes what
+			// a DIFFERENT pair of numbers can tell you, and a second comparison is needed before the
+			// rest falls out trivially. The point: one comparison often isn't the end of it.
+			board: {
+				rows: 4, cols: 4,
+				mines: [[1,3], [2,0], [2,2]],
+				revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]]
+			},
+			intro: [ "Sometimes one comparison isn't enough — a second pair of numbers needs comparing too." ],
+			hints: [
+				"Start with the '1' and the '2' that share two covered cells — the '2' needs one more mine, and it only has one extra cell.",
+				"Once that mine is placed, re-read the numbers around it — a different pair is now ready to compare.",
+				"Keep comparing pairs as you go. Solving one often sets up the next."
+			],
+			mistakes: {
+				mine: "That was a mine. Go back to comparing numbers in pairs — there's always another pair ready to compare."
+			},
+			outro: "That's the real skill: not just spotting one nested pair, but re-comparing as new numbers turn up."
+		}
+		]
+	},
+	{
+		title: "Clearing harder boards",
+		steps: [
+		{
+			// Real puzzle pool, id 150 — a full small-board clear mixing trivial reads with nested
+			// comparisons, instead of one isolated pattern. Same idea as Simple moves' capstone, one
+			// tier harder.
+			board: {
+				rows: 4, cols: 4,
+				mines: [[0,1], [1,0], [2,3]],
+				revealed: [[2,0],[2,1],[2,2],[3,0],[3,1],[3,2]]
+			},
+			intro: [ "Now put it together — clear a whole board, comparing numbers wherever one read isn't enough." ],
+			hints: [
+				"Start with the plain reads first — they'll open up more of the board.",
+				"When a number alone doesn't resolve, look for a second number whose reach overlaps or nests inside it."
+			],
+			mistakes: {
+				mine: "That was a mine. Somewhere else on the board a number — or a nested pair — is ready to read."
+			},
+			outro: "Trivial reads and nested comparisons, chained together. That's the toolkit so far."
+		},
+		{
+			// Real puzzle pool, id 65 — bigger board, three separate nested comparisons instead of
+			// one, each in its own area.
+			board: {
+				rows: 5, cols: 6,
+				mines: [[0,0], [0,4], [3,1], [3,3], [4,4]],
+				revealed: [[0,1],[0,2],[0,3],[1,1],[1,2],[1,3],[2,1],[2,2],[2,3]]
+			},
+			intro: [ "Bigger board, same idea. Three separate nested comparisons this time." ],
+			hints: [
+				"Work each side of the board on its own — the comparisons don't depend on each other.",
+				"If a number's covered cells don't resolve alone, find the number next to it that shares them."
+			],
+			mistakes: {
+				mine: "That was a mine. Try a different number — the board has more than one place to compare from."
+			},
+			outro: "Same reading, more of it — and more places where two numbers had to work together."
+		},
+		{
+			// Real puzzle pool, id 155 — wider board still; most of it opens with plain trivial reads
+			// before the nested comparisons show up deeper in.
+			board: {
+				rows: 6, cols: 6,
+				mines: [[1,0], [1,2], [1,5], [2,2], [3,4], [4,2]],
+				revealed: [[2,0],[2,1],[3,0],[3,1],[4,0],[4,1],[5,0],[5,1]]
+			},
+			intro: [ "A wider board now. Most of it opens up before you even need to compare two numbers." ],
+			hints: [
+				"Clear the trivial reads first, working down the left side.",
+				"The nested comparisons show up once you're deeper into the board — keep an eye out for them."
+			],
+			mistakes: {
+				mine: "That was a mine. Check the numbers you haven't read yet before comparing pairs."
+			},
+			outro: "Bigger, but the same two tools: read a number, or compare two of them."
+		},
+		{
+			// Real puzzle pool, id 84 — the biggest board in the course, and the most nested
+			// comparisons needed in a row (four).
+			board: {
+				rows: 6, cols: 7,
+				mines: [[0,3], [1,1], [1,6], [2,3], [4,2], [4,3]],
+				revealed: [[2,4],[2,5],[2,6],[3,4],[3,5],[3,6],[4,4],[4,5],[4,6],[5,4],[5,5],[5,6]]
+			},
+			intro: [ "The biggest board in this course — and the most nested comparisons you'll need in a row." ],
+			hints: [
+				"Work in from both sides — one cluster of numbers is forming on the right, another on the left.",
+				"Whenever you get stuck, look for two numbers sharing covered cells — one of them almost always resolves the other."
+			],
+			mistakes: {
+				mine: "That was a mine. Somewhere else on the board, a number or a nested pair is still ready to go."
+			},
+			outro: "That's Intermediate moves: read what's forced, compare what isn't, and the board opens up."
+		}
 		]
 	}
 	]
