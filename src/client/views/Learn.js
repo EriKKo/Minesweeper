@@ -74,6 +74,39 @@ var LEARN_COURSES = [
 			outro: "That's reading the board — no guessing."
 		},
 		{
+			// Still one mine, but a full step diagonally off the corner instead of straight off an
+			// edge — its 8-neighbourhood now traps THREE cells with no 0-neighbour of their own,
+			// not one: the two cells flanking it, and the true corner beyond them, freed only once
+			// one flanking cell is revealed and its own (now-satisfied) number frees the next.
+			board: { rows: 6, cols: 9, mines: [[1,1]], revealStart: [5,8] },
+			intro: [ "One mine again, but tucked one step off the corner. Three safe cells this time." ],
+			hints: [
+				"The '1' past the mine, away from the corner, touches only one covered cell — that's the mine.",
+				"That satisfies the numbers next to it — the two cells flanking the mine are safe.",
+				"Reveal those, and their own numbers free the last cell, right in the corner."
+			],
+			mistakes: {
+				mine: "That was the mine. Check the '1's again."
+			},
+			outro: "Same trick, just one more hop to reach the corner."
+		},
+		{
+			// Two mines side by side, flush against the top wall and one cell in from the corner —
+			// the classic 1-2-2-1 wall run. The far '2' touches only the two mines and forces both at
+			// once; the near '1' is then already satisfied, freeing the corner cell.
+			board: { rows: 6, cols: 9, mines: [[0,1], [0,2]], revealStart: [5,8] },
+			intro: [ "Two mines side by side against the wall. Which cell is safe?" ],
+			hints: [
+				"The second '2' (away from the corner) touches only the two mines and nothing else — both are forced.",
+				"Once both mines are known, the '1' nearest the corner is already satisfied.",
+				"That leaves the corner cell safe. Click it."
+			],
+			mistakes: {
+				mine: "That was a mine. Check the numbers along the wall again."
+			},
+			outro: "The classic 1-2-2-1 wall pattern — two mines confirmed from one number, the corner falls out."
+		},
+		{
 			// Adapted from the real puzzle pool (id 100), shifted one cell so the true corner (3,3)
 			// is safe rather than a mine. The '2' pins both mines in one read; the corner itself only
 			// has covered/mine neighbours to start, so it isn't freed until the cell beside it is
@@ -93,22 +126,6 @@ var LEARN_COURSES = [
 				mine: "That was a mine. Check the 1s around it again."
 			},
 			outro: "Same trick, two mines and two safe cells this time."
-		},
-		{
-			// Two mines side by side, flush against the top wall and one cell in from the corner —
-			// the classic 1-2-2-1 wall run. The far '2' touches only the two mines and forces both at
-			// once; the near '1' is then already satisfied, freeing the corner cell.
-			board: { rows: 6, cols: 9, mines: [[0,1], [0,2]], revealStart: [5,8] },
-			intro: [ "Two mines side by side against the wall. Which cell is safe?" ],
-			hints: [
-				"The second '2' (away from the corner) touches only the two mines and nothing else — both are forced.",
-				"Once both mines are known, the '1' nearest the corner is already satisfied.",
-				"That leaves the corner cell safe. Click it."
-			],
-			mistakes: {
-				mine: "That was a mine. Check the numbers along the wall again."
-			},
-			outro: "The classic 1-2-2-1 wall pattern — two mines confirmed from one number, the corner falls out."
 		},
 		{
 			// Real puzzle pool, id 52 — plus one extra mine added at the bottom-left corner (4,0),
