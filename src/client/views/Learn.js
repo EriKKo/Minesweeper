@@ -224,39 +224,104 @@ var LEARN_COURSES = [
 {
 	id: "simple",
 	title: "Simple moves",
-	sub: "Clear whole boards with the moves you already know.",
+	sub: "Two rules, and how far they take you.",
 	lessons: [
 	{
-		title: "Clearing the board",
+		title: "The two rules",
 		steps: [
 		{
-			// Real puzzle pool, id 127 — a small full board clear instead of one corner pattern.
-			// Every move is trivial (one number, read on its own), so the only new skill this
-			// lesson adds is chaining them: solve what's readable, then read what THAT opens up.
-			board: {
-				rows: 4, cols: 4,
-				mines: [[0,2], [0,3], [3,1]],
-				revealed: [[1,2],[1,3],[2,2],[2,3],[3,2],[3,3]]
-			},
-			intro: [ "Same moves as always — now clear the whole board with them, not just one corner." ],
+			// Smallest possible real board: two mines side by side at a corner, one safe cell.
+			// Exists purely to name the two rules explicitly and show both of them fire once each.
+			board: { rows: 3, cols: 3, mines: [[1,0], [1,1]], revealed: [[0,0],[0,1],[0,2]] },
+			intro: [
+				"Just two rules solve almost every board.",
+				"Rule one: if a number's covered neighbours exactly match its count, they're all mines — flag them.",
+				"Rule two: once a number's mines are all flagged, every other neighbour is safe — reveal them."
+			],
 			hints: [
-				"Start with whichever number has the fewest covered neighbours — that's always the easiest read.",
-				"Once a number's fully satisfied, its neighbours are either flagged or safe — nothing left to guess."
+				"The '2' on the left touches exactly two covered cells — rule one: both are mines. Flag them.",
+				"Once they're flagged, the '1' next to it is already satisfied — rule two: its last covered cell is safe. Reveal it."
 			],
 			mistakes: {
-				mine: "That was a mine. Look for a different number elsewhere — you don't have to solve a board in order."
+				mine: "That was a mine. Check whether the number touching it is already fully explained by its neighbours."
 			},
-			outro: "First full clear. Every mine spotted, every safe cell found — just by reading numbers."
+			outro: "That's the whole toolkit: match the count to flag, satisfy the count to reveal. Keep applying those two moves and you can clear a board of any size."
+		}
+		]
+	},
+	{
+		title: "Row by row",
+		steps: [
+		{
+			// One matching pair, one lone mine, three-column-wide covered band below a single
+			// clue row. Verified: solving starts from the corner where a number's covered cells
+			// match its count exactly (rule one), then rule two clears the rest of that row —
+			// which hands you the numbers to clear the second row the same way.
+			board: { rows: 3, cols: 5, mines: [[1,0], [1,1], [1,4]], revealed: [[0,0],[0,1],[0,2],[0,3],[0,4]] },
+			intro: [
+				"Start from a corner when you can — fewer neighbours means its number is easiest to trust completely.",
+				"Reveal the first row with the two rules, and the second row opens up right behind it."
+			],
+			hints: [
+				"The '2' at the left corner touches exactly two covered cells — rule one, flag both.",
+				"Work along the row from there — each number either matches (flag) or is already satisfied (reveal).",
+				"Once the whole top row is sorted, its numbers explain everything below — the second row is fully safe."
+			],
+			mistakes: {
+				mine: "That was a mine. Go back to a number that's fully explained by its flagged neighbours, and work outward from there."
+			},
+			outro: "Same two rules, twice: once to clear the first row, once more for the row behind it."
 		},
 		{
-			// Real puzzle pool, id 67 — bigger board, same trivial-only chain, more moves to string
-			// together (10 vs. the opener's 5).
+			// Wider still — a lone mine plus two separate pairs across the row.
+			board: {
+				rows: 3, cols: 7,
+				mines: [[1,0], [1,2], [1,3], [1,5], [1,6]],
+				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6]]
+			},
+			intro: [ "Wider now — more mines to flag before the second row opens up." ],
+			hints: [
+				"Start at a corner again — its number matches its covered neighbours exactly.",
+				"Work across one number at a time. Nothing here needs more than the two rules."
+			],
+			mistakes: {
+				mine: "That was a mine. Find a number that's fully explained already, and work outward from it."
+			},
+			outro: "Same idea, just more of it — the two rules don't care how wide the board is."
+		},
+		{
+			// Widest of the set — six mines across the row in three groups, 17 forced moves. Still
+			// nothing but rule one and rule two, repeated.
+			board: {
+				rows: 3, cols: 10,
+				mines: [[1,0], [1,3], [1,4], [1,5], [1,8], [1,9]],
+				revealed: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,9]]
+			},
+			intro: [ "The widest one yet. Same two rules, just more mines to work through before the second row is yours." ],
+			hints: [
+				"Same start as always: a corner where the number matches its covered neighbours exactly.",
+				"Work across the row one number at a time — flag what matches, reveal what's satisfied."
+			],
+			mistakes: {
+				mine: "That was a mine. Ten columns or three, the method's the same — find what's already explained and work outward."
+			},
+			outro: "That's row by row: reveal the top, and the row behind it falls out for free."
+		}
+		]
+	},
+	{
+		title: "Clearing a whole board",
+		steps: [
+		{
+			// Real puzzle pool, id 67 — a genuine two-dimensional board (not just rows stacked on
+			// rows), so the same two rules now have to be found in any direction, not just left to
+			// right. Kept from the original version of this course.
 			board: {
 				rows: 6, cols: 5,
 				mines: [[0,3], [3,4], [4,1], [5,4]],
 				revealed: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[2,3],[3,0],[3,1],[3,2],[3,3]]
 			},
-			intro: [ "A bigger board now. Same idea — work a number, then move to the next." ],
+			intro: [ "One more board — a real one, not just rows stacked on rows. Same two rules, any direction." ],
 			hints: [
 				"If a number's covered cells don't resolve yet, leave it — try a different number first.",
 				"There's no required order. Work whichever number is easiest right now."
@@ -264,51 +329,7 @@ var LEARN_COURSES = [
 			mistakes: {
 				mine: "That was a mine. Check a number you haven't tried yet."
 			},
-			outro: "Bigger board, same reading — just more of it."
-		},
-		{
-			// Real puzzle pool, id 15 — two genuinely separate clue clusters (top-left, and a strip
-			// starting at 4,4) with a mostly-covered gap between them at the start. The point: get
-			// one cluster fully read, and revealing its safe cells hands you brand new numbers that
-			// bridge toward the other side — the board isn't stuck just because ONE area is.
-			board: {
-				rows: 7, cols: 7,
-				mines: [[1,0], [2,0], [3,5], [4,2], [4,6], [5,6], [6,3]],
-				revealed: [[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],
-					[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[3,1],[3,2],[3,3],[3,4]]
-			},
-			intro: [ "This board has two separate patches of numbers. If one runs dry, the other's still waiting." ],
-			hints: [
-				"Work the left column first — it's the most constrained.",
-				"Stuck? Scan the rest of the board — there's always a number elsewhere that's fully worked out.",
-				"Revealing a safe cell can hand you a brand new number, bridging into the parts you haven't touched yet."
-			],
-			mistakes: {
-				mine: "That was a mine. Somewhere else on the board, a number is still fully solvable — go find it."
-			},
-			outro: "That's the whole trick: read what you can, move on, and new numbers keep opening up."
-		},
-		{
-			// Real puzzle pool, id 79 — the biggest board yet (8x8, 9 mines, 23 forced moves), still
-			// pure trivial reads throughout. By now the board is big enough that reading in any fixed
-			// order (top-to-bottom, left-to-right) would stall constantly; jumping to wherever the
-			// next easy read is stops being a trick and becomes the only way to actually finish.
-			board: {
-				rows: 8, cols: 8,
-				mines: [[0,7], [1,3], [2,0], [3,5], [3,7], [5,3], [5,4], [6,0], [7,1]],
-				revealed: [[2,1],[2,2],[2,3],[2,4],[3,0],[3,1],[3,2],[3,3],[3,4],
-					[4,0],[4,1],[4,2],[4,3],[4,4],[5,0],[5,1],[5,2]]
-			},
-			intro: [ "The biggest board yet. Same rule — keep moving to wherever the next number is solvable." ],
-			hints: [
-				"Don't try to solve it in reading order — jump to whichever number looks easiest right now.",
-				"Getting stuck in one spot doesn't mean the board is stuck. Look elsewhere.",
-				"Every safe cell you reveal is a new number waiting to be read — that's how the far side of the board opens up."
-			],
-			mistakes: {
-				mine: "That was a mine. Move on — another number on the board is ready to go."
-			},
-			outro: "That's Simple moves: read a number, move on, and the whole board falls into place."
+			outro: "That's Simple moves: flag what matches, reveal what's satisfied, and work through the whole board."
 		}
 		]
 	}
