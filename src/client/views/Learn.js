@@ -274,26 +274,34 @@ var LEARN_COURSES = [
 								// A '2' on the left edge, grown to three mines — same idea, one size
 								// up, and this time bordering the side of the board instead of the
 								// top. The clue cell sits one column in rather than flush against the
-								// edge, since it needs to reach all three mines, not just two.
+								// edge, since it needs to reach all three mines, not just two. Not
+								// every covered cell on this board is a mine, though: a fourth mine
+								// sits unflagged at (2,4), invisible until some other clue explains
+								// it, and (3,4) right next to it is genuinely safe — neither one is
+								// reachable from the highlighted clue, so this demo doesn't touch them.
 								rows: 4, cols: 6,
-								mines: [[0,0], [0,1], [0,2]],
+								mines: [[0,0], [0,1], [0,2], [2,4]],
 								revealed: [[0,3],[0,4],[0,5],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],
-									[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
+									[2,0],[2,1],[2,2],[2,3],[2,5],[3,0],[3,1],[3,2],[3,3],[3,5]],
 								clueCell: [1,1],
 								targets: [[0,0], [0,1], [0,2]],
 								action: "flag"
 							},
 							{
-								// Three covered cells clustered in the top-right corner, grown to an
-								// L of four mines running down the right edge instead of a solid
-								// square (a 2x2 block has no single cell close enough to touch all
-								// four — the L keeps every mine within reach of one clue).
+								// Four mines running down the right edge, but the highlighted clue is
+								// the '1' below all of them — it only touches the bottom mine, so only
+								// that one gets flagged here. The other three stay covered the whole
+								// time: a reminder that a clue only tells you about its own immediate
+								// neighbours, not about a whole cluster sitting nearby. Two of those
+								// three really are mines (one more sits unflagged at (1,3), shielding
+								// the board's left side from a cascade); the third, (1,5), is genuinely
+								// safe — from the outside the three look identical.
 								rows: 4, cols: 6,
-								mines: [[0,4], [0,5], [1,5], [2,5]],
-								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,3],[1,4],
+								mines: [[0,4], [0,5], [1,3], [2,5]],
+								revealed: [[0,0],[0,1],[0,2],[0,3],[1,0],[1,1],[1,2],[1,4],
 									[2,0],[2,1],[2,2],[2,3],[2,4],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
-								clueCell: [1,4],
-								targets: [[0,4], [0,5], [1,5], [2,5]],
+								clueCell: [3,5],
+								targets: [[2,5]],
 								action: "flag"
 							}
 						]
