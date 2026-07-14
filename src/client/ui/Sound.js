@@ -124,6 +124,18 @@ var sound = (function() {
 			tone({ type: "sine", freq: 150, toFreq: 50, dur: 0.4, gain: 0.22 });
 		},
 		beep: function(freq) { tone({ type: "sine", freq: freq, dur: 0.12, gain: 0.12 }); },
+		// The idle→ready board sweep (BOARD_GO_STYLE, Animations.js) — a rising tone timed to the
+		// sweep's own duration so the pitch climb tracks the wave crossing the board, plus a soft
+		// filtered-noise layer underneath for a bit of "whoosh" texture. Reads durationMs live
+		// rather than hardcoding 700ms so retuning the sweep's speed (from /admin/countdown) keeps
+		// the sound in sync without a second place to edit. This is a different moment from go()
+		// below — go() is the "GO!" cue when the round actually goes live, at the END of the
+		// countdown; this fires immediately when the sweep itself starts, well before that.
+		sweep: function() {
+			var dur = (typeof BOARD_GO_STYLE !== "undefined" && BOARD_GO_STYLE.durationMs) ? BOARD_GO_STYLE.durationMs / 1000 : 0.7;
+			tone({ type: "sine", freq: 260, toFreq: 720, dur: dur, gain: 0.09 });
+			noise({ dur: dur, cutoff: 2200, gain: 0.05 });
+		},
 		go: function() { tone({ type: "sine", freq: 880, dur: 0.25, gain: 0.16 }); },
 		win: function() { arp([523, 659, 784, 1047], 0.09, 0.28, 0.12); },
 		lose: function() { tone({ type: "sine", freq: 320, toFreq: 200, dur: 0.32, gain: 0.11 }); },

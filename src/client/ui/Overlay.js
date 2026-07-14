@@ -121,6 +121,7 @@ function hideReadyButton() {
 function countDown(delayMs, onDone) {
 	hideOverlay();
 	if (typeof startBoardGoAnimation === "function") startBoardGoAnimation(rows, cols);
+	if (typeof sound !== "undefined") sound.sweep();
 	var digitsMs = (typeof countdownTickMs === "function") ? countdownTickMs() * 3 : 3000;
 	var digitLeadDelay = Math.max(0, delayMs - digitsMs);
 	setTimeout(function() { countdownDigitCycle(3); }, digitLeadDelay);
