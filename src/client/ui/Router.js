@@ -42,6 +42,7 @@ var ROUTE_VIEWS = {
 	"/admin/marathon-boards": { view: "marathon_boards_view", nav: "admin", fn: "showMarathonBoardsView" },
 	"/admin/design": { view: "design_view", nav: "admin", fn: "showDesignView" },
 	"/admin/countdown": { view: "countdown_lab_view", nav: "admin", fn: "showCountdownLabView" },
+	"/admin/sounds": { view: "sound_lab_view", nav: "admin", fn: "showSoundLabView" },
 	"/leaderboard": { view: "leaderboard_view", nav: "leaderboard", fn: "showLeaderboardView" },
 	"/profile": { view: "profile_view", nav: "profile", fn: "showProfileView" },
 	"/settings": { view: "settings_view", nav: "settings", fn: "showSettingsView" }
@@ -68,6 +69,8 @@ function hideAllViews() {
 	if (typeof teardownReplay === "function") teardownReplay();
 	// Stop the countdown lab's looping preview when leaving /admin/countdown.
 	if (typeof teardownCountdownLab === "function") teardownCountdownLab();
+	// Reset the Sound Lab's playback rate when leaving /admin/sounds — see teardownSoundLab.
+	if (typeof teardownSoundLab === "function") teardownSoundLab();
 }
 
 function showNameView() {
@@ -358,6 +361,13 @@ function showCountdownLabView() {
 	document.getElementById("countdown_lab_view").style.display = "";
 	setSiteNavActive("admin");
 	renderCountdownLab();
+}
+
+function showSoundLabView() {
+	hideAllViews();
+	document.getElementById("sound_lab_view").style.display = "";
+	setSiteNavActive("admin");
+	renderSoundLab();
 }
 
 function showPuzzlePlayView() {

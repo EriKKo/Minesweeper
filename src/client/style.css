@@ -5204,6 +5204,43 @@ input.countdown-lab-checkbox {
 	.countdown-lab-layout { grid-template-columns: 1fr; }
 }
 
+/* Sound Lab (/admin/sounds) — same setting-row/value/slider grid pattern as the countdown lab's
+   sliders above, plus a card grid for the per-sound Play buttons. */
+.sound-lab-rate-card { margin-top: 1.25rem; }
+.sound-lab-rate-row {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+}
+.sound-lab-rate-row .setting-row-text { grid-column: 1; grid-row: 1; }
+.sound-lab-rate-row .setting-row-note { max-width: 46ch; }
+.sound-lab-rate-val {
+	grid-column: 2; grid-row: 1; justify-self: end;
+	font-weight: 700; color: var(--accent-hover); font-size: 0.9rem;
+	font-variant-numeric: tabular-nums;
+}
+input[type="range"].sound-lab-rate-slider { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+
+.sound-lab-section { margin-top: 1.75rem; }
+.sound-lab-section-sub { margin: 0 0 1rem; color: var(--muted); font-size: 0.88rem; max-width: 70ch; }
+.sound-lab-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 0.85rem;
+}
+.sound-lab-card { display: flex; flex-direction: column; gap: 0.6rem; }
+.sound-lab-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.sound-lab-card-name { font-weight: 700; font-size: 0.98rem; }
+.sound-lab-card-badge {
+	font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+	color: var(--accent-hover); background: rgba(99, 102, 241, 0.14);
+	border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 999px; padding: 0.15rem 0.5rem;
+	white-space: nowrap;
+}
+.sound-lab-card-desc { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; flex: 1; }
+.sound-lab-play-btn { align-self: flex-start; }
+
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the
    actual board rendered. */

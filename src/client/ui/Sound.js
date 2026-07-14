@@ -9,6 +9,11 @@ var sound = (function() {
 	var muted = localStorage.getItem("ms_muted") === "1";
 	var volume = parseFloat(localStorage.getItem("ms_volume"));
 	if (isNaN(volume)) volume = 0.6;
+	// Playback-rate multiplier — scales every clip's duration/delay (not pitch) so the Sound Lab
+	// (/admin/sounds) can audition a sound snappier or more drawn-out. 1 = normal speed; nothing in
+	// real gameplay ever changes this, and the lab resets it to 1 when you navigate away (see
+	// teardownSoundLab in SoundLab.js) so a lingering value can never leak into a real match.
+	var rate = 1;
 
 	function ensure() {
 		if (ctx) return ctx;
@@ -24,25 +29,26 @@ var sound = (function() {
 	function tone(opts) {
 		if (muted || !ensure()) return;
 		if (ctx.state === "suspended") ctx.resume();
-		var t0 = ctx.currentTime + (opts.delay || 0);
+		var dur = opts.dur / rate;
+		var t0 = ctx.currentTime + (opts.delay || 0) / rate;
 		var osc = ctx.createOscillator();
 		var g = ctx.createGain();
 		osc.type = opts.type || "sine";
 		osc.frequency.setValueAtTime(opts.freq, t0);
-		if (opts.toFreq) osc.frequency.exponentialRampToValueAtTime(opts.toFreq, t0 + opts.dur);
+		if (opts.toFreq) osc.frequency.exponentialRampToValueAtTime(opts.toFreq, t0 + dur);
 		var peak = opts.gain != null ? opts.gain : 0.2;
 		g.gain.setValueAtTime(0.0001, t0);
 		g.gain.exponentialRampToValueAtTime(peak, t0 + 0.005);
-		g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
+		g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 		osc.connect(g); g.connect(master);
-		osc.start(t0); osc.stop(t0 + opts.dur + 0.02);
+		osc.start(t0); osc.stop(t0 + dur + 0.02);
 	}
 
 	function noise(opts) {
 		if (muted || !ensure()) return;
 		if (ctx.state === "suspended") ctx.resume();
-		var t0 = ctx.currentTime;
-		var dur = opts.dur || 0.3;
+		var dur = (opts.dur || 0.3) / rate;
+		var t0 = ctx.currentTime + (opts.delay || 0) / rate;
 		var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
 		var data = buf.getChannelData(0);
 		for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
@@ -124,17 +130,19 @@ var sound = (function() {
 			tone({ type: "sine", freq: 150, toFreq: 50, dur: 0.4, gain: 0.22 });
 		},
 		beep: function(freq) { tone({ type: "sine", freq: freq, dur: 0.12, gain: 0.12 }); },
-		// The idle→ready board sweep (BOARD_GO_STYLE, Animations.js) — a rising tone timed to the
-		// sweep's own duration so the pitch climb tracks the wave crossing the board, plus a soft
-		// filtered-noise layer underneath for a bit of "whoosh" texture. Reads durationMs live
-		// rather than hardcoding 700ms so retuning the sweep's speed (from /admin/countdown) keeps
-		// the sound in sync without a second place to edit. This is a different moment from go()
-		// below — go() is the "GO!" cue when the round actually goes live, at the END of the
-		// countdown; this fires immediately when the sweep itself starts, well before that.
+		// The idle→ready board sweep (BOARD_GO_STYLE, Animations.js) — "Shimmer": a quick ascending
+		// arpeggio tracking the wave crossing the board (picked over a plain rising tone and a couple
+		// of other candidates auditioned in the Sound Lab, /admin/sounds — this one sits best next to
+		// the rest of the app's own sound language, which already leans on ascending triangle-wave
+		// arpeggios for win/rankUp/etc. below). The note count/step/dur below is exactly the "Shimmer"
+		// preset in the Sound Lab's sweep-variant list, so tuning there and shipping here stay in
+		// sync by eye. This is a different moment from go() below — go() is the "GO!" cue when the
+		// round actually goes live, at the END of the countdown; this fires immediately when the
+		// sweep itself starts, well before that.
 		sweep: function() {
-			var dur = (typeof BOARD_GO_STYLE !== "undefined" && BOARD_GO_STYLE.durationMs) ? BOARD_GO_STYLE.durationMs / 1000 : 0.7;
-			tone({ type: "sine", freq: 260, toFreq: 720, dur: dur, gain: 0.09 });
-			noise({ dur: dur, cutoff: 2200, gain: 0.05 });
+			var freqs = [392, 440, 523, 587, 659, 784, 880];
+			var step = 0.09, dur = 0.17, gain = 0.065;
+			for (var i = 0; i < freqs.length; i++) tone({ type: "triangle", freq: freqs[i], dur: dur, gain: gain, delay: i * step });
 		},
 		go: function() { tone({ type: "sine", freq: 880, dur: 0.25, gain: 0.16 }); },
 		win: function() { arp([523, 659, 784, 1047], 0.09, 0.28, 0.12); },
@@ -149,7 +157,14 @@ var sound = (function() {
 		setMuted: function(m) { muted = m; localStorage.setItem("ms_muted", m ? "1" : "0"); },
 		isMuted: function() { return muted; },
 		setVolume: function(v) { volume = v; localStorage.setItem("ms_volume", String(v)); if (master) master.gain.value = v; },
-		getVolume: function() { return volume; }
+		getVolume: function() { return volume; },
+		// Sound Lab only (/admin/sounds) — never called from real gameplay code.
+		setRate: function(r) { rate = r > 0 ? r : 1; },
+		getRate: function() { return rate; },
+		// The same low-level primitives every sound above is built from, exposed read-only so the
+		// Sound Lab can compose and audition new candidates (e.g. sweep variants) using the exact
+		// synthesis code that ships, rather than a second, drifting reimplementation.
+		lab: { tone: tone, noise: noise, arp: arp }
 	};
 })();
 

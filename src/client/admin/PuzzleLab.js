@@ -124,6 +124,12 @@ function renderAdminLanding() {
 		"Open lab",
 		"/admin/countdown"
 	));
+	cards.appendChild(makeAdminCard(
+		"Sound Lab",
+		"Every sound effect in the game, each with its own Play button and a shared speed control — plus a set of alternate takes on the idle→ready sweep sound to compare.",
+		"Open lab",
+		"/admin/sounds"
+	));
 	// Unfinished game modes parked off the home page until they're ready to ship.
 	cards.appendChild(makeAdminCard(
 		"Tournament (preview)",
