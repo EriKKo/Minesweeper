@@ -184,10 +184,6 @@ function renderProfile() {
 	card.appendChild(profileSectionTitle("Free-play best times"));
 	card.appendChild(profileBestsGrid(account.soloBests || {}));
 
-	// --- Appearance: avatar flag colour + country ---
-	card.appendChild(profileSectionTitle("Appearance"));
-	card.appendChild(renderAppearance());
-
 	profileStats = {}; // cleared until this account's history aggregates arrive (avoids cross-account staleness)
 	renderAchievements();
 	// Rating graph + recent games (incl. replay links) + achievement aggregates come from
