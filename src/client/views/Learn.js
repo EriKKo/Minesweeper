@@ -1954,35 +1954,29 @@ function buildLearnPuzzle(puzzle, isGuess, onSolved, onFailed, onMistake) {
 		if (cell) onRightClick(cell.r, cell.c);
 	});
 
-	// Keyboard play: same rebindable actions as the live game (keybindings.actionFor), scoped to
-	// this canvas's own keydown so it never competes with the live game's document-level listener
-	// or with any other puzzle on the page. Only draws its cursor ring while actually focused.
-	canvas.addEventListener("focus", function() { hasFocus = true; renderAll(); });
-	canvas.addEventListener("blur", function() { hasFocus = false; renderAll(); });
-	canvas.addEventListener("keydown", function(e) {
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
-		var action = keybindings.actionFor(e);
-		if (!action) return;
-		if (action === "reveal") {
-			e.preventDefault();
-			if (e.repeat) return; // one press, one action — not a spam-while-held key
-			onLeftClick(focusR, focusC);
-			return;
-		}
-		if (action === "flag") {
-			e.preventDefault();
-			if (e.repeat) return;
-			onRightClick(focusR, focusC);
-			return;
-		}
-		var dr = action === "up" ? -1 : action === "down" ? 1 : 0;
-		var dc = action === "left" ? -1 : action === "right" ? 1 : 0;
-		if (!dr && !dc) return; // "next" (Tab) and anything else fall through to native behaviour
-		e.preventDefault();
-		focusR = Math.max(0, Math.min(R - 1, focusR + dr));
-		focusC = Math.max(0, Math.min(C - 1, focusC + dc));
-		renderAll();
-	});
+	// Keyboard play: registers with the shared board-focus dispatcher (BoardRender.js) instead of
+	// owning a keydown listener itself — one document-level listener maps keybindings.actionFor
+	// to whichever board is actually focused, so this and any other focusable board (a Help-modal
+	// preview open over this same puzzle, say) each just supply their own cursor-movement logic
+	// without duplicating the "which key means what" plumbing. No jumpToNext: this canvas sits
+	// inside a normal page with Reset/Hint/Continue buttons before and after it, and claiming Tab
+	// (jumpToNext's default key) would trap keyboard users on the board instead of letting them
+	// move on — leaving it unimplemented here means the dispatcher lets Tab behave natively.
+	var boardController = {
+		moveCursor: function(dr, dc) {
+			var nr = Math.max(0, Math.min(R - 1, focusR + dr));
+			var nc = Math.max(0, Math.min(C - 1, focusC + dc));
+			if (nr === focusR && nc === focusC) return false;
+			focusR = nr;
+			focusC = nc;
+			renderAll();
+			return true;
+		},
+		reveal: function() { onLeftClick(focusR, focusC); },
+		flag: function() { onRightClick(focusR, focusC); }
+	};
+	canvas.addEventListener("focus", function() { hasFocus = true; focusBoard(boardController); renderAll(); });
+	canvas.addEventListener("blur", function() { hasFocus = false; blurBoard(boardController); renderAll(); });
 
 	function resetPuzzle() {
 		state = buildBoardState(puzzle, isMineArr, clueValue);

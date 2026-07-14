@@ -643,3 +643,62 @@ function drawExtractorCore(ctx, w, h, color) {
 	ctx.beginPath(); ctx.arc(cx, cy, rad * 0.45, 0, Math.PI * 2); ctx.fill();
 	ctx.restore();
 }
+
+// ---- keyboard focus for boards that use real DOM focus -----------------------------------
+// The live game's own board (Input.js) doesn't use this: it's a single always-on-screen board
+// gated by currentActionMode(), and deliberately keeps working no matter what has DOM focus —
+// requiring the canvas to be focused would be a regression there, not an improvement (losing
+// focus, e.g. by clicking a HUD button mid-match, would stop keys from doing anything).
+//
+// This is for the opposite situation: any number of independent, genuinely-focusable board
+// widgets that can coexist on a page (Learn puzzles, and anywhere else buildLearnPuzzle is used
+// — a Help-modal preview can be open over a Learn puzzle, for instance, each with its own canvas
+// and its own local cursor state). Exactly one is ever "the" keyboard target at a time, decided
+// by real focus: a board calls focusBoard(controller) when its surface receives a focus event
+// and blurBoard(controller) on blur; this file's one keydown listener maps the event through
+// keybindings.actionFor and forwards it to whichever controller is currently registered, so the
+// board-specific logic (how a cursor moves, what reveal/flag mean for that particular board)
+// stays with the board, not duplicated into every caller's own keydown handler.
+//
+// controller shape: { moveCursor(dr, dc, skipRevealed), reveal(), flag(), jumpToNext(forward)? }
+// jumpToNext is optional — a board that doesn't implement it (Learn's puzzles: see buildLearnPuzzle)
+// simply doesn't bind "next" (default Tab), leaving Tab to move real DOM focus as normal instead
+// of trapping the player on the board.
+var focusedBoardController = null;
+
+function focusBoard(controller) { focusedBoardController = controller; }
+function blurBoard(controller) { if (focusedBoardController === controller) focusedBoardController = null; }
+
+document.addEventListener("keydown", function(e) {
+	var c = focusedBoardController;
+	if (!c) return;
+	var tag = (e.target && e.target.tagName) || "";
+	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+	if (e.target && e.target.closest && e.target.closest(".kbd-btn-group")) return;
+	if (e.ctrlKey || e.metaKey || e.altKey) return;
+	var action = (typeof keybindings !== "undefined") ? keybindings.actionFor(e) : null;
+	if (!action) return;
+	if (action === "reveal") {
+		e.preventDefault();
+		if (e.repeat) return; // one press, one action — not a spam-while-held key
+		c.reveal();
+		return;
+	}
+	if (action === "flag") {
+		e.preventDefault();
+		if (e.repeat) return;
+		c.flag();
+		return;
+	}
+	if (action === "next") {
+		if (!c.jumpToNext) return; // not supported by this controller — let Tab behave natively
+		e.preventDefault();
+		c.jumpToNext(!e.shiftKey);
+		return;
+	}
+	var dr = action === "up" ? -1 : action === "down" ? 1 : 0;
+	var dc = action === "left" ? -1 : action === "right" ? 1 : 0;
+	if (!dr && !dc) return;
+	e.preventDefault();
+	c.moveCursor(dr, dc, e.shiftKey);
+});
