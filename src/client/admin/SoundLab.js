@@ -70,14 +70,18 @@ function playArp(freqs, step, dur, gain) {
 	}
 }
 
-// ---- battle theme lab: timbre × rhythm × progression, combinable and playable together --------
-// Three independent axes instead of a flat list of presets, so "does Sub Growl sound better with
-// a syncopated rhythm" is something you can actually check rather than compare in your head. Each
-// axis is a segmented picker (.cr-seg, same widget CountdownLab.js's style pickers use); the one
-// Play/Stop button below combines whichever option is currently selected on each axis, and
-// changing a picker mid-loop takes effect on the NEXT bar rather than requiring a restart — same
-// "live" feel as the Playback speed slider above. Bass only — doesn't touch arp/drums.
+// ---- battle theme lab: bass / melody / percussion, each independently switchable, playable
+// together over a shared chord progression -------------------------------------------------------
+// Three layers, each with its own timbre-ish axis (voice/kit) and rhythm-ish axis (pattern), plus
+// an on/off toggle so any subset can play — "just the drums", "bass and melody, no drums", or
+// everything at once. All three read the same progression pick, so bass root and melody arpeggio
+// always stay harmonized. Every picker is a segmented control (.cr-seg, same widget
+// CountdownLab.js's style pickers use); the one Play/Stop button combines whichever options are
+// currently selected, and changing anything — including a layer's on/off toggle — mid-loop takes
+// effect on the NEXT bar rather than requiring a restart, same "live" feel as the Playback speed
+// slider above.
 var BASS_PREVIEW_GAIN = 0.24;
+var MELODY_PREVIEW_GAIN = 0.09;
 
 // -- timbres: per-note synthesis, signature (ctx, master, freq, t, dur, gain) — same shape for
 // every one so any timbre can drive any rhythm below without special-casing.
@@ -218,20 +222,338 @@ var BATTLE_LAB_RHYTHMS = [
 	{ id: "halftime", label: "Half-time 8ths", desc: "8 hits per bar instead of 16 — half the density, a heavier, more deliberate feel.", schedule: rhythmHalfTime }
 ];
 
-// -- progressions: 4 chord roots (Hz) replacing Am-F-C-G, same A-minor/C-major key centre so any
-// of these still fit the rest of the theme (arp/lead) if one ever gets promoted to ship.
-var BATTLE_LAB_PROGRESSIONS = [
-	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — what the battle theme plays today.", roots: [110.00, 87.31, 130.81, 98.00] },
-	{ id: "amgcf", label: "Am–G–C–F", desc: "Same four chords, reordered — resolves to F instead of G, a softer landing each loop.", roots: [110.00, 98.00, 130.81, 87.31] },
-	{ id: "amdmgc", label: "Am–Dm–G–C", desc: "Descends through the circle of fifths — a more cinematic, driving pull toward C.", roots: [110.00, 73.42, 98.00, 130.81] },
-	{ id: "amemfc", label: "Am–Em–F–C", desc: "Swaps in Em for the second chord — moodier, more melancholic than the shipped version.", roots: [110.00, 82.41, 87.31, 130.81] },
-	{ id: "cgamf", label: "C–G–Am–F", desc: "The classic four-chord pop progression, same key centre — opens major instead of minor.", roots: [130.81, 98.00, 110.00, 87.31] }
+// -- melody: per-note synthesis (ctx, master, freq, t, dur, gain) plus schedule(synthFn, ctx,
+// master, arpNotes, t, beatS, gain) rhythms, where arpNotes is the current bar's 4-note chord
+// arpeggio (from the progression below) rather than a single root — the melody follows the chord
+// shape, the bass just holds its root.
+
+// music.lab.triangleArp's real signature is (freq, t, dur, gain), same closure-ctx/master
+// pattern as pulseBass — adapted to the shared (ctx, master, freq, t, dur, gain) shape.
+function playTriangleArp(ctx, master, freq, t, dur, gain) {
+	music.lab.triangleArp(freq, t, dur, gain);
+}
+function melodySquare(ctx, master, freq, t, dur, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "square";
+	osc.frequency.value = freq;
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain * 0.8, t + 0.002);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+	osc.connect(g); g.connect(master);
+	osc.start(t); osc.stop(t + dur + 0.02);
+}
+// Two sine partials (an octave, and a fifth-plus-octave slightly detuned for shimmer) instead of
+// one chip-style oscillator — a chiming, metallic ring rather than a blip.
+function melodyBell(ctx, master, freq, t, dur, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "sine";
+	osc.frequency.value = freq * 2;
+	var osc2 = ctx.createOscillator();
+	osc2.type = "sine";
+	osc2.frequency.value = freq * 3.01;
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain, t + 0.002);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 1.6);
+	var g2 = ctx.createGain();
+	g2.gain.setValueAtTime(0.0001, t);
+	g2.gain.linearRampToValueAtTime(gain * 0.35, t + 0.002);
+	g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 1.1);
+	osc.connect(g); g.connect(master);
+	osc2.connect(g2); g2.connect(master);
+	osc.start(t); osc.stop(t + dur * 1.6 + 0.02);
+	osc2.start(t); osc2.stop(t + dur * 1.1 + 0.02);
+}
+function melodyPluck(ctx, master, freq, t, dur, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "sawtooth";
+	osc.frequency.value = freq;
+	var filt = ctx.createBiquadFilter();
+	filt.type = "lowpass";
+	filt.frequency.setValueAtTime(freq * 6, t);
+	filt.frequency.exponentialRampToValueAtTime(freq * 1.2, t + dur * 0.8);
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain, t + 0.002);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+	osc.connect(filt); filt.connect(g); g.connect(master);
+	osc.start(t); osc.stop(t + dur + 0.02);
+}
+
+var BATTLE_LAB_MELODY_TIMBRES = [
+	{ id: "triangle", label: "Triangle", desc: "Fast triangle-wave notes — the shipped arpeggio's own voice, straight NES chiptune.", synth: playTriangleArp },
+	{ id: "square", label: "Square", desc: "Buzzier square wave instead of triangle — punchier, more 8-bit.", synth: melodySquare },
+	{ id: "bell", label: "Bell", desc: "Two sine partials layered up an octave and a fifth — a chiming, metallic ring instead of a chip blip.", synth: melodyBell },
+	{ id: "pluck", label: "Pluck", desc: "Sawtooth through a fast-closing filter — a plucked, pizzicato character.", synth: melodyPluck }
 ];
 
-// The currently selected option on each axis — persists across re-renders of this page within
-// the same session (not that a re-render normally happens without a full navigate-away/back,
-// which resets playback anyway via teardownSoundLab).
-var battleLabSelected = { timbre: BATTLE_LAB_TIMBRES[0], rhythm: BATTLE_LAB_RHYTHMS[0], progression: BATTLE_LAB_PROGRESSIONS[0] };
+function melodyRhythmRunning8ths(synthFn, ctx, master, notes, t, beatS, gain) {
+	var sixteenth = beatS * 0.25;
+	for (var a = 0; a < 8; a++) {
+		synthFn(ctx, master, notes[a % notes.length], t + a * sixteenth * 2, sixteenth * 1.6, gain);
+	}
+}
+function melodyRhythmQuarters(synthFn, ctx, master, notes, t, beatS, gain) {
+	for (var b = 0; b < 4; b++) synthFn(ctx, master, notes[b % notes.length], t + b * beatS, beatS * 0.85, gain);
+}
+function melodyRhythmSixteenths(synthFn, ctx, master, notes, t, beatS, gain) {
+	var sixteenth = beatS * 0.25;
+	for (var s = 0; s < 16; s++) {
+		synthFn(ctx, master, notes[s % notes.length], t + s * sixteenth, sixteenth * 0.8, gain * (s % 4 === 0 ? 1.0 : 0.7));
+	}
+}
+function melodyRhythmSyncopated(synthFn, ctx, master, notes, t, beatS, gain) {
+	var hits = [
+		{ at: 0,    idx: 0, dur: 0.4 },
+		{ at: 0.75, idx: 1, dur: 0.3 },
+		{ at: 1.5,  idx: 2, dur: 0.3 },
+		{ at: 2.5,  idx: 3, dur: 0.4 },
+		{ at: 3.25, idx: 1, dur: 0.3 }
+	];
+	hits.forEach(function(h) { synthFn(ctx, master, notes[h.idx % notes.length], t + h.at * beatS, h.dur * beatS, gain); });
+}
+
+var BATTLE_LAB_MELODY_RHYTHMS = [
+	{ id: "running8ths", label: "Running 8ths", desc: "8 notes per bar cycling through the chord tones — the shipped arpeggio.", schedule: melodyRhythmRunning8ths },
+	{ id: "quarters", label: "Sparse quarters", desc: "One note per beat instead of 8 — a calmer, more spacious line.", schedule: melodyRhythmQuarters },
+	{ id: "sixteenths", label: "Sixteenth run", desc: "16 notes per bar — a fast, machine-gun arpeggio.", schedule: melodyRhythmSixteenths },
+	{ id: "syncopated", label: "Syncopated", desc: "A handful of notes pushed off the beat instead of an even cycle — more of a riff, less of a scale run.", schedule: melodyRhythmSyncopated }
+];
+
+// -- percussion: a "kit" is the 3 instrument voices (kick/snare/hihat), each (ctx, master, t,
+// gain); a "pattern" is schedule(kit, ctx, master, t, beatS, gain) where gain is the
+// {kick,snare,hat} triple below — kick/snare/hat naturally sit at very different loudnesses, so
+// unlike bass/melody a single scalar gain isn't enough.
+var PERC_PREVIEW_GAIN = { kick: 0.24, snare: 0.13, hat: 0.03 };
+
+// music.lab.kick/snare/hihat's real signature is (t, gain) — reaching ctx/master via Music.js's
+// own closure, same pattern as pulseBass/triangleArp. Adapted to the shared kit shape.
+function percKick(ctx, master, t, gain) { music.lab.kick(t, gain); }
+function percSnare(ctx, master, t, gain) { music.lab.snare(t, gain); }
+function percHihat(ctx, master, t, gain) { music.lab.hihat(t, gain); }
+
+function punchyKick(ctx, master, t, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "sine";
+	osc.frequency.setValueAtTime(190, t);
+	osc.frequency.exponentialRampToValueAtTime(35, t + 0.16);
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain * 1.15, t + 0.003);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+	osc.connect(g); g.connect(master);
+	osc.start(t); osc.stop(t + 0.26);
+}
+function punchySnare(ctx, master, t, gain) {
+	var dur = 0.11;
+	var samples = Math.floor(ctx.sampleRate * dur);
+	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+	var data = buf.getChannelData(0);
+	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 0.9);
+	var src = ctx.createBufferSource(); src.buffer = buf;
+	var bp = ctx.createBiquadFilter();
+	bp.type = "bandpass"; bp.frequency.value = 2600; bp.Q.value = 2.2;
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain * 1.2, t + 0.002);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+	src.connect(bp); bp.connect(g); g.connect(master);
+	src.start(t);
+}
+function punchyHihat(ctx, master, t, gain) {
+	var dur = 0.035;
+	var samples = Math.floor(ctx.sampleRate * dur);
+	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+	var data = buf.getChannelData(0);
+	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2.5);
+	var src = ctx.createBufferSource(); src.buffer = buf;
+	var hp = ctx.createBiquadFilter();
+	hp.type = "highpass"; hp.frequency.value = 8500;
+	var g = ctx.createGain(); g.gain.value = gain * 1.1;
+	src.connect(hp); hp.connect(g); g.connect(master);
+	src.start(t);
+}
+
+function lofiKick(ctx, master, t, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "sine";
+	osc.frequency.setValueAtTime(130, t);
+	osc.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+	var filt = ctx.createBiquadFilter();
+	filt.type = "lowpass"; filt.frequency.value = 500;
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain * 0.85, t + 0.006);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+	osc.connect(filt); filt.connect(g); g.connect(master);
+	osc.start(t); osc.stop(t + 0.18);
+}
+function lofiSnare(ctx, master, t, gain) {
+	var dur = 0.12;
+	var samples = Math.floor(ctx.sampleRate * dur);
+	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+	var data = buf.getChannelData(0);
+	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 1.6);
+	var src = ctx.createBufferSource(); src.buffer = buf;
+	var lp = ctx.createBiquadFilter();
+	lp.type = "lowpass"; lp.frequency.value = 1400;
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain * 0.8, t + 0.004);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+	src.connect(lp); lp.connect(g); g.connect(master);
+	src.start(t);
+}
+function lofiHihat(ctx, master, t, gain) {
+	var dur = 0.05;
+	var samples = Math.floor(ctx.sampleRate * dur);
+	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+	var data = buf.getChannelData(0);
+	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2);
+	var src = ctx.createBufferSource(); src.buffer = buf;
+	var bp = ctx.createBiquadFilter();
+	bp.type = "bandpass"; bp.frequency.value = 4500; bp.Q.value = 0.6;
+	var g = ctx.createGain(); g.gain.value = gain * 0.7;
+	src.connect(bp); bp.connect(g); g.connect(master);
+	src.start(t);
+}
+
+function electroKick(ctx, master, t, gain) {
+	var osc = ctx.createOscillator();
+	osc.type = "sine";
+	osc.frequency.setValueAtTime(150, t);
+	osc.frequency.exponentialRampToValueAtTime(30, t + 0.3);
+	var g = ctx.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(gain, t + 0.004);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+	osc.connect(g); g.connect(master);
+	osc.start(t); osc.stop(t + 0.44);
+}
+// A clap instead of a snare: three quick overlapping noise bursts.
+function electroSnare(ctx, master, t, gain) {
+	[0, 0.012, 0.024].forEach(function(off) {
+		var dur = 0.09;
+		var samples = Math.floor(ctx.sampleRate * dur);
+		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2);
+		var src = ctx.createBufferSource(); src.buffer = buf;
+		var bp = ctx.createBiquadFilter();
+		bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 1.4;
+		var g = ctx.createGain();
+		var t0 = t + off;
+		g.gain.setValueAtTime(0.0001, t0);
+		g.gain.linearRampToValueAtTime(gain * 0.7, t0 + 0.002);
+		g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+		src.connect(bp); bp.connect(g); g.connect(master);
+		src.start(t0);
+	});
+}
+function electroHihat(ctx, master, t, gain) {
+	var dur = 0.03;
+	var samples = Math.floor(ctx.sampleRate * dur);
+	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+	var data = buf.getChannelData(0);
+	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 4);
+	var src = ctx.createBufferSource(); src.buffer = buf;
+	var hp = ctx.createBiquadFilter();
+	hp.type = "highpass"; hp.frequency.value = 9500;
+	var g = ctx.createGain(); g.gain.value = gain * 1.3;
+	src.connect(hp); hp.connect(g); g.connect(master);
+	src.start(t);
+}
+
+var BATTLE_LAB_PERC_KITS = [
+	{ id: "classic", label: "Classic", desc: "Sine kick, noise-burst snare, bright hi-hat — the shipped kit.", kick: percKick, snare: percSnare, hihat: percHihat },
+	{ id: "punchy", label: "Punchy", desc: "Harder-hitting kick and snare — more low-end thump, a tighter crack.", kick: punchyKick, snare: punchySnare, hihat: punchyHihat },
+	{ id: "lofi", label: "Lo-fi", desc: "Everything filtered and softened — a muffled, vinyl-ish character.", kick: lofiKick, snare: lofiSnare, hihat: lofiHihat },
+	{ id: "electro", label: "Electro", desc: "808-style booming kick, a layered clap instead of a snare, crisp metallic hats.", kick: electroKick, snare: electroSnare, hihat: electroHihat }
+];
+
+function percRhythmFourFloor(kit, ctx, master, t, beatS, gain) {
+	for (var b = 0; b < 4; b++) kit.kick(ctx, master, t + b * beatS, gain.kick);
+	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
+	kit.snare(ctx, master, t + 3 * beatS, gain.snare);
+	for (var h = 0; h < 8; h++) {
+		kit.hihat(ctx, master, t + h * beatS * 0.5, gain.hat * (h % 2 === 1 ? 1.2 : 0.7));
+	}
+}
+function percRhythmHalfTime(kit, ctx, master, t, beatS, gain) {
+	kit.kick(ctx, master, t, gain.kick);
+	kit.snare(ctx, master, t + 2 * beatS, gain.snare);
+	for (var h = 0; h < 4; h++) kit.hihat(ctx, master, t + h * beatS, gain.hat);
+}
+function percRhythmBreakbeat(kit, ctx, master, t, beatS, gain) {
+	[0, 1.5, 2.75].forEach(function(b) { kit.kick(ctx, master, t + b * beatS, gain.kick); });
+	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
+	kit.snare(ctx, master, t + 3 * beatS, gain.snare);
+	for (var h = 0; h < 16; h++) {
+		kit.hihat(ctx, master, t + h * beatS * 0.25, gain.hat * (h % 4 === 0 ? 1.1 : 0.6));
+	}
+}
+function percRhythmMinimal(kit, ctx, master, t, beatS, gain) {
+	kit.kick(ctx, master, t, gain.kick);
+	kit.kick(ctx, master, t + 2 * beatS, gain.kick);
+	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
+	kit.snare(ctx, master, t + 3.75 * beatS, gain.snare * 0.5);
+	kit.snare(ctx, master, t + 3 * beatS, gain.snare);
+	for (var h = 0; h < 16; h++) kit.hihat(ctx, master, t + h * beatS * 0.25, gain.hat * 0.8);
+}
+
+var BATTLE_LAB_PERC_RHYTHMS = [
+	{ id: "fourfloor", label: "Four-on-the-floor", desc: "Kick every beat, snare on 2 & 4, hi-hat 8ths — the shipped pattern.", schedule: percRhythmFourFloor },
+	{ id: "halftime", label: "Half-time", desc: "Kick on 1, snare only on 3, hi-hat quarters — half the density, more space.", schedule: percRhythmHalfTime },
+	{ id: "breakbeat", label: "Breakbeat", desc: "Syncopated kick hits ahead of the beat, snare on 2 & 4, hi-hat 16ths — a rolling, off-kilter groove.", schedule: percRhythmBreakbeat },
+	{ id: "minimal", label: "Minimal", desc: "Kick on 1 & 3 only, a ghost snare before the backbeat, steady 16th hi-hats underneath.", schedule: percRhythmMinimal }
+];
+
+// -- progressions: 4 bars of {root, arp} replacing Am-F-C-G, same A-minor/C-major key centre —
+// arp values are the real chord tones (reused verbatim for Am/F/C/G; Dm/Em added the same way)
+// so the melody layer stays harmonized with the bass no matter which progression is picked.
+var BATTLE_LAB_PROGRESSIONS = [
+	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — what the battle theme plays today.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
+		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] }
+	] },
+	{ id: "amgcf", label: "Am–G–C–F", desc: "Same four chords, reordered — resolves to F instead of G, a softer landing each loop.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
+		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] }
+	] },
+	{ id: "amdmgc", label: "Am–Dm–G–C", desc: "Descends through the circle of fifths — a more cinematic, driving pull toward C.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 73.42,  arp: [146.83, 174.61, 220.00, 293.66] },
+		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
+	] },
+	{ id: "amemfc", label: "Am–Em–F–C", desc: "Swaps in Em for the second chord — moodier, more melancholic than the shipped version.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 82.41,  arp: [164.81, 196.00, 246.94, 329.63] },
+		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
+	] },
+	{ id: "cgamf", label: "C–G–Am–F", desc: "The classic four-chord pop progression, same key centre — opens major instead of minor.", bars: [
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
+		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] }
+	] }
+];
+
+// The currently selected option on each axis, and each layer's on/off state — persists across
+// re-renders of this page within the same session (not that a re-render normally happens without
+// a full navigate-away/back, which resets playback anyway via teardownSoundLab).
+var battleLabSelected = {
+	progression: BATTLE_LAB_PROGRESSIONS[0],
+	bass: { on: true, timbre: BATTLE_LAB_TIMBRES[0], rhythm: BATTLE_LAB_RHYTHMS[0] },
+	melody: { on: true, timbre: BATTLE_LAB_MELODY_TIMBRES[0], rhythm: BATTLE_LAB_MELODY_RHYTHMS[0] },
+	perc: { on: true, kit: BATTLE_LAB_PERC_KITS[0], rhythm: BATTLE_LAB_PERC_RHYTHMS[0] }
+};
 var battleLabTimer = null;
 var battleLabBarIdx = 0;
 var battleLabPlaying = false;
@@ -257,11 +579,11 @@ function startBattleLab() {
 	playBattleLabBar();
 }
 
-// Loops the selected progression through the selected rhythm/timbre, one bar at a time via a
-// setTimeout chain (same idiom as Overlay.js's countdownDigitCycle) — Stop just clears the
+// Loops the selected progression through whichever layers are switched on, one bar at a time via
+// a setTimeout chain (same idiom as Overlay.js's countdownDigitCycle) — Stop just clears the
 // pending timer; the current bar's already-scheduled notes finish naturally, well under 2s.
-// Reads battleLabSelected fresh every bar, so switching any axis mid-loop takes effect on the
-// very next bar instead of requiring a restart.
+// Reads battleLabSelected fresh every bar, so switching any axis — including a layer's on/off
+// toggle — mid-loop takes effect on the very next bar instead of requiring a restart.
 function playBattleLabBar() {
 	var ctx = music.lab.getCtx();
 	var master = music.lab.getMaster();
@@ -269,10 +591,14 @@ function playBattleLabBar() {
 	var rate = sound.getRate();
 	var beatS = music.lab.BEAT_S / rate;
 	var barDurMs = (music.lab.BAR_DUR / rate) * 1000;
-	var progression = battleLabSelected.progression;
-	var root = progression.roots[battleLabBarIdx % progression.roots.length];
+	var bar = battleLabSelected.progression.bars[battleLabBarIdx % battleLabSelected.progression.bars.length];
 	var t = ctx.currentTime + 0.05;
-	battleLabSelected.rhythm.schedule(battleLabSelected.timbre.synth, ctx, master, root, t, beatS, BASS_PREVIEW_GAIN);
+	var bass = battleLabSelected.bass;
+	if (bass.on) bass.rhythm.schedule(bass.timbre.synth, ctx, master, bar.root, t, beatS, BASS_PREVIEW_GAIN);
+	var melody = battleLabSelected.melody;
+	if (melody.on) melody.rhythm.schedule(melody.timbre.synth, ctx, master, bar.arp, t, beatS, MELODY_PREVIEW_GAIN);
+	var perc = battleLabSelected.perc;
+	if (perc.on) perc.rhythm.schedule(perc.kit, ctx, master, t, beatS, PERC_PREVIEW_GAIN);
 	battleLabBarIdx++;
 	battleLabTimer = setTimeout(playBattleLabBar, barDurMs);
 }
@@ -434,8 +760,49 @@ function buildBattleLabAxis(label, options, selected, key) {
 	return axis;
 }
 
-// The "Battle theme lab" card: three independent axis pickers (Timbre / Rhythm / Progression)
-// feeding the one combined Play/Stop loop in playBattleLabBar.
+// The on/off toggle on a layer's header — same .toggle-switch button Fullscreen.js's "Auto
+// fullscreen" setting uses. Mutates layerState.on directly so playBattleLabBar sees it live.
+function buildBattleLabLayerToggle(layerState) {
+	var sw = document.createElement("button");
+	sw.type = "button";
+	sw.className = "toggle-switch sound-lab-layer-toggle" + (layerState.on ? " on" : "");
+	sw.setAttribute("aria-pressed", layerState.on ? "true" : "false");
+	sw.addEventListener("click", function() {
+		layerState.on = !layerState.on;
+		sw.classList.toggle("on", layerState.on);
+		sw.setAttribute("aria-pressed", layerState.on ? "true" : "false");
+	});
+	return sw;
+}
+
+// One layer card (Bass / Melody / Percussion): a title + on/off toggle, then its two axis
+// pickers. axisOneKey/axisTwoKey are the fields on layerState each picker writes to (e.g.
+// "timbre"/"rhythm" for bass and melody, "kit"/"rhythm" for percussion).
+function buildBattleLabLayer(title, layerState, axisOneLabel, axisOneOptions, axisOneKey, axisTwoLabel, axisTwoOptions, axisTwoKey) {
+	var layer = document.createElement("div");
+	layer.className = "sound-lab-layer";
+
+	var head = document.createElement("div");
+	head.className = "sound-lab-layer-head";
+	var lbl = document.createElement("span");
+	lbl.className = "sound-lab-layer-title";
+	lbl.textContent = title;
+	head.appendChild(lbl);
+	head.appendChild(buildBattleLabLayerToggle(layerState));
+	layer.appendChild(head);
+
+	var axes = document.createElement("div");
+	axes.className = "sound-lab-layer-axes";
+	axes.appendChild(buildBattleLabAxis(axisOneLabel, axisOneOptions, layerState, axisOneKey));
+	axes.appendChild(buildBattleLabAxis(axisTwoLabel, axisTwoOptions, layerState, axisTwoKey));
+	layer.appendChild(axes);
+
+	return layer;
+}
+
+// The "Battle theme lab" card: a shared Progression picker (drives both bass root and melody
+// arpeggio), then the Bass / Melody / Percussion layers — each independently switchable — feeding
+// the one combined Play/Stop loop in playBattleLabBar.
 function buildBattleLabSection() {
 	var section = document.createElement("div");
 	section.className = "sound-lab-section";
@@ -445,15 +812,16 @@ function buildBattleLabSection() {
 	section.appendChild(head);
 	var sp = document.createElement("p");
 	sp.className = "sound-lab-section-sub";
-	sp.textContent = "Bass only, so far. Timbre, rhythm, and chord progression are independent choices — pick one of each and play the combination, not just the five presets from before. Looping the current selection until you stop it; switching a picker mid-loop takes effect on the next bar.";
+	sp.textContent = "Bass, melody, and percussion, each with its own voice + rhythm and its own on/off switch — solo a layer, mute the drums, or play any combination together over a shared chord progression. Loops the current selection until you stop it; switching anything mid-loop takes effect on the next bar.";
 	section.appendChild(sp);
 
 	var card = document.createElement("div");
 	card.className = "section-card sound-lab-battle-card";
 
-	card.appendChild(buildBattleLabAxis("Timbre", BATTLE_LAB_TIMBRES, battleLabSelected, "timbre"));
-	card.appendChild(buildBattleLabAxis("Rhythm", BATTLE_LAB_RHYTHMS, battleLabSelected, "rhythm"));
 	card.appendChild(buildBattleLabAxis("Progression", BATTLE_LAB_PROGRESSIONS, battleLabSelected, "progression"));
+	card.appendChild(buildBattleLabLayer("Bass", battleLabSelected.bass, "Timbre", BATTLE_LAB_TIMBRES, "timbre", "Rhythm", BATTLE_LAB_RHYTHMS, "rhythm"));
+	card.appendChild(buildBattleLabLayer("Melody", battleLabSelected.melody, "Timbre", BATTLE_LAB_MELODY_TIMBRES, "timbre", "Rhythm", BATTLE_LAB_MELODY_RHYTHMS, "rhythm"));
+	card.appendChild(buildBattleLabLayer("Percussion", battleLabSelected.perc, "Kit", BATTLE_LAB_PERC_KITS, "kit", "Pattern", BATTLE_LAB_PERC_RHYTHMS, "rhythm"));
 
 	var playBtn = document.createElement("button");
 	playBtn.type = "button";

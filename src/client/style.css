@@ -5245,7 +5245,8 @@ input[type="range"].sound-lab-rate-slider { grid-column: 1 / -1; grid-row: 2; wi
    reads the same way "currently selected" does anywhere else in the app. */
 .sound-lab-play-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* Battle theme lab — three stacked axis pickers (Timbre/Rhythm/Progression) plus one Play/Stop. */
+/* Battle theme lab — a shared Progression picker, then Bass/Melody/Percussion layer cards (each
+   with an on/off toggle + two axis pickers), plus one combined Play/Stop. */
 .sound-lab-battle-card { display: flex; flex-direction: column; gap: 1.1rem; }
 .sound-lab-axis { display: flex; flex-direction: column; gap: 0.4rem; }
 .sound-lab-axis-label {
@@ -5255,6 +5256,18 @@ input[type="range"].sound-lab-rate-slider { grid-column: 1 / -1; grid-row: 2; wi
 .sound-lab-axis-desc { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
 .sound-lab-seg { margin-top: 0.1rem; }
 .sound-lab-battle-play-btn { align-self: flex-start; margin-top: 0.2rem; }
+
+.sound-lab-layer {
+	display: flex; flex-direction: column; gap: 0.75rem;
+	padding: 0.9rem 1rem; border-radius: 12px;
+	background: var(--bg); border: 1px solid var(--border);
+}
+.sound-lab-layer-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.sound-lab-layer-title { font-weight: 700; font-size: 0.95rem; }
+.sound-lab-layer-axes { display: flex; flex-direction: column; gap: 0.9rem; }
+/* Dim (not hide) a layer's pickers while it's off — the selection stays visible/editable so you
+   can line up your next combination before flipping it back on. */
+.sound-lab-layer:has(.sound-lab-layer-toggle:not(.on)) .sound-lab-layer-axes { opacity: 0.55; }
 
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the

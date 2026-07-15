@@ -280,15 +280,20 @@ var music = (function() {
 		setVolume: setVolume,
 		getVolume: function() { return volume; },
 		// Sound Lab only (/admin/sounds) — never called from real gameplay code. Exposes the bar
-		// progression + timing constants and the real pulseBass synth (so the "shipped" bass
-		// variant there is the exact function, not a copy), plus the shared AudioContext/master gain
-		// so a lab preview plays through the same graph rather than duplicating it. getCtx() calls
-		// ensure() same as any real playback path, so it lazily creates the context if needed.
+		// progression + timing constants and the real pulseBass/triangleArp/kick/snare/hihat synths
+		// (so each "shipped" Battle theme lab option is the exact function, not a copy), plus the
+		// shared AudioContext/master gain so a lab preview plays through the same graph rather than
+		// duplicating it. getCtx() calls ensure() same as any real playback path, so it lazily
+		// creates the context if needed.
 		lab: {
 			BARS: BARS,
 			BEAT_S: BEAT_S,
 			BAR_DUR: BAR_DUR,
 			pulseBass: pulseBass,
+			triangleArp: triangleArp,
+			kick: kick,
+			snare: snare,
+			hihat: hihat,
 			getCtx: function() { return ensure(); },
 			getMaster: function() { return master; }
 		}
