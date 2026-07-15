@@ -5240,6 +5240,10 @@ input[type="range"].sound-lab-rate-slider { grid-column: 1 / -1; grid-row: 2; wi
 }
 .sound-lab-card-desc { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; flex: 1; }
 .sound-lab-play-btn { align-self: flex-start; }
+/* Bass variants' Play/Stop toggle (buildBassLabSection) — active state reuses the accent fill
+   .learn-btn.active already establishes elsewhere, so "currently looping" reads the same way
+   "currently selected" does anywhere else in the app. */
+.sound-lab-play-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the
