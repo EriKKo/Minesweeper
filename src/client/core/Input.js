@@ -200,7 +200,13 @@ function performAction(r, c, asFlag) {
 	}
 	if (mode === "solo") updateSoloHud();
 	else if (mode === "puzzle") updatePuzzleHud();
-	redrawOwnBoardWithFocus();
+	// Board content is already fully handled above: revealAt/placeFlag each trigger exactly the
+	// repaint their own change needs (cellAnims + the RAF loop for anything animated; a targeted
+	// renderPlayerBoard([key]) call, inline, for the two cases with no animation to hang a repaint
+	// off of — unflagging, and a chord's cleared-incorrect-flags). All that's left here is the
+	// keyboard-focus ring, since focusedR/focusedC were just set above regardless of which branch
+	// ran — a plain DOM reposition, not a board repaint.
+	updateFocusHighlightOverlay();
 }
 
 // Territory chord: clicking an owned number whose local flag-count matches it emits a reveal for
@@ -261,6 +267,11 @@ function placeFlag(r, c) {
 		if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
 		delete cellAnims[key];
 		sound.unflag && sound.unflag();
+		// Unlike placing a flag, removing one has no animation — nothing schedules a future repaint
+		// of this cell (no cellAnims entry, so the RAF loop's own snapshot-before-prune never sees
+		// it), so it needs exactly one immediate, targeted repaint right here, or it'd keep showing
+		// the flag until something unrelated happens to repaint the board.
+		renderPlayerBoard([key]);
 	}
 }
 
@@ -272,6 +283,12 @@ function revealAt(r, c) {
 	if (result.anyChange) {
 		queueRevealAnimations(myState);
 		prevPlayerState = cloneState(myState);
+	}
+	// A chord that detonates clears the incorrect flags around it (applyLocalLeftClick, above) —
+	// like an unflag, that's a synchronous cellAnims delete with no animation and no other trigger
+	// that will ever repaint those specific cells, so they get one targeted repaint here.
+	if (result.clearedFlags.length) {
+		renderPlayerBoard(result.clearedFlags.map(function(rc) { return rc[0] + "," + rc[1]; }));
 	}
 	return result;
 }
