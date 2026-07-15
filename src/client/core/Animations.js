@@ -5,9 +5,19 @@
 // and liveBoardView, which builds the game's BoardView (board + territory hooks).
 
 var prevPlayerState = null;   // last-seen state of game0, for reveal diffing
-var cellAnims = {};            // "r,c" -> { type:"reveal"|"flag"|"mine", start:ms }
+// "r,c" -> { type:"reveal"|"flag"|"mine"|"settle", start:ms }. "settle" (SETTLE_DUR, BoardRender.js)
+// is the placeholder for a cell that reverted to plain covered with no animation of its own (an
+// unflag, or a chord's cleared-incorrect-flags) — see cellAnimDur below and its callers.
+var cellAnims = {};
 var animRAF = null;
 var lastActionCell = null;     // where the local player last revealed, for ripple origin
+
+// How long a cellAnims entry lives before the RAF loop (startAnimLoop below) prunes it — shared by
+// that pruning check and renderPlayerBoard's own bv.animAt, so the two can't drift apart on what
+// "expired" means for a given type.
+function cellAnimDur(type) {
+	return type === "flag" ? FLAG_DUR : type === "mine" ? MINE_DUR : type === "settle" ? SETTLE_DUR : REVEAL_DUR;
+}
 
 // Round-start countdown, drawn ON the board itself instead of a text overlay on top of it: a
 // blocky digit (3/2/1) formed from a patch of cells near the board's centre, filled dark and
@@ -791,8 +801,7 @@ function renderPlayerBoard(dirtyAnimKeys) {
 		bv.animAt = function(r, c) {
 			var a = cellAnims[r + "," + c];
 			if (!a) return null;
-			var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
-			return { type: a.type, t: (now - a.start) / dur };
+			return { type: a.type, t: (now - a.start) / cellAnimDur(a.type) };
 		};
 		bv.overlay(function(ctx, sw, sh) {
 			if (typeof drawTerritoryClaims === "function") drawTerritoryClaims(ctx, sw, sh); // territory: bomb claim locks
@@ -976,15 +985,15 @@ function paintOpponentRevealFrame() {
 	return alive;
 }
 
-// Returns the "r,c" keys of every cell whose state actually differs from prevPlayerState — every
-// caller but one (Input.js's local-click path, which relies entirely on the RAF loop that
-// startAnimLoop below kicks off) uses this as the dirty set for an immediate one-off
-// renderPlayerBoard(...) call, so a draw_board broadcast that only changed a couple of cells
-// doesn't have to fall back to a full board repaint just because SOME state changed somewhere.
+// Diffs newState against prevPlayerState and gives every changed cell exactly one cellAnims entry
+// — a real animation (reveal/mine/flag) where one applies, or a short-lived "settle" placeholder
+// where none does (a cell that just reverted to plain covered). Every caller relies purely on the
+// RAF loop this kicks off (startAnimLoop) to actually repaint — nothing here calls
+// renderPlayerBoard directly, and nothing needs to: every diff is now represented in cellAnims one
+// way or another, so the loop's own snapshot-before-prune (see its comment) always catches it.
 function queueRevealAnimations(newState) {
 	var now = performance.now();
 	var revealed = [];
-	var touched = [];
 	var newlyFlagged = 0, newlyUnflagged = 0;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
@@ -992,7 +1001,6 @@ function queueRevealAnimations(newState) {
 			var cur = newState[r][c];
 			if (cur === was) continue;
 			var key = r + "," + c;
-			touched.push(key);
 			if (cur === KNOWN && was !== KNOWN) {
 				revealed.push([r, c]);
 			} else if (cur === FLAGGED && was !== FLAGGED) {
@@ -1000,7 +1008,11 @@ function queueRevealAnimations(newState) {
 				newlyFlagged++;
 			} else if (cur !== KNOWN && cur !== FLAGGED) {
 				if (was === FLAGGED) newlyUnflagged++;
-				delete cellAnims[key];
+				// Reverted to plain covered with no animation of its own (an unflag, or the server
+				// correcting a locally-mispredicted flag) — a short-lived placeholder, not a bare
+				// delete, so the RAF loop below still picks this cell up for one repaint instead of
+				// nothing ever repainting it (see SETTLE_DUR, BoardRender.js).
+				cellAnims[key] = { type: "settle", start: now };
 			}
 		}
 	}
@@ -1035,7 +1047,6 @@ function queueRevealAnimations(newState) {
 		for (var pi = 0; pi < pulses; pi++) music.pulse();
 	}
 	startAnimLoop();
-	return touched;
 }
 
 function startAnimLoop() {
@@ -1050,8 +1061,7 @@ function startAnimLoop() {
 		var animKeys = Object.keys(cellAnims);
 		for (var key in cellAnims) {
 			var a = cellAnims[key];
-			var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
-			if (now >= a.start + dur) { delete cellAnims[key]; }
+			if (now >= a.start + cellAnimDur(a.type)) { delete cellAnims[key]; }
 			else { alive = true; }
 		}
 		if (typeof territoryBeamsActive === "function" && territoryBeamsActive(now)) alive = true; // keep drawing beam streaks

@@ -102,6 +102,12 @@ var FLAG_DUR = 260;
 var MINE_DUR = 460;
 var STAGGER_MS = 13;     // per unit of distance from the reveal origin
 var STAGGER_CAP = 340;   // max ripple delay so big floods stay snappy
+// A cell that just reverted to plain covered — an unflag, or the server correcting a locally-
+// mispredicted flag — has no animation to play, but still needs a cellAnims entry (see
+// queueRevealAnimations/placeFlag in Input.js) so the RAF loop's own snapshot-before-prune picks
+// it up for one repaint instead of nothing ever repainting it. 1ms: expire on the very next frame
+// check, not linger and cause repeated no-op repaints of an already-correct cell.
+var SETTLE_DUR = 1;
 
 // ---- easing + geometry helpers ----------------------------------------
 function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }

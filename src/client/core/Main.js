@@ -2184,13 +2184,13 @@ socket.on("draw_board", function(data) {
 		if (!pendingLocalRoundReveal) {
 			// draw_board is a room-wide broadcast — it fires on ANY player's move, not just ours, so
 			// most of the time our own board hasn't actually changed at all. queueRevealAnimations
-			// already computes exactly which cells did (it needs that to know what to animate), so
-			// pass its result straight into renderPlayerBoard's dirty-cell path instead of forcing a
-			// full repaint of an unchanged board on every single broadcast in the room.
-			var touchedCells = queueRevealAnimations(me.state);
+			// gives every changed cell a cellAnims entry (a real animation, or a "settle" placeholder
+			// for one with none — see its own comment) and kicks off the RAF loop, which repaints
+			// exactly those cells next frame — no explicit renderPlayerBoard call needed here, and so
+			// no full repaint of an unchanged board on every broadcast in the room.
+			queueRevealAnimations(me.state);
 			myState = me.state;
 			prevPlayerState = cloneState(me.state);
-			renderPlayerBoard(touchedCells);
 		}
 		updateMobileFindNextHint();
 		mobileAutoSelect();

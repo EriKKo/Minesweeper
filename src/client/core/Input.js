@@ -64,6 +64,10 @@ function applyLocalLeftClick(r, c) {
 				}
 				// A chord that detonates means a flag here was wrong. Clear every incorrect flag around
 				// this number (flagged but not actually a mine) so the mistake is visibly undone.
+				// Just the state mutation here — no cellAnims bookkeeping needed: revealAt's call to
+				// queueRevealAnimations, right after this returns, diffs the whole board and gives
+				// each of these cells its own "settle" placeholder (nothing renders in between, so
+				// there's no stale frame to worry about).
 				if (hitMine) {
 					for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
 						if (!dr && !dc) continue;
@@ -71,7 +75,6 @@ function applyLocalLeftClick(r, c) {
 						if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
 						if (myState[nr][nc] === FLAGGED && boardCell(nr, nc) !== MINE) {
 							myState[nr][nc] = UNKNOWN;
-							delete cellAnims[nr + "," + nc];
 							clearedFlags.push([nr, nc]);
 						}
 					}
@@ -265,13 +268,13 @@ function placeFlag(r, c) {
 	} else if (myState[r][c] === FLAGGED) {
 		myState[r][c] = UNKNOWN;
 		if (prevPlayerState) prevPlayerState[r][c] = UNKNOWN;
-		delete cellAnims[key];
+		// Unlike placing a flag, removing one has no animation of its own — a "settle" placeholder
+		// (not a bare delete) so the RAF loop's own snapshot-before-prune still picks this cell up
+		// for one repaint next frame (see SETTLE_DUR, BoardRender.js), same mechanism
+		// queueRevealAnimations uses for the identical case (a reveal/chord reverting a cell).
+		cellAnims[key] = { type: "settle", start: performance.now() };
+		startAnimLoop();
 		sound.unflag && sound.unflag();
-		// Unlike placing a flag, removing one has no animation — nothing schedules a future repaint
-		// of this cell (no cellAnims entry, so the RAF loop's own snapshot-before-prune never sees
-		// it), so it needs exactly one immediate, targeted repaint right here, or it'd keep showing
-		// the flag until something unrelated happens to repaint the board.
-		renderPlayerBoard([key]);
 	}
 }
 
@@ -283,12 +286,6 @@ function revealAt(r, c) {
 	if (result.anyChange) {
 		queueRevealAnimations(myState);
 		prevPlayerState = cloneState(myState);
-	}
-	// A chord that detonates clears the incorrect flags around it (applyLocalLeftClick, above) —
-	// like an unflag, that's a synchronous cellAnims delete with no animation and no other trigger
-	// that will ever repaint those specific cells, so they get one targeted repaint here.
-	if (result.clearedFlags.length) {
-		renderPlayerBoard(result.clearedFlags.map(function(rc) { return rc[0] + "," + rc[1]; }));
 	}
 	return result;
 }
