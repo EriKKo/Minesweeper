@@ -86,39 +86,15 @@ var MELODY_PREVIEW_GAIN = 0.09;
 // -- timbres: per-note synthesis, signature (ctx, master, freq, t, dur, gain) — same shape for
 // every one so any timbre can drive any rhythm below without special-casing.
 
-// music.lab.pulseBass's real signature is (freq, t, dur, gain) — it reaches its own ctx/master
-// via Music.js's closure, unlike the shared (ctx, master, freq, t, dur, gain) shape here. This
-// adapts it rather than special-casing the caller, so it's a drop-in like every other timbre.
+// music.lab.pulseBass/subGrowlBass's real signature is (freq, t, dur, gain) — each reaches its
+// own ctx/master via Music.js's closure, unlike the shared (ctx, master, freq, t, dur, gain)
+// shape here. These adapt them rather than special-casing the caller, so each is a drop-in like
+// every other timbre.
 function playPulseBass(ctx, master, freq, t, dur, gain) {
 	music.lab.pulseBass(freq, t, dur, gain);
 }
-
-// Square pulse layered with a sine one octave down for more low-end weight — warmer, less thin
-// than the shipped bass, at the cost of a bit of the original's crisp "doof" attack.
-function bassSubGrowl(ctx, master, freq, t, dur, gain) {
-	var osc = ctx.createOscillator();
-	osc.type = "square";
-	osc.frequency.value = freq;
-	var filt = ctx.createBiquadFilter();
-	filt.type = "lowpass";
-	filt.frequency.setValueAtTime(700, t);
-	filt.frequency.exponentialRampToValueAtTime(220, t + dur * 0.9);
-	var g = ctx.createGain();
-	g.gain.setValueAtTime(0.0001, t);
-	g.gain.linearRampToValueAtTime(gain * 0.55, t + 0.004);
-	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-	osc.connect(filt); filt.connect(g); g.connect(master);
-	osc.start(t); osc.stop(t + dur + 0.02);
-
-	var sub = ctx.createOscillator();
-	sub.type = "sine";
-	sub.frequency.value = freq / 2;
-	var gs = ctx.createGain();
-	gs.gain.setValueAtTime(0.0001, t);
-	gs.gain.linearRampToValueAtTime(gain * 0.65, t + 0.006);
-	gs.gain.exponentialRampToValueAtTime(0.0001, t + dur * 1.15);
-	sub.connect(gs); gs.connect(master);
-	sub.start(t); sub.stop(t + dur * 1.15 + 0.02);
+function playSubGrowlBass(ctx, master, freq, t, dur, gain) {
+	music.lab.subGrowlBass(freq, t, dur, gain);
 }
 
 // Same envelope shape as the shipped bass, sawtooth instead of square — brighter, more harmonic
@@ -167,26 +143,17 @@ function bassWobbleFilter(ctx, master, freq, t, dur, gain) {
 }
 
 var BATTLE_LAB_TIMBRES = [
-	{ id: "pulse", label: "Pulse", desc: "Square wave with a fast lowpass sweep — the shipped bass's own voice.", synth: playPulseBass },
-	{ id: "subgrowl", label: "Sub Growl", desc: "The same square pulse, layered with a sine an octave down — warmer, less thin.", synth: bassSubGrowl },
+	{ id: "subgrowl", label: "Sub Growl", desc: "A square pulse layered with a sine an octave down — the shipped bass's own voice.", synth: playSubGrowlBass },
+	{ id: "pulse", label: "Pulse", desc: "The plain square pulse Sub Growl is built on, without the sub-octave layer — thinner, punchier.", synth: playPulseBass },
 	{ id: "saw", label: "Sawtooth Drive", desc: "Sawtooth instead of square, same envelope — brighter, more aggressive.", synth: bassSaw },
 	{ id: "wobble", label: "Wobble Filter", desc: "Sawtooth through an LFO-wobbled resonant filter — a dubstep-lite \"wub\".", synth: bassWobbleFilter }
 ];
 
 // -- rhythms: schedule(synthFn, ctx, master, freq, barStartT, beatS, gain), one call per bar,
 // each responsible for calling synthFn as many times as its own pattern needs.
-function rhythmStraight16(synthFn, ctx, master, freq, t, beatS, gain) {
-	var sixteenth = beatS * 0.25;
-	for (var s = 0; s < 16; s++) {
-		var accent = (s % 4 === 0) ? 1.0 : (s % 2 === 0 ? 0.55 : 0.4);
-		synthFn(ctx, master, freq, t + s * sixteenth, sixteenth * 0.85, gain * accent);
-	}
-}
-function rhythmFourFloor(synthFn, ctx, master, freq, t, beatS, gain) {
-	for (var b = 0; b < 4; b++) synthFn(ctx, master, freq, t + b * beatS, beatS * 0.92, gain);
-}
-// A classic push-off-the-beat feel: hits land early on some off-beats instead of squarely on
-// every quarter or sixteenth.
+
+// The shipped bass rhythm — mirrors Music.js's BASS_SYNCOPATED_HITS exactly, so this option
+// previews the real pattern rather than a lookalike.
 function rhythmSyncopated(synthFn, ctx, master, freq, t, beatS, gain) {
 	var hits = [
 		{ at: 0,    dur: 0.9,  g: 1.0 },
@@ -197,6 +164,16 @@ function rhythmSyncopated(synthFn, ctx, master, freq, t, beatS, gain) {
 		{ at: 3.75, dur: 0.4,  g: 0.5 }
 	];
 	hits.forEach(function(h) { synthFn(ctx, master, freq, t + h.at * beatS, h.dur * beatS, gain * h.g); });
+}
+function rhythmStraight16(synthFn, ctx, master, freq, t, beatS, gain) {
+	var sixteenth = beatS * 0.25;
+	for (var s = 0; s < 16; s++) {
+		var accent = (s % 4 === 0) ? 1.0 : (s % 2 === 0 ? 0.55 : 0.4);
+		synthFn(ctx, master, freq, t + s * sixteenth, sixteenth * 0.85, gain * accent);
+	}
+}
+function rhythmFourFloor(synthFn, ctx, master, freq, t, beatS, gain) {
+	for (var b = 0; b < 4; b++) synthFn(ctx, master, freq, t + b * beatS, beatS * 0.92, gain);
 }
 function rhythmOctaveBounce(synthFn, ctx, master, freq, t, beatS, gain) {
 	var sixteenth = beatS * 0.25;
@@ -215,10 +192,10 @@ function rhythmHalfTime(synthFn, ctx, master, freq, t, beatS, gain) {
 }
 
 var BATTLE_LAB_RHYTHMS = [
-	{ id: "straight16", label: "Straight 16ths", desc: "16 evenly-spaced hits per bar, loud on the downbeats — the shipped rhythm.", schedule: rhythmStraight16 },
-	{ id: "fourfloor", label: "Four-on-the-floor", desc: "One sustained note per beat instead of 16 short hits — steadier, more spacious.", schedule: rhythmFourFloor },
-	{ id: "syncopated", label: "Syncopated", desc: "Hits push ahead of some beats instead of landing squarely on them — more of a groove, less of a pulse.", schedule: rhythmSyncopated },
-	{ id: "octavebounce", label: "Octave Bounce", desc: "Same 16 hits as Straight 16ths, alternating root / octave-up — a bouncier, more melodic \"oom-pah\" line.", schedule: rhythmOctaveBounce },
+	{ id: "syncopated", label: "Syncopated", desc: "Hits push ahead of some beats instead of landing squarely on them — the shipped rhythm.", schedule: rhythmSyncopated },
+	{ id: "straight16", label: "Straight 16ths", desc: "16 evenly-spaced hits per bar, loud on the downbeats — a steadier pump instead of a groove.", schedule: rhythmStraight16 },
+	{ id: "fourfloor", label: "Four-on-the-floor", desc: "One sustained note per beat instead of short hits — steadier, more spacious.", schedule: rhythmFourFloor },
+	{ id: "octavebounce", label: "Octave Bounce", desc: "16 evenly-spaced hits, alternating root / octave-up — a bouncier, more melodic \"oom-pah\" line.", schedule: rhythmOctaveBounce },
 	{ id: "halftime", label: "Half-time 8ths", desc: "8 hits per bar instead of 16 — half the density, a heavier, more deliberate feel.", schedule: rhythmHalfTime }
 ];
 
@@ -419,59 +396,29 @@ function lofiHihat(ctx, master, t, gain) {
 	src.start(t);
 }
 
-function electroKick(ctx, master, t, gain) {
-	var osc = ctx.createOscillator();
-	osc.type = "sine";
-	osc.frequency.setValueAtTime(150, t);
-	osc.frequency.exponentialRampToValueAtTime(30, t + 0.3);
-	var g = ctx.createGain();
-	g.gain.setValueAtTime(0.0001, t);
-	g.gain.linearRampToValueAtTime(gain, t + 0.004);
-	g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
-	osc.connect(g); g.connect(master);
-	osc.start(t); osc.stop(t + 0.44);
-}
-// A clap instead of a snare: three quick overlapping noise bursts.
-function electroSnare(ctx, master, t, gain) {
-	[0, 0.012, 0.024].forEach(function(off) {
-		var dur = 0.09;
-		var samples = Math.floor(ctx.sampleRate * dur);
-		var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
-		var data = buf.getChannelData(0);
-		for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 2);
-		var src = ctx.createBufferSource(); src.buffer = buf;
-		var bp = ctx.createBiquadFilter();
-		bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 1.4;
-		var g = ctx.createGain();
-		var t0 = t + off;
-		g.gain.setValueAtTime(0.0001, t0);
-		g.gain.linearRampToValueAtTime(gain * 0.7, t0 + 0.002);
-		g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-		src.connect(bp); bp.connect(g); g.connect(master);
-		src.start(t0);
-	});
-}
-function electroHihat(ctx, master, t, gain) {
-	var dur = 0.03;
-	var samples = Math.floor(ctx.sampleRate * dur);
-	var buf = ctx.createBuffer(1, samples, ctx.sampleRate);
-	var data = buf.getChannelData(0);
-	for (var i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples, 4);
-	var src = ctx.createBufferSource(); src.buffer = buf;
-	var hp = ctx.createBiquadFilter();
-	hp.type = "highpass"; hp.frequency.value = 9500;
-	var g = ctx.createGain(); g.gain.value = gain * 1.3;
-	src.connect(hp); hp.connect(g); g.connect(master);
-	src.start(t);
-}
+// music.lab.electroKick/electroSnare/electroHihat's real signature is (t, gain), same
+// closure-ctx/master pattern as the Classic kit's adapters above.
+function playElectroKick(ctx, master, t, gain) { music.lab.electroKick(t, gain); }
+function playElectroSnare(ctx, master, t, gain) { music.lab.electroSnare(t, gain); }
+function playElectroHihat(ctx, master, t, gain) { music.lab.electroHihat(t, gain); }
 
 var BATTLE_LAB_PERC_KITS = [
-	{ id: "classic", label: "Classic", desc: "Sine kick, noise-burst snare, bright hi-hat — the shipped kit.", kick: percKick, snare: percSnare, hihat: percHihat },
+	{ id: "electro", label: "Electro", desc: "808-style booming kick, a layered clap instead of a snare, crisp metallic hats — the shipped kit.", kick: playElectroKick, snare: playElectroSnare, hihat: playElectroHihat },
+	{ id: "classic", label: "Classic", desc: "Sine kick, noise-burst snare, bright hi-hat — simpler and punchier, less low-end.", kick: percKick, snare: percSnare, hihat: percHihat },
 	{ id: "punchy", label: "Punchy", desc: "Harder-hitting kick and snare — more low-end thump, a tighter crack.", kick: punchyKick, snare: punchySnare, hihat: punchyHihat },
-	{ id: "lofi", label: "Lo-fi", desc: "Everything filtered and softened — a muffled, vinyl-ish character.", kick: lofiKick, snare: lofiSnare, hihat: lofiHihat },
-	{ id: "electro", label: "Electro", desc: "808-style booming kick, a layered clap instead of a snare, crisp metallic hats.", kick: electroKick, snare: electroSnare, hihat: electroHihat }
+	{ id: "lofi", label: "Lo-fi", desc: "Everything filtered and softened — a muffled, vinyl-ish character.", kick: lofiKick, snare: lofiSnare, hihat: lofiHihat }
 ];
 
+// The shipped percussion pattern — mirrors Music.js's DRUM_KICK_BEATS/DRUM_SNARE_BEATS exactly,
+// so this option previews the real pattern rather than a lookalike.
+function percRhythmBreakbeat(kit, ctx, master, t, beatS, gain) {
+	[0, 1.5, 2.75].forEach(function(b) { kit.kick(ctx, master, t + b * beatS, gain.kick); });
+	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
+	kit.snare(ctx, master, t + 3 * beatS, gain.snare);
+	for (var h = 0; h < 16; h++) {
+		kit.hihat(ctx, master, t + h * beatS * 0.25, gain.hat * (h % 4 === 0 ? 1.1 : 0.6));
+	}
+}
 function percRhythmFourFloor(kit, ctx, master, t, beatS, gain) {
 	for (var b = 0; b < 4; b++) kit.kick(ctx, master, t + b * beatS, gain.kick);
 	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
@@ -485,14 +432,6 @@ function percRhythmHalfTime(kit, ctx, master, t, beatS, gain) {
 	kit.snare(ctx, master, t + 2 * beatS, gain.snare);
 	for (var h = 0; h < 4; h++) kit.hihat(ctx, master, t + h * beatS, gain.hat);
 }
-function percRhythmBreakbeat(kit, ctx, master, t, beatS, gain) {
-	[0, 1.5, 2.75].forEach(function(b) { kit.kick(ctx, master, t + b * beatS, gain.kick); });
-	kit.snare(ctx, master, t + 1 * beatS, gain.snare);
-	kit.snare(ctx, master, t + 3 * beatS, gain.snare);
-	for (var h = 0; h < 16; h++) {
-		kit.hihat(ctx, master, t + h * beatS * 0.25, gain.hat * (h % 4 === 0 ? 1.1 : 0.6));
-	}
-}
 function percRhythmMinimal(kit, ctx, master, t, beatS, gain) {
 	kit.kick(ctx, master, t, gain.kick);
 	kit.kick(ctx, master, t + 2 * beatS, gain.kick);
@@ -503,23 +442,29 @@ function percRhythmMinimal(kit, ctx, master, t, beatS, gain) {
 }
 
 var BATTLE_LAB_PERC_RHYTHMS = [
-	{ id: "fourfloor", label: "Four-on-the-floor", desc: "Kick every beat, snare on 2 & 4, hi-hat 8ths — the shipped pattern.", schedule: percRhythmFourFloor },
+	{ id: "breakbeat", label: "Breakbeat", desc: "Syncopated kick hits ahead of the beat, snare on 2 & 4, hi-hat 16ths — the shipped pattern.", schedule: percRhythmBreakbeat },
+	{ id: "fourfloor", label: "Four-on-the-floor", desc: "Kick every beat, snare on 2 & 4, hi-hat 8ths — a steadier, less rolling groove.", schedule: percRhythmFourFloor },
 	{ id: "halftime", label: "Half-time", desc: "Kick on 1, snare only on 3, hi-hat quarters — half the density, more space.", schedule: percRhythmHalfTime },
-	{ id: "breakbeat", label: "Breakbeat", desc: "Syncopated kick hits ahead of the beat, snare on 2 & 4, hi-hat 16ths — a rolling, off-kilter groove.", schedule: percRhythmBreakbeat },
 	{ id: "minimal", label: "Minimal", desc: "Kick on 1 & 3 only, a ghost snare before the backbeat, steady 16th hi-hats underneath.", schedule: percRhythmMinimal }
 ];
 
-// -- progressions: 4 bars of {root, arp} replacing Am-F-C-G, same A-minor/C-major key centre —
-// arp values are the real chord tones (reused verbatim for Am/F/C/G; Dm/Em added the same way)
-// so the melody layer stays harmonized with the bass no matter which progression is picked.
+// -- progressions: 4 bars of {root, arp}, same A-minor/C-major key centre — arp values are the
+// real chord tones (reused verbatim for Am/Em/F/C/G; Dm added the same way) so the melody layer
+// stays harmonized with the bass no matter which progression is picked.
 var BATTLE_LAB_PROGRESSIONS = [
-	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — what the battle theme plays today.", bars: [
+	{ id: "amemfc", label: "Am–Em–F–C", desc: "Em in place of the more usual second chord — moodier, more melancholic. What the battle theme plays today.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 82.41,  arp: [164.81, 196.00, 246.94, 329.63] },
+		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
+	] },
+	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — brighter and more resolved than the shipped version.", bars: [
 		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
 		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
 		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] }
 	] },
-	{ id: "amgcf", label: "Am–G–C–F", desc: "Same four chords, reordered — resolves to F instead of G, a softer landing each loop.", bars: [
+	{ id: "amgcf", label: "Am–G–C–F", desc: "Same four chords as the axis-of-awesome progression, reordered — resolves to F instead of G, a softer landing each loop.", bars: [
 		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
 		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
@@ -529,12 +474,6 @@ var BATTLE_LAB_PROGRESSIONS = [
 		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
 		{ root: 73.42,  arp: [146.83, 174.61, 220.00, 293.66] },
 		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
-		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
-	] },
-	{ id: "amemfc", label: "Am–Em–F–C", desc: "Swaps in Em for the second chord — moodier, more melancholic than the shipped version.", bars: [
-		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
-		{ root: 82.41,  arp: [164.81, 196.00, 246.94, 329.63] },
-		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
 	] },
 	{ id: "cgamf", label: "C–G–Am–F", desc: "The classic four-chord pop progression, same key centre — opens major instead of minor.", bars: [
