@@ -618,39 +618,54 @@ function drawIdleCell(ctx, x, y, w, h, rad, alpha, base) {
 	ctx.restore();
 }
 
-function drawPressedHighlight() {
-	if (!pressedCell || !myState) return;
-	if (!currentActionMode()) return;
-	var r = pressedCell.r, c = pressedCell.c;
-	if (r < 0 || r >= rows || c < 0 || c >= cols) return;
-	var ctx = playerCanvas.getContext("2d");
-	var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
-	var x = c * sw, y = r * sh;
+// The keyboard-focus ring and the touch-press highlight are plain DOM elements positioned over
+// the canvas (index.html: #board_focus_ring / #board_press_highlight, inside #board_scroll so
+// they scroll together with a panned mobile board), not painted into it — see the CSS comment on
+// .board-cell-highlight for why. Looked up once; both elements are static markup, never recreated.
+var focusRingEl = document.getElementById("board_focus_ring");
+var pressHighlightEl = document.getElementById("board_press_highlight");
+
+// Sizes/positions `el` (a .board-cell-highlight) over cell (r,c) of the live board, in CSS pixels
+// read live off the canvas's rendered size (playerCanvas.clientWidth/Height) — not a cached copy,
+// so it can't drift out of sync when the canvas is resized (custom board sizes, fullscreen, mobile
+// layout) — and not canvas.width/height, which are the DPR-scaled backing-store pixels, not CSS
+// ones. Same gap/rounding math drawCell itself uses (BoardRender.js) so the highlight reads as
+// part of the same cell grid rather than a foreign box.
+function positionBoardHighlight(el, r, c) {
+	var cw = playerCanvas.clientWidth, ch = playerCanvas.clientHeight;
+	if (!cw || !ch) { el.hidden = true; return; }
+	var sw = cw / cols, sh = ch / rows;
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
-	ctx.save();
-	ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
-	roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
-	ctx.fill();
-	ctx.restore();
+	el.style.left = (c * sw + gap / 2) + "px";
+	el.style.top = (r * sh + gap / 2) + "px";
+	el.style.width = (sw - gap) + "px";
+	el.style.height = (sh - gap) + "px";
+	el.hidden = false;
 }
 
-function drawFocusHighlight() {
-	if (!focusVisible) return;
-	if (!currentActionMode()) return;
-	if (focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) return;
-	var ctx = playerCanvas.getContext("2d");
-	// Derive the cell size live from the canvas (single source of truth, same as the board renderer) —
-	// a cached copy drifts out of sync when the canvas is resized (custom board sizes / layout switches).
-	var sw = playerCanvas.width / cols, sh = playerCanvas.height / rows;
-	var x = focusedC * sw;
-	var y = focusedR * sh;
-	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
-	ctx.save();
-	ctx.strokeStyle = "#facc15";
-	ctx.lineWidth = 2;
-	roundRectPath(ctx, x + gap / 2, y + gap / 2, sw - gap, sh - gap, (Math.min(sw, sh) - gap) * 0.2);
-	ctx.stroke();
-	ctx.restore();
+// Called from renderPlayerBoard's tail (every repaint, cheap — a no-op style write when nothing
+// moved) AND directly from pure focus-movement call sites that skip renderPlayerBoard entirely
+// (Input.js's keydown handler) — moving the ring is then just this one style write, no canvas
+// work and no board redraw at all, which is the whole point: keyboard navigation is by far the
+// most frequent, most latency-sensitive thing that touches this highlight.
+function updateFocusHighlightOverlay() {
+	if (!focusRingEl) return;
+	if (!focusVisible || !currentActionMode() || focusedR < 0 || focusedR >= rows || focusedC < 0 || focusedC >= cols) {
+		focusRingEl.hidden = true;
+		return;
+	}
+	positionBoardHighlight(focusRingEl, focusedR, focusedC);
+}
+
+// Same idea for the touch "finger is on this cell" highlight — called from renderPlayerBoard's
+// tail and directly from the touchstart/touchmove/touchend handlers (Main.js) that only change
+// which cell is pressed, not the board content.
+function updatePressHighlightOverlay() {
+	if (!pressHighlightEl) return;
+	if (!pressedCell || !myState || !currentActionMode()) { pressHighlightEl.hidden = true; return; }
+	var r = pressedCell.r, c = pressedCell.c;
+	if (r < 0 || r >= rows || c < 0 || c >= cols) { pressHighlightEl.hidden = true; return; }
+	positionBoardHighlight(pressHighlightEl, r, c);
 }
 
 function redrawOwnBoardWithFocus() {
@@ -756,11 +771,13 @@ function drawBoardDiff(state, canvas, skinId) {
 
 // dirtyAnimKeys: optional array of "r,c" keys — the cells whose animation state changed THIS
 // frame (still animating, or just finished), passed by the RAF loop in startAnimLoop below. When
-// given (and nothing whole-board-ish is going on — see canPartialRepaint), only those cells plus
-// the pressed/keyboard-focus highlight cells get repainted; the rest of the board keeps whatever
-// was already drawn on it. Every other call site (a mouse press, a fresh draw_board, a resize —
-// see the grep-able call sites of renderPlayerBoard) omits this argument and always gets the full,
-// exact-as-before repaint, since a one-off call has no "this frame's animation deltas" to work from.
+// given (and nothing whole-board-ish is going on — see canPartialRepaint), only those cells get
+// repainted; the rest of the board keeps whatever was already drawn on it. Every other call site
+// (a mouse press, a fresh draw_board, a resize — see the grep-able call sites of renderPlayerBoard)
+// omits this argument and always gets the full, exact-as-before repaint, since a one-off call has
+// no "this frame's animation deltas" to work from. Note this function doesn't need to run AT ALL
+// for a pure keyboard-focus move — see updateFocusHighlightOverlay below, called directly by
+// Input.js's keydown handler instead of going through here.
 function renderPlayerBoard(dirtyAnimKeys) {
 	// Covered cells never read the decoder (only revealed cells call getClue), so an
 	// all-covered board paints fine before the decoder arrives — that's the pre-round
@@ -805,13 +822,9 @@ function renderPlayerBoard(dirtyAnimKeys) {
 				var parts = dirtyAnimKeys[i].split(",");
 				dirty.push([parseInt(parts[0], 10), parseInt(parts[1], 10)]);
 			}
-			// The pressed/focus highlights are painted unconditionally below, every frame, straight
-			// onto whatever's already in the canvas (see drawPressedHighlight/drawFocusHighlight) — if
-			// their cell isn't freshly cleared+repainted first, the same translucent highlight keeps
-			// compositing on top of ITSELF frame after frame, brightening over time instead of looking
-			// identical to a full repaint. Always including them here keeps that base fresh.
-			if (pressedCell && currentActionMode()) dirty.push([pressedCell.r, pressedCell.c]);
-			if (focusVisible && currentActionMode()) dirty.push([focusedR, focusedC]);
+			// The pressed/focus highlights are separate DOM elements now (updatePressHighlightOverlay/
+			// updateFocusHighlightOverlay below), not painted into the canvas, so — unlike before —
+			// their cell doesn't need to be forced into this dirty set just to keep them looking right.
 			bv.draw(dirty);
 		} else {
 			bv.draw();
@@ -839,8 +852,8 @@ function renderPlayerBoard(dirtyAnimKeys) {
 			paintBoardIdleAnimation(ctx, isw, ish, rows, cols, null);
 		}
 	}
-	drawPressedHighlight();
-	drawFocusHighlight();
+	updatePressHighlightOverlay();
+	updateFocusHighlightOverlay();
 	drawPuzzleHintHighlights();
 }
 

@@ -3639,6 +3639,29 @@ body.touch .flag-mode-button { display: inline-flex; }
 .board-scroll {
 	display: inline-block;
 	line-height: 0; /* eliminate gap under inline canvas */
+	/* Positioning context for .board-cell-highlight (the keyboard-focus ring / touch-press
+	   highlight) — it lives inside this element, not board-wrap, so it scrolls together with the
+	   canvas on mobile's panned board instead of drifting once #board_scroll pans internally. */
+	position: relative;
+}
+
+/* A single-cell highlight positioned + sized in JS (Animations.js: positionBoardHighlight) to
+   match whichever cell it's over, using the exact same inset/rounding drawCell's own cells use
+   (BoardRender.js) so it reads as part of the same grid rather than a foreign overlay. Plain DOM
+   instead of a canvas paint: repositioning it (keyboard focus moving, most performance-sensitive)
+   is a single style write handled by the compositor — no canvas work, no board redraw. */
+.board-cell-highlight {
+	position: absolute;
+	pointer-events: none;
+	box-sizing: border-box;
+	border-radius: 20%;
+	z-index: 2;
+}
+.board-focus-ring {
+	border: 2px solid #facc15;
+}
+.board-press-highlight {
+	background: rgba(255, 255, 255, 0.32);
 }
 
 /* A directional arrow that only appears on touch devices when there's nothing

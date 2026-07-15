@@ -411,9 +411,10 @@ playerCanvas.addEventListener("touchstart", function(e) {
 	touchStartY = t.clientY;
 	touchMoved = false;
 	longPressFired = false;
-	// Immediate visual feedback so taps don't feel "lost" while the server processes.
+	// Immediate visual feedback so taps don't feel "lost" while the server processes. No board
+	// content changed — just show the touch highlight, no canvas work needed.
 	pressedCell = cellFromClient(t.clientX, t.clientY);
-	if (pressedCell) redrawOwnBoardWithFocus();
+	if (pressedCell) updatePressHighlightOverlay();
 	if (longPressTimer) clearTimeout(longPressTimer);
 	longPressTimer = setTimeout(function() {
 		longPressTimer = null;
@@ -444,7 +445,7 @@ playerCanvas.addEventListener("touchend", function(e) {
 	pressedCell = null;
 	if (longPressFired || touchMoved) {
 		e.preventDefault();
-		redrawOwnBoardWithFocus();
+		updatePressHighlightOverlay(); // press cancelled without an action — just hide the highlight
 		return;
 	}
 	e.preventDefault();

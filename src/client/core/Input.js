@@ -27,7 +27,7 @@ function cellFromClient(clientX, clientY) {
 function clearPressed() {
 	if (!pressedCell) return;
 	pressedCell = null;
-	redrawOwnBoardWithFocus();
+	updatePressHighlightOverlay(); // no board content changed — just hide the touch highlight
 }
 function localReveal(r, c, revealed) {
 	return BoardLogic.cascadeReveal(r, c, rows, cols,
@@ -376,7 +376,11 @@ document.addEventListener("keydown", function(e) {
 	}
 	e.preventDefault();
 	focusVisible = true;
-	redrawOwnBoardWithFocus();
+	// Pure cursor movement — the board's content hasn't changed, only which cell the ring is on, so
+	// skip renderPlayerBoard entirely (no canvas work, not even the cheap dirty-cell kind) and just
+	// reposition the ring's own DOM element. This is the hot path arrow-key/Tab navigation runs
+	// through, so it's worth not touching the canvas for at all.
+	updateFocusHighlightOverlay();
 });
 function isRightClick(e) {
 	return (e.which ? (e.which == 3) : (e.button ? (e.button == 2) : false));
