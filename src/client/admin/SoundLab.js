@@ -192,8 +192,8 @@ function rhythmHalfTime(synthFn, ctx, master, freq, t, beatS, gain) {
 }
 
 var BATTLE_LAB_RHYTHMS = [
-	{ id: "syncopated", label: "Syncopated", desc: "Hits push ahead of some beats instead of landing squarely on them — the shipped rhythm.", schedule: rhythmSyncopated },
-	{ id: "straight16", label: "Straight 16ths", desc: "16 evenly-spaced hits per bar, loud on the downbeats — a steadier pump instead of a groove.", schedule: rhythmStraight16 },
+	{ id: "syncopated", label: "Syncopated", desc: "Hits push ahead of some beats instead of landing squarely on them — Section A's bass rhythm.", schedule: rhythmSyncopated },
+	{ id: "straight16", label: "Straight 16ths", desc: "16 evenly-spaced hits per bar, loud on the downbeats — Section B's bass rhythm, a steadier pump instead of a groove.", schedule: rhythmStraight16 },
 	{ id: "fourfloor", label: "Four-on-the-floor", desc: "One sustained note per beat instead of short hits — steadier, more spacious.", schedule: rhythmFourFloor },
 	{ id: "octavebounce", label: "Octave Bounce", desc: "16 evenly-spaced hits, alternating root / octave-up — a bouncier, more melodic \"oom-pah\" line.", schedule: rhythmOctaveBounce },
 	{ id: "halftime", label: "Half-time 8ths", desc: "8 hits per bar instead of 16 — half the density, a heavier, more deliberate feel.", schedule: rhythmHalfTime }
@@ -292,9 +292,9 @@ function melodyRhythmSyncopated(synthFn, ctx, master, notes, t, beatS, gain) {
 }
 
 var BATTLE_LAB_MELODY_RHYTHMS = [
-	{ id: "running8ths", label: "Running 8ths", desc: "8 notes per bar cycling through the chord tones — the shipped arpeggio.", schedule: melodyRhythmRunning8ths },
+	{ id: "running8ths", label: "Running 8ths", desc: "8 notes per bar cycling through the chord tones — Section A's melody rhythm.", schedule: melodyRhythmRunning8ths },
+	{ id: "sixteenths", label: "Sixteenth run", desc: "16 notes per bar — a fast, machine-gun arpeggio. Section B's melody rhythm, paired there with a quieter per-note gain so the density reads as \"faster\", not \"louder\".", schedule: melodyRhythmSixteenths },
 	{ id: "quarters", label: "Sparse quarters", desc: "One note per beat instead of 8 — a calmer, more spacious line.", schedule: melodyRhythmQuarters },
-	{ id: "sixteenths", label: "Sixteenth run", desc: "16 notes per bar — a fast, machine-gun arpeggio.", schedule: melodyRhythmSixteenths },
 	{ id: "syncopated", label: "Syncopated", desc: "A handful of notes pushed off the beat instead of an even cycle — more of a riff, less of a scale run.", schedule: melodyRhythmSyncopated }
 ];
 
@@ -452,13 +452,19 @@ var BATTLE_LAB_PERC_RHYTHMS = [
 // real chord tones (reused verbatim for Am/Em/F/C/G; Dm added the same way) so the melody layer
 // stays harmonized with the bass no matter which progression is picked.
 var BATTLE_LAB_PROGRESSIONS = [
-	{ id: "amemfc", label: "Am–Em–F–C", desc: "Em in place of the more usual second chord — moodier, more melancholic. What the battle theme plays today.", bars: [
+	{ id: "amemfc", label: "Am–Em–F–C", desc: "Em in place of the more usual second chord — moodier, more melancholic. Section A of the shipped song (see the note on the combined loop below).", bars: [
 		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
 		{ root: 82.41,  arp: [164.81, 196.00, 246.94, 329.63] },
 		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
 	] },
-	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — brighter and more resolved than the shipped version.", bars: [
+	{ id: "amdmgc", label: "Am–Dm–G–C", desc: "Descends through the circle of fifths — a more cinematic, driving pull toward C. Section B of the shipped song, paired there with a straight-16th bass and a sixteenth-run melody for a denser, more driving feel than Section A.", bars: [
+		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
+		{ root: 73.42,  arp: [146.83, 174.61, 220.00, 293.66] },
+		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
+		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
+	] },
+	{ id: "amfcg", label: "Am–F–C–G", desc: "The \"axis of awesome\" progression — brighter and more resolved than either shipped section.", bars: [
 		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
 		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
@@ -469,12 +475,6 @@ var BATTLE_LAB_PROGRESSIONS = [
 		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
 		{ root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23] }
-	] },
-	{ id: "amdmgc", label: "Am–Dm–G–C", desc: "Descends through the circle of fifths — a more cinematic, driving pull toward C.", bars: [
-		{ root: 110.00, arp: [220.00, 261.63, 329.63, 440.00] },
-		{ root: 73.42,  arp: [146.83, 174.61, 220.00, 293.66] },
-		{ root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00] },
-		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] }
 	] },
 	{ id: "cgamf", label: "C–G–Am–F", desc: "The classic four-chord pop progression, same key centre — opens major instead of minor.", bars: [
 		{ root: 130.81, arp: [261.63, 329.63, 392.00, 523.25] },
