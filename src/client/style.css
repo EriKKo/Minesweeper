@@ -5240,10 +5240,21 @@ input[type="range"].sound-lab-rate-slider { grid-column: 1 / -1; grid-row: 2; wi
 }
 .sound-lab-card-desc { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; flex: 1; }
 .sound-lab-play-btn { align-self: flex-start; }
-/* Bass variants' Play/Stop toggle (buildBassLabSection) — active state reuses the accent fill
-   .learn-btn.active already establishes elsewhere, so "currently looping" reads the same way
-   "currently selected" does anywhere else in the app. */
+/* A looping Play/Stop toggle (Battle theme lab, and any future looping card) — active state
+   reuses the accent fill .learn-btn.active already establishes elsewhere, so "currently looping"
+   reads the same way "currently selected" does anywhere else in the app. */
 .sound-lab-play-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Battle theme lab — three stacked axis pickers (Timbre/Rhythm/Progression) plus one Play/Stop. */
+.sound-lab-battle-card { display: flex; flex-direction: column; gap: 1.1rem; }
+.sound-lab-axis { display: flex; flex-direction: column; gap: 0.4rem; }
+.sound-lab-axis-label {
+	font-weight: 700; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase;
+	color: var(--muted);
+}
+.sound-lab-axis-desc { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
+.sound-lab-seg { margin-top: 0.1rem; }
+.sound-lab-battle-play-btn { align-self: flex-start; margin-top: 0.2rem; }
 
 /* Lobby layout — two-column grid: left sidebar groups game modes by
    section, right column hosts the daily-puzzle hero card with the
