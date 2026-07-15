@@ -173,19 +173,40 @@ BoardView.prototype.markSafe = function(cells) {
 		for (var i = 0; i < cells.length; i++) drawSafeMarker(ctx, cells[i][1] * sw, cells[i][0] * sh, sw, sh);
 	});
 };
-BoardView.prototype.draw = function() {
+// dirtyCells: optional [[r,c], ...] — when given, skips the full clear + full board loop and
+// only clears/repaints those specific cells, leaving every other cell's already-painted pixels
+// untouched (the underlay pass is skipped too, since an underlay typically washes the whole
+// canvas and can't be safely composited over stale pixels). This is the fast path the live
+// game's own board uses every animation frame (see renderPlayerBoard in Animations.js) — most of
+// a board is static from one frame to the next (already-revealed clues, untouched covered
+// cells), so repainting only the handful of cells that actually changed avoids redoing a
+// fill+roundRectPath (plus, for covered cells, a fresh gradient) on every cell, every frame.
+// Every other caller (Learn, admin lab boards, opponent thumbnails, one-off live-game repaints
+// like a mouse press or a fresh draw_board) calls draw() with no argument and keeps getting the
+// exact same full repaint as before — this is strictly additive.
+BoardView.prototype.draw = function(dirtyCells) {
 	var ctx = this.canvas.getContext("2d");
 	var sw = this.canvas.width / this.cols, sh = this.canvas.height / this.rows;
-	ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 	// Paint this board in its own skin, then restore the local user's skin. Rendering is
 	// synchronous so the swap can't interleave with another board's draw.
 	setPaletteVars(this.skinId || localBoardSkin);
 	var i, r, c;
-	for (i = 0; i < this._underlays.length; i++) this._underlays[i](ctx, sw, sh);
-	for (r = 0; r < this.rows; r++) {
-		for (c = 0; c < this.cols; c++) {
+	if (dirtyCells) {
+		for (i = 0; i < dirtyCells.length; i++) {
+			r = dirtyCells[i][0]; c = dirtyCells[i][1];
+			if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) continue;
 			if (this.includeCell && !this.includeCell(r, c)) continue;
+			ctx.clearRect(c * sw, r * sh, sw, sh);
 			drawCell(ctx, r, c, this, sw, sh, this.animAt ? this.animAt(r, c) : null);
+		}
+	} else {
+		ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+		for (i = 0; i < this._underlays.length; i++) this._underlays[i](ctx, sw, sh);
+		for (r = 0; r < this.rows; r++) {
+			for (c = 0; c < this.cols; c++) {
+				if (this.includeCell && !this.includeCell(r, c)) continue;
+				drawCell(ctx, r, c, this, sw, sh, this.animAt ? this.animAt(r, c) : null);
+			}
 		}
 	}
 	for (i = 0; i < this._overlays.length; i++) this._overlays[i](ctx, sw, sh);

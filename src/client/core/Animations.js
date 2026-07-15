@@ -657,6 +657,22 @@ function redrawOwnBoardWithFocus() {
 	renderPlayerBoard();
 }
 
+// Whether renderPlayerBoard can get away with repainting only the cells that changed this frame,
+// instead of the whole board. False whenever something paints across the board in a way that
+// isn't confined to specific grid cells the caller can enumerate — a continuous idle/countdown/
+// go-sweep animation, or any territory overlay (beam streaks, missiles, power lines) which are
+// drawn as free-form paths, not per-cell fills, so leftover pixels from a previous frame would
+// never get cleared without a full redraw. All of these are comparatively rare/short-lived
+// (round-start only, or a whole separate game mode), so falling back to a full repaint for them
+// isn't a regression — it's exactly what already happens today, every frame, regardless of mode.
+function canPartialRepaint() {
+	if (boardGoAnim || boardIdleActive) return false;
+	if (countdownGlyphs.length || Object.keys(countdownCells).length) return false;
+	if (typeof territoryActive !== "undefined" && territoryActive) return false;
+	if (typeof puzzleHintClues !== "undefined" && (puzzleHintClues.length || puzzleHintCovered.length)) return false;
+	return true;
+}
+
 // The live game's board: a BoardView over the decoded board (boardCell) plus the
 // territory-only accessors the renderer consults when present (no-ops in racing/
 // solo/puzzle, which share this path). Callers add per-cell animation and overlays.
@@ -707,7 +723,14 @@ function drawBoardStatic(state, canvas, skinId) {
 	liveBoardView(canvas, state, skinId).draw();
 }
 
-function renderPlayerBoard() {
+// dirtyAnimKeys: optional array of "r,c" keys — the cells whose animation state changed THIS
+// frame (still animating, or just finished), passed by the RAF loop in startAnimLoop below. When
+// given (and nothing whole-board-ish is going on — see canPartialRepaint), only those cells plus
+// the pressed/keyboard-focus highlight cells get repainted; the rest of the board keeps whatever
+// was already drawn on it. Every other call site (a mouse press, a fresh draw_board, a resize —
+// see the grep-able call sites of renderPlayerBoard) omits this argument and always gets the full,
+// exact-as-before repaint, since a one-off call has no "this frame's animation deltas" to work from.
+function renderPlayerBoard(dirtyAnimKeys) {
 	// Covered cells never read the decoder (only revealed cells call getClue), so an
 	// all-covered board paints fine before the decoder arrives — that's the pre-round
 	// countdown / ranked match-reveal board. A null myState clears the canvas (no game).
@@ -745,7 +768,23 @@ function renderPlayerBoard() {
 				paintBoardIdleAnimation(ctx, sw, sh, rows, cols, isRevealedFn); // idle (waiting for series)
 			}
 		});
-		bv.draw();
+		if (dirtyAnimKeys && canPartialRepaint()) {
+			var dirty = [];
+			for (var i = 0; i < dirtyAnimKeys.length; i++) {
+				var parts = dirtyAnimKeys[i].split(",");
+				dirty.push([parseInt(parts[0], 10), parseInt(parts[1], 10)]);
+			}
+			// The pressed/focus highlights are painted unconditionally below, every frame, straight
+			// onto whatever's already in the canvas (see drawPressedHighlight/drawFocusHighlight) — if
+			// their cell isn't freshly cleared+repainted first, the same translucent highlight keeps
+			// compositing on top of ITSELF frame after frame, brightening over time instead of looking
+			// identical to a full repaint. Always including them here keeps that base fresh.
+			if (pressedCell && currentActionMode()) dirty.push([pressedCell.r, pressedCell.c]);
+			if (focusVisible && currentActionMode()) dirty.push([focusedR, focusedC]);
+			bv.draw(dirty);
+		} else {
+			bv.draw();
+		}
 	} else {
 		var ctx = playerCanvas.getContext("2d");
 		ctx.clearRect(0, 0, playerCanvas.width, playerCanvas.height);
@@ -938,6 +977,11 @@ function startAnimLoop() {
 	var step = function() {
 		var now = performance.now();
 		var alive = false;
+		// Snapshot which cells have a live animation entry BEFORE the deletion pass below removes
+		// the ones that just finished — both groups need a repaint this frame (the survivors at
+		// their new progress, the just-finished ones for one last settle-to-static paint), so this
+		// is exactly renderPlayerBoard's dirty set for the frame, not just what's left afterward.
+		var animKeys = Object.keys(cellAnims);
 		for (var key in cellAnims) {
 			var a = cellAnims[key];
 			var dur = a.type === "flag" ? FLAG_DUR : a.type === "mine" ? MINE_DUR : REVEAL_DUR;
@@ -950,7 +994,7 @@ function startAnimLoop() {
 		if (boardGoAnim) alive = true; // keep sweeping the "go" animation
 		if (boardIdleActive) alive = true; // keep looping the idle animation
 		if (opponentRevealTargets && paintOpponentRevealFrame()) alive = true; // ripple the opponents' opening reveal
-		renderPlayerBoard();
+		renderPlayerBoard(animKeys);
 		if (alive) { animRAF = requestAnimationFrame(step); }
 		else { animRAF = null; }
 	};
