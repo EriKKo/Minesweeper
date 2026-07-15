@@ -723,6 +723,37 @@ function drawBoardStatic(state, canvas, skinId) {
 	liveBoardView(canvas, state, skinId).draw();
 }
 
+// Like drawBoardStatic, but for a canvas that gets repainted repeatedly with only small deltas
+// between calls — an opponent thumbnail (game1-5), redrawn on every draw_board broadcast for the
+// whole room, whether or not THIS particular opponent's board actually changed that frame. Diffs
+// `state` against whatever was last painted onto THIS canvas (cached on the element itself — the
+// same idiom setHudName/setOppIdentity in Main.js already use for their own per-frame caches,
+// since these canvases are reused slot-by-slot across a match rather than recreated) and only
+// repaints the cells that actually differ. There's no animation timing to account for here (unlike
+// the player's own board) — an opponent thumbnail always paints its current authoritative state
+// directly — so a plain state diff is exactly the dirty set, no cellAnims-style bookkeeping needed.
+// Falls back to a full repaint whenever there's no cache yet, or the dimensions changed (a new
+// match/round at a different board size) — nothing valid to diff against either way. clearCanvas
+// (Overlay.js) resets the cache too, so a canvas handed to a new match never diffs against a
+// leftover picture from whichever match last used that slot.
+function drawBoardDiff(state, canvas, skinId) {
+	var prev = canvas.__lastBoardState;
+	var rowsN = state.length, colsN = rowsN ? state[0].length : 0;
+	if (!prev || prev.length !== rowsN || (rowsN && prev[0].length !== colsN)) {
+		liveBoardView(canvas, state, skinId).draw();
+	} else {
+		var dirty = [];
+		for (var r = 0; r < rowsN; r++) {
+			var prevRow = prev[r], row = state[r];
+			for (var c = 0; c < colsN; c++) {
+				if (prevRow[c] !== row[c]) dirty.push([r, c]);
+			}
+		}
+		if (dirty.length) liveBoardView(canvas, state, skinId).draw(dirty);
+	}
+	canvas.__lastBoardState = state.map(function(row) { return row.slice(); });
+}
+
 // dirtyAnimKeys: optional array of "r,c" keys — the cells whose animation state changed THIS
 // frame (still animating, or just finished), passed by the RAF loop in startAnimLoop below. When
 // given (and nothing whole-board-ish is going on — see canPartialRepaint), only those cells plus
@@ -900,34 +931,55 @@ function opponentRevealAnimAt(r, c) {
 // Repaints every opponent reveal target for the current frame; returns whether any of them still
 // has a cell mid-animation (so the caller's RAF loop knows whether to keep going). Always paints —
 // including the terminal frame where it flips to "not alive" and clears its own state — so the last
-// frame lands on the fully-settled board, same as cellAnims/renderPlayerBoard's own pattern.
+// frame lands on the fully-settled board, same as cellAnims/renderPlayerBoard's own pattern. Only
+// repaints the cells whose animation progress actually changed this frame (same technique + same
+// reasoning as startAnimLoop's own cellAnims dirty-set below) — every target shares the exact same
+// ripple shape (same opening cascade, same origin), so one dirty set applies to all of them.
 function paintOpponentRevealFrame() {
 	var now = performance.now();
 	var alive = false;
+	// Snapshot before pruning, same reasoning as startAnimLoop's animKeys: a cell that just crossed
+	// its finish time this frame still needs one last settle-to-static repaint, even though it's
+	// about to be deleted below and so would otherwise vanish from the dirty set unrecorded.
+	var touchedKeys = Object.keys(opponentRevealAnims);
 	for (var key in opponentRevealAnims) {
 		var a = opponentRevealAnims[key];
 		var dur = a.type === "mine" ? MINE_DUR : REVEAL_DUR;
-		if (now < a.start + dur) alive = true;
+		if (now >= a.start + dur) { delete opponentRevealAnims[key]; }
+		else { alive = true; }
+	}
+	var dirty = [];
+	for (var k = 0; k < touchedKeys.length; k++) {
+		var parts = touchedKeys[k].split(",");
+		dirty.push([parseInt(parts[0], 10), parseInt(parts[1], 10)]);
 	}
 	for (var i = 0; i < opponentRevealTargets.length; i++) {
 		var target = opponentRevealTargets[i];
 		var bv = liveBoardView(target.canvas, target.state, target.skin);
 		bv.animAt = opponentRevealAnimAt;
-		bv.draw();
+		bv.draw(dirty);
 	}
 	if (!alive) { opponentRevealAnims = null; opponentRevealTargets = null; }
 	return alive;
 }
 
+// Returns the "r,c" keys of every cell whose state actually differs from prevPlayerState — every
+// caller but one (Input.js's local-click path, which relies entirely on the RAF loop that
+// startAnimLoop below kicks off) uses this as the dirty set for an immediate one-off
+// renderPlayerBoard(...) call, so a draw_board broadcast that only changed a couple of cells
+// doesn't have to fall back to a full board repaint just because SOME state changed somewhere.
 function queueRevealAnimations(newState) {
 	var now = performance.now();
 	var revealed = [];
+	var touched = [];
 	var newlyFlagged = 0, newlyUnflagged = 0;
 	for (var r = 0; r < rows; r++) {
 		for (var c = 0; c < cols; c++) {
 			var was = prevPlayerState ? prevPlayerState[r][c] : UNKNOWN;
 			var cur = newState[r][c];
+			if (cur === was) continue;
 			var key = r + "," + c;
+			touched.push(key);
 			if (cur === KNOWN && was !== KNOWN) {
 				revealed.push([r, c]);
 			} else if (cur === FLAGGED && was !== FLAGGED) {
@@ -970,6 +1022,7 @@ function queueRevealAnimations(newState) {
 		for (var pi = 0; pi < pulses; pi++) music.pulse();
 	}
 	startAnimLoop();
+	return touched;
 }
 
 function startAnimLoop() {

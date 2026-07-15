@@ -2181,10 +2181,15 @@ socket.on("draw_board", function(data) {
 		// (instantly, no ripple). Everything else below (HUD name, resync-heal, clear reporting) still
 		// runs — none of it does anything meaningful against a still-covered board.
 		if (!pendingLocalRoundReveal) {
-			queueRevealAnimations(me.state);
+			// draw_board is a room-wide broadcast — it fires on ANY player's move, not just ours, so
+			// most of the time our own board hasn't actually changed at all. queueRevealAnimations
+			// already computes exactly which cells did (it needs that to know what to animate), so
+			// pass its result straight into renderPlayerBoard's dirty-cell path instead of forcing a
+			// full repaint of an unchanged board on every single broadcast in the room.
+			var touchedCells = queueRevealAnimations(me.state);
 			myState = me.state;
 			prevPlayerState = cloneState(me.state);
-			renderPlayerBoard();
+			renderPlayerBoard(touchedCells);
 		}
 		updateMobileFindNextHint();
 		mobileAutoSelect();
@@ -2225,7 +2230,14 @@ socket.on("draw_board", function(data) {
 			// board isn't changing anymore either) just keeps showing whatever their last live frame
 			// painted, which is already correct.
 			if (opp.playing && !pendingLocalRoundReveal) {
-				drawBoardStatic(opp.state, canvasEl, opp.skin || "classic");
+				// This runs on every draw_board broadcast for the whole room — up to 5 times per
+				// broadcast in a 6-player match — so unlike the other, rarer drawBoardStatic call
+				// sites (a covered-board paint at round start, a click-triggered spectator refresh)
+				// this one uses the diffing repaint (drawBoardDiff, Animations.js): most broadcasts
+				// only change a handful of this opponent's cells, if any of THEIRS at all (a
+				// broadcast fires for the whole room on anyone's move, not just this one), so
+				// redrawing their entire board every time is pure waste.
+				drawBoardDiff(opp.state, canvasEl, opp.skin || "classic");
 			}
 			if (slot) {
 				slot.style.display = "";

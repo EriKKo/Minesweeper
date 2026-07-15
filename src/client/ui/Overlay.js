@@ -94,6 +94,10 @@ function showConfirm(message, opts) {
 function clearCanvas(canvas) {
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	// game1-5 opponent canvases are reused slot-by-slot across matches — drop drawBoardDiff's
+	// cached "last painted state" (Animations.js) so the next board painted into this slot, however
+	// unrelated, never diffs against a stale one from whichever match/round last used it.
+	canvas.__lastBoardState = null;
 }
 
 function hideReadyButton() {
