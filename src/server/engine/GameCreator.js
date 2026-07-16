@@ -1,4 +1,5 @@
 var BoardLogic = require("../../common/BoardLogic");
+var MoveHash = require("../../common/MoveHash");
 
 var DEFAULT_MINES = 30;
 var DEFAULT_ROWS = 15;
@@ -38,13 +39,20 @@ function createGame(mineCount, gameRows, gameCols) {
 	game.finishedAt = 0;
 	game.handleLeftClick = handleLeftClick;
 	game.handleRightClick = handleRightClick;
-	game.revealSafeCell = revealSafeCell;
 	game.init = init;
 	game.revealedSafeCount = revealedSafeCount;
 	game.totalSafeSquares = rows * cols - numMines;
 	game.win = null;
 	game.mineHit = null;
 	game.onMove = null; // optional (button, r, c) hook, fired on each APPLIED move — used for replay capture
+	// Move-history hash chain (MoveHash, src/common) — lets the client and server each independently
+	// detect the instant they disagree on move history, and exactly where, instead of only noticing
+	// once a symptom shows up (a board that looks cleared but never registers the win). Reset to
+	// seq 0 / SEED at the start of every round (init, below); advanced by exactly one move in
+	// handleLeftClick/handleRightClick. See move_sync/move_resync_needed/resync_moves in
+	// minesweeperServer.js for how a mismatch actually gets healed.
+	game.seq = 0;
+	game.hash = MoveHash.SEED;
 	game.playerName = "New player";
 	game.autoChordOnFlag = false; // powerup / "only flags" modifier: flagging chords its satisfied numbered neighbours
 	game.noFlags = false;   // custom modifier: flagging disabled
@@ -58,6 +66,8 @@ function createGame(mineCount, gameRows, gameCols) {
 		if (!game.playing || isFrozen()) return;
 		if (game.onlyFlags) return; // "only flags" modifier: left-click (reveal/chord) is disabled
 		if (game.onMove) game.onMove(0, r, c);
+		game.seq++;
+		game.hash = MoveHash.next(game.hash, r, c, false);
 		if (state[r][c] == UNKNOWN) {
 			dfs(r, c);
 		} else if (state[r][c] == KNOWN) {
@@ -72,6 +82,8 @@ function createGame(mineCount, gameRows, gameCols) {
 		if (!game.playing || isFrozen()) return;
 		if (game.noFlags) return; // "no flags" modifier: flagging is disabled
 		if (game.onMove) game.onMove(1, r, c);
+		game.seq++;
+		game.hash = MoveHash.next(game.hash, r, c, true);
 		if (state[r][c] == UNKNOWN) {
 			state[r][c] = FLAGGED;
 			if (game.autoChordOnFlag) autoChordCascade();
@@ -85,23 +97,6 @@ function createGame(mineCount, gameRows, gameCols) {
 		if (squaresLeft <= numMines) {
 			game.win();
 		}
-	}
-
-	// Reconciliation: force-reveal a safe cell the client cleared locally but we never applied (a reveal
-	// that was dropped in transit / never delivered). Used by the resync_reveal safety net so a board the
-	// player actually cleared can't score as a loss just because the server's copy fell behind. Never
-	// fabricates a mine hit (skips mines) and clears a stale flag that might be blocking the reveal.
-	// Returns true if it revealed anything. Mirrors handleLeftClick's win check.
-	function revealSafeCell(r, c) {
-		if (!game.playing || isFrozen()) return false;
-		if (r < 0 || c < 0 || r >= rows || c >= cols) return false;
-		if (board[r][c] === MINE) return false;          // never force a mine reveal
-		if (state[r][c] === FLAGGED) state[r][c] = UNKNOWN; // a stale flag shouldn't block a confirmed-safe reveal
-		if (state[r][c] !== UNKNOWN) return false;        // already revealed
-		var before = squaresLeft;
-		dfs(r, c);
-		if (squaresLeft <= numMines) game.win();
-		return squaresLeft !== before;
 	}
 
 	function revealedSafeCount() {
@@ -222,6 +217,11 @@ function createGame(mineCount, gameRows, gameCols) {
 		game.finished = false;
 		game.finishedAt = 0;
 		game.botFocus = null; // bot's roaming focus point, re-seeded each round
+		// A new round's opening cascade (the knownCells applied above) isn't a move — it's the same
+		// deterministic template both client and server apply independently — so the hash chain
+		// starts fresh from here, before any real player action.
+		game.seq = 0;
+		game.hash = MoveHash.SEED;
 	}
 
 	function dfs(r, c) {

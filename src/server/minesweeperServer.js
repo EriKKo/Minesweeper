@@ -10,6 +10,7 @@ var http = require("http")
   , botPlayer = require("./engine/BotPlayer")
   , db = require("./db")
   , BoardLogic = require("../common/BoardLogic")
+  , MoveHash = require("../common/MoveHash")
   , cspSolver = require("./engine/CSPSolver")
   , oauth = require("./runtime/oauth")
   , puzzleApi = require("./runtime/puzzleApi")
@@ -828,6 +829,41 @@ function installSocketErrorWrapper(socket) {
 
 // The in-game reveal/flag handlers — identical in the monolith and on a game server, so shared.
 function registerGameplayHandlers(socket, playerID) {
+	// Compares the client's self-reported (seq, hash) — attached to every left_click/right_click and
+	// to the periodic move_sync heartbeat (see Main.js) — against this game's own authoritative
+	// MoveHash chain (GameCreator.js), AFTER whatever move (if any) was just applied. Used for the
+	// heartbeat and resync_moves' own final check, where there's no pending move to hold back —
+	// see hasSeqGap below for the check that runs BEFORE applying a live left_click/right_click.
+	// data.seq === game.seq with a differing hash would mean the two sides computed genuinely
+	// different results from the same inputs — a logic bug, not packet loss, so a replay can't fix
+	// it; only logged. data.seq < game.seq (the client is behind us, e.g. a fresh reconnect with no
+	// local move history) needs nothing from here — draw_board already carries our authoritative
+	// state for it to adopt.
+	function checkMoveSync(game, data) {
+		if (!data || typeof data.seq !== "number" || typeof data.hash !== "number") return;
+		if (data.seq === game.seq) {
+			if (data.hash !== game.hash) {
+				console.warn("[round] move hash mismatch at matching seq pid=" + playerID + " seq=" + game.seq + " server=" + game.hash + " client=" + data.hash);
+			}
+			return;
+		}
+		if (data.seq > game.seq) socket.emit("move_resync_needed", { fromSeq: game.seq });
+	}
+	// True if applying this move would mean the client is more than one move ahead of us — i.e. at
+	// least one EARLIER move never reached us (packet loss, or a handler exception that silently
+	// swallowed it — see the try/catch every socket handler is wrapped in). Applying THIS move's
+	// (r, c) directly on top of our own, gap-missing board could compute something entirely
+	// different from what the client computed (which was built on top of the moves we're missing),
+	// which would corrupt our seq/hash chain rather than just leave it one move behind — so instead
+	// of applying it, request the whole gap and let it come back through resync_moves, which
+	// replays everything after our seq — INCLUDING this exact move — in its correct order.
+	function hasSeqGap(game, data) {
+		if (!data || typeof data.seq !== "number") return false;
+		if (data.seq <= game.seq + 1) return false;
+		socket.emit("move_resync_needed", { fromSeq: game.seq });
+		return true;
+	}
+
 	socket.on("right_click", function (data) {
 		if (puzzleMode.handleRightClick(playerID, data)) return; // single-player puzzle in progress
 		var room = roomMapping[playerID];
@@ -835,8 +871,10 @@ function registerGameplayHandlers(socket, playerID) {
 		if (room.gameMode === "territory") return; // no flags in territory v1
 		var game = games[playerID];
 		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		if (hasSeqGap(game, data)) return;
 		game.handleRightClick(data.r, data.c);
 		updateDraw(room);
+		checkMoveSync(game, data);
 	});
 	socket.on("left_click", function(data) {
 		if (puzzleMode.handleLeftClick(playerID, data)) return; // single-player puzzle in progress
@@ -845,29 +883,47 @@ function registerGameplayHandlers(socket, playerID) {
 		if (room.gameMode === "territory") { territory.handleReveal(playerID, data); return; }
 		var game = games[playerID];
 		if (!game || !game.playing || Date.now() < game.frozenUntil) return;
+		if (hasSeqGap(game, data)) return;
 		game.handleLeftClick(data.r, data.c);
 		updateDraw(room);
+		checkMoveSync(game, data);
 	});
-	// Reconciliation safety net: the client sends the safe cells it has cleared locally when it believes
-	// the board is done but we haven't registered a win. Force-reveal any we're missing (a reveal that was
-	// dropped in transit) so the round the player actually cleared registers the win instead of timing out
-	// and scoring as a loss. Capped + cheap (skips already-revealed cells). See client emit in Main.js.
-	socket.on("resync_reveal", function(data) {
+	// Periodic heartbeat (no move attached — just the client's current seq/hash). Lets us notice a
+	// dropped packet even when the player isn't currently clicking anything, e.g. their very last
+	// click of the round was the one that got lost — the next click's piggybacked seq/hash would
+	// have caught it, but there might never BE a next click once the board's fully cleared.
+	socket.on("move_sync", function(data) {
 		var room = roomMapping[playerID];
 		if (!room || room.phase !== "playing" || room.gameMode === "territory") return;
 		var game = games[playerID];
 		if (!game || !game.playing) return;
-		var cells = (data && data.cells) || [];
-		if (!Array.isArray(cells) || cells.length > 4000) return;
-		var revealed = 0;
-		for (var i = 0; i < cells.length; i++) {
-			var cell = cells[i];
-			if (cell && game.revealSafeCell(cell[0], cell[1])) revealed++;
+		checkMoveSync(game, data);
+	});
+	// Reconciliation: the client replays, in order, every move after the seq we told it we're
+	// missing from (move_resync_needed above), pulled from its own local move log. Applied through
+	// the exact same handleLeftClick/handleRightClick every real click goes through — not a separate
+	// "trust the client" path — so each replayed move still runs the real reveal/chord/flag logic
+	// and naturally re-derives our own seq/hash as it goes. checkMoveSync at the end confirms we're
+	// actually caught up (or, if the batch was itself incomplete, asks again from wherever we still
+	// are — self-correcting rather than needing to get it right in one shot).
+	socket.on("resync_moves", function(data) {
+		var room = roomMapping[playerID];
+		if (!room || room.phase !== "playing" || room.gameMode === "territory") return;
+		var game = games[playerID];
+		if (!game || !game.playing) return;
+		var moves = (data && data.moves) || [];
+		if (!Array.isArray(moves) || moves.length > 4000) return;
+		for (var i = 0; i < moves.length; i++) {
+			var m = moves[i];
+			if (!m || typeof m.r !== "number" || typeof m.c !== "number") continue;
+			if (m.flag) game.handleRightClick(m.r, m.c);
+			else game.handleLeftClick(m.r, m.c);
 		}
-		if (revealed) {
-			console.log("[round] resync_reveal pid=" + playerID + " healed=" + revealed + " now=" + game.revealedSafeCount() + "/" + game.totalSafeSquares);
+		if (moves.length) {
+			console.log("[round] resync_moves pid=" + playerID + " replayed=" + moves.length + " seq now=" + game.seq);
 			updateDraw(room);
 		}
+		checkMoveSync(game, data);
 	});
 }
 

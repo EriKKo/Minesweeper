@@ -189,17 +189,25 @@ function performAction(r, c, asFlag) {
 		if (mode === "puzzle" && typeof notePuzzleReveal === "function") notePuzzleReveal(result);
 	}
 	if (mode === "multiplayer" || mode === "puzzle") {
-		activeGameSocket().emit(asFlag ? "right_click" : "left_click", { r: r, c: c, id: id });
+		// Racing games track a move-history hash chain (Main.js: localMoveSeq/localMoveHash/
+		// localMoveLog) so a dropped packet can be precisely detected and replayed — see
+		// recordLocalMove/attachMoveSync there. Puzzle mode doesn't participate (no other player to
+		// desync from, and no room-wide draw_board broadcast to bootstrap the round's opening state
+		// the way racing has), so its emits are unchanged.
+		var trackSync = mode === "multiplayer" && typeof recordLocalMove === "function";
+		if (trackSync) recordLocalMove(r, c, asFlag);
+		activeGameSocket().emit(asFlag ? "right_click" : "left_click", trackSync ? attachMoveSync({ r: r, c: c, id: id }) : { r: r, c: c, id: id });
 		// A chord that detonated cleared its incorrect flags locally — tell the server to drop those
-		// flags too (right_click toggles each off) so its per-player board stays in sync.
+		// flags too (right_click toggles each off) so its per-player board stays in sync. Each of
+		// these is its own real move as far as move-history goes too (the server's handleRightClick
+		// advances its own seq/hash for every one it applies), so it's tracked the same way.
 		if (actionResult && actionResult.clearedFlags) {
 			for (var cf = 0; cf < actionResult.clearedFlags.length; cf++) {
-				activeGameSocket().emit("right_click", { r: actionResult.clearedFlags[cf][0], c: actionResult.clearedFlags[cf][1], id: id });
+				var cfr = actionResult.clearedFlags[cf][0], cfc = actionResult.clearedFlags[cf][1];
+				if (trackSync) recordLocalMove(cfr, cfc, true);
+				activeGameSocket().emit("right_click", trackSync ? attachMoveSync({ r: cfr, c: cfc, id: id }) : { r: cfr, c: cfc, id: id });
 			}
 		}
-		// If that reveal just completed our board, claim the clear explicitly so a reveal dropped in
-		// transit can't leave the server one short (which would time the round out as a loss).
-		if (mode === "multiplayer" && actionResult && actionResult.anyChange && typeof claimLocalClearResync === "function") claimLocalClearResync();
 	}
 	if (mode === "solo") updateSoloHud();
 	else if (mode === "puzzle") updatePuzzleHud();

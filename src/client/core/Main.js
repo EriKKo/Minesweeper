@@ -961,28 +961,61 @@ var botListEl = document.getElementById("bot_list");
 var frozenUntil = 0;
 var freezeTickHandle = null;
 var roundDeadline = null;
-var lastResyncAt = 0; // throttles the clear-reconciliation resync (see draw_board handler)
-var myTotalSafe = 0;  // safe-cell count for my board this round (from draw_board) — target for a local clear
 
-// When we've locally revealed every safe cell, proactively tell the server the full set we cleared, in
-// case a reveal was dropped in transit (the server would otherwise sit one short, time out, and score the
-// round we cleared as a loss). revealSafeCell on the server force-applies any it's missing and skips the
-// rest, so re-sending the whole board is cheap + idempotent. Throttled. Complements the draw_board-driven
-// resync, which can't fire if our last action was the dropped one and nobody else is acting.
-function claimLocalClearResync() {
-	if (!currentRoom || !myState || myTotalSafe <= 0) return;
-	var revealed = [];
-	for (var rr = 0; rr < rows; rr++) {
-		for (var cc = 0; cc < cols; cc++) {
-			if (myState[rr][cc] === KNOWN && boardCell(rr, cc) !== MINE) revealed.push([rr, cc]);
-		}
-	}
-	if (revealed.length < myTotalSafe) return; // not actually cleared yet
-	var now = Date.now();
-	if (now - lastResyncAt < 1200) return;
-	lastResyncAt = now;
-	activeGameSocket().emit("resync_reveal", { cells: revealed, id: id });
+// Move-history hash chain (MoveHash, src/common), mirroring the server's own (GameCreator.js) —
+// lets either side notice the instant they disagree on move history, and precisely which moves are
+// missing, instead of only noticing once a symptom shows up (a board that looks cleared but never
+// registers the win — the old resync_reveal safety net this replaces only caught exactly that one
+// symptom, and only by blindly re-sending every currently-revealed cell). Reset at the start of
+// every round (setCoveredBoard); advanced by exactly one move per accepted left_click/right_click
+// (see performAction, Input.js) — the SAME definition of "a move" the server uses.
+var localMoveSeq = 0;
+var localMoveHash = MoveHash.SEED;
+var localMoveLog = []; // { seq, r, c, flag } — the whole round's moves, so any can be replayed on request
+
+// Advances our local move state for one accepted (r, c, isFlag) move and logs it — called from
+// performAction right before emitting left_click/right_click, so localMoveSeq/localMoveHash always
+// describe exactly what was just sent (or attempted) to the server, in the same order it was sent.
+function recordLocalMove(r, c, isFlag) {
+	localMoveSeq++;
+	localMoveHash = MoveHash.next(localMoveHash, r, c, isFlag);
+	localMoveLog.push({ seq: localMoveSeq, r: r, c: c, flag: isFlag });
 }
+
+// Attaches our current (seq, hash) to an outgoing payload (a left_click/right_click, the periodic
+// heartbeat below, or a resync_moves reply) so the server can compare against its own the instant it
+// finishes processing whatever this payload carries.
+function attachMoveSync(data) {
+	data.seq = localMoveSeq;
+	data.hash = localMoveHash;
+	return data;
+}
+
+// Periodic heartbeat: report our current (seq, hash) even when nothing's currently being clicked, so
+// a dropped packet that happened to be our LAST move of the round still gets caught — the piggybacked
+// seq/hash on left_click/right_click can't help with that specific case, since there may never be a
+// next click to piggyback on once the board's fully cleared. Always running; a no-op outside an
+// active multiplayer round with at least one move made (nothing to be out of sync about otherwise).
+setInterval(function() {
+	if (currentActionMode() !== "multiplayer" || !currentRoom || !localMoveLog.length) return;
+	activeGameSocket().emit("move_sync", attachMoveSync({ id: id }));
+}, 1000);
+
+// The server told us (move_resync_needed) it's missing everything after fromSeq — resend those
+// moves, in order, straight from our own local log. Nothing is "regenerated": these are the literal
+// (r, c, flag) tuples we already applied locally and already tried to send once.
+socket.on("move_resync_needed", function(data) {
+	if (!currentRoom) return;
+	var fromSeq = (data && data.fromSeq) || 0;
+	var missing = localMoveLog.filter(function(m) { return m.seq > fromSeq; });
+	if (!missing.length) return;
+	console.log("[sync] server missing moves after seq " + fromSeq + " — resending " + missing.length);
+	activeGameSocket().emit("resync_moves", attachMoveSync({
+		id: id,
+		moves: missing.map(function(m) { return { r: m.r, c: m.c, flag: m.flag }; })
+	}));
+});
+
 var roundTickHandle = null;
 var roundResultShown = false;
 
@@ -1732,6 +1765,10 @@ function setCoveredBoard() {
 	if (!rows || !cols) return;
 	clearPlaceBadges(); // a fresh round starts covered — drop the previous round's finish places
 	resetClearChallenge(); // new board → reset the no-flag / chord-only tracking
+	// New round → fresh move-history hash chain, matching the server's own reset (GameCreator.init).
+	localMoveSeq = 0;
+	localMoveHash = MoveHash.SEED;
+	localMoveLog = [];
 
 	myState = new Array(rows);
 	for (var r = 0; r < rows; r++) {
@@ -2147,20 +2184,9 @@ socket.on("draw_board", function(data) {
 
 	if (me) {
 		setHudName(document.getElementById("player_name0"), me);
-		if (me.totalSafe > 0) myTotalSafe = me.totalSafe;
-		// Cells we've revealed (locally, optimistically) as safe but the server's authoritative state for
-		// us still shows covered — i.e. reveals it hasn't applied. Collected so we can re-send them if it
-		// turns out we've cleared the board but the server fell behind (see resync below).
-		var serverMissing = [];
-		var localSafeRevealed = 0;
 		if (myState) {
 			for (var rr = 0; rr < rows; rr++) {
 				for (var cc = 0; cc < cols; cc++) {
-					var locallySafe = myState[rr][cc] === KNOWN && boardCell(rr, cc) !== MINE;
-					if (locallySafe) {
-						localSafeRevealed++;
-						if (me.state[rr][cc] !== KNOWN) serverMissing.push([rr, cc]);
-					}
 					// Reveal is monotonic — the server can never un-reveal a cell,
 					// so keep any locally-revealed cell revealed.
 					if (myState[rr][cc] === KNOWN && me.state[rr][cc] !== KNOWN) {
@@ -2179,33 +2205,23 @@ socket.on("draw_board", function(data) {
 		// localRoundStartReveal (countDown's onDone) is the ONLY thing that reveals a round's opening
 		// cascade — while it hasn't fired yet (pendingLocalRoundReveal), leave the board exactly as
 		// setCoveredBoard() painted it rather than let this broadcast reveal it a second, different way
-		// (instantly, no ripple). Everything else below (HUD name, resync-heal, clear reporting) still
-		// runs — none of it does anything meaningful against a still-covered board.
+		// (instantly, no ripple). Everything else below (HUD name, clear reporting) still runs — none
+		// of it does anything meaningful against a still-covered board.
 		if (!pendingLocalRoundReveal) {
 			// draw_board is a room-wide broadcast — it fires on ANY player's move, not just ours, so
 			// most of the time our own board hasn't actually changed at all. queueRevealAnimations
 			// gives every changed cell a cellAnims entry (a real animation, or a "settle" placeholder
 			// for one with none — see its own comment) and kicks off the RAF loop, which repaints
 			// exactly those cells next frame — no explicit renderPlayerBoard call needed here, and so
-			// no full repaint of an unchanged board on every broadcast in the room.
+			// no full repaint of an unchanged board on every broadcast in the room. A move dropped in
+			// transit is caught by the move-history hash chain instead (localMoveSeq/localMoveHash,
+			// above, and move_sync/move_resync_needed/resync_moves) rather than by anything here.
 			queueRevealAnimations(me.state);
 			myState = me.state;
 			prevPlayerState = cloneState(me.state);
 		}
 		updateMobileFindNextHint();
 		mobileAutoSelect();
-		// Self-heal a dropped reveal: if we've locally cleared every safe cell but the server hasn't marked
-		// us finished AND its board for us is still missing some of our reveals, re-send those reveals so it
-		// catches up and registers the win. Without this, a single reveal lost in transit silently strands
-		// the server behind — the round we actually cleared times out and scores as a loss ("cleared the
-		// board but it said Defeat"). Throttled so a brief in-flight lag doesn't spam.
-		if (me.totalSafe > 0 && localSafeRevealed >= me.totalSafe && !me.finished && serverMissing.length) {
-			var now = Date.now();
-			if (now - lastResyncAt > 1200) {
-				lastResyncAt = now;
-				activeGameSocket().emit("resync_reveal", { cells: serverMissing, id: id });
-			}
-		}
 		// Racing clear → report the no-flag / chord-only challenge (once per board).
 		if (me.finished && me.totalSafe > 0 && (me.safeCount || 0) >= me.totalSafe) reportClear();
 	}
