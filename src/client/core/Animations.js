@@ -646,8 +646,14 @@ function positionBoardHighlight(el, r, c) {
 	if (!cw || !ch) { el.hidden = true; return; }
 	var sw = cw / cols, sh = ch / rows;
 	var gap = Math.max(1, Math.round(Math.min(sw, sh) * 0.08));
-	el.style.left = (c * sw + gap / 2) + "px";
-	el.style.top = (r * sh + gap / 2) + "px";
+	// The overlay is positioned relative to #board_scroll (its offsetParent), not the canvas — those
+	// coincide for the plain racing/solo layout (.board-scroll is display:inline-block, the canvas
+	// fills it exactly), but NOT for puzzle mode's fixed 480x480 box, which flex-centers a smaller
+	// canvas inside it. offsetLeft/offsetTop is the canvas's actual position within that box in
+	// EITHER case, so this works regardless of how a particular mode's CSS lays the canvas out.
+	var offX = playerCanvas.offsetLeft, offY = playerCanvas.offsetTop;
+	el.style.left = (offX + c * sw + gap / 2) + "px";
+	el.style.top = (offY + r * sh + gap / 2) + "px";
 	el.style.width = (sw - gap) + "px";
 	el.style.height = (sh - gap) + "px";
 	el.hidden = false;

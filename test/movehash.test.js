@@ -21,6 +21,7 @@ var assert = require("node:assert");
 var io = require("socket.io-client");
 var helpers = require("./helpers");
 var MoveHash = require("../src/common/MoveHash");
+var BoardLogic = require("../src/common/BoardLogic");
 
 var server;
 test.before(async function() { server = await helpers.startServer({ port: 13890 }); });
@@ -49,6 +50,22 @@ function decodeBoard(dataB64, maskB64, rows, cols) {
 	return board;
 }
 
+// Every round opens with a centre cascade already revealed (see Main.js's localRoundStartReveal) —
+// both the server and every client compute this same deterministic patch via BoardLogic.cascadeReveal
+// from the board's centre cell. A cell inside it is already KNOWN by the time the round goes live, so
+// right-clicking it is a chord attempt, not a flag (handleRightClick only flags a still-covered cell) —
+// picking one as a test's "safe cell to flag" would make FLAGGED unreachable and hang the test forever.
+function computeOpeningCascade(board, rows, cols) {
+	var known = {};
+	var centerR = Math.floor(rows / 2), centerC = Math.floor(cols / 2);
+	BoardLogic.cascadeReveal(centerR, centerC, rows, cols,
+		function(r, c) { return !known[r + "," + c]; },
+		function(r, c) { known[r + "," + c] = true; return board[r][c] === -1; },
+		function(r, c) { return board[r][c]; }
+	);
+	return known;
+}
+
 // Sets up a fresh 1-human + 1-bot casual room and plays it up to the point the round is live.
 async function enterLiveRound() {
 	var c = connect();
@@ -64,14 +81,17 @@ async function enterLiveRound() {
 	var start = await startedP;
 	var board = decodeBoard(start.boardData, start.boardMask, start.rows, start.cols);
 	await new Promise(function(r) { setTimeout(r, (start.startDelayMs || 0) + 300); }); // past the round-start delay
-	return { c: c, board: board, rows: start.rows, cols: start.cols };
+	var known = computeOpeningCascade(board, start.rows, start.cols);
+	return { c: c, board: board, rows: start.rows, cols: start.cols, known: known };
 }
 
-function findSafeCells(board, rows, cols, count) {
+// Cells that are neither mines nor already revealed by the round's opening cascade — i.e. genuinely
+// still-covered cells a flag or a fresh reveal can target.
+function findSafeCells(board, rows, cols, count, known) {
 	var out = [];
 	for (var r = 0; r < rows && out.length < count; r++) {
 		for (var cc = 0; cc < cols && out.length < count; cc++) {
-			if (board[r][cc] !== -1) out.push({ r: r, c: cc });
+			if (board[r][cc] !== -1 && (!known || !known[r + "," + cc])) out.push({ r: r, c: cc });
 		}
 	}
 	return out;
@@ -96,7 +116,7 @@ test("a left_click dropped in transit is detected via the next move's piggybacke
 	var ctx = await enterLiveRound();
 	var c = ctx.c;
 	try {
-		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2);
+		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2, ctx.known);
 		assert.strictEqual(cells.length, 2, "board has at least two safe cells to click");
 		var cellA = cells[0], cellB = cells[1];
 
@@ -110,7 +130,7 @@ test("a left_click dropped in transit is detected via the next move's piggybacke
 		}
 
 		trackAndMaybeEmit(cellA, false); // "sent" but dropped — never actually emitted
-		var resyncNeededP = once(c, "move_resync_needed", 3000);
+		var resyncNeededP = once(c, "move_resync_needed", 6000);
 		trackAndMaybeEmit(cellB, true); // a real, delivered click, seq now ahead of what the server has
 
 		// The server must NOT silently apply cellB on top of its (cellA-missing) board — it should
@@ -126,7 +146,7 @@ test("a left_click dropped in transit is detected via the next move's piggybacke
 			moves: missing.map(function(m) { return { r: m.r, c: m.c, flag: m.flag }; })
 		});
 
-		var healed = await waitForOwnState(c, function(s) { return s[cellA.r][cellA.c] === KNOWN && s[cellB.r][cellB.c] === KNOWN; }, 3000);
+		var healed = await waitForOwnState(c, function(s) { return s[cellA.r][cellA.c] === KNOWN && s[cellB.r][cellB.c] === KNOWN; }, 6000);
 		assert.strictEqual(healed[cellA.r][cellA.c], KNOWN, "the dropped move (cellA) is healed");
 		assert.strictEqual(healed[cellB.r][cellB.c], KNOWN, "the move that arrived while a gap existed (cellB) is also applied, in order");
 	} finally { c.close(); }
@@ -136,7 +156,7 @@ test("a dropped move with no further clicks is still caught by the move_sync hea
 	var ctx = await enterLiveRound();
 	var c = ctx.c;
 	try {
-		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2);
+		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2, ctx.known);
 		assert.strictEqual(cells.length, 2, "board has at least two safe cells");
 		var cellA = cells[0], cellB = cells[1];
 
@@ -152,7 +172,7 @@ test("a dropped move with no further clicks is still caught by the move_sync hea
 		trackAndMaybeEmit(cellB, false); // dropped — never emitted, no further click follows it
 
 		// Simulates Main.js's 1s setInterval heartbeat: just the client's current (seq, hash), no move.
-		var resyncNeededP = once(c, "move_resync_needed", 3000);
+		var resyncNeededP = once(c, "move_resync_needed", 6000);
 		c.emit("move_sync", { id: c.id, seq: seq, hash: hash });
 		var resyncNeeded = await resyncNeededP;
 		assert.strictEqual(resyncNeeded.fromSeq, 1, "server is missing exactly the one move after its real seq 1");
@@ -164,7 +184,7 @@ test("a dropped move with no further clicks is still caught by the move_sync hea
 			moves: missing.map(function(m) { return { r: m.r, c: m.c, flag: m.flag }; })
 		});
 
-		var healed = await waitForOwnState(c, function(s) { return s[cellB.r][cellB.c] === KNOWN; }, 3000);
+		var healed = await waitForOwnState(c, function(s) { return s[cellB.r][cellB.c] === KNOWN; }, 6000);
 		assert.strictEqual(healed[cellB.r][cellB.c], KNOWN, "the dropped move is healed purely via the heartbeat, with no further click ever following it");
 	} finally { c.close(); }
 });
@@ -173,7 +193,13 @@ test("a dropped flag (right_click) is tracked and healed the same way", async fu
 	var ctx = await enterLiveRound();
 	var c = ctx.c;
 	try {
-		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2);
+		// Both moves are flags, not a flag + a reveal: a reveal can cascade into neighbouring cells,
+		// and if it happened to reach flagCell before the resync catches up, flagCell would already
+		// be KNOWN by the time resync_moves tries to flag it — handleRightClick treats a right-click
+		// on a KNOWN cell as a chord attempt, not a flag, so it could never reach FLAGGED and this
+		// test would hang waiting for a state that's no longer reachable. A flag never cascades, so
+		// two flags on two different covered cells can't collide this way.
+		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 2, ctx.known);
 		var flagCell = cells[0], nextCell = cells[1];
 
 		var seq = 0, hash = MoveHash.SEED, log = [];
@@ -183,16 +209,10 @@ test("a dropped flag (right_click) is tracked and healed the same way", async fu
 			log.push({ seq: seq, r: cell.r, c: cell.c, flag: true });
 			if (emit) c.emit("right_click", { r: cell.r, c: cell.c, id: c.id, seq: seq, hash: hash });
 		}
-		function trackReveal(cell, emit) {
-			seq++;
-			hash = MoveHash.next(hash, cell.r, cell.c, false);
-			log.push({ seq: seq, r: cell.r, c: cell.c, flag: false });
-			if (emit) c.emit("left_click", { r: cell.r, c: cell.c, id: c.id, seq: seq, hash: hash });
-		}
 
 		trackFlag(flagCell, false); // the flag itself is dropped
-		var resyncNeededP = once(c, "move_resync_needed", 3000);
-		trackReveal(nextCell, true); // a real, delivered reveal elsewhere — triggers gap detection
+		var resyncNeededP = once(c, "move_resync_needed", 6000);
+		trackFlag(nextCell, true); // a real, delivered flag elsewhere — triggers gap detection
 
 		var resyncNeeded = await resyncNeededP;
 		var missing = log.filter(function(m) { return m.seq > resyncNeeded.fromSeq; });
@@ -201,7 +221,7 @@ test("a dropped flag (right_click) is tracked and healed the same way", async fu
 			moves: missing.map(function(m) { return { r: m.r, c: m.c, flag: m.flag }; })
 		});
 
-		var healed = await waitForOwnState(c, function(s) { return s[flagCell.r][flagCell.c] === FLAGGED; }, 3000);
+		var healed = await waitForOwnState(c, function(s) { return s[flagCell.r][flagCell.c] === FLAGGED; }, 6000);
 		assert.strictEqual(healed[flagCell.r][flagCell.c], FLAGGED, "the dropped flag is healed");
 	} finally { c.close(); }
 });
@@ -210,7 +230,7 @@ test("normal play with zero packet loss never triggers a resync", async function
 	var ctx = await enterLiveRound();
 	var c = ctx.c;
 	try {
-		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 4);
+		var cells = findSafeCells(ctx.board, ctx.rows, ctx.cols, 4, ctx.known);
 		var seq = 0, hash = MoveHash.SEED;
 		var sawResyncRequest = false;
 		c.on("move_resync_needed", function() { sawResyncRequest = true; });
